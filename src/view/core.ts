@@ -52,14 +52,15 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
 composer.addPass(bloom);
 export const gradePass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 }, uLow: { value: 0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; uniform float uLow; varying vec2 vUv;
     void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 d=vUv-.5; d.x*=1.2; float r=length(d);
       float l=dot(c.rgb,vec3(.299,.587,.114));
       c.rgb=mix(c.rgb*vec3(.8,.95,1.15), c.rgb*vec3(1.06,1.,.9), smoothstep(.05,.6,l));
       c.rgb=mix(c.rgb, vec3(.6,.02,.02), uHurt*smoothstep(.25,.75,r));
       float vig=smoothstep(.8,.2,r); c.rgb*=vig;
+      c.rgb+=vec3(.42,.0,.03)*uLow*smoothstep(.42,.8,r); // low-HP: soft red glow on the screen edges, centre stays clear
       gl_FragColor=c; }`,
 });
 composer.addPass(gradePass);

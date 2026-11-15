@@ -18,7 +18,7 @@ export interface PSnap {
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
-  am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; rg: number[]; ac: number; rk: number; rr: number;
+  am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]

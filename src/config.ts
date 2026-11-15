@@ -40,6 +40,10 @@ export interface Balancing {
     newFieldWeight: number; fieldCardPause: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number } & Record<EnemyType, EnemyCfg>;
+  hud: {
+    hat: { colors: [number, string][]; crownShare: number; blinkBelow: number; pulseBelow: number; vignetteBelow: number; vignetteStrength: number };
+    ammo: { showOnSwitch: number; lowSeconds: number; lowShow: number; fade: number };
+  };
   waves: {
     firstWave: number; spawnRadius: number; gapStart: number; gapEnd: number; gapJitter: number; rampTime: number;
     sizeStart: number; sizePerMinute: number; sizeMax: number;

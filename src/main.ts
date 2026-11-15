@@ -211,7 +211,8 @@ class Game {
     }
     if (headless) return;
     const s = this.view.snap;
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.syncPhase(s); }
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); }
+    else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);
   }

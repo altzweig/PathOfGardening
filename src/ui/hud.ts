@@ -12,6 +12,28 @@ export class Hud {
   private cache: Record<string, string> = {};
   private wasReady: Record<string, boolean> = {};
   private resKey = '';
+  // ammo popup of the equipped weapon
+  private ammo = { w: '', vis: 0, op: 0, armed: true, last: -1, key: '' };
+  /** shows the equipped weapon's ammo after a switch and once when ~lowSeconds of fire are left */
+  updateAmmo(s: Snap, me: number, dt: number, pos: { x: number; y: number } | null, A: { showOnSwitch: number; lowSeconds: number; lowShow: number; fade: number }) {
+    const el = $('#ammoPop'), pr = s.me[me], st = this.ammo;
+    if (!pr || !pos) { el.style.opacity = '0'; return; }
+    const w = WEAPONS[pr.ac];
+    if (w !== st.w) { st.w = w; st.vis = w === 'rake' ? 0 : A.showOnSwitch; st.armed = true; st.last = -1; }
+    let target = 0;
+    if (w !== 'rake') {
+      const i = SKILLS.indexOf(w as any), am = pr.am[i], secs = Math.floor(am / Math.max(1, pr.co[i])) * pr.cs[i];
+      if (secs > A.lowSeconds) st.armed = true; // refilled: warn again next time
+      else if (st.armed) { st.armed = false; st.vis = Math.max(st.vis, A.lowShow); }
+      const key = w + am + (secs <= A.lowSeconds ? 'l' : '');
+      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
+      target = st.vis > 0 ? 1 : 0;
+    }
+    st.vis = Math.max(0, st.vis - dt);
+    st.op += Math.sign(target - st.op) * Math.min(Math.abs(target - st.op), dt / Math.max(.01, A.fade));
+    el.style.opacity = st.op.toFixed(2);
+    el.style.transform = `translate(${pos.x}px,${pos.y}px) translate(-50%,-100%)`;
+  }
   constructor() {
     const box = $('#btns');
     for (const w of WEAPONS) {

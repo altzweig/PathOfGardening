@@ -70,8 +70,11 @@ export function buildPlayer(color: number, rakeLen: number) {
   part(body, GEO.box, M(0x6b4a2a), .46, .08, .4, 0, .52, 0);
   part(body, GEO.cyl, dark, .07, .32, .07, -.1, .16, 0); part(body, GEO.cyl, dark, .07, .32, .07, .1, .16, 0);
   part(body, GEO.sph, skin, .16, .16, .16, 0, 1.08, 0);
-  part(body, GEO.cyl, straw, .36, .03, .36, 0, 1.2, 0);
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(.13, .17, .16, 10), straw); crown.position.y = 1.29; crown.castShadow = true; body.add(crown);
+  // straw hat = health display: eaten from the top down (bite marks), colour follows HP
+  const hat = makeHatMaterial();
+  const brimG = new THREE.CylinderGeometry(.36, .36, .03, 28, 1); brimG.translate(0, 1.2, 0);
+  const crownG = new THREE.CylinderGeometry(.13, .17, .16, 24, 6); crownG.translate(0, 1.29, 0);
+  const brim = new THREE.Mesh(brimG, hat.mat), crownM = new THREE.Mesh(crownG, hat.mat); brim.castShadow = crownM.castShadow = true; body.add(brim, crownM);
   part(body, GEO.sph, M(0x222222), .025, .025, .025, -.06, 1.1, .14, false); part(body, GEO.sph, M(0x222222), .025, .025, .025, .06, 1.1, .14, false);
   const arm = part(body, GEO.cyl, coat, .055, .38, .055, .26, .78, .08); arm.rotation.x = -1.0;
   // rake: pivot at the player, head reaches exactly the hit range so the swing matches the cone
@@ -82,7 +85,7 @@ export function buildPlayer(color: number, rakeLen: number) {
   for (let i = 0; i < 6; i++) part(rake, GEO.cyl, steel, .012, .12, .012, -.18 + i * .072, -.06, L + .02);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
-  return { g, body, rake, stars, coat, L };
+  return { g, body, rake, stars, coat, L, hat };
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green
@@ -146,4 +149,31 @@ export function buildEnemy(type: EnemyType) {
   P.stars = stars;
   const carry = new THREE.Group(); body.add(carry); P.carry = carry;
   return { g, P: P as EnemyParts };
+}
+
+/** Hat material: uHp 1..0 eats the hat. Crown (y 1.215..1.37) is bitten from the top down,
+ *  then the brim from the outside in. uCol = colour, uPulse = emissive blink. */
+export function makeHatMaterial() {
+  const uHp = { value: 1 }, uCol = { value: new THREE.Color(0xb8d040) }, uPulse = { value: 0 }, uCrown = { value: .65 };
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .85, flatShading: true, side: THREE.DoubleSide });
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { uHp, uCol, uPulse, uCrown });
+    sh.vertexShader = 'varying vec3 vHatPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHatPos = position;');
+    sh.fragmentShader = 'varying vec3 vHatPos; uniform float uHp; uniform vec3 uCol; uniform float uPulse; uniform float uCrown;\n' + sh.fragmentShader
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        float ang = atan(vHatPos.z, vHatPos.x);
+        float bites = .018 * (abs(sin(ang * 5.0)) + .6 * abs(sin(ang * 9.0 + 1.3)));   // scalloped bite marks
+        float r = length(vHatPos.xz);
+        // crown: share uCrown of the HP bar eats the crown top-down
+        float kc = clamp((uHp - (1.0 - uCrown)) / uCrown, 0.0, 1.0);
+        float cutY = mix(1.205, 1.415, kc) - bites;
+        if (vHatPos.y > 1.214 && vHatPos.y > cutY) discard;
+        // brim: the rest of the HP eats the brim from the outside in
+        float kb = clamp(uHp / (1.0 - uCrown), 0.0, 1.0);
+        float cutR = mix(.12, .40, kb) - bites * 1.6;
+        if (vHatPos.y <= 1.214 && r > cutR) discard;`)
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * uCol * .72, opacity );')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += uCol * uPulse;');
+  };
+  return { mat, uHp, uCol, uPulse, uCrown };
 }

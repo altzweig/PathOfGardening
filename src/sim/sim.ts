@@ -846,7 +846,7 @@ export class Sim {
       const st = SKILLS.map(id => this.stats(id, p.skills[id]));
       me[p.id] = {
         am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
-        nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
+        nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), rk: r2(Math.max(0, p.rakeCd / this.cfg.rake.cooldown)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1,
       };

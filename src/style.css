@@ -118,3 +118,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #placeBar .pic{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);display:grid;place-items:center;border:2px solid var(--gold);box-shadow:0 0 24px #e3b96466;animation:pulse2 1.2s ease-in-out infinite alternate}
 #placeBar .pic svg{width:72%;height:72%}
 @keyframes pulse2{from{transform:scale(1)}to{transform:scale(1.08)}}
+/* ammo of the equipped weapon, floats above the player */
+#ammoPop{position:absolute;left:0;top:0;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:2px 9px 2px 4px;border-radius:999px;background:#0b1016cc;border:1px solid #ffffff22;font:700 15px var(--f-body);font-variant-numeric:tabular-nums;color:var(--parch);opacity:0;pointer-events:none;will-change:transform,opacity}
+#ammoPop svg{width:22px;height:22px;display:block}
+#ammoPop.low{color:#ffb08a;border-color:#ff8a6a66}

@@ -17,7 +17,7 @@ import { GROUND_MAT } from './models';
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60' };
 
-interface PView { stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -57,6 +57,18 @@ export class GameView {
   /** mouse wheel: + zooms out, - zooms in */
   zoomBy(dy: number) { this.zoom = clamp(this.zoom * Math.pow(1.0015, dy), .55, 1.7); }
   private berryT = 0;
+  private lowHp = 0;
+  /** hat = health: eaten top-down, colour gradient, blink when low */
+  private hatHp(v: PView, frac: number) {
+    const H = this.cfg.hud.hat, now = performance.now() / 1000; frac = clamp(frac, 0, 1);
+    v.hat.uHp.value = frac; v.hat.uCrown.value = H.crownShare;
+    const cs = H.colors; let c = new THREE.Color(cs[cs.length - 1][1]);
+    for (let i = 0; i < cs.length - 1; i++) if (frac <= cs[i][0] && frac >= cs[i + 1][0]) { const t = (cs[i][0] - frac) / (cs[i][0] - cs[i + 1][0] || 1); c = new THREE.Color(cs[i][1]).lerp(new THREE.Color(cs[i + 1][1]), t); }
+    if (frac >= cs[0][0]) c = new THREE.Color(cs[0][1]);
+    v.hat.uCol.value.copy(c);
+    v.hat.uPulse.value = frac <= H.pulseBelow ? .55 + .45 * Math.sin(now * 9) : frac <= H.blinkBelow ? .18 + .18 * Math.sin(now * 4) : 0;
+    if (v.s.id === this.me) this.lowHp = v.s.al && frac <= H.vignetteBelow ? H.vignetteStrength * (.8 + .2 * Math.sin(now * 3)) : 0;
+  }
   /** lying blueberries glow and pulse more the closer the team is to the next level */
   private berryGlow(dt: number) {
     const s = this.snap; const k = s && s.nx ? clamp(s.xp / s.nx, 0, 1) : 0;
@@ -379,6 +391,7 @@ export class GameView {
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = meV ? this.hurtT * .7 + (meV.s.al ? 0 : .3) : 0;
+    gradePass.uniforms.uLow.value = meV ? this.lowHp : 0;
     (document.getElementById('hurt') as HTMLElement).style.opacity = (this.hurtT * 1.2).toFixed(2);
     composer.render();
   }
@@ -399,6 +412,7 @@ export class GameView {
     else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
     else { v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2); }
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
+    this.hatHp(v, s.hp / s.mhp);
     const other = s.id !== this.me;
     v.bar.visible = other && !!s.al; v.bar.position.set(v.x, 1.6, v.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, s.hp / s.mhp);
   }
@@ -482,6 +496,12 @@ export class GameView {
     torch.position.set(tx, 3, tz + .6); setListener(tx, tz);
     this.aggro.position.set(tx, .03, tz); this.aggro.visible = !!(me && me.s.al);
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
+  }
+  /** screen position (px) of a point above the local player's head, or null */
+  playerScreen(): { x: number; y: number } | null {
+    const me = this.players.get(this.me); if (!me || !me.s.al) return null;
+    const v = V(me.x, 1.75, me.z).project(camera);
+    return { x: (v.x * .5 + .5) * innerWidth, y: (-v.y * .5 + .5) * innerHeight };
   }
   /** screen point -> ground direction from local player (for mouse aim) */
   groundDir(cx: number, cy: number): [number, number] | null {

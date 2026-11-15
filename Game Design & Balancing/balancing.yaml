@@ -209,3 +209,22 @@ waves:
     panda:   { from: 120,  weight: 2, early: 1 }  # early: Gewicht vor "from", sobald Spargel- oder Preiselbeerfeld steht
     toad:    { from: 230, weight: 1.2 }
     sheep:   { from: 390, weight: 0.8 }
+
+hud:
+  hat:                     # Leben = Strohhut, der angefressen wird
+    colors:                # [Leben-Anteil, Farbe] – dazwischen wird gemischt
+      - [1.00, "#b8d040"]  # grüngelb, voll
+      - [0.70, "#e6cf3a"]  # gelb
+      - [0.45, "#e8902c"]  # orange
+      - [0.25, "#d8442a"]  # rot
+      - [0.10, "#9e0f12"]  # tiefrot
+    crownShare: 0.65       # Anteil des Lebens, der den Hut-Kopf von oben frisst; der Rest frisst die Krempe
+    blinkBelow: 0.10       # darunter blinkt der Hut leicht
+    pulseBelow: 0.05       # darunter pulsiert er stärker + rote Bildschirmränder
+    vignetteBelow: 0.05
+    vignetteStrength: 0.35 # 0..1, bewusst dezent
+  ammo:                    # Munitionsanzeige der aktiven Waffe
+    showOnSwitch: 1.5      # s sichtbar nach Waffenwechsel
+    lowSeconds: 3          # "geht zur Neige": wenn nur noch so viele Sekunden Dauerfeuer übrig sind
+    lowShow: 1.0           # s sichtbar bei "geht zur Neige"
+    fade: 0.3              # s Ein-/Ausblenden

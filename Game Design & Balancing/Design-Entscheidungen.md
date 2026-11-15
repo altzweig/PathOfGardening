@@ -85,3 +85,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Doppelte Gegnermenge (Stoßgröße Start/Zuwachs/Max, Obergrenze gleichzeitig). HP dafür auf etwa 60 % gesenkt (Waschbär 7, Panda 11, Kröte 6, Schaf 3 + Schild 6). Gesamt-HP pro Stoß also etwa 1,2×.
 - Büsche stehen näher an den Feldern (13–15 m), Gegner kommen bei 15,5 m aus ihnen heraus (`waves.spawnRadius`).
 - Sounds: Beackern = echter Harken-Sound. Ein Waschbär, der mit Beute flieht, lacht keckernd (doppelt so schnell und höher), alle 2,5–4 s. Der Panda tut das etwas höher.
+
+## Leben und Munition anzeigen (15.11.2026)
+- Leben = Strohhut. Bei vollem Leben ist er ganz und grüngelb. Mit sinkendem Leben wird erst der Hutkopf von oben nach unten angefressen (Bissspuren), danach die Krempe von außen nach innen. Die Farbe geht von Grüngelb über Gelb und Orange nach Rot. Gilt für alle Spieler, im Koop sieht man also auch den Zustand der anderen.
+- Unter 10 % ist der Hut tiefrot und blinkt leicht, unter 5 % pulsiert er stärker und die Bildschirmränder glühen dauerhaft rot, bis wieder Leben da ist oder man nach dem Tod voll geheilt wird. Die Mitte bleibt frei, damit es beim Spielen nicht stört. Alle Schwellen und Farben unter `hud.hat`.
+- Munition der aktiven Waffe schwebt über dem Kopf: nach einem Waffenwechsel 1,5 s sichtbar, dann sanft weg. Sobald nur noch etwa 3 s Dauerfeuer übrig sind (Munition ÷ Kosten × Abklingzeit), erscheint sie 1 s lang (rötlich). Lädt man nach über die Schwelle, warnt sie beim nächsten Mal wieder. Werte unter `hud.ammo`.

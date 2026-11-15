@@ -31,6 +31,7 @@ raccoon:
   attack:      { files: [rac_attack_1, rac_attack_2, rac_attack_3, rac_hiss], vol: 0.26, pitch: [0.95, 1.08], gap: 0.5 }
   fieldAttack: { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.18, pitch: [0.85, 0.95], gap: 0.7 }
   die:         { files: [rac_die_1, rac_die_2], vol: 0.3, pitch: [0.8, 0.92], gap: 0.15 }
+  laugh:       { files: [rac_laugh_1, rac_laugh_2], vol: 0.45, pitch: [1.9, 2.1], gap: 2 }   # rennt mit Beute davon: keckerndes Lachen (doppelt so schnell + höher)
 
 panda:
   # nutzt die Waschbär-Laute, etwas höher
@@ -40,6 +41,7 @@ panda:
   attack:      { files: [rac_attack_1, rac_attack_2, rac_attack_3, rac_hiss], vol: 0.24, pitch: [1.1, 1.22], gap: 0.5 }
   fieldAttack: { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.16, pitch: [1.0, 1.1], gap: 0.7 }
   die:         { files: [rac_die_1, rac_die_2], vol: 0.28, pitch: [0.95, 1.05], gap: 0.15 }
+  laugh:       { files: [rac_laugh_1, rac_laugh_2], vol: 0.42, pitch: [2.1, 2.3], gap: 2 }
 
 toad:
   wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.1, pitch: [0.85, 1.1], gap: 20, chance: 0.75, delay: [0, 6] }   # Quaken im Hintergrund: leise, etwa 2-3x pro Minute
@@ -59,7 +61,7 @@ player:
   hurt:   { synth: hurt, gap: 0.2 }
   die:    { synth: playerDie, gap: 1 }
   spawn:  { synth: respawn, gap: 0.5 }
-  till:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.2, pitch: [0.8, 1.0], gap: 0.1, lp: 2500 }   # Feld beackern
+  till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Feld beackern (Harke im Boden)
 
 plants:
   produce:

@@ -25,22 +25,23 @@ export interface Balancing {
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
   fields: { hp: number; healPerSecond: number; tillReach: number; tillDuration: number; tillMultiplier: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number }>;
-  rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number };
+  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number }>;
+  rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;
-    asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number };
-    cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
+    asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number; width: number };
+    cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pelletStep: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
-    aspPierce: Lim; aspPierceBonus: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
+    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
+    rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
     newFieldWeight: number; fieldCardPause: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number } & Record<EnemyType, EnemyCfg>;
   waves: {
-    firstWave: number; gapStart: number; gapEnd: number; gapJitter: number; rampTime: number;
+    firstWave: number; spawnRadius: number; gapStart: number; gapEnd: number; gapJitter: number; rampTime: number;
     sizeStart: number; sizePerMinute: number; sizeMax: number;
     directionsStart: number; directionsMax: number; directionEvery: number; directionSpread: number;
     staggerMin: number; staggerMax: number; warnTime: number;

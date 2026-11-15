@@ -14,19 +14,19 @@ export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: fal
 export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
-  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number;
+  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number;
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
-  am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; rg: number[]; ac: number; rk: number;
+  am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; rg: number[]; ac: number; rk: number; rr: number;
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
 // fruit: [id, type, tier, x, y, z]
 export type FSnap = [number, number, number, number, number, number];
-// projectile: [id, kind(0 asp,1 cran), x, y, z, angle]
-export type JSnap = [number, number, number, number, number, number];
+// projectile: [id, kind(0 asp,1 cran), x, y, z, angle, widthScale]
+export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse]
 export type BSnap = [number, number, number, number, number, number];
 // mine: [id, x, z]

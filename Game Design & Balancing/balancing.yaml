@@ -85,8 +85,8 @@ fruit:
 
 plants:
   blue: { interval: 1 }                 # 1 Frucht alle x s
-  asp:  { interval: 4, unlockAt: 15 }   # unlockAt: gesammelt -> Skill wird angeboten
-  cran: { interval: 1, unlockAt: 60 }
+  asp:  { interval: 4, unlockAt: 15, amount: 3 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  cran: { interval: 1, unlockAt: 60, amount: 3 }   # 3x Ertrag
   cab:  { interval: 8, unlockAt: 8 }
 
 rake:
@@ -94,25 +94,27 @@ rake:
   range: 1.8               # m (Prototyp: 1.0 -> +50 %)
   arc: 90                  # Grad, Breite des Kegels
   cooldown: 0.5            # s
-  swingTime: 0.15           # s, Animation
+  swingTime: 0.15          # s, Animation
+  knockback: 0             # m Rückstoß pro Treffer (Upgrade +10 cm)
 
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
   asp:
     damage: 15
     range: 7.5             # m (vorher 5 -> +50 %)
-    cooldown: 0.5
+    cooldown: 0.25         # doppelte Feuerrate (vorher 0.5)
     ammoPerShot: 1
     speed: 15              # m/s
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
+    width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
   cran:
     damage: 5              # je Projektil
     range: 4.5             # m (vorher 3 -> +50 %)
-    cooldown: 1.5
+    cooldown: 0.75         # doppelt so schnell (vorher 1.5)
     ammoPerShot: 6
-    pellets: 6
-    spread: 60             # Grad, Fächer
+    pelletStep: 10         # Grad zwischen zwei Beeren: 50 Grad Fächer -> 6 Beeren
+    spread: 50             # Grad, Fächer (gleichmäßig verteilt)
     bleedDuration: 3       # s
     bleedDps: 1
     mineLifetime: 15       # s
@@ -136,7 +138,12 @@ upgrades:
   rangePerLevel: 0.10      # +10 % Reichweite / Radius je Stufe (additiv)
   cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
   aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
-  aspPierceBonus: { step: 0.05, maxLevel: 5 }  # +5 Prozentpunkte Durchbohr-Schaden
+  aspPierceBonus: { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Durchbohr-Schaden (50 -> 100 %)
+  aspSize:        { step: 0.30, maxLevel: 5 }  # Spargel-Geschoss +30 % größer (Breite)
+  rakeRange:      { step: 0.08, maxLevel: 10 } # Harke +8 % Reichweite
+  rakeDamage:     { step: 0.10, maxLevel: 10 } # Harke +10 % Schaden
+  rakeKnockback:  { step: 0.10, maxLevel: 10 } # Harke +10 cm Rückstoß
+  tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Beackern heilt das Feld um +1 HP/s je Stufe; Ziehgewicht 1,2 (+20 %)
   cranPellets:    { step: 1,    maxLevel: 3 }
   cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
   cabMini:        { step: 1,    maxLevel: 5 }
@@ -148,13 +155,13 @@ upgrades:
 
 enemies:
   aggroRadius: 5           # m, ab hier greifen Gegner Spieler statt Felder an
-  maxAlive: 30             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor)
+  maxAlive: 60             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor), verdoppelt
   meleeDamage: 1
   meleeInterval: 1         # s
-  raccoon: { hp: 12, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
-  panda:   { hp: 18, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
+  raccoon: { hp: 7, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
+  panda:   { hp: 11, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
   toad:
-    hp: 10
+    hp: 6
     speed: 2.1
     radius: 0.30
     hopPeriod: 1           # s pro Sprung (halbe Zeit in der Luft = unverwundbar)
@@ -164,10 +171,10 @@ enemies:
     poisonInterval: 2
     poisonDamage: 1
   sheep:
-    hp: 5
+    hp: 3
     speed: 1.7
     radius: 0.44
-    shield: 10
+    shield: 6
     shieldRegen: 3         # s bis Schild wieder voll
     chargeRange: 4.5       # m, ab hier holt es Anlauf
     windup: 2
@@ -181,13 +188,14 @@ enemies:
 waves:
   # Gegner kommen in Stößen aus mehreren Richtungen.
   firstWave: 5             # s bis zum ersten Stoß
+  spawnRadius: 15.5        # m vom Zentrum: Gegner kommen aus den Büschen
   gapStart: 8              # s zwischen Stößen am Anfang
   gapEnd: 6                # s zwischen Stößen nach rampTime
   gapJitter: 0.25          # +-35 % Zufall auf den Abstand
   rampTime: 280            # s bis gapEnd erreicht ist
-  sizeStart: 2             # Gegner pro Stoß am Anfang
-  sizePerMinute: 1         # + Gegner pro Stoß je Minute
-  sizeMax: 12
+  sizeStart: 4             # Gegner pro Stoß am Anfang (verdoppelt)
+  sizePerMinute: 2         # + Gegner pro Stoß je Minute (verdoppelt)
+  sizeMax: 24              # verdoppelt
   directionsStart: 1       # Richtungen pro Stoß am Anfang
   directionsMax: 4
   directionEvery: 75       # s bis eine weitere Richtung möglich wird

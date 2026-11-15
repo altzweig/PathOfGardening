@@ -114,3 +114,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Tiere kommen ab Welle: Waschbär 1, Panda 4 (früher, sobald Spargel/Preiselbeere steht), Kröte 7, Schaf 11.
 - HUD zeigt dezent „Welle / Gesamt“ (grau während der Pause).
 - Testmodus: Im Cheat-Menü (E) kann man jede Welle 1–100 direkt starten.
+
+## Elite-Gegner und XP-Drops (16.11.2026)
+- Ab Welle 3 können Gegner als Elite kommen (4 %, +1 % je Welle, max. 25 %): 1,35× so groß, roter Leuchtrand, 3× Leben, 2× Angriffsstärke (Kröten-Gift doppelt).
+- Jeder besiegte Gegner lässt 1 Blaubeere (XP) fallen, Elite 5. Werte unter `enemies.xpDrop` und `enemies.elite`.

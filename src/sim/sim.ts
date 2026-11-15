@@ -55,7 +55,7 @@ interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
   stun: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
-  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number;
+  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number;
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -302,6 +302,9 @@ export class Sim {
       fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1;
     }
     e.carry = [];
+    // every enemy drops XP (blueberries), elites more
+    const E = this.cfg.enemies, n = Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
+    for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit('blue', 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1); }
     this.removeEnemy(e);
   }
   removeEnemy(e: Enemy) { e.dead = true; const i = this.enemies.indexOf(e); if (i >= 0) this.enemies.splice(i, 1); }
@@ -496,14 +499,14 @@ export class Sim {
   clampArena(x: number, z: number): [number, number] { const R = this.cfg.arena.radius, r = Math.hypot(x, z); return r > R ? [x * R / r, z * R / r] : [x, z]; }
 
   // ---------- enemies ----------
-  spawnEnemy(type: EnemyType, angle: number) {
-    const D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, hpF = this.f(this.cfg.coop.enemyHpExponent);
+  spawnEnemy(type: EnemyType, angle: number, elite = false) {
+    const EL = this.cfg.enemies.elite, D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, hpF = this.f(this.cfg.coop.enemyHpExponent) * (elite ? EL.hp : 1);
     const e: Enemy = {
       id: this.nid++, type, x: Math.cos(angle) * R, z: Math.sin(angle) * R, hp: D.hp * hpF, maxHp: D.hp * hpF,
-      shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius, speed: D.speed,
+      shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
       stun: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
-      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5),
+      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1,
     };
     this.enemies.push(e);
   }
@@ -592,7 +595,7 @@ export class Sim {
         if (d < rng && e.tongueCd <= 0 && t.kind !== 'fruit') {
           e.tongueCd = D.tongueCooldown!; e.tongueT = .35; e.tongueLen = d - .15; this.sfx(t.kind === 'player' ? 'toad.attack' : 'toad.fieldAttack', e.x, e.z);
           const ps = { t: D.poisonInterval!, ticks: D.poisonTicks! };
-          if (t.kind === 'player') t.p.poison.push(ps); else if (t.kind === 'field') t.f.poison.push(ps);
+          for (let k = 0; k < Math.round(e.dmgMul); k++) { if (t.kind === 'player') t.p.poison.push({ ...ps }); else if (t.kind === 'field') t.f.poison.push({ ...ps }); }
         }
       }
       return;
@@ -603,7 +606,7 @@ export class Sim {
       if (e.carry.length >= (D.carryMax || 5)) { e.fleeing = true; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); }
     } else if (t.kind !== 'fruit' && d <= reach) {
       e.atkT -= dt;
-      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage); } }
+      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } }
     } else e.atkT = Math.min(e.atkT, .5);
   }
   sheepAI(e: Enemy, dt: number) {
@@ -621,10 +624,10 @@ export class Sim {
       const s = D.chargeSpeed! * dt * this.slowF(e); e.x += e.cdx * s; e.z += e.cdz * s; e.walk += dt * 30;
       if (Math.random() < .6) this.emit({ k: 'dust', x: r2(e.x), z: r2(e.z) });
       if (!e.hitThisCharge) for (const p of this.players) if (p.alive && dist(e, p) < e.r + .4) {
-        e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtPlayer(p, D.ramDamage!); p.stun = Math.max(p.stun, D.ramStun!); p.kb = { dx: e.cdx, dz: e.cdz, left: D.knockback! };
+        e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtPlayer(p, D.ramDamage! * e.dmgMul); p.stun = Math.max(p.stun, D.ramStun!); p.kb = { dx: e.cdx, dz: e.cdz, left: D.knockback! };
         e.state = 'rest'; e.st = D.rest!; break;
       }
-      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtField(f, D.ramDamage!); e.state = 'rest'; e.st = D.rest!; }
+      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtField(f, D.ramDamage! * e.dmgMul); e.state = 'rest'; e.st = D.rest!; }
       if (e.st <= 0 && e.state === 'charge') { e.state = 'rest'; e.st = D.rest!; }
     } else if (e.state === 'rest') {
       if (e.st <= 0) { e.state = 'approach'; e.target = null; }
@@ -713,7 +716,8 @@ export class Sim {
       if (this.enemies.length < cap) {
         const lim = this.cfg.enemies[s.type].maxAlive; // e.g. at most 5 sheep at once
         const type = lim !== undefined && this.enemies.filter(e => e.type === s.type).length >= lim ? 'raccoon' : s.type;
-        this.spawnEnemy(type, s.angle);
+        const EL = this.cfg.enemies.elite, ch = this.wave >= EL.fromWave ? Math.min(EL.chanceMax, EL.chanceStart + EL.chancePerWave * (this.wave - EL.fromWave)) : 0;
+        this.spawnEnemy(type, s.angle, Math.random() < ch);
       }
     }
   }
@@ -1014,7 +1018,7 @@ export class Sim {
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
         if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.flash > 0) fl |= EF.flash;
-        if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge;
+        if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.elite) fl |= EF.elite;
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }

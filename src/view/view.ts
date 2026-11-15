@@ -11,7 +11,7 @@ import {
   GEO, M, PART, V, addMat, bolt, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
-import { BUSH_MAT, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { BUSH_MAT, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
 
@@ -204,6 +204,7 @@ export class GameView {
       let v = this.enemies.get(e[0]);
       if (!v) {
         const type = ENEMIES[e[1]], b = buildEnemy(type); this.dyn.add(b.g);
+        if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); b.P.body.add(eliteRim()); } // elite: bigger, red glowing rim
         v = { g: b.g, P: b.P, type, bar: makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }

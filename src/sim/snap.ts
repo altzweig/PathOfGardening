@@ -36,7 +36,7 @@ export type MSnap = [number, number, number];
 export type PuSnap = [number, number, number, number, number];
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

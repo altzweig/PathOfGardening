@@ -179,8 +179,20 @@ export function makeHatMaterial() {
         float kb = clamp(uHp / (1.0 - uCrown), 0.0, 1.0);
         float cutR = mix(.12, .40, kb) - bites * 1.6;
         if (vHatPos.y <= 1.214 && r > cutR) discard;`)
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * uCol * .72, opacity );')
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * uCol * .5, opacity );')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += uCol * uPulse;');
   };
   return { mat, uHp, uCol, uPulse, uCrown };
+}
+
+/** red glowing rim for elite enemies (fresnel shell around the body) */
+export function eliteRim() {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(0xff2a1a) }, uTime: windU },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `varying vec3 vN; varying vec3 vV; void main(){ vec4 wp=modelMatrix*vec4(position,1.); vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-wp.xyz); gl_Position=projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uTime; varying vec3 vN; varying vec3 vV;
+      void main(){ float f=pow(1.-abs(dot(normalize(vN),vV)),2.6); float a=f*(.75+.25*sin(uTime*4.)); gl_FragColor=vec4(uColor*a*1.3,a); }`,
+  });
+  const m = new THREE.Mesh(GEO.sph, mat); m.scale.set(.42, .36, .52); m.position.y = .36; return m;
 }

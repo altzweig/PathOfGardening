@@ -41,7 +41,8 @@ export interface Balancing {
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
-  enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number } & Record<EnemyType, EnemyCfg>;
+  enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number;
+    elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number } } & Record<EnemyType, EnemyCfg>;
   hud: {
     hat: { colors: [number, string][]; crownShare: number; blinkBelow: number; pulseBelow: number; vignetteBelow: number; vignetteStrength: number };
     ammo: { showOnSwitch: number; lowSeconds: number; lowShow: number; fade: number };

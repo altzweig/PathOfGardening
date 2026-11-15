@@ -181,6 +181,16 @@ enemies:
   maxAlive: 60             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor), verdoppelt
   meleeDamage: 1
   meleeInterval: 1         # s
+  xpDrop: 1                # jeder besiegte Gegner lässt so viele Blaubeeren (XP) fallen
+  elite:                   # Elite-Gegner: größer, roter Leuchtrand
+    fromWave: 3            # ab dieser Welle möglich
+    chanceStart: 0.04      # Anteil Elite in dieser Welle
+    chancePerWave: 0.01    # + je weitere Welle
+    chanceMax: 0.25
+    scale: 1.35            # Größe
+    hp: 3                  # x Leben
+    damage: 2              # x Angriffsstärke
+    xpMultiplier: 5        # x XP-Drop
   raccoon: { hp: 7, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
   panda:   { hp: 11, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
   toad:

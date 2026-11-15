@@ -39,7 +39,7 @@ export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32,
 export type Ev = { k: string; [key: string]: any };
 
 export interface Snap {
-  t: number; ph: 'play' | 'lvl' | 'over';
+  t: number; ph: 'play' | 'lvl' | 'over'; lr: number;
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number;
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[];
   me: Record<number, Priv>;

@@ -21,7 +21,7 @@ export interface Player {
   stun: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
-  offers: Offer[] | null; picked: boolean;
+  offers: Offer[] | null; picked: boolean; fresh: boolean;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[] }
 interface Fruit {
@@ -46,7 +46,7 @@ export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: nu
 
 export class Sim {
   cfg: Balancing;
-  time = 0; level = 1; xp = 0; pendingLv = 0; kills = 0; collectedXP = 0;
+  time = 0; lvRound = 0; level = 1; xp = 0; pendingLv = 0; kills = 0; collectedXP = 0;
   phase: 'play' | 'lvl' | 'over' = 'play';
   paused = false;
   players: Player[] = [];
@@ -83,7 +83,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0,
       ammo: { asp: 0, cran: 0, cab: 0 }, collected: { asp: 0, cran: 0, cab: 0 }, skills: { asp: mk(), cran: mk(), cab: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true,
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -96,7 +96,11 @@ export class Sim {
     if (this.phase === 'lvl') this.checkAllPicked();
   }
   player(id: number) { return this.players.find(p => p.id === id); }
-  setIntent(id: number, it: Intent) { const p = this.player(id); if (p) p.intent = it; }
+  setIntent(id: number, it: Intent) {
+    const p = this.player(id); if (!p) return;
+    if (p.fresh) { p.fresh = false; p.lastTap = it.tapSeq; p.lastCycle = it.cycle; } // counters from a previous round are not presses
+    p.intent = it;
+  }
 
   // ---------- fields & fruit ----------
   addField(type: FruitType) {
@@ -167,7 +171,7 @@ export class Sim {
     if (this.pendingLv > 0 && this.phase === 'play') this.openLevelUp();
   }
   openLevelUp() {
-    this.phase = 'lvl'; this.snd('level');
+    this.phase = 'lvl'; this.lvRound++; this.snd('level');
     for (const p of this.players) { p.offers = this.offers(p); p.picked = false; p.intent = { ...emptyIntent(), tapSeq: p.lastTap, cycle: p.lastCycle }; for (const id of SKILLS) p.skills[id].firing = false; }
     this.emit({ k: 'lvl' });
   }
@@ -180,7 +184,7 @@ export class Sim {
   private checkAllPicked() {
     if (this.players.some(p => !p.picked)) return;
     this.pendingLv--;
-    if (this.pendingLv > 0) { for (const p of this.players) { p.offers = this.offers(p); p.picked = false; } this.emit({ k: 'lvl' }); }
+    if (this.pendingLv > 0) { this.lvRound++; for (const p of this.players) { p.offers = this.offers(p); p.picked = false; } this.emit({ k: 'lvl' }); }
     else { this.phase = 'play'; for (const p of this.players) { p.offers = null; p.picked = false; } }
   }
 
@@ -734,7 +738,7 @@ export class Sim {
     }
     const sw = this.cfg.rake.swingTime;
     return {
-      t: r2(this.time), ph: this.phase, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0,

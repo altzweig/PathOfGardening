@@ -333,10 +333,10 @@ export class GameView {
   private camX = 0; private camZ = 0;
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;
-    const off = V(0, portrait ? 17 : 12.5, portrait ? 11 : 8.6);
+    const off = V(0, portrait ? 18 : 13.5, portrait ? 11.6 : 9.3);
     const me = this.players.get(this.me);
     const tx = me ? me.x : 0, tz = me ? me.z : 0;
-    this.camX = lerp(this.camX, tx * .85, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .85 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
+    this.camX = lerp(this.camX, tx * .92, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
     this.shake = Math.max(0, this.shake - dt * 1.2);
     const sx = this.shake ? rand(-1, 1) * this.shake * .5 : 0, sz = this.shake ? rand(-1, 1) * this.shake * .5 : 0;
     camera.position.set(this.camX + off.x + sx, off.y, this.camZ + off.z + sz);

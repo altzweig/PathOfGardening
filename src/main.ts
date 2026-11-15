@@ -193,7 +193,7 @@ class Game {
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];
     if (s.ph === 'lvl' && pr?.of) {
-      const key = s.lv + ':' + pr.of.map(o => o.key).join(',');
+      const key = s.lr + ':' + pr.of.map(o => o.key).join(',');
       if (this.luShownFor !== key) {
         this.luShownFor = key; this.input.releaseAll(); only('#levelup');
         $('#luTitle').textContent = String(s.lv - 0);

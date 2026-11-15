@@ -54,10 +54,10 @@ export const gradePass = new ShaderPass({
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; varying vec2 vUv;
     void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 d=vUv-.5; d.x*=1.2; float r=length(d);
-      float vig=smoothstep(.8,.2,r); c.rgb*=mix(.0,1.,vig);
       float l=dot(c.rgb,vec3(.299,.587,.114));
       c.rgb=mix(c.rgb*vec3(.8,.95,1.15), c.rgb*vec3(1.06,1.,.9), smoothstep(.05,.6,l));
       c.rgb=mix(c.rgb, vec3(.6,.02,.02), uHurt*smoothstep(.25,.75,r));
+      float vig=smoothstep(.8,.2,r); c.rgb*=vig;
       gl_FragColor=c; }`,
 });
 composer.addPass(gradePass);

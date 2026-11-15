@@ -12,6 +12,7 @@ export class Input {
   private keys: Record<string, boolean> = {};
   private mouse: { x: number; y: number } | null = null;
   private mouseDown = false;
+  private clickLatch = false; // a click shorter than a frame still fires once
   private mode: 'pc' | 'touch';
   private cycle = 0; private tapSeq = 0; private tapW: Weapon | null = null;
   private move = newStick();
@@ -43,7 +44,7 @@ export class Input {
   private down(e: PointerEvent) {
     if (e.pointerType === 'mouse') {
       this.setMode('pc'); this.mouse = { x: e.clientX, y: e.clientY };
-      if (this.enabled && e.button === 0 && (e.target as HTMLElement).id === 'c') this.mouseDown = true;
+      if (this.enabled && e.button === 0 && (e.target as HTMLElement).id === 'c') { this.mouseDown = true; this.clickLatch = true; }
       return;
     }
     this.setMode('touch');
@@ -117,7 +118,8 @@ export class Input {
     if (this.mode === 'pc') {
       const d = this.mouse ? this.view.groundDir(this.mouse.x, this.mouse.y) : null;
       if (d) { it.ax = d[0]; it.az = d[1]; it.aim = true; Object.assign(this.view.localAim, { weapon: activeWeapon, x: d[0], z: d[1], show: true }); }
-      if (this.mouseDown) it.fire = 'active';
+      if (this.mouseDown || this.clickLatch) it.fire = 'active';
+      this.clickLatch = false;
     } else if (this.aimW) {
       const long = performance.now() - this.aimT0 > 140 || this.aim.mag > .25;
       if (long) { this.aimLong = true; it.fire = this.aimW; }

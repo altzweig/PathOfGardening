@@ -40,6 +40,7 @@ export class GameView {
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
   private shake = 0;
+  hurtT = 0;
   private frameId = 0;
   localAim: LocalAim = { weapon: null, x: 0, z: 1, show: false };
   onEvent: (e: Ev) => void = () => {};
@@ -47,7 +48,7 @@ export class GameView {
   constructor() {
     buildWorld();
     scene.add(this.dyn);
-    this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .05)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
+    this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .016)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
   setConfig(cfg: Balancing) {
     this.cfg = cfg;
@@ -213,7 +214,7 @@ export class GameView {
         if (e.p === this.me) play('pop', e.tier > 0);
         break;
       }
-      case 'hurt': if (e.p === this.me) { play('hurt'); this.shake = Math.min(.2, this.shake + .06); } break;
+      case 'hurt': if (e.p === this.me) { play('hurt'); this.hurtT = .35; this.shake = Math.min(.2, this.shake + .06); } break;
       case 'warn': warnEyes(e.d, e.ty, e.w); play('warn'); break;
       case 'cycle': if (e.p === this.me) play('cycle'); break;
     }
@@ -250,7 +251,9 @@ export class GameView {
     PART.update(dt); updateFx(dt); this.updateNums(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
-    gradePass.uniforms.uHurt.value = meV ? (meV.s.fl ? .3 : 0) + (meV.s.al ? 0 : .35) : 0;
+    this.hurtT = Math.max(0, this.hurtT - dt);
+    gradePass.uniforms.uHurt.value = meV ? this.hurtT * .7 + (meV.s.al ? 0 : .3) : 0;
+    (document.getElementById('hurt') as HTMLElement).style.opacity = (this.hurtT * 1.2).toFixed(2);
     composer.render();
   }
   private animPlayer(v: PView, dt: number, k: number) {

@@ -32,7 +32,7 @@ const MINI: Record<string, string> = {
   pellet: `<circle cx="10" cy="14" r="4" fill="#ff4d5e"/><circle cx="18" cy="26" r="4" fill="#e2384a"/><circle cx="28" cy="12" r="4" fill="#ff5466"/><circle cx="31" cy="27" r="4" fill="#c42638"/>`,
   mine: `<circle cx="20" cy="22" r="8" fill="#ff2040"/><path d="M20 8v6M20 30v6M6 22h6M28 22h6M10 12l4 4M30 12l-4 4M10 32l4-4M30 32l-4-4" stroke="#ff8090" stroke-width="2.4" stroke-linecap="round"/>`,
   mini: `<circle cx="13" cy="24" r="8" fill="#8fd16a"/><circle cx="28" cy="18" r="5.5" fill="#a8e27e"/><circle cx="31" cy="30" r="4" fill="#a8e27e"/>`,
-  x2: `<text x="20" y="27" text-anchor="middle" font-family="Cinzel,Georgia,serif" font-weight="700" font-size="20" fill="#e3b964">×2</text>`,
+  x2: `<text x="20" y="27" text-anchor="middle" font-family="Cinzel,Georgia,serif" font-weight="700" font-size="30" fill="#e3b964">×2</text>`,
   heart: `<path d="M20 34 C6 24 4 16 9 11 C13 7 18 9 20 13 C22 9 27 7 31 11 C36 16 34 24 20 34 Z" fill="#ff5a4e"/>`,
   fieldhp: `<path d="M20 6 l13 7.5 v15 l-13 7.5 l-13 -7.5 v-15 z" fill="#3a2818" stroke="#6fcf4a" stroke-width="2.4"/><path d="M20 14v12M14 20h12" stroke="#6fcf4a" stroke-width="3"/>`,
   poison: `<path d="M20 5 C14 15 10 20 10 25 a10 10 0 0 0 20 0 C30 20 26 15 20 5z" fill="#6dff3a"/>`,

@@ -59,7 +59,6 @@ export class Hud {
       const t = `${pr.am[i]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
     });
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
-    ($('#hurt')).style.opacity = ps.fl ? '.5' : '0';
   }
 }
 

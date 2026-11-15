@@ -49,8 +49,17 @@ class Game {
     this.wire();
     only('#menu');
     let last = performance.now();
-    const loop = (now: number) => { requestAnimationFrame(loop); const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); };
+    let lastRaf = performance.now();
+    const loop = (now: number) => { requestAnimationFrame(loop); lastRaf = performance.now(); const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); };
     requestAnimationFrame(loop);
+    // browsers stop requestAnimationFrame in hidden tabs: a co-op host keeps simulating for the others
+    // (timer runs in a worker because hidden tabs throttle normal timers to 1/s)
+    const tick = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),50)'], { type: 'text/javascript' })));
+    tick.onmessage = () => {
+      const now = performance.now();
+      if (this.mode !== 'host' || now - lastRaf < 250) return;
+      const dt = Math.min(.1, (now - last) / 1000); last = now; this.frame(dt, true);
+    };
     (window as any).__pog = this;
   }
   /** garden behind the menus */
@@ -165,7 +174,7 @@ class Game {
 
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
-  frame(dt: number) {
+  frame(dt: number, headless = false) {
     const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#options').hidden;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden;
     if (this.mode === 'idle') {
@@ -175,7 +184,7 @@ class Game {
       sim.setIntent(this.me, this.input.intent(this.activeWeapon()));
       sim.update(dt);
       const snap = sim.snapshot();
-      this.view.apply(snap);
+      if (!headless) this.view.apply(snap);
       if (this.mode === 'host' && this.host) {
         this.netEvents.push(...snap.ev); this.netAcc += dt;
         if (this.netAcc >= 1 / this.cfg.coop.snapshotRate) { this.netAcc = 0; this.host.broadcast({ t: 's', s: { ...snap, ev: this.netEvents } }); this.netEvents = []; }
@@ -183,8 +192,10 @@ class Game {
     } else if (this.mode === 'client' && this.client) {
       const it: Intent = this.input.intent(this.activeWeapon());
       this.inAcc += dt; const js = JSON.stringify(it);
-      if (this.inAcc >= 1 / 30 && (js !== this.lastIntent || this.inAcc > .25)) { this.inAcc = 0; this.lastIntent = js; this.client.send({ t: 'in', i: it }); }
+      const urgent = !!it.fire && !this.lastIntent.includes('"fire":"');
+      if ((this.inAcc >= 1 / 30 || urgent) && (js !== this.lastIntent || this.inAcc > .25)) { this.inAcc = 0; this.lastIntent = js; this.client.send({ t: 'in', i: it }); }
     }
+    if (headless) return;
     const s = this.view.snap;
     if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.syncPhase(s); }
     this.view.frame(dt);

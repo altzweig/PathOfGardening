@@ -1,21 +1,21 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SkillId, Weapon } from '../config';
+import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon } from '../config';
 import { Slot, cornerAngle, hexR, slotAt, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
 import { play, setListener, sfx } from '../audio';
 import {
-  GEO, M, PART, V, addMat, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
+  GEO, M, PART, V, addMat, bolt, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
-import { EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { BUSH_MAT, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
 
-const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60' };
+const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff' };
 
 interface PView { hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
@@ -253,7 +253,7 @@ export class GameView {
     const bed = new THREE.Mesh(new THREE.CylinderGeometry(H * .97, H * .97, .02, 6), M(0x33231a, { r: 1 })); bed.position.y = .01; // top at y=.02, decals sit above at .03+ bed.receiveShadow = true; g.add(bed);
     const rim = new THREE.Mesh(new THREE.RingGeometry(H * .9, H * .97, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: RARITY_COL[0], transparent: true, opacity: .55, depthWrite: false }));
     rim.rotation.x = -Math.PI / 2; rim.position.y = .045; g.add(rim);
-    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : 0x4f8a35), head: M(0x9ad870) };
+    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     for (let i = 0; i < 3; i++) { // three low clumps per bed
       const a = i / 3 * Math.PI * 2 + .5, b = buildPlant(type, mats);
@@ -342,6 +342,16 @@ export class GameView {
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
+      case 'zap': { // Citrateaser chain: one bolt per link, thinner further down the chain
+        for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xcfe8ff, 6, 1.6, .1, .25); }
+        this.shake = Math.min(.2, this.shake + .03); break;
+      }
+      case 'lemonZap': { // harvest: lightning jumps between the lemons of the tree
+        const v = this.fields.get(e.s); if (!v) break;
+        const ps = v.fruits.filter(m => m.visible).sort(() => Math.random() - .5).slice(0, 4).map(m => m.getWorldPosition(V()));
+        if (ps.length > 1) bolt(ps, 0xfff6a0, .025, .22, .05);
+        BUSH_MAT.lemon.emissiveIntensity = 1.6; break;
+      }
       case 'rarity': { const sl = this.slots[e.s]; if (sl) { burst(V(sl.x, .3, sl.z), RARITY_COL[e.r] ?? 0xffffff, 60, 3.5, .25, 1.1); decal(sl.x, sl.z, RARITY_COL[e.r] ?? 0xffffff, .3, .7, { ring: true, add: true, grow: hexR(this.cfg) * 1.2, op: .9 }); } break; }
       case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); sfx('collect.merge', e.x, e.z); break;
       case 'collect': {
@@ -385,6 +395,7 @@ export class GameView {
     this.updateAim();
     updateEyes(dt); updateFog(dt); updateTorches(dt);
     this.berryGlow(dt);
+    BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
     PART.update(dt); updateFx(dt); this.updateNums(dt);
     this.updateCamera(dt);
@@ -446,7 +457,7 @@ export class GameView {
     v.squash = Math.max(0, v.squash - dt); const q = v.squash / .14;
     v.P.body.scale.set(1 + q * .25, 1 - q * .3, 1 + q * .25);
     const bleedGlow = fl & EF.bleed ? (.5 + .5 * Math.sin(now * 12)) * .9 : 0;
-    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.9, .9, .9); else m.emissive.setRGB(bleedGlow, 0, bleedGlow * .05); }
+    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else m.emissive.setRGB(bleedGlow, 0, bleedGlow * .05); }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
   }
@@ -464,12 +475,12 @@ export class GameView {
     const me = this.players.get(this.me), a = this.localAim;
     if (!me || !me.s.al || !a.show || !a.weapon || !this.snap) return;
     const w = a.weapon, ang = Math.atan2(a.x, a.z), px = me.x, pz = me.z, priv = this.snap.me[this.me];
-    const rng = (id: SkillId) => priv ? priv.rg[['asp', 'cran', 'cab'].indexOf(id)] : 1;
+    const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
     if (w === 'rake' || w === 'cran') {
       const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
-    } else if (w === 'asp') {
-      const m = this.aimInd.asp, r = rng('asp');
+    } else if (w === 'asp' || w === 'lemon') {
+      const m = this.aimInd.asp, r = rng(w);
       m.visible = true; m.scale.set(.12, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI);
     } else if (w === 'cab') {
       const m = this.aimInd.cab, d = this.cfg.skills.cab.throwDistance;

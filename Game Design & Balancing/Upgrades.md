@@ -16,6 +16,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 | Spargelfeld | 3 Spargel alle 4 s (an einer Feldecke). Schaltet das Spargelgewehr frei | `plants.asp.interval`, `plants.asp.amount` |
 | Preiselbeerfeld | 3 Preiselbeeren alle 1 s. Schaltet die Schrotflinte frei | `plants.cran.interval`, `plants.cran.amount` |
 | Kohlfeld | 1 Kohlkopf alle 8 s. Schaltet die Kohlbombe frei | `plants.cab.interval` |
+| Zitronenbäumchen | 1 Zitrone alle 3 s, bei jeder Ernte zuckt ein Blitz zwischen den Früchten. **Erst ab Level 10** als neuer Feldtyp. Schaltet den Citrateaser frei | `plants.lemon.*` |
 
 Feld-Karten gibt es für alle Typen, beliebig oft. Nach der Wahl öffnet sich die **Bauansicht von oben**, dort setzt man das Feld:
 
@@ -37,6 +38,7 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 |---|---|---|---|
 | Spargelgewehr | Durchbohrender Schuss: 15 Schaden, 7,5 m, **0,25 s**, 30 cm breit, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
 | Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 6,75 m, 0,5 s, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
+| Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
 | Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
 **Giftlache der Kohlbombe:** bleibt 3 s liegen (Radius = Explosionsradius), tickt 2× pro Sekunde mit je 10 % des Kohlschadens, also insgesamt 60 %. Gegner darin sind 35 % langsamer. Parameter: `skills.cab.poolDuration`, `poolTicksPerSecond`, `poolTickDamage`, `poolSlow`. Keine Betäubung mehr.
@@ -72,6 +74,12 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | +1 Projektil | 1 Beere mehr pro Schuss, Fächer 10° breiter | 3 Stufen | `upgrades.cranPellets` |
 | Beeren-Minen | +20 % Chance, dass eine Beere als Mine liegen bleibt (15 s) | 5 Stufen | `upgrades.cranMine` |
 
+### Citrateaser
+| Karte | Effekt | Max. | Parameter |
+|---|---|---|---|
+| +1 Ziel | erst 3. Glied (je 3 statt 2), dann 2. Glied, dann 2 Hauptziele | 3 | `upgrades.lemonTargets` |
+| Weiterleitung | +10 % (50 → 60 %, 2. Glied 25 → 36 %) | 4 | `upgrades.lemonTransfer` |
+
 ### Kohlbombe
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
@@ -86,7 +94,7 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 ### Feldpflege
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Feldpflege | Beackern heilt das beackerte Feld um +1 HP/s je Stufe. Ziehgewicht 1,2 (+20 %) | 5 | `upgrades.tillHeal` |
+| Feldpflege | Beackern heilt Feld und Spieler: +1 HP/s je Stufe auf beide Werte (Grundwert je 1 HP/s). Ziehgewicht 1,2 (+20 %) | 5 | `upgrades.tillHeal`, `fields.tillHealField`, `fields.tillHealPlayer` |
 
 ## 5. Sonstiges
 

@@ -16,16 +16,19 @@ names:
     asp: Spargelgewehr
     cran: Preiselbeer-Schrotflinte
     cab: Kohlbombe
+    lemon: Citrateaser
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
     asp: Spargel
     cran: Preiselbeeren
     cab: Kohl
+    lemon: Zitronenbäumchen
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     asp: Spargelfeld
     cran: Preiselbeerfeld
     cab: Kohlfeld
+    lemon: Zitronenbäumchen
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
 
@@ -66,6 +69,9 @@ arena:
 fields:
   hp: 100
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
+  tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
+  tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
+  # Die 3 Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
   # Beackern: Harke benutzen, wenn kein Gegner im Kegel ist und 1 m vor dem Spieler ein Feld liegt
   tillReach: 1.0           # m vor dem Spieler
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert
@@ -90,6 +96,7 @@ plants:
   asp:  { interval: 4, unlockAt: 15, amount: 3 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
   cran: { interval: 1, unlockAt: 60, amount: 3 }   # 3x Ertrag
   cab:  { interval: 8, unlockAt: 8 }
+  lemon: { interval: 3, unlockAt: 10, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
 
 rake:
   damage: 10
@@ -120,6 +127,15 @@ skills:
     bleedDuration: 3       # s
     bleedDps: 1
     mineLifetime: 15       # s
+  lemon:                   # Citrateaser: Kettenblitz, trifft immer genau 1 Ziel direkt
+    damage: 16             # Grundschaden am ersten Ziel
+    cooldown: 1.0          # 1 Angriff pro Sekunde
+    ammoPerShot: 1
+    range: 6               # m bis zum ersten Ziel
+    chainRadius: 2.5       # m, so weit springt der Blitz weiter
+    transfer: 0.5          # Weiterleitung je Kettenglied (50 % -> 25 %)
+    branch: [1, 2, 2]      # Ziele: Hauptziel, je Glied 2 weitere, je davon 2 weitere = max 100 % + 2x50 % + 4x25 % = 300 %
+    dropLoot: true         # das erste getroffene Tier lässt seine Beute fallen
   cab:
     damage: 5
     radius: 1.8            # m, Explosionsradius
@@ -145,7 +161,9 @@ upgrades:
   rakeRange:      { step: 0.08, maxLevel: 10 } # Harke +8 % Reichweite
   rakeDamage:     { step: 0.10, maxLevel: 10 } # Harke +10 % Schaden
   rakeKnockback:  { step: 0.10, maxLevel: 10 } # Harke +10 cm Rückstoß
-  tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Beackern heilt das Feld um +1 HP/s je Stufe; Ziehgewicht 1,2 (+20 %)
+  tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
+  lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
+  lemonTransfer:  { step: 0.10, maxLevel: 4 }            # +10 % Weiterleitung (50 -> 60 %, 2. Glied 36 %)
   cranPellets:    { step: 1,    maxLevel: 3 }
   cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
   cabMini:        { step: 1,    maxLevel: 5 }

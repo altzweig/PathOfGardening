@@ -69,16 +69,19 @@ plants:
     asp:  { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.3, pitch: [0.85, 1.05], gap: 0.15 }
     cran: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.3, 1.6], gap: 0.12 }
     cab:  { files: [cab_1, cab_2, cab_3], vol: 0.4, pitch: [0.9, 1.15], gap: 0.15 }
+    lemon: { files: [shield_zap], vol: 0.12, pitch: [1.7, 2.0], gap: 0.2 }          # Blitz zwischen den Zitronen
   eaten:   # Gegner frisst an einem Feld
     blue: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.25], gap: 0.3 }
     asp:  { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.75, 0.9], gap: 0.3 }
     cran: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.2, 1.45], gap: 0.3 }
     cab:  { files: [cab_1, cab_2, cab_3], vol: 0.4, pitch: [0.8, 1.0], gap: 0.3 }
+    lemon: { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.9, 1.05], gap: 0.3 }
   die:     # Feld zerstört
     blue: { files: [rip_2, rip_3], vol: 0.6, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }
     asp:  { files: [wood_1, wood_4], vol: 0.6, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
     cran: { files: [rip_4, rip_5], vol: 0.6, pitch: [0.65, 0.75], gap: 0.3, synth: wilt }
     cab:  { files: [cab_1], vol: 0.7, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
+    lemon: { files: [wood_2, wood_4], vol: 0.6, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }
 
 ui:
   click:       { files: [ui_click], vol: 0.35, pitch: [0.95, 1.05] }            # Knöpfe im Menü
@@ -98,3 +101,6 @@ collect:
 
 effects:
   pool:  { files: [pool_1, pool_2, pool_3], vol: 0.3, pitch: [0.85, 1.1], gap: 0.15 }  # Kohl-Giftlache blubbert
+
+weapons:
+  lemon: { files: [shield_zap], vol: 0.3, pitch: [1.3, 1.6], gap: 0.05, lp: 5000 }   # Citrateaser-Kettenblitz

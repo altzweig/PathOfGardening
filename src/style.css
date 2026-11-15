@@ -53,6 +53,7 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-skill=asp]{width:70px;height:70px;right:155px;bottom:37px;--glow:#8fe36a}
 .skill[data-skill=cran]{width:70px;height:70px;right:120px;bottom:120px;--glow:#ff4d5e}
 .skill[data-skill=cab]{width:70px;height:70px;right:37px;bottom:155px;--glow:#b8f070}
+.skill[data-skill=lemon]{width:70px;height:70px;right:172px;bottom:170px;--glow:#ffe44a}
 /* PC: buttons only show state, the active weapon is marked */
 body[data-input=pc] .skill{pointer-events:none}
 body[data-input=pc] .skill.active{transform:scale(1.12)}

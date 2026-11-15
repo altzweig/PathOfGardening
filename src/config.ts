@@ -1,12 +1,12 @@
 import YAML from 'yaml';
 
-export type SkillId = 'asp' | 'cran' | 'cab';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon';
 export type Weapon = 'rake' | SkillId;
-export type FruitType = 'blue' | 'asp' | 'cran' | 'cab';
+export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon';
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab'];
-export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab'];
-export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon'];
+export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon'];
+export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon'];
 export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
@@ -23,20 +23,22 @@ export interface Balancing {
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
-  fields: { hp: number; rarityHp: number; healPerSecond: number; tillReach: number; tillDuration: number; tillMultiplier: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
+  fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillReach: number; tillDuration: number; tillMultiplier: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number }>;
+  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number }>;
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number; width: number };
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pelletStep: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
+    lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
     aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
     rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
+    lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number } & Record<EnemyType, EnemyCfg>;

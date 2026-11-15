@@ -231,3 +231,25 @@ export function setBar(bar: THREE.Group, frac: number, shield = -1) {
   fg.scale.x = Math.max(.0001, w * frac); fg.position.x = -w * (1 - frac) / 2;
   if (shield >= 0) { sh.visible = shield > 0; sh.scale.x = Math.max(.0001, w * shield); sh.position.x = -w * (1 - shield) / 2; }
 }
+
+/** jagged lightning ribbon through the given points (world space), fades out */
+export function bolt(pts: { x: number; y: number; z: number }[], color = 0xbfe4ff, width = .05, life = .18, jag = .12) {
+  const path: THREE.Vector3[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], n = 5;
+    for (let k = 0; k < n; k++) {
+      const t = k / n, j = k === 0 ? 0 : jag;
+      path.push(new THREE.Vector3(lerp(a.x, b.x, t) + rand(-j, j), lerp(a.y, b.y, t) + rand(-j, j) * .6, lerp(a.z, b.z, t) + rand(-j, j)));
+    }
+  }
+  const last = pts[pts.length - 1]; path.push(new THREE.Vector3(last.x, last.y, last.z));
+  const pos: number[] = [];
+  for (let i = 0; i < path.length - 1; i++) { // flat strip, thick enough to read from the top-down camera
+    const a = path[i], b = path[i + 1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l * width, nz = dx / l * width;
+    pos.push(a.x - nx, a.y, a.z - nz, a.x + nx, a.y, a.z + nz, b.x + nx, b.y, b.z + nz, a.x - nx, a.y, a.z - nz, b.x + nx, b.y, b.z + nz, b.x - nx, b.y, b.z - nz);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.renderOrder = 6; scene.add(m);
+  fx.push({ m, t: 0, life, r0: 1, r1: 1, op: .75, own: true });
+}

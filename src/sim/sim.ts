@@ -34,7 +34,7 @@ export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
 export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; cdT: number; firing: boolean }
+interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; cdT: number; firing: boolean }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -43,7 +43,7 @@ export interface Player {
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number };
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
 interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
@@ -72,7 +72,7 @@ export class Sim {
   paused = false;
   players: Player[] = [];
   fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = [];
-  yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0 };
+  yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0 };
   tillHealLv = 0;
   events: Ev[] = [];
   private nid = 1;
@@ -87,7 +87,7 @@ export class Sim {
     // start fields: every second slot of the first ring around the centre, then outwards
     const ring1 = [[1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
-    for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) this.placeField(i, 'blue'); }
+    for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
   }
 
   // ---------- coop scaling ----------
@@ -105,11 +105,11 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, cdT: 0, firing: false });
+    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, cdT: 0, firing: false });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
-      ammo: { asp: 0, cran: 0, cab: 0 }, collected: { asp: 0, cran: 0, cab: 0 }, skills: { asp: mk(), cran: mk(), cab: mk() },
+      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk() },
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0 },
     };
     this.players.push(p);
@@ -145,7 +145,7 @@ export class Sim {
       return f;
     }
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
-    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1 };
+    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false };
     this.fields.push(f);
     this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
@@ -165,6 +165,8 @@ export class Sim {
   }
   hurtField(f: Field, dmg: number) {
     if (!f.alive || this.phase === 'over') return;
+    // the starting fields only become vulnerable once every other field is gone
+    if (f.starter && this.fields.some(o => !o.starter && o.alive)) { f.shake = .12; this.emit({ k: 'imm', x: r2(f.x), z: r2(f.z) }); return; }
     f.hp -= dmg; f.shake = .25; this.sfx('plants.eaten.' + f.type, f.x, f.z);
     this.num(f.x, f.z, dmg, 'f');
     if (f.hp <= 0) {
@@ -187,6 +189,7 @@ export class Sim {
   produce(f: Field) {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
     let n = (this.cfg.plants[f.type].amount || 1) * (Math.random() < dbl ? 2 : 1);
+    if (f.type === 'lemon') this.emit({ k: 'lemonZap', s: f.slot }); // lightning jumps between the lemons
     if (f.type === 'blue') { // coop: more blueberries
       const extra = this.f(this.cfg.coop.xpYieldExponent) - 1;
       n += Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);
@@ -250,7 +253,7 @@ export class Sim {
     const S = this.cfg.skills, U = this.cfg.upgrades;
     const B = S[id] as any;
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
-    const range = (id === 'cab' ? S.cab.radius : B.range) * rm;
+    const range = (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: range to the first target
     const size = 1 + U.aspSize.step * s.sizeLv;
     return {
       dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
@@ -348,6 +351,52 @@ export class Sim {
     this.sfx('player.till', f.x, f.z);
     this.burst(p.x + p.aimX * F.tillReach, .1, p.z + p.aimZ * F.tillReach, 0x8a6a3a, 8, 1.2, .14, .4, { g: 4 });
   }
+  /** while a field is being tilled it heals, and so do the tilling player and team mates standing on it */
+  tillHeal(f: Field, dt: number) {
+    const F = this.cfg.fields, up = this.cfg.upgrades.tillHeal.step * this.tillHealLv;
+    if (f.alive) f.hp = Math.min(f.maxHp, f.hp + (F.tillHealField + up) * dt);
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      if (p.id === f.tilledBy || this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z)) === f) p.hp = Math.min(this.cfg.player.hp, p.hp + (F.tillHealPlayer + up) * dt);
+    }
+  }
+  /** an enemy drops everything it carries (fruit flies off and can be picked up again) */
+  dropCarry(e: Enemy) {
+    for (const fr of e.carry) {
+      fr.x = e.x; fr.y = .4; fr.z = e.z; const a = rand(0, 7);
+      fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1;
+    }
+    if (e.carry.length) { e.carry = []; e.fleeing = false; e.target = null; }
+  }
+  /** Citrateaser chain: branch[0] main targets, each passes on to branch[d] neighbours at transfer^d damage */
+  lemonZap(p: Player, dx: number, dz: number, st: SkillStats, s: SkillState) {
+    const L = this.cfg.skills.lemon, U = this.cfg.upgrades;
+    const branch = [...L.branch]; for (let i = 0; i < s.tgtLv; i++) { const k = U.lemonTargets.order[i]; if (k !== undefined) branch[k] = (branch[k] || 0) + 1; }
+    const t = L.transfer + U.lemonTransfer.step * s.xferLv;
+    const hit = new Set<Enemy>(), segs: number[][] = [];
+    // main target(s): closest to the aim line within range
+    const cand = this.enemies.filter(e => !e.dead && Math.hypot(e.x - p.x, e.z - p.z) <= st.range + e.r)
+      .map(e => { const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez) || 1; return { e, score: Math.acos(clamp((ex * dx + ez * dz) / d, -1, 1)) * 3 + d / st.range }; })
+      .sort((a, b) => a.score - b.score).slice(0, branch[0]).map(c => c.e);
+    let frontier: Enemy[] = [];
+    for (const e of cand) {
+      hit.add(e); segs.push([r2(p.x + dx * .4), r2(p.z + dz * .4), r2(e.x), r2(e.z), 0]);
+      if (L.dropLoot) this.dropCarry(e);
+      this.hurtEnemy(e, st.dmg, { color: 'z', silent: true }); frontier.push(e);
+    }
+    if (!cand.length) segs.push([r2(p.x + dx * .4), r2(p.z + dz * .4), r2(p.x + dx * 1.6), r2(p.z + dz * 1.6), 2]); // miss: short fizzle
+    for (let d = 1; d < branch.length; d++) {
+      const next: Enemy[] = [];
+      for (const src of frontier) {
+        const near = this.enemies.filter(e => !e.dead && !hit.has(e) && Math.hypot(e.x - src.x, e.z - src.z) <= L.chainRadius + e.r)
+          .sort((a, b) => Math.hypot(a.x - src.x, a.z - src.z) - Math.hypot(b.x - src.x, b.z - src.z)).slice(0, branch[d]);
+        for (const e of near) { hit.add(e); segs.push([r2(src.x), r2(src.z), r2(e.x), r2(e.z), d]); this.hurtEnemy(e, st.dmg * Math.pow(t, d), { color: 'z', silent: true }); next.push(e); }
+      }
+      frontier = next; if (!frontier.length) break;
+    }
+    this.emit({ k: 'zap', s: segs });
+    this.sfx('weapons.lemon', p.x, p.z);
+  }
   tryFire(p: Player, id: SkillId, dir?: [number, number]) {
     const s = p.skills[id];
     if (!p.alive || p.stun > 0 || !this.canFire(p, id) || s.cdT > 0) return false;
@@ -373,6 +422,8 @@ export class Sim {
         const a = a0 + step * i; // evenly spaced fan
         this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.92, 1), total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 0, mine: st.mine, w: .1, hit: new Set() });
       }
+    } else if (id === 'lemon') {
+      this.lemonZap(p, dx, dz, st, s);
     } else {
       this.snd('throw');
       const t = this.clampArena(p.x + dx * st.throwDist, p.z + dz * st.throwDist);
@@ -647,7 +698,7 @@ export class Sim {
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
-      if (f.tilledT > 0) { f.tilledT -= dt; if (f.tilledT <= 0) f.tilledBy = -1; if (f.alive && this.tillHealLv) f.hp = Math.min(f.maxHp, f.hp + this.cfg.upgrades.tillHeal.step * this.tillHealLv * dt); }
+      if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
       if (f.alive) { f.t -= dt * this.prodMult(f) * (f.tilledT > 0 ? this.cfg.fields.tillMultiplier : 1); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
@@ -772,7 +823,7 @@ export class Sim {
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval)} s`];
       if (id !== 'blue' && !p.skills[id as SkillId].learned) lines.push(`Unlock: ${N.skills[id]}`);
       const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };
-      if (owned.has(id)) fieldPool.push(card); else newTypes.push(card);
+      if (owned.has(id)) fieldPool.push(card); else if (this.level - this.pendingLv + 1 >= (PL[id].minLevel || 0)) newTypes.push(card); // lemon tree only from level 10
     }
     for (const id of SKILLS) {
       const s = p.skills[id]; if (!s.learned) continue;
@@ -792,6 +843,11 @@ export class Sim {
       if (id === 'cran') {
         if (s.extraPel < (U.cranPellets.maxLevel || 3)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} → ${b.pellets}`);
         if (s.mineLv < (U.cranMine.maxLevel || 5)) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.mine * 100)} → ${nf(b.mine * 100)} %`);
+      }
+      if (id === 'lemon') {
+        const tierName = ['Hauptziel', '2. Glied', '3. Glied'];
+        if (s.tgtLv < U.lemonTargets.maxLevel) { const k = U.lemonTargets.order[s.tgtLv]; mk('lemon_tgt', x => x.tgtLv++, () => `{chain} +1 · ${tierName[k] ?? ''}`); }
+        if (s.xferLv < (U.lemonTransfer.maxLevel || 4)) { const t0 = this.cfg.skills.lemon.transfer + U.lemonTransfer.step * s.xferLv, t1 = t0 + U.lemonTransfer.step; mk('lemon_xfer', x => x.xferLv++, () => `{chain} ${nf(t0 * 100)} → ${nf(t1 * 100)} %`); }
       }
       if (id === 'cab' && s.minis < (U.cabMini.maxLevel || 5)) mk('cab_mini', x => x.minis += U.cabMini.step, b => `{mini} ${a.minis} → ${b.minis}`);
     }
@@ -843,9 +899,11 @@ export class Sim {
     if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
-      case 'asp_dmg': case 'cran_dmg': case 'cab_dmg': s.lvDmg++; break;
-      case 'asp_rng': case 'cran_rng': case 'cab_rng': s.lvRange++; break;
-      case 'asp_cd': case 'cran_cd': case 'cab_cd': s.lvCd++; break;
+      case 'asp_dmg': case 'cran_dmg': case 'cab_dmg': case 'lemon_dmg': s.lvDmg++; break;
+      case 'asp_rng': case 'cran_rng': case 'cab_rng': case 'lemon_rng': s.lvRange++; break;
+      case 'asp_cd': case 'cran_cd': case 'cab_cd': case 'lemon_cd': s.lvCd++; break;
+      case 'lemon_tgt': s.tgtLv++; break;
+      case 'lemon_xfer': s.xferLv++; break;
       case 'asp_pierce': s.pierce += U.aspPierce.step; break;
       case 'asp_pb': s.pierceBonus++; break;
       case 'asp_size': s.sizeLv++; break;

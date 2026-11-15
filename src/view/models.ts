@@ -3,19 +3,21 @@ import type { EnemyType, FruitType } from '../config';
 import { GEO, M, part, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
-export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070' };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x5a74ff, asp: 0x8fe36a, cran: 0xff4d5e, cab: 0xb8f070 };
+export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070', lemon: '#ffe44a' };
+export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x5a74ff, asp: 0x8fe36a, cran: 0xff4d5e, cab: 0xb8f070, lemon: 0xffe44a };
 export const GROUND_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   blue: new THREE.MeshStandardMaterial({ color: 0x3550e0, emissive: 0x2a44ff, emissiveIntensity: 1.3, roughness: .25 }),
   asp: new THREE.MeshStandardMaterial({ color: 0x7fbf45, emissive: 0x4fa01a, emissiveIntensity: 1.1, roughness: .5 }),
   cran: new THREE.MeshStandardMaterial({ color: 0xd02035, emissive: 0xff1030, emissiveIntensity: 1.2, roughness: .3 }),
   cab: new THREE.MeshStandardMaterial({ color: 0x9ad870, emissive: 0x5aa020, emissiveIntensity: .9, roughness: .6, flatShading: true }),
+  lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: 1.1, roughness: .4 }),
 };
 export const BUSH_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   blue: new THREE.MeshStandardMaterial({ color: 0x2a3a9a, roughness: .35 }),
   asp: new THREE.MeshStandardMaterial({ color: 0x5f8f35, roughness: .6 }),
   cran: new THREE.MeshStandardMaterial({ color: 0x9a1828, roughness: .35 }),
   cab: new THREE.MeshStandardMaterial({ color: 0x7aa858, roughness: .7, flatShading: true }),
+  lemon: new THREE.MeshStandardMaterial({ color: 0xc8b02a, roughness: .45, emissive: 0x8ac0ff, emissiveIntensity: 0 }), // emissive flickers with the harvest lightning
 };
 export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: 1.1 });
 export const ASP_TIP_BUSH = new THREE.MeshStandardMaterial({ color: 0x6a3a88, roughness: .6 });
@@ -32,6 +34,7 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
     const st = part(g, GEO.cyl, mat, .035, .38, .035, 0, 0, 0); st.rotation.z = Math.PI / 2;
     const tp = part(g, GEO.cone, proj ? PROJ_ASP_TIP : glow ? ASP_TIP_GROUND : ASP_TIP_BUSH, .045, .1, .045, .22, 0, 0); tp.rotation.z = -Math.PI / 2;
   } else if (type === 'cab') { part(g, GEO.ico, mat, .14, .13, .14, 0, 0, 0); part(g, GEO.lo, mat, .1, .06, .12, .08, .03, 0); part(g, GEO.lo, mat, .1, .06, .12, -.08, .03, .02); }
+  else if (type === 'lemon') part(g, GEO.sph, mat, .1, .075, .075, 0, 0, 0);
   else { const r = type === 'blue' ? .085 : .07; part(g, GEO.sph, mat, r, r, r, 0, 0, 0); }
   g.scale.setScalar(scale); return g;
 }
@@ -50,6 +53,10 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
   } else if (type === 'cran') {
     for (let i = 0; i < 8; i++) { const a = i / 8 * 7, r = rand(.15, .5); part(g, GEO.ico, mats.leaf, rand(.22, .3), rand(.14, .2), rand(.22, .3), Math.cos(a) * r, .16, Math.sin(a) * r); }
     for (let i = 0; i < 22; i++) { const a = rand(0, 7), r = rand(.1, .65); fruits.push(part(g, GEO.sph, BUSH_MAT.cran, .045, .045, .045, Math.cos(a) * r, rand(.2, .36), Math.sin(a) * r, false)); }
+  } else if (type === 'lemon') { // small lemon tree: trunk, round crown, lemons on the outside
+    part(g, GEO.cyl, mats.head, .06, .7, .06, 0, .35, 0);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 7; part(g, GEO.ico, mats.leaf, rand(.28, .36), rand(.24, .3), rand(.28, .36), Math.cos(a) * .18, .85 + rand(-.05, .1), Math.sin(a) * .18); }
+    for (let i = 0; i < 9; i++) { const a = rand(0, 7), y = rand(.7, 1.05), r = .38 - Math.abs(y - .88) * .4; fruits.push(part(g, GEO.sph, BUSH_MAT.lemon, .07, .055, .055, Math.cos(a) * r, y, Math.sin(a) * r, false)); }
   } else if (type === 'cab') {
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * Math.PI * 2, r = .42, x = Math.cos(a) * r, z = Math.sin(a) * r;

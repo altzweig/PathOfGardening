@@ -41,6 +41,7 @@ export class GameView {
   private mines = new Map<number, JView>();
   private fields = new Map<number, FieldView>();
   private pools = new Map<number, JView>();
+  private bbombs = new Map<number, JView>();
   private slots: Slot[] = [];
   // build mode (top-down strategy view)
   placing: FruitType | null = null;
@@ -152,7 +153,7 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
-    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools].forEach(m => m.clear());
+    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
     PART.clear(); clearFx(); clearEyes(); this.snap = null; this.fieldKey = '';
   }
@@ -205,6 +206,7 @@ export class GameView {
       if (!v) {
         const type = ENEMIES[e[1]], b = buildEnemy(type); this.dyn.add(b.g);
         if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); b.P.body.add(eliteRim()); } // elite: bigger, red glowing rim
+        if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); b.P.body.add(eliteRim(0x8a4cff)); } // boss: huge, violet rim
         v = { g: b.g, P: b.P, type, bar: makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }
@@ -223,6 +225,16 @@ export class GameView {
       v.tx = f[3]; v.ty = f[4]; v.tz = f[5]; v.seen = id; if (!this.smooth) { v.x = v.tx; v.y = v.ty; v.z = v.tz; }
     }
     for (const [fid, v] of this.fruits) if (v.seen !== id) { this.dyn.remove(v.g); this.fruits.delete(fid); }
+    // boss berry bombs: big blueberry in flight / falling, glowing violet-blue circle on the ground until it explodes
+    this.sync(this.bbombs, s.bb || [], id, b => b[0], (b) => {
+      const g = new THREE.Group(); const berry = fruitMesh('blue', b[6] ? 3.4 : 2.4); g.add(berry);
+      const ring = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x7a5cff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(b[7]); g.add(ring); g.userData = { berry, ring }; return g;
+    }, (v, b) => {
+      v.tx = b[1]; v.ty = 0; v.tz = b[3]; const { berry, ring } = v.m.userData;
+      berry.position.y = b[2]; ring.position.y = .06;
+      const warn = b[4] || b[6] ? b[5] : 0; (ring.material as THREE.MeshBasicMaterial).opacity = warn ? .15 + .35 * warn * (.6 + .4 * Math.sin(performance.now() / 40)) : 0;
+    });
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], (p) => {
       if (p[1] !== 0) return fruitMesh('cran', .9, false, true);
@@ -343,6 +355,9 @@ export class GameView {
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
+      case 'berryBoom': { burst(V(e.x, .3, e.z), 0x6a5cff, 26, 3, .2, .5); burst(V(e.x, .3, e.z), 0x3550e0, 14, 2, .3, .6, { g: 4 }); decal(e.x, e.z, 0x7a5cff, .2, .45, { ring: true, add: true, grow: e.r, op: .9 }); decal(e.x, e.z, 0x221a50, e.r * .6, 3, { op: .5 }); this.shake = Math.min(.25, this.shake + .04); break; }
+      case 'bossEat': burst(V(e.x, .5, e.z), 0x5a74ff, 6, 1.5, .12, .3); break;
+      case 'bossDead': burst(V(e.x, .8, e.z), 0x8a4cff, 80, 5, .3, 1.2); burst(V(e.x, .8, e.z), 0xffe0b0, 40, 4, .2, .8); this.shake = .35; break;
       case 'zap': { // Citrateaser chain: one bolt per link, thinner further down the chain
         for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xcfe8ff, 6, 1.6, .1, .25); }
         this.shake = Math.min(.2, this.shake + .03); break;
@@ -389,7 +404,7 @@ export class GameView {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z);
         if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
       }
-      for (const map of [this.bombs, this.mines, this.pools]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
+      for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
     this.updateOverlay();
@@ -458,6 +473,10 @@ export class GameView {
     v.squash = Math.max(0, v.squash - dt); const q = v.squash / .14;
     v.P.body.scale.set(1 + q * .25, 1 - q * .3, 1 + q * .25);
     const bleedGlow = fl & EF.bleed ? (.5 + .5 * Math.sin(now * 12)) * .9 : 0;
+    if (fl & EF.boss && e[9] === 1) { // boss charging: shakes and glows violet
+      v.P.body.position.x = Math.sin(now * 45) * .04 * e[10]; for (const m of v.P.mats) m.emissive.setRGB(.25 * e[10], .1 * e[10], .5 * e[10]);
+      if (Math.random() < .4) PART.spawn(V(v.x + rand(-.6, .6), rand(.3, 1.2), v.z + rand(-.6, .6)), V(0, .8, 0), 0x8a4cff, .2, .5); return;
+    }
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else m.emissive.setRGB(bleedGlow, 0, bleedGlow * .05); }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);

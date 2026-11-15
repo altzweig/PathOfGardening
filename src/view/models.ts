@@ -186,9 +186,9 @@ export function makeHatMaterial() {
 }
 
 /** red glowing rim for elite enemies (fresnel shell around the body) */
-export function eliteRim() {
+export function eliteRim(color = 0xff2a1a) {
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(0xff2a1a) }, uTime: windU },
+    uniforms: { uColor: { value: new THREE.Color(color) }, uTime: windU },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: `varying vec3 vN; varying vec3 vV; void main(){ vec4 wp=modelMatrix*vec4(position,1.); vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-wp.xyz); gl_Position=projectionMatrix*viewMatrix*wp; }`,
     fragmentShader: `uniform vec3 uColor; uniform float uTime; varying vec3 vN; varying vec3 vV;

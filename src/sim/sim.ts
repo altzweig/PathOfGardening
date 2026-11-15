@@ -44,6 +44,8 @@ export interface Player {
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number };
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
+interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
+interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
 interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
@@ -55,7 +57,7 @@ interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
   stun: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
-  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number;
+  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState;
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -71,7 +73,7 @@ export class Sim {
   phase: 'play' | 'lvl' | 'over' = 'play';
   paused = false;
   players: Player[] = [];
-  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = [];
+  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = [];
   yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0 };
   tillHealLv = 0;
   events: Ev[] = [];
@@ -303,7 +305,8 @@ export class Sim {
     }
     e.carry = [];
     // every enemy drops XP (blueberries), elites more
-    const E = this.cfg.enemies, n = Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
+    const E = this.cfg.enemies, n = e.boss ? E.boss.xpDrop : Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
+    if (e.boss) this.emit({ k: 'bossDead', x: r2(e.x), z: r2(e.z) });
     for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit('blue', 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1); }
     this.removeEnemy(e);
   }
@@ -341,7 +344,7 @@ export class Sim {
     let hits = 0;
     for (const e of targets) if (this.hurtEnemy(e, RS.dmg, { color: 'r', punch: true })) {
       hits++;
-      if (RS.kb > 0 && !e.dead) { const ex = e.x - p.x, ez = e.z - p.z, l = Math.hypot(ex, ez) || 1; e.kbx = ex / l; e.kbz = ez / l; e.kbLeft = RS.kb; }
+      if (RS.kb > 0 && !e.dead && !e.boss) { const ex = e.x - p.x, ez = e.z - p.z, l = Math.hypot(ex, ez) || 1; e.kbx = ex / l; e.kbz = ez / l; e.kbLeft = RS.kb; }
     }
     if (hits) this.emit({ k: 'punches', n: hits, x: r2(p.x), z: r2(p.z) });
   }
@@ -565,6 +568,7 @@ export class Sim {
     } else e.bleedT = 1;
     if (e.kbLeft > 0) { const s = Math.min(e.kbLeft, 9 * dt); e.x += e.kbx * s; e.z += e.kbz * s; e.kbLeft -= s; } // rake knockback
     if (e.stun > 0) { e.stun -= dt; return; }
+    if (e.boss) return this.bossAI(e, dt);
     e.think -= dt;
     const t0 = e.target;
     if (e.think <= 0 || !t0 || (t0.kind === 'fruit' && t0.fr.state !== 'ground') || (t0.kind === 'field' && !t0.f.alive) || (t0.kind === 'player' && (!t0.p.alive || !this.players.includes(t0.p)))) {
@@ -634,6 +638,84 @@ export class Sim {
     }
   }
 
+  // ---------- raccoon boss ----------
+  // Cycle: collect blueberries (5 s) -> charge (2 s) -> special attack (trail, carousel, rain in turn).
+  // More collected berries = more bombs (+3 % each). Bombs land, glow as a circle, then explode.
+  spawnBoss() {
+    const B = this.cfg.enemies.boss, a = rand(0, Math.PI * 2);
+    this.spawnEnemy('raccoon', a);
+    const e = this.enemies[this.enemies.length - 1];
+    const firstBoss = B.every, hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * (1 + B.hpGrowthPerWave * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
+    e.hp = e.maxHp = hp; e.r = this.cfg.enemies.raccoon.radius * B.scale; e.speed = B.speed; e.dmgMul = B.meleeDamage / this.cfg.enemies.meleeDamage;
+    e.boss = { st: 'collect', t: B.collectTime, berries: 0, atk: 0, spawned: 0, next: 0, hx: 0, hz: 0, hdx: 0, hdz: 1 };
+    this.emit({ k: 'boss', id: e.id }); this.sfx('raccoon.laugh', e.x, e.z);
+  }
+  private spitBomb(e: Enemy, x: number, z: number, rain = false) {
+    const B = this.cfg.enemies.boss; [x, z] = this.clampArena(x, z);
+    this.berryBombs.push({ id: this.nid++, fx: e.x, fz: e.z, x, z, flight: rain ? 0 : .35, t: 0, fuse: rain ? B.rain.warn : B.bombFuse, rain, dmg: B.bombDamage, r: B.bombRadius });
+  }
+  private bossAI(e: Enemy, dt: number) {
+    const B = this.cfg.enemies.boss, S = e.boss!; S.t -= dt;
+    const target = this.players.filter(p => p.alive).sort((a, b) => dist(a, e) - dist(b, e))[0];
+    const mult = 1 + B.berryBonus * S.berries;
+    if (S.st === 'collect') {
+      let best: Fruit | null = null, bd = 1e9; // walk to the nearest blueberry on the ground and eat it
+      for (const fr of this.fruits) if (fr.state === 'ground' && fr.type === 'blue') { const d = dist(e, fr); if (d < bd) { bd = d; best = fr; } }
+      if (best) { this.steer(e, best.x, best.z, e.speed, dt); if (bd < e.r + .25) { this.fruits.splice(this.fruits.indexOf(best), 1); S.berries += best.val; this.emit({ k: 'bossEat', x: r2(best.x), z: r2(best.z) }); } }
+      else if (target) this.steer(e, target.x, target.z, e.speed, dt, e.r + .6);
+      if (target && dist(e, target) < e.r + .6) { e.atkT -= dt; if (e.atkT <= 0) { e.atkT = this.cfg.enemies.meleeInterval; e.lunge = .2; this.hurtPlayer(target, this.cfg.enemies.meleeDamage * e.dmgMul); } }
+      if (S.t <= 0) { S.st = 'charge'; S.t = B.chargeTime; this.sfx('raccoon.attack', e.x, e.z); }
+    } else if (S.st === 'charge') {
+      if (target) e.face = Math.atan2(target.x - e.x, target.z - e.z);
+      if (S.t <= 0) {
+        S.st = 'attack'; S.spawned = 0; S.next = 0; S.hx = e.x; S.hz = e.z;
+        if (target) { const dx = target.x - e.x, dz = target.z - e.z, l = Math.hypot(dx, dz) || 1; S.hdx = dx / l; S.hdz = dz / l; }
+        S.t = S.atk === 1 ? B.carousel.duration : 30; // trail and rain end when all bombs are out
+      }
+    } else {
+      S.next -= dt;
+      if (S.atk === 0) { // chasing trail: a head that is fast when far away but turns slowly
+        const T = B.trail, n = Math.round(T.count * mult);
+        if (target) {
+          const dx = target.x - S.hx, dz = target.z - S.hz, l = Math.hypot(dx, dz) || 1;
+          const want = Math.atan2(dx, dz), cur = Math.atan2(S.hdx, S.hdz);
+          let d = want - cur; d = Math.atan2(Math.sin(d), Math.cos(d));
+          const a = cur + clamp(d, -T.turnRate * dt, T.turnRate * dt); S.hdx = Math.sin(a); S.hdz = Math.cos(a);
+          const sp = l > T.farDistance ? T.speedFar : T.speedNear; S.hx += S.hdx * sp * dt; S.hz += S.hdz * sp * dt;
+        }
+        if (S.next <= 0 && S.spawned < n) { S.next = T.interval; S.spawned++; this.spitBomb(e, S.hx, S.hz); this.sfx('boss.spit', e.x, e.z); }
+        if (S.spawned >= n) S.t = 0;
+      } else if (S.atk === 1) { // carousel: spinning, 3 trails in random directions every second
+        const C = B.carousel; e.face += dt * 9;
+        if (S.next <= 0) {
+          S.next = C.every; const n = Math.round(C.count * mult);
+          for (let k = 0; k < C.trails; k++) { const a = rand(0, Math.PI * 2); for (let i = 1; i <= n; i++) this.spitBomb(e, e.x + Math.sin(a) * (e.r + i * C.spacing), e.z + Math.cos(a) * (e.r + i * C.spacing)); }
+          this.sfx('boss.spit', e.x, e.z);
+        }
+      } else { // rain: big blueberries fall at random spots, 0.5 s to dodge
+        const Rn = B.rain, n = Math.round(Rn.count * mult);
+        while (S.next <= 0 && S.spawned < n) {
+          S.next += Rn.interval; S.spawned++;
+          const p = Math.random() < .5 && target ? target : null; // half of them aimed near a player
+          const a = rand(0, Math.PI * 2), r = p ? rand(0, 2.5) : Math.sqrt(Math.random()) * Rn.radius;
+          this.spitBomb(e, (p ? p.x : 0) + Math.cos(a) * r, (p ? p.z : 0) + Math.sin(a) * r, true);
+        }
+        if (S.spawned >= n) S.t = 0;
+      }
+      if (S.t <= 0) { S.st = 'collect'; S.t = B.collectTime; S.berries = 0; S.atk = (S.atk + 1) % 3; }
+    }
+  }
+  private updateBerryBombs(dt: number) {
+    for (let i = this.berryBombs.length - 1; i >= 0; i--) {
+      const b = this.berryBombs[i]; b.t += dt;
+      if (b.t < b.flight + b.fuse) continue;
+      this.berryBombs.splice(i, 1);
+      this.emit({ k: 'berryBoom', x: r2(b.x), z: r2(b.z), r: b.r }); this.sfx('boss.boom', b.x, b.z);
+      for (const p of this.players) if (p.alive && Math.hypot(p.x - b.x, p.z - b.z) < b.r) this.hurtPlayer(p, b.dmg);
+      for (const f of this.fields) if (f.alive && Math.hypot(f.x - b.x, f.z - b.z) < b.r + hexR(this.cfg) * .5) this.hurtField(f, b.dmg * .5);
+    }
+  }
+
   // ---------- waves ----------
   // A wave is a schedule of groups (bursts). It ends when its last group has started; the pause
   // starts right away even if enemies are still alive. Groups grow during a wave and the wave
@@ -680,6 +762,7 @@ export class Sim {
     }
     this.waveT = 0;
     this.emit({ k: 'waveStart', w });
+    if (this.cfg.enemies.boss.every > 0 && w % this.cfg.enemies.boss.every === 0) this.spawnBoss(); // boss wave
   }
   /** test mode: jump to wave w */
   jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
@@ -833,6 +916,7 @@ export class Sim {
       if (pl.ticks <= 0 || pl.t < -.1) this.pools.splice(i, 1);
     }
     this.updateProjs(dt);
+    this.updateBerryBombs(dt);
   }
   private updateProjs(dt: number) {
     for (let i = this.projs.length - 1; i >= 0; i--) {
@@ -1019,6 +1103,7 @@ export class Sim {
         let fl = 0, aux = 0, aux2 = 0;
         if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.flash > 0) fl |= EF.flash;
         if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.elite) fl |= EF.elite;
+        if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }
@@ -1030,6 +1115,8 @@ export class Sim {
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z)]),
       fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
+      bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),
+      bs: (() => { const b = this.enemies.find(e => e.boss); return b ? r2(b.hp / b.maxHp) : -1; })(),
       me, ev,
     };
   }

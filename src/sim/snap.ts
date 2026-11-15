@@ -36,7 +36,7 @@ export type MSnap = [number, number, number];
 export type PuSnap = [number, number, number, number, number];
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 
@@ -44,6 +44,8 @@ export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; lr: number; wv: number; wn: number; wp: 0 | 1; won: 0 | 1;
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number;
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
+  bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
+  bs: number;     // boss HP fraction, -1 = no boss
   me: Record<number, Priv>;
   ev: Ev[];
 }

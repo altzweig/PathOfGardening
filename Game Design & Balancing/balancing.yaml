@@ -191,6 +191,38 @@ enemies:
     hp: 3                  # x Leben
     damage: 2              # x Angriffsstärke
     xpMultiplier: 5        # x XP-Drop
+  boss:                    # Waschbär-Boss (vorerst der einzige Boss)
+    every: 5               # alle 5 Wellen, kommt zu Beginn der Welle
+    scale: 2.4
+    hpEnemies: 20          # Leben = so viel wie 20 normale Waschbären ...
+    hpGrowthPerWave: 0.06  # ... +6 % je Welle ab der ersten Boss-Welle
+    speed: 2.2
+    meleeDamage: 3
+    xpDrop: 30
+    collectTime: 5         # s Blaubeeren sammeln
+    chargeTime: 2          # s aufladen (Warnung), dann Spezialattacke
+    berryBonus: 0.03       # +3 % mehr Bomben je gesammelter Blaubeere
+    bombDamage: 8
+    bombRadius: 1.1        # m
+    bombFuse: 0.7          # s leuchtender Kreis am Boden, dann Explosion
+    trail:                 # Attacke 1: verfolgende Spur
+      count: 14
+      interval: 0.12       # s zwischen zwei Bomben
+      speedNear: 4         # m/s des Spur-Kopfes in Spielernähe
+      speedFar: 7          # m/s wenn der Spieler weit weg ist (schneller als der Spieler)
+      farDistance: 6
+      turnRate: 1.6        # rad/s, träge bei Richtungswechsel
+    carousel:              # Attacke 2: dreht sich, spuckt 3 Spuren in zufällige Richtungen
+      duration: 6
+      every: 1             # s
+      trails: 3
+      count: 7             # Bomben pro Spur
+      spacing: 0.9         # m
+    rain:                  # Attacke 3: Blaubeer-Regen
+      count: 30
+      interval: 0.1
+      warn: 0.5            # s zum Ausweichen
+      radius: 10           # m um die Gartenmitte
   raccoon: { hp: 7, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
   panda:   { hp: 11, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
   toad:

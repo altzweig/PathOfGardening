@@ -104,3 +104,7 @@ effects:
 
 weapons:
   lemon: { files: [shield_zap], vol: 0.3, pitch: [1.3, 1.6], gap: 0.05, lp: 5000 }   # Citrateaser-Kettenblitz
+
+boss:
+  spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben
+  boom: { files: [collect_big], vol: 0.35, pitch: [0.45, 0.6], gap: 0.05, synth: boomS }   # Blaubeer-Bombe explodiert

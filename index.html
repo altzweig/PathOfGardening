@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <title>PathOfGardening</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="hurt"></div>
+  <div id="dmg"></div>
+
+  <div id="hud" hidden>
+    <div id="topbar">
+      <div id="lvl">1</div>
+      <div id="xpbar"><div id="xpfill"></div><span id="xptext"></span></div>
+      <button class="ibtn" id="pauseBtn" aria-label="Pause">II</button>
+    </div>
+    <div id="sub">
+      <div id="hpbar"><div id="hpfill"></div><span id="hptext"></span></div>
+      <div id="res"></div>
+      <div id="statusfx"></div>
+      <div id="mates"></div>
+      <div id="timer">0:00</div>
+    </div>
+    <div class="stick" id="moveStick"><div class="knob"></div></div>
+    <div class="stick" id="aimStick"><div class="knob"></div></div>
+    <div id="btns"></div>
+    <div id="respawn"></div>
+  </div>
+
+  <!-- main menu -->
+  <div class="ov" id="menu">
+    <h1>PathOfGardening</h1>
+    <div class="col">
+      <button class="btn" id="soloBtn">Spielen</button>
+      <button class="btn sec" id="coopBtn">Koop</button>
+      <button class="btn sec" id="optBtn">Optionen</button>
+    </div>
+    <div class="err" id="menuErr" hidden></div>
+  </div>
+
+  <div class="ov" id="coop" hidden>
+    <h2>Koop</h2>
+    <div class="col">
+      <button class="btn" id="hostBtn">Spiel erstellen</button>
+      <div class="joinrow">
+        <input id="codeIn" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Code">
+        <button class="btn" id="joinBtn">Beitreten</button>
+      </div>
+      <button class="btn sec" id="coopBack">Zurück</button>
+    </div>
+    <div class="err" id="coopErr" hidden></div>
+  </div>
+
+  <div class="ov" id="lobby" hidden>
+    <div id="lobbyCode"></div>
+    <div id="lobbyPlayers"></div>
+    <div class="col">
+      <button class="btn" id="lobbyStart">Start</button>
+      <button class="btn sec" id="lobbyBack">Verlassen</button>
+    </div>
+  </div>
+
+  <div class="ov" id="options" hidden>
+    <h2>Optionen</h2>
+    <div class="col">
+      <button class="btn sec" id="ctrlBtn">Steuerung</button>
+      <button class="btn sec" id="qualBtn">Grafik</button>
+      <button class="btn sec" id="sndBtn">Ton</button>
+      <button class="btn" id="optBack">Zurück</button>
+    </div>
+  </div>
+
+  <div class="ov" id="controls" hidden>
+    <div class="tabs"><button class="tab" data-tab="pc">PC</button><button class="tab" data-tab="mobile">Mobil</button></div>
+    <div id="ctrlView"></div>
+    <button class="btn" id="ctrlBack">Zurück</button>
+  </div>
+
+  <div class="ov" id="levelup" hidden>
+    <h2 id="luTitle"></h2>
+    <div id="cards"></div>
+    <div id="luWait"></div>
+  </div>
+
+  <div class="ov" id="pause" hidden>
+    <h2>Pause</h2>
+    <div class="col">
+      <button class="btn" id="resumeBtn">Weiter</button>
+      <button class="btn sec" id="pCtrlBtn">Steuerung</button>
+      <button class="btn sec" id="pQualBtn">Grafik</button>
+      <button class="btn sec" id="pSndBtn">Ton</button>
+      <button class="btn sec" id="restartBtn">Neu starten</button>
+      <button class="btn sec" id="leaveBtn">Hauptmenü</button>
+    </div>
+  </div>
+
+  <div class="ov" id="over" hidden>
+    <h1>Die Ernte ist verloren</h1>
+    <div id="overStats"></div>
+    <div class="row">
+      <button class="btn" id="againBtn">Nochmal</button>
+      <button class="btn sec" id="overMenu">Hauptmenü</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+# =====================================================================
+#  PathOfGardening – Balancing
+# ---------------------------------------------------------------------
+#  Single Source of Truth. Das Spiel liest diese Datei bei JEDEM Start.
+#  Lokal (npm run dev): Datei speichern -> Spiel lädt automatisch neu.
+#  GitHub Pages: Datei committen + pushen -> wird mit ausgeliefert.
+#
+#  Einheiten: Zeit in Sekunden (s), Distanz in Metern (m, 1 m = 100 cm),
+#  Winkel in Grad, Prozent als Anteil (0.15 = 15 %).
+#  Im Koop wird gerechnet:  Faktor = Spielerzahl ^ Exponent
+# =====================================================================
+
+names:
+  skills:
+    rake: Harke
+    asp: Spargelgewehr
+    cran: Preiselbeer-Schrotflinte
+    cab: Kohlbombe
+  plants:            # Pflanze (Doppelernte-Karte)
+    blue: Blaubeerbusch
+    asp: Spargel
+    cran: Preiselbeeren
+    cab: Kohl
+  fields:            # Feld (Neues-Feld-Karte)
+    blue: Blaubeerfeld
+    asp: Spargelfeld
+    cran: Preiselbeerfeld
+    cab: Kohlfeld
+  tea: Kräutertee
+
+player:
+  hp: 100
+  speed: 4.6               # m/s
+  respawnBase: 2           # s bis zur ersten Wiederbelebung
+  respawnPerDeath: 2       # s zusätzlich pro weiterem Tod
+  pickupRadius: 0.8        # m, ab hier wird eine Frucht eingesammelt
+  pickupPerTier: 0.12      # m, große Früchte (Stufe 2/3) von etwas weiter
+  magnetRadius: 1.5        # m, ab hier rollt eine Frucht zum Spieler
+  magnetSpeed: 2.5         # m/s
+
+coop:
+  maxPlayers: 4
+  # Faktor = Spielerzahl ^ Exponent.  0.5 = Wurzel, 1 = linear, 0 = aus.
+  #                           2 Spieler   3 Spieler   4 Spieler
+  xpNeedExponent: 1.0       #  x2,00       x3,00       x4,00   benötigte XP pro Stufe
+  enemyCountExponent: 0.5   #  x1,41       x1,73       x2,00   Gegner pro Stoß
+  enemyHpExponent: 0.5      #  x1,41       x1,73       x2,00   Gegner-HP (inkl. Schaf-Schild)
+  xpYieldExponent: 0.5      #  x1,41       x1,73       x2,00   Blaubeer-Wachstum (Menge)
+  xpValueExponent: 0.5      #  x1,41       x1,73       x2,00   XP pro Blaubeere
+  enemyDamageExponent: 0.0  #  x1          x1          x1      Gegnerschaden
+  snapshotRate: 20          # Netz-Updates pro Sekunde vom Host
+
+xp:
+  # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
+  base: 50
+  growth: 1.3
+  linear: 12
+
+arena:
+  radius: 15               # m, begehbarer Bereich
+  fieldSpacing: 1.6        # m, Hex-Raster der Beete
+  fieldSlots: 6            # max. Anzahl Felder
+  startFields: 3           # Blaubeerfelder zu Beginn
+
+fields:
+  hp: 100
+  radius: 1.15             # m, ab hier greifen Gegner ein Feld an
+
+fruit:
+  tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
+  tierValue: [1, 10, 100]     # Wert Stufe 1/2/3
+  mergeCount: 10              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
+  mergeCheck: 0.4             # s zwischen Verschmelz-Prüfungen
+  throwMin: 0.95              # m, Früchte fallen so weit vom Beet
+  throwMax: 1.65
+
+plants:
+  blue: { interval: 1 }                 # 1 Frucht alle x s
+  asp:  { interval: 4, unlockAt: 15 }   # unlockAt: gesammelt -> Skill wird angeboten
+  cran: { interval: 1, unlockAt: 60 }
+  cab:  { interval: 8, unlockAt: 8 }
+
+rake:
+  damage: 10
+  range: 1.5               # m (Prototyp: 1.0 -> +50 %)
+  arc: 60                  # Grad, Breite des Kegels
+  cooldown: 0.5            # s
+  swingTime: 0.2           # s, Animation
+
+skills:
+  readySeconds: 5          # "bereit", wenn Munition für x s Dauerfeuer da ist
+  asp:
+    damage: 15
+    range: 5
+    cooldown: 1
+    ammoPerShot: 1
+    speed: 15              # m/s
+    pierce: 1              # durchbohrte Ziele zu Beginn
+    pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
+  cran:
+    damage: 3              # je Projektil
+    range: 3
+    cooldown: 1.5
+    ammoPerShot: 6
+    pellets: 6
+    spread: 60             # Grad, Fächer
+    bleedDuration: 3       # s
+    bleedDps: 1
+    mineLifetime: 15       # s
+  cab:
+    damage: 5
+    radius: 1              # m, Explosionsradius
+    cooldown: 2
+    ammoPerShot: 1
+    throwDistance: 3       # m
+    fuse: 1                # s bis zur Explosion
+    stun: 1                # s Betäubung
+    miniRadiusFactor: 0.5  # Mini-Kohl: Radius x 0.5
+    miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
+
+upgrades:
+  offersPerLevel: 3
+  damagePerLevel: 0.10     # +10 % Schaden je Stufe (additiv)
+  rangePerLevel: 0.10      # +10 % Reichweite / Radius je Stufe (additiv)
+  cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
+  aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
+  aspPierceBonus: { step: 0.05, maxLevel: 5 }  # +5 Prozentpunkte Durchbohr-Schaden
+  cranPellets:    { step: 1,    maxLevel: 3 }
+  cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
+  cabMini:        { step: 1,    maxLevel: 5 }
+  doubleHarvest:  { step: 0.15, maxLevel: 6 }  # max 90 %
+  newFieldWeight: 1.6      # Ziehgewicht "Neues Feld" (andere Karten: 1)
+  herbalTea: { playerHeal: 40, fieldHeal: 25 } # Notfall-Karte, wenn nichts anderes übrig ist
+
+enemies:
+  aggroRadius: 5           # m, ab hier greifen Gegner Spieler statt Felder an
+  maxAlive: 45             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor)
+  meleeDamage: 1
+  meleeInterval: 1         # s
+  raccoon: { hp: 12, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
+  panda:   { hp: 18, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
+  toad:
+    hp: 10
+    speed: 2.1
+    radius: 0.30
+    hopPeriod: 1           # s pro Sprung (halbe Zeit in der Luft = unverwundbar)
+    tongueCooldown: 1.5
+    tongueRange: 1.5
+    poisonTicks: 3
+    poisonInterval: 2
+    poisonDamage: 1
+  sheep:
+    hp: 5
+    speed: 1.7
+    radius: 0.44
+    shield: 10
+    shieldRegen: 3         # s bis Schild wieder voll
+    chargeRange: 4.5       # m, ab hier holt es Anlauf
+    windup: 2
+    chargeSpeed: 9
+    chargeTime: 0.8
+    ramDamage: 4
+    ramStun: 1
+    knockback: 2           # m
+    rest: 2
+
+waves:
+  # Gegner kommen in Stößen aus mehreren Richtungen.
+  firstWave: 5             # s bis zum ersten Stoß
+  gapStart: 8              # s zwischen Stößen am Anfang
+  gapEnd: 4                # s zwischen Stößen nach rampTime
+  gapJitter: 0.35          # +-35 % Zufall auf den Abstand
+  rampTime: 240            # s bis gapEnd erreicht ist
+  sizeStart: 2             # Gegner pro Stoß am Anfang
+  sizePerMinute: 1         # + Gegner pro Stoß je Minute
+  sizeMax: 16
+  directionsStart: 1       # Richtungen pro Stoß am Anfang
+  directionsMax: 4
+  directionEvery: 75       # s bis eine weitere Richtung möglich wird
+  directionSpread: 20      # Grad Streuung innerhalb einer Richtung
+  staggerMin: 0.12         # s zwischen zwei Gegnern derselben Richtung
+  staggerMax: 0.35
+  warnTime: 2.5            # s vorher blinzeln Augen in dieser Richtung
+  types:
+    raccoon: { from: 0,   weight: 3 }
+    panda:   { from: 70,  weight: 2, early: 1 }  # early: Gewicht vor "from", sobald Spargel- oder Preiselbeerfeld steht
+    toad:    { from: 130, weight: 1.6 }
+    sheep:   { from: 190, weight: 1.2 }

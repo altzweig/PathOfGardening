@@ -33,6 +33,7 @@ export function pcControls() {
   ${arrow(760, 120, 700, 120)}
   ${label(690, 112, 'Angriff', 'end')}
   ${label(690, 146, '(halten = Dauerfeuer)', 'end', 22, MUT)}
+  ${arrow(835, 95, 835, 40)}${label(835, 30, 'Mausrad: Zoom')}
   <g transform="translate(835 340)">
     <circle r="40" fill="none" stroke="${GOLD}" stroke-width="3" stroke-dasharray="7 6"/>
     <path d="M-8 -8 L22 4 L8 8 L4 22 Z" fill="${TXT}"/>

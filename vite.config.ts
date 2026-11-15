@@ -16,6 +16,33 @@ function designFiles(): Plugin {
       server.watcher.on('change', (f) => {
         if (path.resolve(f).startsWith(DESIGN_DIR)) server.ws.send({ type: 'full-reload' });
       });
+      // dev-only tool endpoint: the sound cutting tool saves processed clips into public/audio/ (raw sources stay in sfx/)
+      server.middlewares.use('/__tools/save-sfx', (req, res) => {
+        const name = new URL(req.url || '', 'http://x').searchParams.get('name') || '';
+        if (req.method !== 'POST' || !/^[a-z0-9_]+\.wav$/.test(name)) { res.statusCode = 400; res.end('bad'); return; }
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const dir = path.join(ROOT, 'public', 'audio'); fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, name), Buffer.concat(chunks)); res.end('ok');
+        });
+      });
+      server.middlewares.use('/__tools/list-sfx', (_req, res) => {
+        const dir = path.join(ROOT, 'sfx');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /\.(wav|mp3|ogg)$/i.test(f)) : []));
+      });
+      // dev-only: analysis images of the sound tool (not part of the game)
+      server.middlewares.use('/__tools/save-png', (req, res) => {
+        const name = new URL(req.url || '', 'http://x').searchParams.get('name') || '';
+        if (req.method !== 'POST' || !/^[a-z0-9_]+\.png$/.test(name)) { res.statusCode = 400; res.end('bad'); return; }
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const dir = path.join(ROOT, '.tools-out'); fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, name), Buffer.concat(chunks)); res.end('ok');
+        });
+      });
       server.middlewares.use((req, res, next) => {
         const url = decodeURIComponent((req.url || '').split('?')[0]);
         const m = url.match(/\/design\/([\w.\- ]+\.ya?ml)$/);

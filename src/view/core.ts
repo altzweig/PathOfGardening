@@ -27,15 +27,17 @@ scene.fog = new THREE.FogExp2(0x000000, 0.03);
 export const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120);
 
 // darker night than the prototype: dim moon, faint sky
-export const hemi = new THREE.HemisphereLight(0x6a84b0, 0x120d06, 0.42); scene.add(hemi);
-export const moon = new THREE.DirectionalLight(0xa9c0ff, 0.95);
+export const hemi = new THREE.HemisphereLight(0x7b95c8, 0x120d06, 0.5); scene.add(hemi);
+export const moon = new THREE.DirectionalLight(0x9db6ff, 1.25); // slightly cool moonlight
 moon.position.set(-9, 18, 7); moon.castShadow = true;
 Object.assign(moon.shadow.camera, { left: -19, right: 19, top: 19, bottom: -19, near: 1, far: 50 });
 moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.03;
 scene.add(moon); scene.add(moon.target);
 export const LANT = new THREE.Vector3(Math.cos(Math.PI / 6) * 10.8, 0, Math.sin(Math.PI / 6) * 10.8);
 const lantern = new THREE.PointLight(0xffa04a, 22, 14, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
-export const torch = new THREE.PointLight(0xffc27a, 9, 7.5, 1.6); scene.add(torch);
+export const torch = new THREE.PointLight(0xffc27a, 5, 7.5, 1.6); scene.add(torch);
+// soft light over the garden so the fields read a bit brighter than the rest of the night
+const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
 
 export type Quality = 'hoch' | 'mittel' | 'niedrig';
 const QUAL: Record<Quality, { pr: number; shadow: number; bloom: boolean }> = {
@@ -47,7 +49,7 @@ export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: tr
 
 export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.8, 0.5, 0.8);
+const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
 composer.addPass(bloom);
 export const gradePass = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 } },

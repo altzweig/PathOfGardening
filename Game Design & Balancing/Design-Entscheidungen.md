@@ -48,3 +48,21 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
   - Gegner pro Stoß × √n, Gegner-HP × √n → Gesamt-HP der Gegner × n
   - Blaubeer-Menge × √n, XP pro Blaubeere × √n → XP-Einkommen × n, also gleiches Level-Tempo wie solo
   - Gegnerschaden bleibt gleich (Exponent 0)
+
+## Sounds (15.11.2026)
+- Zuordnung Ereignis → Clip, Lautstärke, Tonhöhen-Streuung und Mindestabstand in `sounds.yaml` (wird wie `balancing.yaml` beim Start gelesen).
+- Rohdateien liegen in `sfx/`, geschnittene Clips (mono, 16 bit) in `public/audio/`. Geschnitten wird mit `tools/sfx-tool.js` im Dev-Server.
+- Pro Tier und Aktion bis zu 3 Varianten, nie zweimal derselbe Clip hintereinander, dazu zufällige Tonhöhe. Aktionen: neue Welle, Nahrung nehmen, weglaufen, angreifen, Pflanze angreifen, Anlauf (Schaf), sterben.
+- Sounds sind räumlich: leiser mit Abstand zum eigenen Spieler, links/rechts verteilt. Wellen-Rufe kommen vom Rand, an dem die Welle startet.
+- Pflanzen klingen je Art verschieden: Blaubeere/Preiselbeere = Pflück-Knipsen (Preiselbeere höher), Spargel = dumpf-holziges Klopfen, Kohl = knackiges Blätter-Rupfen.
+- Ambiente: Grillen-Teppich, leises Fackelknistern, ab und zu Krähe/Eule aus dem Wald.
+- Nicht verwendet: `calm birds.wav` (Tag-Vögel passen nicht zur Nacht).
+- Selbst erzeugt (keine passenden Aufnahmen): Spieler getroffen, Spieler stirbt, Wiederbelebung, Feld welkt, Rammstoß-Anteil, Zungen-Schnalzen.
+
+## Licht und Atmosphäre (15.11.2026)
+- Mehr Bloom, leicht kühles Mondlicht, der Garten etwas heller als der Rest.
+- An jeder Ecke eines Feldes steht eine kleine Fackel (geteilte Ecken bekommen eine), die nur wenig Licht auf den Boden wirft.
+- Hinter den Büschen ziehen Nebelschwaden.
+- Augenpaare sitzen im Gebüsch, sind immer waagerecht, blinzeln zufällig und wandern leicht.
+- Herumliegende Blaubeeren glühen stärker und pulsieren schneller, je näher das Team am nächsten Level-up ist.
+- Mausrad: zoomen (PC).

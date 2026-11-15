@@ -1,0 +1,72 @@
+# =====================================================================
+#  PathOfGardening – Sounds
+# ---------------------------------------------------------------------
+#  Ereignis -> Sound-Dateien. Wird wie balancing.yaml beim Start gelesen.
+#  files:  Clips aus public/audio/ (ohne .wav), pro Abspielen wird zufällig
+#          einer gewählt (nie zweimal derselbe hintereinander)
+#  vol:    Lautstärke 0..1
+#  pitch:  [min, max] Abspielgeschwindigkeit (1 = original, 0.8 = tiefer)
+#  gap:    Sekunden, bevor dasselbe Ereignis wieder klingen darf
+#  synth:  zusätzlich ein im Code erzeugter Sound (z. B. hurt, ram, tongue)
+#  Rohdateien liegen in sfx/, geschnittene Clips in public/audio/.
+# =====================================================================
+
+master: 0.9
+distance: { full: 5, silent: 26 }   # m vom eigenen Spieler: bis "full" volle Lautstärke, ab "silent" stumm
+
+ambient:
+  night: { file: amb_night, vol: 0.30 }               # Grillen-Teppich (Loop)
+  fire:  { file: amb_fire, vol: 0.10 }                # leises Feuerknistern der Fackeln (Loop)
+  calls: { files: [crow_1, crow_2, crow_3, owl_1], vol: 0.16, pitch: [0.9, 1.05], every: [12, 28] }  # Rufe aus dem Wald
+
+raccoon:
+  wave:        { files: [rac_wave_1, rac_wave_2, rac_wave_3], vol: 0.55, pitch: [0.92, 1.1], gap: 0.5 }
+  steal:       { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.45, pitch: [0.95, 1.15], gap: 0.15 }
+  flee:        { files: [rac_flee_1, rac_flee_2, rac_flee_3], vol: 0.55, pitch: [1.0, 1.15], gap: 0.3 }
+  attack:      { files: [rac_attack_1, rac_attack_2, rac_attack_3, rac_hiss], vol: 0.45, pitch: [0.95, 1.1], gap: 0.35 }
+  fieldAttack: { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.3, pitch: [0.8, 0.95], gap: 0.5 }
+  die:         { files: [rac_die_1, rac_die_2, rac_hiss], vol: 0.5, pitch: [0.75, 0.9], gap: 0.1 }
+
+panda:
+  wave:        { files: [pan_wave_1, pan_wave_2, pan_wave_3], vol: 0.5, pitch: [0.95, 1.1], gap: 0.5 }
+  steal:       { files: [pan_steal_1, pan_steal_2, pan_steal_3], vol: 0.45, pitch: [1.0, 1.2], gap: 0.15 }
+  flee:        { files: [pan_flee_1, pan_flee_2, pan_flee_3], vol: 0.5, pitch: [1.05, 1.2], gap: 0.3 }
+  attack:      { files: [pan_attack_1, pan_attack_2, pan_attack_3], vol: 0.45, pitch: [0.95, 1.1], gap: 0.35 }
+  fieldAttack: { files: [pan_steal_1, pan_steal_2, pan_steal_3], vol: 0.3, pitch: [0.85, 1.0], gap: 0.5 }
+  die:         { files: [pan_flee_1, pan_flee_2, pan_flee_3], vol: 0.45, pitch: [0.7, 0.8], gap: 0.1 }
+
+toad:
+  wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.5, pitch: [0.9, 1.1], gap: 0.5 }
+  attack:      { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.4, pitch: [0.9, 1.15], gap: 0.2, synth: tongue }
+  fieldAttack: { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.3, pitch: [0.85, 1.0], gap: 0.4, synth: tongue }
+  die:         { files: [toad_die_1, toad_die_2, toad_die_3], vol: 0.5, pitch: [0.75, 0.9], gap: 0.1 }
+
+sheep:
+  wave:        { files: [sheep_baa_1, sheep_baa_2, sheep_baa_3], vol: 0.4, pitch: [0.95, 1.1], gap: 0.6 }
+  charge:      { files: [sheep_baa_1, sheep_baa_2, sheep_baa_3], vol: 0.6, pitch: [1.1, 1.3], gap: 0.2 }   # holt Anlauf
+  ram:         { files: [wood_2, wood_4], vol: 0.5, pitch: [0.55, 0.7], gap: 0.1, synth: ram }
+  shield:      { files: [shield_zap], vol: 0.25, pitch: [0.9, 1.2], gap: 0.3 }                    # Schild lädt neu
+  die:         { files: [sheep_baa_2, sheep_baa_3], vol: 0.45, pitch: [0.7, 0.8], gap: 0.1 }
+
+player:
+  step:   { files: [step_1, step_2, step_3, step_4], vol: 0.16, pitch: [0.85, 1.15], gap: 0.12 }
+  hurt:   { synth: hurt, gap: 0.2 }
+  die:    { synth: playerDie, gap: 1 }
+  spawn:  { synth: respawn, gap: 0.5 }
+
+plants:
+  produce:
+    blue: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [0.9, 1.15], gap: 0.12 }
+    asp:  { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.3, pitch: [0.85, 1.05], gap: 0.15 }
+    cran: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.3, 1.6], gap: 0.12 }
+    cab:  { files: [cab_1, cab_2, cab_3], vol: 0.4, pitch: [0.9, 1.15], gap: 0.15 }
+  eaten:   # Gegner frisst an einem Feld
+    blue: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.25], gap: 0.3 }
+    asp:  { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.75, 0.9], gap: 0.3 }
+    cran: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.2, 1.45], gap: 0.3 }
+    cab:  { files: [cab_1, cab_2, cab_3], vol: 0.4, pitch: [0.8, 1.0], gap: 0.3 }
+  die:     # Feld zerstört
+    blue: { files: [rip_2, rip_3], vol: 0.6, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }
+    asp:  { files: [wood_1, wood_4], vol: 0.6, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
+    cran: { files: [rip_4, rip_5], vol: 0.6, pitch: [0.65, 0.75], gap: 0.3, synth: wilt }
+    cab:  { files: [cab_1], vol: 0.7, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }

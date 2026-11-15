@@ -14,6 +14,7 @@ export function initAudio() {
     master.connect(comp); comp.connect(AC.destination);
     noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    void loadSamples();
   } catch { AC = null; }
 }
 function can(name: string, gap: number) {
@@ -99,3 +100,85 @@ export const SND: Record<string, (arg?: any) => void> = {
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
+
+// ---------------- sample-based sounds (Game Design & Balancing/sounds.yaml) ----------------
+interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number] }
+let SC: any = null;
+const bufs = new Map<string, AudioBuffer>();
+const lastPick = new Map<string, string>();
+const lastAt = new Map<string, number>();
+let lx = 0, lz = 0;
+let ambOn = false; const ambNodes: AudioBufferSourceNode[] = []; let callT = 8;
+export function setListener(x: number, z: number) { lx = x; lz = z; }
+
+/** soundCfg = parsed sounds.yaml; buffers are fetched once the AudioContext exists */
+export function setSoundConfig(cfg: any) { SC = cfg; if (AC) void loadSamples(); }
+let loading: Promise<void> | null = null;
+function loadSamples() {
+  if (loading || !SC || !AC) return loading;
+  const names = new Set<string>();
+  const walk = (o: any) => { if (!o || typeof o !== 'object') return; if (Array.isArray(o.files)) o.files.forEach((f: string) => names.add(f)); if (typeof o.file === 'string') names.add(o.file); for (const k in o) walk(o[k]); };
+  walk(SC);
+  loading = Promise.all([...names].map(async n => {
+    try { const r = await fetch('./audio/' + n + '.wav'); bufs.set(n, await AC!.decodeAudioData(await r.arrayBuffer())); } catch { /* missing clip: stay silent */ }
+  })).then(() => { if (ambWanted) startAmbient(); });
+  return loading;
+}
+const SYNTH_EXTRA: Record<string, () => void> = {
+  playerDie() { tone({ type: 'triangle', f: 440, f2: 110, t: .7, vol: .14 }); tone({ type: 'sine', f: 220, f2: 55, t: .9, vol: .18, when: .1 }); noise({ t: .5, vol: .08, f: 900, f2: 120, when: .05 }); },
+  wilt() { tone({ type: 'sine', f: 300, f2: 90, t: .8, vol: .07 }); noise({ t: .6, vol: .06, type: 'bandpass', f: 1400, f2: 300, q: 1.5 }); },
+};
+function entry(key: string): SndEntry | null {
+  if (!SC) return null; let o: any = SC; for (const p of key.split('.')) { o = o?.[p]; if (o === undefined) return null; } return o;
+}
+/** play a sound event from sounds.yaml at a world position (distance-attenuated, panned) */
+export function sfx(key: string, x?: number, z?: number, volMul = 1) {
+  if (!AC || !audio.on || !SC) return;
+  const e = entry(key); if (!e) return;
+  const now = AC.currentTime;
+  if (e.gap && (lastAt.get(key) ?? -9) > now - e.gap) return;
+  lastAt.set(key, now);
+  let att = 1, pan = 0;
+  if (x !== undefined && z !== undefined) {
+    const D = SC.distance || { full: 5, silent: 26 }, d = Math.hypot(x - lx, z - lz);
+    att = d <= D.full ? 1 : d >= D.silent ? 0 : 1 - (d - D.full) / (D.silent - D.full); att *= att;
+    pan = Math.max(-1, Math.min(1, (x - lx) / 12)) * .75;
+    if (att <= .01) return;
+  }
+  if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) f(); }
+  const files = (e.files || []).filter(f => bufs.has(f)); if (!files.length) return;
+  let pick = files[Math.floor(Math.random() * files.length)];
+  if (files.length > 1 && pick === lastPick.get(key)) pick = files[(files.indexOf(pick) + 1) % files.length];
+  lastPick.set(key, pick);
+  const src = AC.createBufferSource(); src.buffer = bufs.get(pick)!;
+  const [p0, p1] = e.pitch || [1, 1]; src.playbackRate.value = p0 + Math.random() * (p1 - p0);
+  const g = AC.createGain(); g.gain.value = (e.vol ?? .5) * (SC.master ?? 1) * att * volMul;
+  let node: AudioNode = g;
+  if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
+  src.connect(g); node.connect(master); src.start();
+}
+let ambWanted = false;
+function startAmbient() {
+  if (!AC || ambOn || !SC?.ambient) return;
+  for (const k of ['night', 'fire']) {
+    const e = SC.ambient[k]; if (!e?.file || !bufs.has(e.file)) continue;
+    const src = AC.createBufferSource(); src.buffer = bufs.get(e.file)!; src.loop = true;
+    const g = AC.createGain(); g.gain.value = (e.vol ?? .2) * (SC.master ?? 1);
+    src.connect(g); g.connect(master); src.start(); ambNodes.push(src);
+  }
+  ambOn = ambNodes.length > 0;
+}
+export function ambient(on: boolean) {
+  if (on && !audio.on) return;
+  ambWanted = on;
+  if (on) { if (bufs.size) startAmbient(); else void loadSamples(); }
+  else { ambNodes.forEach(n => { try { n.stop(); } catch { /* ignore */ } }); ambNodes.length = 0; ambOn = false; }
+}
+/** random distant calls (crows, owl) from the forest */
+export function tickAmbient(dt: number) {
+  if (!ambOn || !SC?.ambient?.calls || !audio.on) return;
+  callT -= dt; if (callT > 0) return;
+  const c = SC.ambient.calls; callT = c.every ? c.every[0] + Math.random() * (c.every[1] - c.every[0]) : 20;
+  const a = Math.random() * Math.PI * 2; sfx('ambient.calls', lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
+}
+export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });

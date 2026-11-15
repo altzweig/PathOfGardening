@@ -56,3 +56,8 @@ export async function loadBalancing(): Promise<Balancing> {
 
 /** Koop-Faktor: Spielerzahl ^ Exponent */
 export const coopF = (n: number, exp: number) => Math.pow(Math.max(1, n), exp);
+
+/** sound mapping (Game Design & Balancing/sounds.yaml); missing file = game stays silent for samples */
+export async function loadSounds(): Promise<any> {
+  try { const res = await fetch('./design/sounds.yaml', { cache: 'no-store' }); return res.ok ? YAML.parse(await res.text()) : null; } catch { return null; }
+}

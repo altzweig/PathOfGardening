@@ -31,3 +31,11 @@ Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die 
 - `src/net` – Koop (PeerJS)
 - `src/ui` – HUD, Karten, Steuerungsseite
 - `prototype_original.html` – der ursprüngliche Prototyp als Referenz
+
+## Sounds
+
+- Rohaufnahmen: `sfx/` (werden nicht ausgeliefert)
+- Geschnittene Clips: `public/audio/` (werden ausgeliefert)
+- Zuordnung zu Spielereignissen: `Game Design & Balancing/sounds.yaml`
+- Neu schneiden: `npm run dev`, dann in der Browser-Konsole
+  `const T = await import('/tools/sfx-tool.js'); await T.load(); await T.cut('name', 'datei.wav', start, ende)`

@@ -94,6 +94,8 @@ export class Sim {
 
   emit(e: Ev) { this.events.push(e); }
   snd(n: string, extra: Record<string, any> = {}) { this.emit({ k: 'snd', n, ...extra }); }
+  /** sample sound from sounds.yaml, positioned in the world */
+  sfx(s: string, x: number, z: number) { this.emit({ k: 'sfx', s, x: r2(x), z: r2(z) }); }
   burst(x: number, y: number, z: number, c: number, n: number, sp = 2, sz = .15, lf = .5, o: Record<string, number> = {}) { this.emit({ k: 'burst', x: r2(x), y: r2(y), z: r2(z), c, n, sp, sz, lf, ...o }); }
   num(x: number, z: number, v: number, c: string, big = false) { this.emit({ k: 'num', x: r2(x), z: r2(z), v: Math.round(v * 10) / 10, c, b: big ? 1 : 0 }); }
 
@@ -160,12 +162,12 @@ export class Sim {
   }
   hurtField(f: Field, dmg: number) {
     if (!f.alive || this.phase === 'over') return;
-    f.hp -= dmg; f.shake = .25; this.snd('field');
+    f.hp -= dmg; f.shake = .25; this.sfx('plants.eaten.' + f.type, f.x, f.z);
     this.num(f.x, f.z, dmg, 'f');
     if (f.hp <= 0) {
       f.hp = 0; f.alive = false;
       this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
-      this.emit({ k: 'fieldDead', s: f.slot });
+      this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
       if (this.fields.every(x => !x.alive)) this.gameOver();
     }
   }
@@ -190,7 +192,7 @@ export class Sim {
       const a = rand(0, Math.PI * 2), d = rand(this.cfg.fruit.throwMin, this.cfg.fruit.throwMax);
       this.spawnFruit(f.type, 0, f.x, .8, f.z, f.x + Math.cos(a) * d, f.z + Math.sin(a) * d, f.slot);
     }
-    f.shake = .18;
+    f.shake = .18; this.sfx('plants.produce.' + f.type, f.x, f.z);
   }
   collectFruit(fr: Fruit, p: Player) {
     const v = fr.val;
@@ -278,7 +280,7 @@ export class Sim {
     return true;
   }
   killEnemy(e: Enemy) {
-    e.dead = true; this.kills++; this.snd('die');
+    e.dead = true; this.kills++; this.sfx(e.type + '.die', e.x, e.z);
     this.burst(e.x, .4, e.z, 0xffe0b0, 22, 2.6, .18, .6, { g: 4 });
     this.burst(e.x, .4, e.z, 0x404040, 10, 1.2, .5, .9, { a: .4 });
     for (const fr of e.carry) {
@@ -407,7 +409,7 @@ export class Sim {
       const P = this.cfg.player;
       p.hp = 0; p.alive = false; p.deaths++; p.respawnT = P.respawnBase + P.respawnPerDeath * (p.deaths - 1); p.poison = []; p.stun = 0; p.kb = null;
       this.burst(p.x, .8, p.z, 0xffd890, 40, 3, .2, 1);
-      this.emit({ k: 'pdie', p: p.id });
+      this.emit({ k: 'pdie', p: p.id }); this.sfx('player.die', p.x, p.z);
     }
   }
   tickPoison(obj: { poison: Poison[] }, dt: number, hurt: (d: number) => void) {
@@ -420,7 +422,7 @@ export class Sim {
   updateEnemy(e: Enemy, dt: number) {
     const D = this.cfg.enemies[e.type], E = this.cfg.enemies;
     e.flash -= dt; e.lunge -= dt; e.tongueT -= dt;
-    if (D.shield) { e.shieldT -= dt; if (e.shieldT <= 0) { e.shieldT = D.shieldRegen!; if (e.shield < e.shieldMax) { e.shield = e.shieldMax; this.burst(e.x, .45, e.z, 0x6fd0ff, 10, 1.2, .15, .4); } } }
+    if (D.shield) { e.shieldT -= dt; if (e.shieldT <= 0) { e.shieldT = D.shieldRegen!; if (e.shield < e.shieldMax) { e.shield = e.shieldMax; this.sfx('sheep.shield', e.x, e.z); this.burst(e.x, .45, e.z, 0x6fd0ff, 10, 1.2, .15, .4); } } }
     if (e.bleed > 0) {
       e.bleed -= dt; e.bleedT -= dt;
       if (e.bleedT <= 0) { e.bleedT = 1; this.snd('bleed'); this.emit({ k: 'bleed', x: r2(e.x), z: r2(e.z) }); this.hurtEnemy(e, this.cfg.skills.cran.bleedDps, { color: 'b' }); if (e.dead) return; }
@@ -453,7 +455,7 @@ export class Sim {
       else {
         e.tongueCd -= dt;
         if (d < rng && e.tongueCd <= 0 && t.kind !== 'fruit') {
-          e.tongueCd = D.tongueCooldown!; e.tongueT = .35; e.tongueLen = d - .15; this.snd('tongue');
+          e.tongueCd = D.tongueCooldown!; e.tongueT = .35; e.tongueLen = d - .15; this.sfx(t.kind === 'player' ? 'toad.attack' : 'toad.fieldAttack', e.x, e.z);
           const ps = { t: D.poisonInterval!, ticks: D.poisonTicks! };
           if (t.kind === 'player') t.p.poison.push(ps); else if (t.kind === 'field') t.f.poison.push(ps);
         }
@@ -462,11 +464,11 @@ export class Sim {
     }
     const d = this.steer(e, tp.x, tp.z, e.speed, dt, t.kind === 'fruit' ? 0 : reach * .9);
     if (t.kind === 'fruit' && d < .35 + e.r) {
-      const fr = t.fr; fr.state = 'carried'; e.carry.push(fr); e.target = null;
-      if (e.carry.length >= (D.carryMax || 5)) e.fleeing = true;
+      const fr = t.fr; fr.state = 'carried'; e.carry.push(fr); e.target = null; this.sfx(e.type + '.steal', e.x, e.z);
+      if (e.carry.length >= (D.carryMax || 5)) { e.fleeing = true; this.sfx(e.type + '.flee', e.x, e.z); }
     } else if (t.kind !== 'fruit' && d <= reach) {
       e.atkT -= dt;
-      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') this.hurtPlayer(t.p, E.meleeDamage); else if (t.kind === 'field') this.hurtField(t.f, E.meleeDamage); }
+      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage); } }
     } else e.atkT = Math.min(e.atkT, .5);
   }
   sheepAI(e: Enemy, dt: number) {
@@ -475,7 +477,7 @@ export class Sim {
       if (!e.target) e.target = this.chooseTarget(e);
       const tp = this.targetPos(e.target); if (!tp) return;
       const d = this.steer(e, tp.x, tp.z, e.speed, dt, 1);
-      if (d < D.chargeRange!) { e.state = 'windup'; e.st = D.windup!; this.snd('baa'); }
+      if (d < D.chargeRange!) { e.state = 'windup'; e.st = D.windup!; this.sfx('sheep.charge', e.x, e.z); }
     } else if (e.state === 'windup') {
       const tp = this.targetPos(e.target);
       if (tp && e.st > .4) { const dx = tp.x - e.x, dz = tp.z - e.z, l = Math.hypot(dx, dz) || 1; e.cdx = dx / l; e.cdz = dz / l; e.face = Math.atan2(e.cdx, e.cdz); }
@@ -484,10 +486,10 @@ export class Sim {
       const s = D.chargeSpeed! * dt * this.slowF(e); e.x += e.cdx * s; e.z += e.cdz * s; e.walk += dt * 30;
       if (Math.random() < .6) this.emit({ k: 'dust', x: r2(e.x), z: r2(e.z) });
       if (!e.hitThisCharge) for (const p of this.players) if (p.alive && dist(e, p) < e.r + .4) {
-        e.hitThisCharge = true; this.snd('ram'); this.hurtPlayer(p, D.ramDamage!); p.stun = Math.max(p.stun, D.ramStun!); p.kb = { dx: e.cdx, dz: e.cdz, left: D.knockback! };
+        e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtPlayer(p, D.ramDamage!); p.stun = Math.max(p.stun, D.ramStun!); p.kb = { dx: e.cdx, dz: e.cdz, left: D.knockback! };
         e.state = 'rest'; e.st = D.rest!; break;
       }
-      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.snd('ram'); this.hurtField(f, D.ramDamage!); e.state = 'rest'; e.st = D.rest!; }
+      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtField(f, D.ramDamage!); e.state = 'rest'; e.st = D.rest!; }
       if (e.st <= 0 && e.state === 'charge') { e.state = 'rest'; e.st = D.rest!; }
     } else if (e.state === 'rest') {
       if (e.st <= 0) { e.state = 'approach'; e.target = null; }
@@ -525,6 +527,8 @@ export class Sim {
     if (!this.planned && this.waveT <= W.warnTime) {
       this.planned = this.planWave();
       this.emit({ k: 'warn', d: this.planned.dirs.map(r2), ty: this.planned.groups.map(g => g.map(t => ENEMIES.indexOf(t))), w: W.warnTime });
+      const R = this.cfg.arena.radius + 2;
+      this.planned.dirs.forEach((a, i) => { const t = this.planned!.groups[i][0]; if (t) this.sfx(t + '.wave', Math.cos(a) * R, Math.sin(a) * R); });
     }
     if (this.waveT <= 0 && this.planned) {
       const spread = W.directionSpread * Math.PI / 180;
@@ -550,7 +554,7 @@ export class Sim {
     p.flash -= dt; p.swing -= dt;
     if (!p.alive) {
       p.respawnT -= dt;
-      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.snd('respawn'); }
+      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
     }
     let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }

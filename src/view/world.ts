@@ -64,6 +64,7 @@ function silhouetteMat(rim = 0x26344a, pow = 2.6) {
 export function buildWorld() {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  buildFog();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
   { // grass inside the garden only
     const tuft = new THREE.BufferGeometry(); const pos: number[] = [];
@@ -117,46 +118,118 @@ export function buildWorld() {
   }
 }
 
-// ---------------- eyes in the dark ----------------
-interface Eye { g: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; t: number; blink: number; base: number }
+// ---------------- eyes in the bushes ----------------
+// A steady population of eye pairs sits inside the bush ring (r 16.4-18.4). Pairs are always
+// horizontal on screen, blink at random and drift a little. Before a wave more pairs gather
+// in that direction, in the colours of the coming creatures.
+interface Eye { g: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; t: number; blink: number; base: number; a: number; rad: number; y: number; da: number; ph: number; warn: boolean }
 const eyes: Eye[] = [];
 const eyeGeo = new THREE.SphereGeometry(1, 10, 8);
-function spawnEye(type: EnemyType, angle: number, life: number, near = false) {
-  if (eyes.length > 70) return;
-  const r = near ? rand(18.2, 20) : rand(18.5, 23), y = rand(.25, 1.1);
-  const mat = new THREE.MeshBasicMaterial({ color: EYE_COL[type], transparent: true, opacity: 0, toneMapped: false, fog: false, depthWrite: false });
-  const g = new THREE.Group(), size = type === 'toad' ? .075 : .06, gap = type === 'toad' ? .2 : .14;
-  const l = new THREE.Mesh(eyeGeo, mat), rr = new THREE.Mesh(eyeGeo, mat);
-  l.scale.setScalar(size); rr.scale.setScalar(size); l.position.x = -gap / 2; rr.position.x = gap / 2; g.add(l, rr);
-  g.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r); g.lookAt(0, y, 0);
-  scene.add(g);
-  eyes.push({ g, l, r: rr, mat, life, t: 0, blink: rand(.5, 3), base: size });
-}
 const AMBIENT: EnemyType[] = ['raccoon', 'panda', 'toad'];
-let ambientT = 0;
+const BASE_PAIRS = 16;
+function spawnEye(type: EnemyType, angle: number, life: number, warn = false) {
+  if (eyes.length > 60) return;
+  // drawn over the bush silhouettes so they peek out of the foliage
+  const mat = new THREE.MeshBasicMaterial({ color: EYE_COL[type], transparent: true, opacity: 0, toneMapped: false, fog: false, depthWrite: false, depthTest: false });
+  const g = new THREE.Group(), size = type === 'toad' ? .09 : .075, gap = type === 'toad' ? .24 : .17;
+  const l = new THREE.Mesh(eyeGeo, mat), rr = new THREE.Mesh(eyeGeo, mat);
+  l.scale.setScalar(size); rr.scale.setScalar(size); l.position.x = -gap / 2; rr.position.x = gap / 2; g.add(l, rr); // pair along world X = horizontal on screen
+  const e: Eye = { g, l, r: rr, mat, life, t: 0, blink: rand(.3, 4), base: size, a: angle, rad: rand(16.4, 18.4), y: rand(.22, .62), da: rand(-.012, .012), ph: rand(0, 7), warn };
+  g.position.set(Math.cos(angle) * e.rad, e.y, Math.sin(angle) * e.rad);
+  l.renderOrder = rr.renderOrder = 20; scene.add(g); eyes.push(e);
+}
 export function warnEyes(dirs: number[], types: number[][], warnTime: number) {
   dirs.forEach((a, i) => {
-    const grp = types[i] || [0];
-    const n = Math.min(7, 2 + grp.length);
+    const grp = types[i] || [0], n = Math.min(6, 2 + grp.length);
     for (let k = 0; k < n; k++) {
       const t = ENEMIES[grp[k % grp.length]] || 'raccoon';
-      const tt = t === 'sheep' ? AMBIENT[k % 3] : t;
-      setTimeout(() => spawnEye(tt, a + rand(-.28, .28), warnTime + rand(.4, 1.2), true), rand(0, 700));
+      spawnEye(t === 'sheep' ? AMBIENT[k % 3] : t, a + rand(-.25, .25), warnTime + rand(.6, 1.4), true);
     }
   });
 }
 export function updateEyes(dt: number) {
-  ambientT -= dt;
-  if (ambientT <= 0) { ambientT = rand(.6, 1.8); spawnEye(AMBIENT[Math.floor(Math.random() * 3)], rand(0, Math.PI * 2), rand(3, 7)); }
+  // keep the bushes populated
+  if (eyes.filter(e => !e.warn).length < BASE_PAIRS) spawnEye(AMBIENT[Math.floor(Math.random() * 3)], rand(0, Math.PI * 2), rand(6, 16));
   for (let i = eyes.length - 1; i >= 0; i--) {
     const e = eyes[i]; e.t += dt;
     if (e.t >= e.life) { scene.remove(e.g); e.mat.dispose(); eyes.splice(i, 1); continue; }
-    const fade = Math.min(1, e.t / .5, (e.life - e.t) / .5);
-    e.mat.opacity = fade;
+    e.mat.opacity = Math.min(1, e.t / .6, (e.life - e.t) / .6);
+    // slight wandering inside the bushes
+    e.a += e.da * dt; e.ph += dt;
+    const rad = e.rad + Math.sin(e.ph * .7) * .25, y = e.y + Math.sin(e.ph * 1.3) * .04;
+    e.g.position.set(Math.cos(e.a) * rad, y, Math.sin(e.a) * rad);
+    // random blinks (sometimes double)
     e.blink -= dt; let sy = 1;
-    if (e.blink < 0) { sy = Math.max(.08, Math.abs(e.blink / .07) - 1); if (e.blink < -.14) e.blink = rand(1.2, 4); }
+    if (e.blink < 0) { const b = -e.blink; sy = b < .06 ? 1 - b / .06 : b < .12 ? (b - .06) / .06 : 1; sy = Math.max(.06, sy); if (b > .12) e.blink = Math.random() < .2 ? .12 : rand(.8, 4.5); }
     e.l.scale.set(e.base, e.base * sy, e.base); e.r.scale.set(e.base, e.base * sy, e.base);
   }
 }
 export function clearEyes() { for (const e of eyes) scene.remove(e.g); eyes.length = 0; }
+
+// ---------------- fog drifting through the bushes ----------------
+const fogTex = (() => {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  for (let i = 0; i < 26; i++) { // soft lumpy blob
+    const x = S / 2 + rand(-30, 30), y = S / 2 + rand(-16, 16), r = rand(16, 40);
+    const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(255,255,255,.22)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+interface Wisp { s: THREE.Sprite; a: number; r: number; y: number; da: number; ph: number; op: number }
+const wisps: Wisp[] = [];
+function buildFog() {
+  for (let i = 0; i < 22; i++) {
+    const mat = new THREE.SpriteMaterial({ map: fogTex, color: 0x8aa0c8, transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const s = new THREE.Sprite(mat); const sc = rand(5, 9); s.scale.set(sc, sc * .45, 1);
+    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(15.5, 19.5), y: rand(.4, 1.4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
+    scene.add(s); wisps.push(w);
+  }
+}
+export function updateFog(dt: number) {
+  for (const w of wisps) {
+    w.a += w.da * dt; w.ph += dt * .25;
+    const r = w.r + Math.sin(w.ph) * .8;
+    w.s.position.set(Math.cos(w.a) * r, w.y + Math.sin(w.ph * 1.7) * .15, Math.sin(w.a) * r);
+    (w.s.material as THREE.SpriteMaterial).opacity = w.op * (.55 + .45 * Math.sin(w.ph * 1.3));
+  }
+}
+
+// ---------------- small torches at the field corners ----------------
+const glowTex = (() => {
+  const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,190,110,1)'); grd.addColorStop(.35, 'rgba(255,140,60,.35)'); grd.addColorStop(1, 'rgba(255,120,40,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv);
+})();
+interface Torch { g: THREE.Group; flame: THREE.Sprite; glow: THREE.Mesh; ph: number }
+const torches: Torch[] = [];
+const torchGroup = new THREE.Group();
+const stickMat = M(0x3a2a1c), headMat = M(0x221a12);
+/** one torch per unique corner of the existing fields (shared corners get one torch) */
+export function syncTorches(fields: { x: number; z: number }[], H: number) {
+  if (!torchGroup.parent) scene.add(torchGroup);
+  for (const t of torches) torchGroup.remove(t.g); torches.length = 0;
+  const seen = new Set<string>();
+  for (const f of fields) for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 2 + i * Math.PI / 3; // pointy-top: corners at ±z
+    const x = f.x + Math.cos(a) * H, z = f.z + Math.sin(a) * H, key = Math.round(x * 4) + ',' + Math.round(z * 4);
+    if (seen.has(key)) continue; seen.add(key);
+    const g = new THREE.Group(); g.position.set(x, 0, z);
+    part(g, GEO.cyl, stickMat, .025, .55, .025, 0, .275, 0, false);
+    part(g, GEO.cyl, headMat, .045, .08, .045, 0, .58, 0, false);
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffb060, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    flame.position.y = .7; flame.scale.set(.32, .45, 1); g.add(flame);
+    const glow = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffa050, transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = .03; glow.scale.setScalar(1.25); g.add(glow);
+    torchGroup.add(g); torches.push({ g, flame, glow, ph: rand(0, 7) });
+  }
+}
+export function updateTorches(dt: number) {
+  for (const t of torches) {
+    t.ph += dt * rand(6, 11);
+    const f = .85 + Math.sin(t.ph) * .08 + Math.sin(t.ph * 2.3) * .06;
+    t.flame.scale.set(.3 * f, .44 * (2 - f), 1);
+    (t.glow.material as THREE.MeshBasicMaterial).opacity = .2 * f;
+  }
+}
 export { ARENA };

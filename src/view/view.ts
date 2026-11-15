@@ -4,17 +4,18 @@ import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SkillId, Weapon } from '../config';
 import { Slot, hexR, slotAt, slotPositions } from '../sim/sim';
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
-import { play } from '../audio';
+import { play, setListener, sfx } from '../audio';
 import {
   GEO, M, PART, V, addMat, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
 import { EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
-import { buildWorld, clearEyes, updateEyes, warnEyes } from './world';
+import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
+import { GROUND_MAT } from './models';
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60' };
 
-interface PView { g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -50,6 +51,18 @@ export class GameView {
   private dmgLayer = document.getElementById('dmg')!;
   private shake = 0;
   hurtT = 0;
+  zoom = 1;
+  /** mouse wheel: + zooms out, - zooms in */
+  zoomBy(dy: number) { this.zoom = clamp(this.zoom * Math.pow(1.0015, dy), .55, 1.7); }
+  private berryT = 0;
+  /** lying blueberries glow and pulse more the closer the team is to the next level */
+  private berryGlow(dt: number) {
+    const s = this.snap; const k = s && s.nx ? clamp(s.xp / s.nx, 0, 1) : 0;
+    this.berryT += dt * (1.5 + k * k * 9);
+    const pulse = .5 + .5 * Math.sin(this.berryT * Math.PI * 2);
+    GROUND_MAT.blue.emissiveIntensity = 1.1 + k * 1.6 + pulse * (.15 + k * k * 2.6);
+  }
+  private fieldKey = '';
   private frameId = 0;
   localAim: LocalAim = { weapon: null, x: 0, z: 1, show: false };
   onEvent: (e: Ev) => void = () => {};
@@ -57,7 +70,7 @@ export class GameView {
   constructor() {
     buildWorld();
     scene.add(this.dyn);
-    this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .016)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
+    this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
   // ---------------- build mode ----------------
   setPlacing(type: FruitType | null) {
@@ -127,7 +140,7 @@ export class GameView {
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools].forEach(m => m.clear());
     this.setPlacing(null);
-    PART.clear(); clearFx(); clearEyes(); this.snap = null;
+    PART.clear(); clearFx(); clearEyes(); this.snap = null; this.fieldKey = '';
   }
 
   // ---------------- state ----------------
@@ -163,6 +176,7 @@ export class GameView {
       v.plant.rotation.z = Math.sin(performance.now() / 20) * f[4] * .25; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) this.removeField(slot, v);
+    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.map(f => slots[f[0]]), hexR(this.cfg)); }
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
       const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
@@ -252,6 +266,7 @@ export class GameView {
   private event(e: Ev) {
     switch (e.k) {
       case 'snd': play(e.n); break;
+      case 'sfx': sfx(e.s, e.x, e.z); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
       case 'punch': {
@@ -296,7 +311,7 @@ export class GameView {
         if (e.p === this.me) play('pop', e.tier > 0);
         break;
       }
-      case 'hurt': if (e.p === this.me) { play('hurt'); this.hurtT = .35; this.shake = Math.min(.2, this.shake + .06); } break;
+      case 'hurt': if (e.p === this.me) { sfx('player.hurt'); this.hurtT = .35; this.shake = Math.min(.2, this.shake + .06); } break;
       case 'warn': warnEyes(e.d, e.ty, e.w); play('warn'); break;
       case 'cycle': if (e.p === this.me) play('cycle'); break;
     }
@@ -329,7 +344,8 @@ export class GameView {
     }
     this.updateOverlay();
     this.updateAim();
-    updateEyes(dt);
+    updateEyes(dt); updateFog(dt); updateTorches(dt);
+    this.berryGlow(dt);
     if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
     PART.update(dt); updateFx(dt); this.updateNums(dt);
     this.updateCamera(dt);
@@ -347,6 +363,7 @@ export class GameView {
     v.rot = swinging ? s.sd : lerpAngle(v.rot, s.f, .25);
     v.g.rotation.y = v.rot;
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
+    const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
     const arc = this.cfg.rake.arc * Math.PI / 180, L = this.cfg.rake.range - .12;
     if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
@@ -419,7 +436,7 @@ export class GameView {
   private camX = 0; private camZ = 0;
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;
-    const off = V(0, portrait ? 18 : 13.5, portrait ? 11.6 : 9.3);
+    const z = this.zoom, off = V(0, (portrait ? 18 : 13.5) * z, (portrait ? 11.6 : 9.3) * z);
     const me = this.players.get(this.me);
     const tx = me ? me.x : 0, tz = me ? me.z : 0;
     this.camX = lerp(this.camX, tx * .92, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
@@ -432,7 +449,7 @@ export class GameView {
     const topH = ext / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
     camera.position.set(lerp(this.camX + off.x + sx, 0, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, .01, k));
     camera.lookAt(lerp(this.camX + sx, 0, k), 0, lerp(this.camZ + sz, 0, k));
-    torch.position.set(tx, 2.2, tz + .4);
+    torch.position.set(tx, 3, tz + .6); setListener(tx, tz);
     this.aggro.position.set(tx, .03, tz); this.aggro.visible = !!(me && me.s.al);
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
   }

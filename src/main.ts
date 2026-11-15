@@ -1,5 +1,5 @@
 import './style.css';
-import { Balancing, FRUITS, WEAPONS, Weapon, loadBalancing } from './config';
+import { Balancing, FRUITS, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
 import { Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
@@ -8,7 +8,7 @@ import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { mini, pic } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
-import { audio, initAudio, play, tickAudio } from './audio';
+import { ambient, audio, initAudio, play, setSoundConfig, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -45,6 +45,7 @@ class Game {
     try { this.cfg = await loadBalancing(); }
     catch (e) { only('#menu'); const er = $('#menuErr'); er.hidden = false; er.textContent = 'balancing.yaml: ' + (e as Error).message; return; }
     this.view.setConfig(this.cfg);
+    setSoundConfig(await loadSounds());
     applyQuality();
     this.idle();
     this.wire();
@@ -69,7 +70,8 @@ class Game {
     this.input.enabled = false; show('#hud', false);
   }
   private wire() {
-    const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); f(); });
+    const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); f(); });
+    addEventListener('wheel', e => { if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY); }, { passive: true });
     click('#soloBtn', () => this.startSolo());
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
@@ -79,7 +81,7 @@ class Game {
     click('#pCtrlBtn', () => this.openControls('#pause'));
     click('#ctrlBack', () => only(this.backTo));
     for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOptLabels(); });
-    for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; this.updateOptLabels(); });
+    for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); this.updateOptLabels(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => this.ctrlTab(t.dataset.tab!)));
     click('#hostBtn', () => this.hostGame());
     click('#joinBtn', () => this.joinGame());
@@ -211,7 +213,7 @@ class Game {
     const s = this.view.snap;
     if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.syncPhase(s); }
     this.view.frame(dt);
-    tickAudio(dt);
+    tickAudio(dt); tickAmbient(dt);
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];

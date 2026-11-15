@@ -8,7 +8,10 @@
 #  pitch:  [min, max] Abspielgeschwindigkeit (1 = original, 0.8 = tiefer)
 #  gap:    Sekunden, bevor dasselbe Ereignis wieder klingen darf
 #  synth:  zusätzlich ein im Code erzeugter Sound (z. B. hurt, ram, tongue)
-#  Rohdateien liegen in sfx/, geschnittene Clips in public/audio/.
+#  chance: Wahrscheinlichkeit, dass der Sound überhaupt spielt (0..1)
+#  delay:  [min, max] zufällige Verzögerung in s (macht Rufe unregelmäßiger)
+#  rising: true = jede schnelle Wiederholung einen Halbton höher (Einsammel-Kette)
+#  Rohdateien liegen in sfx/<zweck>/ (ungenutzte in sfx/unused/), geschnittene Clips in public/audio/.
 # =====================================================================
 
 master: 0.9
@@ -38,7 +41,7 @@ panda:
   die:         { files: [rac_die_1, rac_die_2], vol: 0.28, pitch: [0.95, 1.05], gap: 0.15 }
 
 toad:
-  wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.3, pitch: [0.9, 1.1], gap: 0.5 }
+  wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.3, pitch: [0.85, 1.1], gap: 4, chance: 0.4, delay: [0, 3] }   # Quaken aus dem Hintergrund: selten, unregelmäßig
   attack:      { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.25, pitch: [0.9, 1.15], gap: 0.2, synth: tongue }
   fieldAttack: { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.18, pitch: [0.85, 1.0], gap: 0.4, synth: tongue }
   die:         { files: [toad_die_1, toad_die_2, toad_die_3], vol: 0.3, pitch: [0.75, 0.9], gap: 0.1 }
@@ -72,3 +75,22 @@ plants:
     asp:  { files: [wood_1, wood_4], vol: 0.6, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
     cran: { files: [rip_4, rip_5], vol: 0.6, pitch: [0.65, 0.75], gap: 0.3, synth: wilt }
     cab:  { files: [cab_1], vol: 0.7, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
+
+ui:
+  click:       { files: [ui_click], vol: 0.35, pitch: [0.95, 1.05] }            # Knöpfe im Menü
+  hover:       { files: [ui_hover], vol: 0.2, pitch: [0.95, 1.1], gap: 0.05 }  # Maus über Karte
+  confirm:     { files: [ui_confirm], vol: 0.4 }                                # Karte gewählt, Feld gesetzt
+  levelup:     { files: [levelup], vol: 0.5 }
+  rarity:      { files: [rarity_up], vol: 0.5 }                                 # Feld steigt in der Seltenheit
+  weaponReady: { files: [weapon_ready], vol: 0.25, gap: 0.3 }                   # Waffe hat genug Munition
+  weaponCycle: { files: [weapon_cycle], vol: 0.3, pitch: [1.0, 1.1] }           # Leertaste
+  gameOver:    { files: [game_over], vol: 0.6 }
+
+collect:
+  xp:    { files: [collect_xp_1, collect_xp_2, collect_xp_3, collect_xp_4], vol: 0.35, pitch: [0.9, 0.9], rising: true }    # Blaubeeren
+  ammo:  { files: [collect_ammo_1, collect_ammo_2, collect_ammo_3, collect_ammo_4], vol: 0.35, pitch: [0.95, 1.15], gap: 0.04 } # Munition
+  big:   { files: [collect_big], vol: 0.45, pitch: [0.95, 1.1] }                 # große Frucht (Stufe 2/3)
+  merge: { files: [merge], vol: 0.4, pitch: [0.9, 1.15], gap: 0.1 }              # 10 Früchte verschmelzen
+
+effects:
+  pool:  { files: [pool_1, pool_2, pool_3], vol: 0.3, pitch: [0.85, 1.1], gap: 0.15 }  # Kohl-Giftlache blubbert

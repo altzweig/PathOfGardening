@@ -135,7 +135,7 @@ export class Sim {
     if (f && f.type === type && f.alive) {
       if (f.rarity < F.rarityCost.length) {
         f.prog++;
-        if (f.prog >= F.rarityCost[f.rarity]) { f.rarity++; f.prog = 0; this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.snd('level'); }
+        if (f.prog >= F.rarityCost[f.rarity]) { f.rarity++; f.prog = 0; this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.emit({ k: 'sfx', s: 'ui.rarity' }); }
       }
       f.hp = f.maxHp;
       this.burst(s.x, .4, s.z, 0xffe08a, 30, 2.5, .2, .8);
@@ -219,7 +219,7 @@ export class Sim {
     if (this.pendingLv > 0 && this.phase === 'play') this.openLevelUp();
   }
   openLevelUp() {
-    this.phase = 'lvl'; this.lvRound++; this.snd('level');
+    this.phase = 'lvl'; this.lvRound++; this.emit({ k: 'sfx', s: 'ui.levelup' });
     for (const p of this.players) { p.offers = this.offers(p); p.picked = false; p.intent = { ...emptyIntent(), tapSeq: p.lastTap, cycle: p.lastCycle }; for (const id of SKILLS) p.skills[id].firing = false; }
     this.emit({ k: 'lvl' });
   }
@@ -354,6 +354,7 @@ export class Sim {
     this.emit({ k: 'boom', x: r2(b.tx), z: r2(b.tz), r: r2(b.radius), m: b.mini ? 1 : 0 });
     for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) this.hurtEnemy(e, b.dmg, { color: 'c' });
     // poison pool: ticks poolTicksPerSecond x poolDuration, each tick poolTickDamage x bomb damage, slows enemies inside
+    this.sfx('effects.pool', b.tx, b.tz);
     this.pools.push({ id: this.nid++, x: b.tx, z: b.tz, r: b.radius, t: C.poolDuration, tickT: 1 / C.poolTicksPerSecond, ticks: Math.round(C.poolDuration * C.poolTicksPerSecond), dmg: b.dmg * C.poolTickDamage });
     for (let i = 0; i < b.minis; i++) {
       const a = rand(0, Math.PI * 2), t = this.clampArena(b.tx + Math.cos(a), b.tz + Math.sin(a));

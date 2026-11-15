@@ -8,7 +8,7 @@ import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { mini, pic } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
-import { ambient, audio, initAudio, play, setSoundConfig, tickAmbient, tickAudio } from './audio';
+import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -70,7 +70,7 @@ class Game {
     this.input.enabled = false; show('#hud', false);
   }
   private wire() {
-    const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); f(); });
+    const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
     addEventListener('wheel', e => { if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY); }, { passive: true });
     click('#soloBtn', () => this.startSolo());
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
@@ -82,7 +82,7 @@ class Game {
     click('#ctrlBack', () => only(this.backTo));
     for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOptLabels(); });
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); this.updateOptLabels(); });
-    document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => this.ctrlTab(t.dataset.tab!)));
+    document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
     click('#hostBtn', () => this.hostGame());
     click('#joinBtn', () => this.joinGame());
     ($('#codeIn') as HTMLInputElement).addEventListener('keydown', e => { if (e.key === 'Enter') { initAudio(); this.joinGame(); } });
@@ -102,7 +102,7 @@ class Game {
       if (!this.view.placing) return;
       const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
       if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
-      play('field');
+      sfx('ui.confirm');
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
@@ -236,9 +236,10 @@ class Game {
         const box = $('#cards'); box.innerHTML = ''; box.classList.remove('cards-done');
         for (const o of pr.of) {
           const b = cardEl(o);
+          b.addEventListener('pointerenter', () => { if (!box.classList.contains('cards-done')) sfx('ui.hover'); });
           b.addEventListener('click', () => {
             if (box.classList.contains('cards-done')) return;
-            box.classList.add('cards-done'); b.classList.add('chosen');
+            box.classList.add('cards-done'); b.classList.add('chosen'); sfx('ui.confirm');
             if (this.mode === 'client') this.client?.send({ t: 'pick', key: o.key }); else this.sim?.pick(this.me, o.key);
           });
           box.appendChild(b);

@@ -1,6 +1,6 @@
 import { FRUITS, SKILLS, WEAPONS, Weapon } from '../config';
 import type { Snap } from '../sim/snap';
-import { play } from '../audio';
+import { sfx } from '../audio';
 import { fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 
@@ -53,7 +53,7 @@ export class Hud {
       const b = this.btn[id]; const learned = !!pr.ln[i]; b.hidden = !learned; if (!learned) return;
       const ready = pr.am[i] >= pr.nd[i], usable = pr.am[i] >= pr.co[i] && (ready || active === id);
       b.classList.toggle('grey', !usable); b.classList.toggle('ready', ready);
-      if (ready && !this.wasReady[id]) { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); play('ready'); setTimeout(() => b.classList.remove('pulse'), 1500); }
+      if (ready && !this.wasReady[id]) { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); sfx('ui.weaponReady'); setTimeout(() => b.classList.remove('pulse'), 1500); }
       this.wasReady[id] = ready;
       b.style.setProperty('--cd', String(pr.cd[i])); b.style.setProperty('--ch', Math.min(1, pr.am[i] / pr.nd[i]).toFixed(3));
       const t = `${pr.am[i]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;

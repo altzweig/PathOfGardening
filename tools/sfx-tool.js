@@ -9,7 +9,7 @@ export async function load(files) {
   files = files || (await (await fetch('/__tools/list-sfx')).json());
   for (const f of files) {
     if (S[f]) continue;
-    const buf = await (await fetch('/sfx/' + encodeURIComponent(f))).arrayBuffer();
+    const buf = await (await fetch('/sfx/' + f.split('/').map(encodeURIComponent).join('/'))).arrayBuffer();
     const ab = await ac.decodeAudioData(buf);
     const n = ab.length, ch = ab.numberOfChannels, mono = new Float32Array(n);
     for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / ch; }

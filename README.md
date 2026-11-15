@@ -34,7 +34,7 @@ Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die 
 
 ## Sounds
 
-- Rohaufnahmen: `sfx/` (werden nicht ausgeliefert)
+- Rohaufnahmen: `sfx/<zweck>/`, ungenutzte in `sfx/unused/` (werden nicht ausgeliefert)
 - Geschnittene Clips: `public/audio/` (werden ausgeliefert)
 - Zuordnung zu Spielereignissen: `Game Design & Balancing/sounds.yaml`
 - Neu schneiden: `npm run dev`, dann in der Browser-Konsole

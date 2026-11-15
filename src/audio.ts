@@ -102,7 +102,8 @@ export const SND: Record<string, (arg?: any) => void> = {
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
 
 // ---------------- sample-based sounds (Game Design & Balancing/sounds.yaml) ----------------
-interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number] }
+interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean }
+const riseStep = new Map<string, { n: number; t: number }>();
 let SC: any = null;
 const bufs = new Map<string, AudioBuffer>();
 const lastPick = new Map<string, string>();
@@ -137,6 +138,7 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   const e = entry(key); if (!e) return;
   const now = AC.currentTime;
   if (e.gap && (lastAt.get(key) ?? -9) > now - e.gap) return;
+  if (e.chance !== undefined && Math.random() > e.chance) { lastAt.set(key, now); return; }
   lastAt.set(key, now);
   let att = 1, pan = 0;
   if (x !== undefined && z !== undefined) {
@@ -151,11 +153,15 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   if (files.length > 1 && pick === lastPick.get(key)) pick = files[(files.indexOf(pick) + 1) % files.length];
   lastPick.set(key, pick);
   const src = AC.createBufferSource(); src.buffer = bufs.get(pick)!;
-  const [p0, p1] = e.pitch || [1, 1]; src.playbackRate.value = p0 + Math.random() * (p1 - p0);
+  const [p0, p1] = e.pitch || [1, 1]; let rate = p0 + Math.random() * (p1 - p0);
+  if (e.rising) { // quick pickups climb a semitone each, wrapping after an octave (Shepard-like)
+    const r = riseStep.get(key) || { n: 0, t: 0 }; r.n = now - r.t < 1.2 ? (r.n + 1) % 12 : 0; r.t = now; riseStep.set(key, r); rate *= Math.pow(2, r.n / 12);
+  }
+  src.playbackRate.value = rate;
   const g = AC.createGain(); g.gain.value = (e.vol ?? .5) * (SC.master ?? 1) * att * volMul;
   let node: AudioNode = g;
   if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
-  src.connect(g); node.connect(master); src.start();
+  src.connect(g); node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
 }
 let ambWanted = false;
 function startAmbient() {

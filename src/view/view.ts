@@ -305,15 +305,16 @@ export class GameView {
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
       case 'rarity': { const sl = this.slots[e.s]; if (sl) { burst(V(sl.x, .3, sl.z), RARITY_COL[e.r] ?? 0xffffff, 60, 3.5, .25, 1.1); decal(sl.x, sl.z, RARITY_COL[e.r] ?? 0xffffff, .3, .7, { ring: true, add: true, grow: hexR(this.cfg) * 1.2, op: .9 }); } break; }
-      case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); play('merge'); break;
+      case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); sfx('collect.merge', e.x, e.z); break;
       case 'collect': {
         burst(V(e.x, .9, e.z), FRUIT_HEX[FRUITS[e.t]], 6 + e.tier * 6, 1.8, .12, .35);
-        if (e.p === this.me) play('pop', e.tier > 0);
+        if (e.p === this.me) sfx(e.tier > 0 ? 'collect.big' : e.t === 0 ? 'collect.xp' : 'collect.ammo');
         break;
       }
       case 'hurt': if (e.p === this.me) { sfx('player.hurt'); this.hurtT = .35; this.shake = Math.min(.2, this.shake + .06); } break;
       case 'warn': warnEyes(e.d, e.ty, e.w); play('warn'); break;
-      case 'cycle': if (e.p === this.me) play('cycle'); break;
+      case 'cycle': if (e.p === this.me) sfx('ui.weaponCycle'); break;
+      case 'over': sfx('ui.gameOver'); break;
     }
     this.onEvent(e);
   }

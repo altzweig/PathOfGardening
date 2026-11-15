@@ -30,7 +30,15 @@ function designFiles(): Plugin {
       server.middlewares.use('/__tools/list-sfx', (_req, res) => {
         const dir = path.join(ROOT, 'sfx');
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify(fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /\.(wav|mp3|ogg)$/i.test(f)) : []));
+        const out: string[] = [];
+        const walk = (d: string, rel: string) => {
+          for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+            if (e.isDirectory()) walk(path.join(d, e.name), rel + e.name + '/');
+            else if (/\.(wav|mp3|ogg)$/i.test(e.name)) out.push(rel + e.name);
+          }
+        };
+        if (fs.existsSync(dir)) walk(dir, '');
+        res.end(JSON.stringify(out));
       });
       // dev-only: analysis images of the sound tool (not part of the game)
       server.middlewares.use('/__tools/save-png', (req, res) => {

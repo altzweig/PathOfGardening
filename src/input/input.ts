@@ -9,6 +9,7 @@ const newStick = (): Stick => ({ id: null, ox: 0, oy: 0, R: 52, x: 0, y: 0, mag:
 export class Input {
   enabled = false;
   onPause: () => void = () => {};
+  onCheat: () => void = () => {};
   private keys: Record<string, boolean> = {};
   private mouse: { x: number; y: number } | null = null;
   private mouseDown = false;
@@ -34,6 +35,7 @@ export class Input {
       this.keys[e.code] = true; this.setMode('pc');
       if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && this.enabled) this.cycle++; }
       if (e.code === 'Escape') this.onPause();
+      if (e.code === 'KeyE' && !e.repeat) this.onCheat();
     });
     addEventListener('keyup', e => { this.keys[e.code] = false; });
     addEventListener('blur', () => this.releaseAll());

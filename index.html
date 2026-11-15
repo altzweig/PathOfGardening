@@ -33,6 +33,7 @@
     <div id="respawn"></div>
     <div id="placeBar" hidden></div>
     <div id="ammoPop"></div>
+    <button class="ibtn" id="cheatBtn" hidden aria-label="Cheat">E</button>
   </div>
 
   <!-- main menu -->
@@ -40,6 +41,7 @@
     <h1>PathOfGardening</h1>
     <div class="col">
       <button class="btn" id="soloBtn">Spielen</button>
+      <button class="btn sec" id="testBtn">Testmodus</button>
       <button class="btn sec" id="coopBtn">Koop</button>
       <button class="btn sec" id="optBtn">Optionen</button>
     </div>
@@ -88,6 +90,12 @@
     <h2 id="luTitle"></h2>
     <div id="cards"></div>
     <div id="luWait"></div>
+  </div>
+
+  <!-- test mode: cheat menu (key E) -->
+  <div class="ov" id="cheat" hidden>
+    <div id="cheatTop"><b>Testmodus</b><span id="cheatWave"></span><button class="btn" id="cheatClose">Weiter</button></div>
+    <div id="cheatRows"></div>
   </div>
 
   <div class="ov" id="pause" hidden>

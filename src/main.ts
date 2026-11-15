@@ -13,7 +13,7 @@ import { Client, Host } from './net/net';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#controls', '#levelup', '#pause', '#over'];
+const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#controls', '#levelup', '#pause', '#over', '#cheat'];
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); }
 
 type Mode = 'idle' | 'solo' | 'host' | 'client';
@@ -72,7 +72,11 @@ class Game {
   private wire() {
     const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
     addEventListener('wheel', e => { if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY); }, { passive: true });
-    click('#soloBtn', () => this.startSolo());
+    click('#soloBtn', () => this.startSolo(false));
+    click('#testBtn', () => this.startSolo(true));
+    click('#cheatBtn', () => this.toggleCheat());
+    click('#cheatClose', () => this.toggleCheat());
+    this.input.onCheat = () => this.toggleCheat();
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
@@ -124,7 +128,8 @@ class Game {
   }
 
   // ---------- modes ----------
-  startSolo() { this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.smooth = false; this.enterGame(); }
+  testMode = false;
+  startSolo(test = this.testMode) { this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.smooth = false; this.enterGame(); }
   restart() {
     if (this.mode === 'solo') return this.startSolo();
     if (this.mode === 'host' && this.host) { this.startHost(); }
@@ -168,12 +173,30 @@ class Game {
   leave() {
     if (this.host) { this.host.close(); this.host = null; }
     if (this.client) { const c = this.client; this.client = null; c.onClose = () => {}; c.close(); }
+    this.testMode = false; show('#cheatBtn', false);
     this.idle(); this.view.setConfig(this.cfg); only('#menu');
   }
   private renderLobby() {
     const list = this.host ? this.host.players.map(p => ({ id: p.id, color: p.color })) : this.client ? this.client.lobby : [];
     if (this.host) $('#lobbyCode').textContent = this.host.code;
     $('#lobbyPlayers').innerHTML = list.map(p => `<div class="lp${p.id === this.me ? ' me' : ''}" style="background:${PLAYER_CSS[p.color % 4]}">${mini('player')}</div>`).join('');
+  }
+  /** test mode only: cheat menu with every upgrade as +/− (no limits) */
+  toggleCheat() {
+    if (!this.testMode || this.mode !== 'solo' || !this.sim) return;
+    const c = $('#cheat');
+    if (!c.hidden) { only(null); this.sim.paused = false; return; }
+    if (!$('#levelup').hidden || !$('#over').hidden) return;
+    this.input.releaseAll(); only('#cheat'); this.sim.paused = true; this.renderCheat();
+  }
+  private renderCheat() {
+    const sim = this.sim!; let html = '', group = '';
+    for (const [key, g, label, val] of sim.cheatRows(this.me)) {
+      if (g !== group) { group = g; html += `<h4>${g}</h4>`; }
+      html += `<div class="crow"><span>${label}</span><button data-k="${key}" data-d="-1">−</button><b>${val}</b><button data-k="${key}" data-d="1">+</button></div>`;
+    }
+    $('#cheatRows').innerHTML = html;
+    $('#cheatRows').querySelectorAll<HTMLElement>('button').forEach(b => b.addEventListener('click', () => { sim.cheat(this.me, b.dataset.k!, +b.dataset.d!); this.renderCheat(); }));
   }
   togglePause() {
     if (this.mode === 'idle' || !$('#levelup').hidden || !$('#over').hidden) return;
@@ -189,7 +212,7 @@ class Game {
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
-    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#options').hidden;
+    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#options').hidden || !$('#cheat').hidden;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden;
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());

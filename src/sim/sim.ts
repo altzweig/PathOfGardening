@@ -397,6 +397,53 @@ export class Sim {
     this.emit({ k: 'zap', s: segs });
     this.sfx('weapons.lemon', p.x, p.z);
   }
+  // ---------- test mode: cheat menu ----------
+  /** every tweakable value as [key, group, label, value]; +/- may exceed the normal limits */
+  cheatRows(id: number): [string, string, string, number][] {
+    const p = this.player(id); if (!p) return [];
+    const N = this.cfg.names, rows: [string, string, string, number][] = [];
+    rows.push(['level', 'Spieler', 'Stufe', this.level], ['hp', 'Spieler', 'Leben (− = 10 Schaden, + = voll)', Math.ceil(p.hp)]);
+    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.kb', N.skills.rake, 'Rückstoß', p.rakeLv.kb]);
+    for (const sid of SKILLS) {
+      const s = p.skills[sid], g = N.skills[sid];
+      rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
+        [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
+      if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv]);
+      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Minen', s.mineLv]);
+      if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
+      if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
+    }
+    for (const f of FRUITS) {
+      rows.push([`field.${f}`, 'Felder', `${N.fields[f]} (+ bauen/hochleveln, − entfernen)`, this.fields.filter(x => x.type === f).length]);
+      rows.push([`yield.${f}`, 'Felder', `Doppelernte ${N.plants[f]}`, this.yieldLv[f]]);
+    }
+    rows.push(['care', 'Felder', N.care, this.tillHealLv]);
+    return rows;
+  }
+  cheat(id: number, key: string, d: number) {
+    const p = this.player(id); if (!p) return;
+    const [a, b] = key.split('.');
+    const lim0 = (v: number) => Math.max(0, v);
+    if (key === 'level') { this.level = Math.max(1, this.level + d); this.xp = 0; return; }
+    if (key === 'hp') { p.hp = d > 0 ? this.cfg.player.hp : Math.max(1, p.hp - 10); return; }
+    if (a === 'rake') { (p.rakeLv as any)[b] = lim0((p.rakeLv as any)[b] + d); return; }
+    if (a === 'care') { this.tillHealLv = lim0(this.tillHealLv + d); return; }
+    if (a === 'yield') { this.yieldLv[b as FruitType] = lim0(this.yieldLv[b as FruitType] + d); return; }
+    if (a === 'field') {
+      const t = b as FruitType;
+      if (d > 0) { // build: upgrade an existing field of this type or take a free slot
+        const own = this.fields.find(f => f.type === t && f.alive), free = this.slots.findIndex((_, i) => !this.fieldAt(i));
+        if (own && free < 0) this.placeField(own.slot, t); else if (free >= 0) this.placeField(free, t); else if (own) this.placeField(own.slot, t);
+      } else { const list = this.fields.filter(f => f.type === t && !f.starter); const last = list[list.length - 1]; if (last) this.fields.splice(this.fields.indexOf(last), 1); }
+      return;
+    }
+    if ((SKILLS as string[]).includes(a)) {
+      const s = p.skills[a as SkillId] as any;
+      if (b === 'learned') { s.learned = d > 0; return; }
+      if (b === 'ammo') { p.ammo[a as SkillId] = lim0(p.ammo[a as SkillId] + d * 25); return; }
+      if (b in s) s[b] = lim0(s[b] + d);
+    }
+  }
   tryFire(p: Player, id: SkillId, dir?: [number, number]) {
     const s = p.skills[id];
     if (!p.alive || p.stun > 0 || !this.canFire(p, id) || s.cdT > 0) return false;

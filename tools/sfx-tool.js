@@ -82,6 +82,8 @@ export async function cut(out, f, t0, t1, o = {}) {
   let seg = mono.slice(a, b);
   // high-pass (remove rumble / DC)
   if (o.hp !== false) { const rc = 1 / (2 * Math.PI * (o.hp || 60)), dt = 1 / sr, al = rc / (rc + dt); let py = 0, px = seg[0]; for (let i = 0; i < seg.length; i++) { const x = seg[i]; py = al * (py + x - px); px = x; seg[i] = py; } }
+  // low-pass (o.lp Hz, 2 passes) to soften harsh sounds
+  if (o.lp) for (let pass = 0; pass < 2; pass++) { const rc = 1 / (2 * Math.PI * o.lp), dt = 1 / sr, al = dt / (rc + dt); let y = seg[0]; for (let i = 0; i < seg.length; i++) { y += al * (seg[i] - y); seg[i] = y; } }
   // resample (linear)
   const n2 = Math.floor(seg.length * outSr / sr), r = new Float32Array(n2);
   for (let i = 0; i < n2; i++) { const p = i * sr / outSr, k = Math.floor(p), fr = p - k; r[i] = (seg[k] || 0) * (1 - fr) + (seg[k + 1] || 0) * fr; }

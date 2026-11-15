@@ -83,7 +83,7 @@ export class Sim {
   constructor(cfg: Balancing) {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
-    this.waveT = cfg.waves.firstWave;
+    this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
     // start fields: every second slot of the first ring around the centre, then outwards
     const ring1 = [[1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
@@ -632,48 +632,79 @@ export class Sim {
   }
 
   // ---------- waves ----------
+  // A wave is a schedule of groups (bursts). It ends when its last group has started; the pause
+  // starts right away even if enemies are still alive. Groups grow during a wave and the wave
+  // closes with one big group.
+  wave = 0; wavePause = true; won = false;
+  private waveGroups: { at: number; size: number; planned?: PlannedWave }[] = [];
   private pickType(): EnemyType {
-    const W = this.cfg.waves, t = this.time, table: [EnemyType, number][] = [];
-    const early = !!(this.fieldOf('cran') || this.fieldOf('asp'));
+    const W = this.cfg.waves, w = this.wave, table: [EnemyType, number][] = [];
+    const early = !!(this.fieldOf('cran') || this.fieldOf('asp')) && w >= 2;
     for (const type of ENEMIES) {
       const T = W.types[type]; if (!T) continue;
-      if (t >= T.from) table.push([type, T.weight]);
+      if (w >= T.from) table.push([type, T.weight]);
       else if (T.early && early) table.push([type, T.early]);
     }
     if (!table.length) return 'raccoon';
     const tot = table.reduce((a, x) => a + x[1], 0); let r = Math.random() * tot;
-    for (const [type, w] of table) { r -= w; if (r <= 0) return type; }
+    for (const [type, wt] of table) { r -= wt; if (r <= 0) return type; }
     return table[table.length - 1][0];
   }
-  private planWave(): PlannedWave {
-    const W = this.cfg.waves, t = this.time;
-    const base = Math.min(W.sizeMax, W.sizeStart + W.sizePerMinute * t / 60) * this.f(this.cfg.coop.enemyCountExponent);
-    const size = Math.max(1, Math.floor(base) + (Math.random() < base % 1 ? 1 : 0));
-    const dMax = Math.min(W.directionsMax, W.directionsStart + Math.floor(t / W.directionEvery));
+  private planGroup(size: number): PlannedWave {
+    const W = this.cfg.waves, w = this.wave;
+    const dMax = Math.min(W.directionsMax, W.directionsStart + Math.floor((w - 1) / W.directionEveryWaves));
     const k = Math.max(1, Math.min(size, Math.floor(rand(Math.max(1, dMax - 1), dMax + .999))));
     const a0 = rand(0, Math.PI * 2), dirs: number[] = [], groups: EnemyType[][] = [];
     for (let i = 0; i < k; i++) { dirs.push(a0 + i * Math.PI * 2 / k + rand(-.35, .35)); groups.push([]); }
-    for (let i = 0; i < size; i++) groups[i % k].push(this.pickType());
+    for (let i = 0; i < size; i++) groups[i % k].push(w === 1 ? 'raccoon' : this.pickType());
     return { dirs, groups };
   }
+  /** start wave w now: builds the group schedule */
+  startWave(w: number) {
+    const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
+    this.wave = w; this.wavePause = false; this.waveGroups = [];
+    const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf;
+    const gap = Math.max(W.gapMin, W.gapStart - W.gapPerWave * (w - 1));
+    const round = (v: number) => Math.max(1, Math.floor(v) + (Math.random() < v % 1 ? 1 : 0));
+    let t = 0;
+    while (t < D - gap * .5) { const x = t / D; this.waveGroups.push({ at: this.time + t, size: round(base * (W.rampFrom + (W.rampTo - W.rampFrom) * x)) }); t += gap * rand(1 - W.gapJitter, 1 + W.gapJitter); }
+    this.waveGroups.push({ at: this.time + D, size: round(base * W.finalMultiplier) }); // big closing group
+    if (w === 1) { // wave 1: exactly firstWaveEnemies raccoons, spread over the groups (growing)
+      let left = Math.round(W.firstWaveEnemies * cf);
+      const gs = this.waveGroups, n = Math.min(gs.length, left);
+      this.waveGroups = gs.slice(gs.length - n);
+      this.waveGroups.forEach((g, i) => { g.size = i === n - 1 ? left : 1; left -= g.size; });
+    }
+    this.waveT = 0;
+    this.emit({ k: 'waveStart', w });
+  }
+  /** test mode: jump to wave w */
+  jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
   private waves(dt: number) {
     const W = this.cfg.waves;
-    this.waveT -= dt;
-    if (!this.planned && this.waveT <= W.warnTime) {
-      this.planned = this.planWave();
-      this.emit({ k: 'warn', d: this.planned.dirs.map(r2), ty: this.planned.groups.map(g => g.map(t => ENEMIES.indexOf(t))), w: W.warnTime });
-      const R = this.cfg.waves.spawnRadius;
-      this.planned.dirs.forEach((a, i) => { const t = this.planned!.groups[i][0]; if (t) this.sfx(t + '.wave', Math.cos(a) * R, Math.sin(a) * R); });
-    }
-    if (this.waveT <= 0 && this.planned) {
-      const spread = W.directionSpread * Math.PI / 180;
-      this.planned.dirs.forEach((a, i) => {
-        let at = this.time;
-        for (const type of this.planned!.groups[i]) { this.spawnQueue.push({ at, type, angle: a + rand(-spread, spread) }); at += rand(W.staggerMin, W.staggerMax); }
-      });
-      this.planned = null;
-      const k = Math.min(1, this.time / W.rampTime);
-      this.waveT = (W.gapStart + (W.gapEnd - W.gapStart) * k) * rand(1 - W.gapJitter, 1 + W.gapJitter);
+    if (this.wavePause) {
+      this.waveT -= dt;
+      if (this.waveT <= 0) { if (this.wave >= W.total) { this.won = true; this.gameOver(); return; } this.startWave(this.wave + 1); }
+    } else {
+      const R = W.spawnRadius, spread = W.directionSpread * Math.PI / 180;
+      for (const g of this.waveGroups) {
+        if (!g.planned && this.time >= g.at - W.warnTime) { // eyes + calls warn of the coming group
+          g.planned = this.planGroup(g.size);
+          this.emit({ k: 'warn', d: g.planned.dirs.map(r2), ty: g.planned.groups.map(x => x.map(t => ENEMIES.indexOf(t))), w: W.warnTime });
+          g.planned.dirs.forEach((a, i) => { const t = g.planned!.groups[i][0]; if (t) this.sfx(t + '.wave', Math.cos(a) * R, Math.sin(a) * R); });
+        }
+      }
+      while (this.waveGroups.length && this.time >= this.waveGroups[0].at && this.waveGroups[0].planned) {
+        const g = this.waveGroups.shift()!;
+        g.planned!.dirs.forEach((a, i) => {
+          let at = this.time;
+          for (const type of g.planned!.groups[i]) { this.spawnQueue.push({ at, type, angle: a + rand(-spread, spread) }); at += rand(W.staggerMin, W.staggerMax); }
+        });
+      }
+      if (!this.waveGroups.length) { // last group started: pause begins
+        this.wavePause = true; this.waveT = W.pauseStart + W.pausePerWave * (this.wave - 1);
+        this.emit({ k: 'waveEnd', w: this.wave });
+      }
     }
     const cap = this.cfg.enemies.maxAlive * this.f(this.cfg.coop.enemyCountExponent);
     for (let i = this.spawnQueue.length - 1; i >= 0; i--) {
@@ -975,7 +1006,7 @@ export class Sim {
     }
     const sw = this.cfg.rake.swingTime;
     return {
-      t: r2(this.time), ph: this.phase, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, wv: this.wave, wn: this.cfg.waves.total, wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range),

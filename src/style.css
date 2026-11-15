@@ -26,7 +26,9 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .chip{display:flex;align-items:center;gap:4px;padding:2px 8px 2px 3px;border-radius:999px;background:#0b1016b3;border:1px solid #ffffff1a;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
 .chip svg{width:18px;height:18px;display:block}
 .mate{width:12px;height:12px;border-radius:50%;border:2px solid #0008}
-#timer{margin-left:auto;font-family:var(--f-display);font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000}
+#wave{margin-left:auto;font:700 15px var(--f-display);color:var(--parch);font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000;opacity:.85}
+#wave.pause{color:var(--mut)}
+#timer{font-family:var(--f-display);font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000}
 #respawn{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--f-display);font-size:64px;color:#ffd890;text-shadow:0 0 30px #000,0 0 12px #e3b96488}
 
 /* joysticks */

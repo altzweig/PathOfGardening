@@ -47,9 +47,11 @@ export interface Balancing {
     ammo: { showOnSwitch: number; lowSeconds: number; lowShow: number; fade: number };
   };
   waves: {
-    firstWave: number; spawnRadius: number; gapStart: number; gapEnd: number; gapJitter: number; rampTime: number;
-    sizeStart: number; sizePerMinute: number; sizeMax: number;
-    directionsStart: number; directionsMax: number; directionEvery: number; directionSpread: number;
+    total: number; firstWave: number; spawnRadius: number; firstWaveEnemies: number;
+    durationStart: number; durationPerWave: number; pauseStart: number; pausePerWave: number;
+    gapStart: number; gapPerWave: number; gapMin: number; gapJitter: number;
+    sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
+    directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;
     staggerMin: number; staggerMax: number; warnTime: number;
     types: Record<EnemyType, { from: number; weight: number; early?: number }>;
   };

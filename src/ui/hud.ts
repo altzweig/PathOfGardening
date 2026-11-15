@@ -68,6 +68,7 @@ export class Hud {
     const mates = s.pl.filter(p => p.id !== me).map(p => `<span class="mate" style="background:${PLAYER_CSS[p.c % 4]};opacity:${p.al ? 1 : .3}"></span>`).join('');
     this.set('#mates', 'mates', mates, true);
     this.set('#respawn', 'rs', ps.al ? '' : String(ps.rs));
+    this.set('#wave', 'wv', s.wv ? `${s.wv} / ${s.wn}` : ''); $('#wave').classList.toggle('pause', !!s.wp);
     // weapons
     const active = WEAPONS[pr.ac];
     for (const w of WEAPONS) this.btn[w].classList.toggle('active', w === active);

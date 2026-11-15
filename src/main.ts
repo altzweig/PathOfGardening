@@ -191,6 +191,11 @@ class Game {
   }
   private renderCheat() {
     const sim = this.sim!; let html = '', group = '';
+    $('#cheatWave').innerHTML = `Welle <input id="cheatWaveIn" type="number" min="1" max="100" value="${Math.max(1, sim.wave)}"><button class="btn sec" id="cheatWaveGo">Start</button>`;
+    $('#cheatWaveGo').addEventListener('click', () => {
+      const w = Math.min(100, Math.max(1, +($('#cheatWaveIn') as HTMLInputElement).value || 1));
+      sim.jumpToWave(w); this.toggleCheat();
+    });
     for (const [key, g, label, val] of sim.cheatRows(this.me)) {
       if (g !== group) { group = g; html += `<h4>${g}</h4>`; }
       html += `<div class="crow"><span>${label}</span><button data-k="${key}" data-d="-1">−</button><b>${val}</b><button data-k="${key}" data-d="1">+</button></div>`;
@@ -275,6 +280,7 @@ class Game {
       this.overShown = true; this.input.releaseAll();
       const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60);
       $('#overStats').innerHTML = `<span><i class="ic">${mini('cd')}</i>${m}:${String(sec).padStart(2, '0')}</span><span><i class="ic">${mini('x2').replace('×2', '★')}</i>${s.lv}</span><span><i class="ic">${mini('dmg')}</i>${s.ki}</span><span><i class="ic">${mini('blue')}</i>${s.cx}</span>`;
+      $('#over h1').textContent = s.won ? 'Die Ernte ist gerettet' : 'Die Ernte ist verloren';
       show('#againBtn', this.mode !== 'client');
       setTimeout(() => only('#over'), 900);
     }

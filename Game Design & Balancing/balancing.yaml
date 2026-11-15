@@ -58,13 +58,19 @@ xp:
 
 arena:
   radius: 15               # m, begehbarer Bereich
-  fieldSpacing: 2.4        # m, Hex-Raster der Beete
-  fieldSlots: 20            # max. Anzahl Felder
+  fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
+  fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
   startFields: 3           # Blaubeerfelder zu Beginn
 
 fields:
   hp: 100
-  radius: 1.5             # m, ab hier greifen Gegner ein Feld an
+  healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
+  # Felder sind flach: Spieler und Gegner laufen einfach drüber.
+  # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
+  rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
+  rarityCost: [1, 2, 3, 4]     # Felder, die für Stufe 1->2, 2->3, 3->4, 4->5 draufgebaut werden müssen
+  rarityProduction: 1.5        # Produktion x1,5 je Seltenheitsstufe (multiplikativ)
+  neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
 
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
@@ -91,7 +97,7 @@ skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
   asp:
     damage: 15
-    range: 5
+    range: 7.5             # m (vorher 5 -> +50 %)
     cooldown: 0.5
     ammoPerShot: 1
     speed: 15              # m/s
@@ -99,7 +105,7 @@ skills:
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
   cran:
     damage: 5              # je Projektil
-    range: 3
+    range: 4.5             # m (vorher 3 -> +50 %)
     cooldown: 1.5
     ammoPerShot: 6
     pellets: 6
@@ -114,7 +120,10 @@ skills:
     ammoPerShot: 1
     throwDistance: 0.5     # m
     fuse: 0.8                # s bis zur Explosion
-    stun: 1                # s Betäubung
+    poolDuration: 3        # s, Giftlache nach der Explosion (Radius = Explosionsradius)
+    poolTicksPerSecond: 2
+    poolTickDamage: 0.10   # Anteil des Kohlschadens pro Tick (3 s x 2/s x 10 % = 60 %)
+    poolSlow: 0.35         # Gegner in der Lache 35 % langsamer
     miniRadiusFactor: 0.9  # Mini-Kohl: Radius x 0.5
     miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
 
@@ -129,7 +138,9 @@ upgrades:
   cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
   cabMini:        { step: 1,    maxLevel: 5 }
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
-  newFieldWeight: 1.0      # Ziehgewicht "Neues Feld" (andere Karten: 1)
+  newFieldWeight: 1.0      # Ziehgewicht "Neues Feld" (andere Karten: 1). Feld-Karten gibt es für alle Typen.
+  fieldCardPause: 5        # nach einer Feld-Karte kommen für so viele Level-ups keine Feld-Karten
+  repeatWeight: 0.25       # jede schon genommene Karte: Ziehgewicht +25 % (z. B. 2x Spargel-Reichweite -> x1,5)
   herbalTea: { playerHeal: 40, fieldHeal: 25 } # Notfall-Karte, wenn nichts anderes übrig ist
 
 enemies:

@@ -113,3 +113,8 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #ctrlView text{font-family:var(--f-body);font-weight:700}
 @media (prefers-reduced-motion:reduce){.skill.pulse::before{animation:none}}
 @media (max-height:430px){.ov h1{font-size:30px}.ov{gap:8px;justify-content:flex-start}.card .pic{width:64px;height:64px}.card{padding:8px 10px}.btn{padding:9px 22px;font-size:16px}.col{gap:8px}}
+/* build mode */
+#placeBar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 56px);transform:translateX(-50%);pointer-events:none}
+#placeBar .pic{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);display:grid;place-items:center;border:2px solid var(--gold);box-shadow:0 0 24px #e3b96466;animation:pulse2 1.2s ease-in-out infinite alternate}
+#placeBar .pic svg{width:72%;height:72%}
+@keyframes pulse2{from{transform:scale(1)}to{transform:scale(1.08)}}

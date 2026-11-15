@@ -22,8 +22,8 @@ export interface Balancing {
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number };
-  arena: { radius: number; fieldSpacing: number; fieldSlots: number; startFields: number };
-  fields: { hp: number; radius: number };
+  arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
+  fields: { hp: number; healPerSecond: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; throwMin: number; throwMax: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number }>;
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number };
@@ -31,12 +31,12 @@ export interface Balancing {
     readySeconds: number;
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number };
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; stun: number; miniRadiusFactor: number; miniDamageFactor: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
     aspPierce: Lim; aspPierceBonus: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
-    newFieldWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
+    newFieldWeight: number; fieldCardPause: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number } & Record<EnemyType, EnemyCfg>;
   waves: {

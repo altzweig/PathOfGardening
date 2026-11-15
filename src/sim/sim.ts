@@ -8,11 +8,29 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 const SQ3 = Math.sqrt(3);
-const HEX = [[1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1], [2, 0], [-2, 2], [0, -2], [0, 2], [-2, 0], [2, -2]];
-export function slotPositions(cfg: Balancing) {
-  const H = cfg.arena.fieldSpacing;
-  return HEX.slice(0, Math.min(HEX.length, cfg.arena.fieldSlots)).map(([q, r]) => ({ x: H * SQ3 * (q + r / 2), z: H * 1.5 * r }));
+// ---------- hex field grid (pointy-top axial, fields touch each other) ----------
+export interface Slot { q: number; r: number; x: number; z: number }
+export const hexR = (cfg: Balancing) => cfg.arena.fieldSize / 2; // corner radius
+export function slotPositions(cfg: Balancing): Slot[] {
+  const H = hexR(cfg), out: Slot[] = [];
+  for (let q = -5; q <= 5; q++) for (let r = -5; r <= 5; r++) {
+    if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) > 5) continue;
+    out.push({ q, r, x: H * SQ3 * (q + r / 2), z: H * 1.5 * r });
+  }
+  // innermost slots first (ties broken by angle so it is deterministic)
+  out.sort((a, b) => (Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z)) || (Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x)));
+  return out.slice(0, cfg.arena.fieldSlots);
 }
+/** index of the slot whose hexagon contains the point, or -1 */
+export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
+  const H = hexR(cfg);
+  const fq = (SQ3 / 3 * x - z / 3) / H, fr = (2 / 3 * z) / H, fs = -fq - fr;
+  let q = Math.round(fq), r = Math.round(fr); const s = Math.round(fs);
+  const dq = Math.abs(q - fq), dr = Math.abs(r - fr), ds = Math.abs(s - fs);
+  if (dq > dr && dq > ds) q = -r - s; else if (dr > ds) r = -q - s;
+  return slots.findIndex(sl => sl.q === q && sl.r === r);
+}
+export const hexDist = (a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
 interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; cdT: number; firing: boolean }
 interface Poison { t: number; ticks: number }
@@ -21,9 +39,10 @@ export interface Player {
   stun: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
-  offers: Offer[] | null; picked: boolean; fresh: boolean;
+  offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>;
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[] }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number }
+interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
 interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
   state: 'fly' | 'ground' | 'collect' | 'merge' | 'carried'; src: number; born: number; bounce: number; r: number;
@@ -50,19 +69,22 @@ export class Sim {
   phase: 'play' | 'lvl' | 'over' = 'play';
   paused = false;
   players: Player[] = [];
-  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = [];
+  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = [];
   yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0 };
   events: Ev[] = [];
   private nid = 1;
   private mergeT = 0;
   private waveT: number; private planned: PlannedWave | null = null; private spawnQueue: PendingSpawn[] = [];
-  private slots: { x: number; z: number }[];
+  private slots: Slot[];
 
   constructor(cfg: Balancing) {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     this.waveT = cfg.waves.firstWave;
-    for (let i = 0; i < cfg.arena.startFields; i++) this.addField('blue');
+    // start fields: every second slot of the first ring around the centre, then outwards
+    const ring1 = [[1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
+    const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
+    for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) this.placeField(i, 'blue'); }
   }
 
   // ---------- coop scaling ----------
@@ -83,7 +105,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0,
       ammo: { asp: 0, cran: 0, cab: 0 }, collected: { asp: 0, cran: 0, cab: 0 }, skills: { asp: mk(), cran: mk(), cab: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, fieldLock: 0, taken: {},
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -103,15 +125,39 @@ export class Sim {
   }
 
   // ---------- fields & fruit ----------
-  addField(type: FruitType) {
-    const slot = this.fields.length; if (slot >= this.slots.length) return null;
-    const s = this.slots[slot];
-    const f: Field = { slot, type, x: s.x, z: s.z, hp: this.cfg.fields.hp, maxHp: this.cfg.fields.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [] };
+  fieldAt(slot: number) { return this.fields.find(f => f.slot === slot); }
+  /** build on a slot: empty -> new field, same type -> rarity progress, other type (or dead) -> replace */
+  placeField(slot: number, type: FruitType) {
+    const s = this.slots[slot]; if (!s) return null;
+    const F = this.cfg.fields; let f = this.fieldAt(slot);
+    if (f && f.type === type && f.alive) {
+      if (f.rarity < F.rarityCost.length) {
+        f.prog++;
+        if (f.prog >= F.rarityCost[f.rarity]) { f.rarity++; f.prog = 0; this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.snd('level'); }
+      }
+      f.hp = f.maxHp;
+      this.burst(s.x, .4, s.z, 0xffe08a, 30, 2.5, .2, .8);
+      return f;
+    }
+    if (f) this.fields.splice(this.fields.indexOf(f), 1);
+    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0 };
     this.fields.push(f);
-    this.burst(s.x, .5, s.z, 0x8fe36a, 30, 2.5, .2, .8);
+    this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
   }
-  fieldOf(type: FruitType) { return this.fields.find(f => f.type === type); }
+  /** production multiplier: x1.5 per own rarity level, +10 % per rarity level of each adjacent field */
+  prodMult(f: Field) {
+    const F = this.cfg.fields, me = this.slots[f.slot];
+    let nb = 0;
+    for (const o of this.fields) if (o !== f && o.alive && hexDist(me, this.slots[o.slot]) === 1) nb += o.rarity;
+    return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
+  }
+  fieldOf(type: FruitType) { return this.fields.find(f => f.type === type && f.alive) || this.fields.find(f => f.type === type); }
+  place(id: number, slot: number) {
+    const p = this.player(id); if (!p || !p.placing || this.phase !== 'lvl' || !this.slots[slot]) return;
+    this.placeField(slot, p.placing); p.placing = null; p.picked = true;
+    this.checkAllPicked();
+  }
   hurtField(f: Field, dmg: number) {
     if (!f.alive || this.phase === 'over') return;
     f.hp -= dmg; f.shake = .25; this.snd('field');
@@ -155,7 +201,7 @@ export class Sim {
   mergeFruit() {
     const M = this.cfg.fruit.mergeCount;
     for (const f of this.fields) for (let tier = 0; tier < this.cfg.fruit.tierValue.length - 1; tier++) {
-      const list = this.fruits.filter(x => x.src === f.slot && x.state === 'ground' && x.tier === tier);
+      const list = this.fruits.filter(x => x.src === f.slot && x.type === f.type && x.state === 'ground' && x.tier === tier);
       if (list.length < M) continue;
       list.sort((a, b) => a.born - b.born); const grp = list.slice(0, M), ax = grp[0].x, az = grp[0].z;
       for (const x of grp) { x.state = 'merge'; x.mt = 0; x.tx = ax; x.tz = az; }
@@ -178,7 +224,11 @@ export class Sim {
   pick(id: number, key: string) {
     const p = this.player(id); if (!p || this.phase !== 'lvl' || p.picked || !p.offers) return;
     const o = p.offers.find(x => x.key === key); if (!o) return;
-    this.applyOffer(p, key); p.picked = true;
+    p.taken[key] = (p.taken[key] || 0) + 1;
+    if (o.cat !== 'field' && p.fieldLock > 0) p.fieldLock--;
+    this.applyOffer(p, key);
+    if (p.placing) return; // field card: player now chooses where to build (see place())
+    p.picked = true;
     this.checkAllPicked();
   }
   private checkAllPicked() {
@@ -213,7 +263,7 @@ export class Sim {
 
   // ---------- combat ----------
   airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5; }
-  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean } = {}) {
+  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean; silent?: boolean } = {}) {
     if (e.dead) return false;
     if (this.airborne(e)) { this.emit({ k: 'imm', x: r2(e.x), z: r2(e.z) }); return false; }
     let left = dmg;
@@ -221,7 +271,7 @@ export class Sim {
     e.hp -= left; e.flash = .1; e.hurtOnce = true;
     this.num(e.x, e.z, dmg, o.color || 'w', dmg >= 10);
     if (o.punch) this.emit({ k: 'punch', x: r2(e.x), z: r2(e.z), e: e.id });
-    else this.snd('hit');
+    else if (!o.silent) this.snd('hit');
     if (o.bleed) e.bleed = this.cfg.skills.cran.bleedDuration;
     if (o.stun) e.stun = Math.max(e.stun, o.stun);
     if (e.hp <= 0) this.killEnemy(e);
@@ -300,9 +350,9 @@ export class Sim {
     const C = this.cfg.skills.cab;
     this.snd(b.mini ? 'boomS' : 'boom');
     this.emit({ k: 'boom', x: r2(b.tx), z: r2(b.tz), r: r2(b.radius), m: b.mini ? 1 : 0 });
-    let any = false;
-    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) { if (this.hurtEnemy(e, b.dmg, { stun: C.stun, color: 'c' })) any = true; }
-    if (any) this.snd('confuse');
+    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) this.hurtEnemy(e, b.dmg, { color: 'c' });
+    // poison pool: ticks poolTicksPerSecond x poolDuration, each tick poolTickDamage x bomb damage, slows enemies inside
+    this.pools.push({ id: this.nid++, x: b.tx, z: b.tz, r: b.radius, t: C.poolDuration, tickT: 1 / C.poolTicksPerSecond, ticks: Math.round(C.poolDuration * C.poolTicksPerSecond), dmg: b.dmg * C.poolTickDamage });
     for (let i = 0; i < b.minis; i++) {
       const a = rand(0, Math.PI * 2), t = this.clampArena(b.tx + Math.cos(a), b.tz + Math.sin(a));
       this.spawnBomb(b.tx, .3, b.tz, t[0], t[1], b.radius * C.miniRadiusFactor, b.dmg * C.miniDamageFactor, 0, true);
@@ -336,7 +386,10 @@ export class Sim {
     }
     const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
   }
+  inPool(x: number, z: number, r = 0) { return this.pools.some(p => Math.hypot(x - p.x, z - p.z) < p.r + r * .5); }
+  slowF(e: Enemy) { return this.inPool(e.x, e.z, e.r) ? 1 - this.cfg.skills.cab.poolSlow : 1; }
   steer(e: Enemy, tx: number, tz: number, speed: number, dt: number, stop = 0) {
+    speed *= this.slowF(e);
     let vx = tx - e.x, vz = tz - e.z; const d = Math.hypot(vx, vz); if (d < .001) return d;
     vx /= d; vz /= d; e.face = Math.atan2(vx, vz);
     if (d > stop) { const s = Math.min(speed * dt, d - stop); e.x += vx * s; e.z += vz * s; e.walk += dt * speed * 4; }
@@ -390,11 +443,11 @@ export class Sim {
       return;
     }
     const tp = this.targetPos(t)!;
-    const FR = this.cfg.fields.radius;
-    const reach = t.kind === 'field' ? FR + e.r : t.kind === 'player' ? e.r + .5 : e.r * .6;
+    const FR = hexR(this.cfg) * .7; // enemies walk onto the field to attack it
+    const reach = t.kind === 'field' ? FR : t.kind === 'player' ? e.r + .5 : e.r * .6;
     if (e.type === 'toad') {
       e.hop += dt / D.hopPeriod!; const air = (e.hop % 1) < .5;
-      const rng = t.kind === 'field' ? FR + .55 + e.r : t.kind === 'player' ? D.tongueRange! : .3;
+      const rng = t.kind === 'field' ? FR + .55 : t.kind === 'player' ? D.tongueRange! : .3;
       const d = dist(e, tp);
       if (air) { if (d > rng * .8) this.steer(e, tp.x, tp.z, e.speed * 2, dt, rng * .8); else e.face = Math.atan2(tp.x - e.x, tp.z - e.z); }
       else {
@@ -428,13 +481,13 @@ export class Sim {
       if (tp && e.st > .4) { const dx = tp.x - e.x, dz = tp.z - e.z, l = Math.hypot(dx, dz) || 1; e.cdx = dx / l; e.cdz = dz / l; e.face = Math.atan2(e.cdx, e.cdz); }
       if (e.st <= 0) { e.state = 'charge'; e.st = D.chargeTime!; e.hitThisCharge = false; }
     } else if (e.state === 'charge') {
-      const s = D.chargeSpeed! * dt; e.x += e.cdx * s; e.z += e.cdz * s; e.walk += dt * 30;
+      const s = D.chargeSpeed! * dt * this.slowF(e); e.x += e.cdx * s; e.z += e.cdz * s; e.walk += dt * 30;
       if (Math.random() < .6) this.emit({ k: 'dust', x: r2(e.x), z: r2(e.z) });
       if (!e.hitThisCharge) for (const p of this.players) if (p.alive && dist(e, p) < e.r + .4) {
         e.hitThisCharge = true; this.snd('ram'); this.hurtPlayer(p, D.ramDamage!); p.stun = Math.max(p.stun, D.ramStun!); p.kb = { dx: e.cdx, dz: e.cdz, left: D.knockback! };
         e.state = 'rest'; e.st = D.rest!; break;
       }
-      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < this.cfg.fields.radius + e.r) { e.hitThisCharge = true; this.snd('ram'); this.hurtField(f, D.ramDamage!); e.state = 'rest'; e.st = D.rest!; }
+      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.snd('ram'); this.hurtField(f, D.ramDamage!); e.state = 'rest'; e.st = D.rest!; }
       if (e.st <= 0 && e.state === 'charge') { e.state = 'rest'; e.st = D.rest!; }
     } else if (e.state === 'rest') {
       if (e.st <= 0) { e.state = 'approach'; e.target = null; }
@@ -507,7 +560,9 @@ export class Sim {
     if (p.kb) { const s = Math.min(p.kb.left, 12 * dt); p.x += p.kb.dx * s; p.z += p.kb.dz * s; p.kb.left -= s; if (p.kb.left <= 0) p.kb = null; }
     else if (p.stun <= 0 && ml > .05) { p.x += mx * P.speed * dt; p.z += mz * P.speed * dt; p.walk += dt * 10 * Math.min(1, ml); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
     [p.x, p.z] = this.clampArena(p.x, p.z);
-    for (const f of this.fields) { const d = Math.hypot(p.x - f.x, p.z - f.z); if (d < .75) { const k = (.75 - d) / (d || 1); p.x += (p.x - f.x) * k; p.z += (p.z - f.z) * k; } }
+    // standing (with the centre) on a field heals it
+    const under = this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z));
+    if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
 
     p.rakeCd -= dt; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt);
     // active weapon: auto-switch when empty, cycle on request
@@ -547,7 +602,7 @@ export class Sim {
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
-      if (f.alive) { f.t -= dt; if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
+      if (f.alive) { f.t -= dt * this.prodMult(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
     // fruit
@@ -587,9 +642,16 @@ export class Sim {
       const a = en[i], b = en[j]; const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), m = a.r + b.r;
       if (d < m && d > .001) { const k = (m - d) / d * .5; a.x -= dx * k; a.z -= dz * k; b.x += dx * k; b.z += dz * k; }
     }
-    for (const e of en) if (e.type !== 'sheep' || e.state !== 'charge') for (const f of this.fields) {
-      if (!f.alive) continue; const d = dist(e, f), m = 1.0 + e.r * .5;
-      if (d < m && d > .001) { const k = (m - d) / d; e.x += (e.x - f.x) * k; e.z += (e.z - f.z) * k; }
+    // cabbage poison pools
+    const C = this.cfg.skills.cab;
+    for (let i = this.pools.length - 1; i >= 0; i--) {
+      const pl = this.pools[i]; pl.t -= dt; pl.tickT -= dt;
+      while (pl.tickT <= 1e-6 && pl.ticks > 0) {
+        pl.ticks--;
+        pl.tickT += 1 / C.poolTicksPerSecond;
+        for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - pl.x, e.z - pl.z) < pl.r + e.r * .5) this.hurtEnemy(e, pl.dmg, { color: 'v', silent: true });
+      }
+      if (pl.ticks <= 0 || pl.t < -.1) this.pools.splice(i, 1);
     }
     this.updateProjs(dt);
   }
@@ -658,9 +720,11 @@ export class Sim {
         prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`] });
       }
     }
-    const free = this.fields.length < this.slots.length;
-    for (const id of SKILLS) if (free && !this.fieldOf(id)) {
-      pool.push({ key: 'field_' + id, cat: 'field', w: U.newFieldWeight, pic: 'field_' + id, title: N.fields[id], lines: [`1 {${id}} / ${nf(PL[id].interval)} s`, `Unlock: ${N.skills[id]}`] });
+    // new fields of every type (blocked for fieldCardPause level-ups after taking one)
+    if (p.fieldLock <= 0) for (const id of FRUITS) {
+      const lines = [`1 {${id}} / ${nf(PL[id].interval)} s`];
+      if (id !== 'blue' && !p.skills[id as SkillId].learned) lines.push(`Unlock: ${N.skills[id]}`);
+      pool.push({ key: 'field_' + id, cat: 'field', w: U.newFieldWeight, pic: 'field_' + id, title: N.fields[id], lines });
     }
     for (const id of SKILLS) {
       const s = p.skills[id]; if (!s.learned) continue;
@@ -686,6 +750,8 @@ export class Sim {
       const lv = this.yieldLv[f], st = U.doubleHarvest.step;
       pool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
     }
+    // cards you already took come up a bit more often
+    for (const o of pool) if (o.cat !== 'field') o.w *= 1 + U.repeatWeight * (p.taken[o.key] || 0);
     const out: Offer[] = prio.slice(0, U.offersPerLevel);
     while (out.length < U.offersPerLevel && pool.length) {
       const tot = pool.reduce((a, o) => a + o.w, 0); let r = Math.random() * tot, k = 0;
@@ -701,13 +767,7 @@ export class Sim {
     const [a, b] = key.split('_') as [string, string];
     const tea = () => { p.hp = Math.min(this.cfg.player.hp, p.hp + U.herbalTea.playerHeal); this.fields.forEach(f => f.alive && (f.hp = Math.min(f.maxHp, f.hp + U.herbalTea.fieldHeal))); };
     if (a === 'learn') { p.skills[b as SkillId].learned = true; return; }
-    if (a === 'field') {
-      const t = b as FruitType;
-      if (!this.fieldOf(t) && this.fields.length < this.slots.length) this.addField(t);
-      else if (this.yieldLv[t] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[t]++; // coop: someone else was faster
-      else tea();
-      return;
-    }
+    if (a === 'field') { p.placing = b as FruitType; p.fieldLock = U.fieldCardPause; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
     const s = p.skills[a as SkillId];
@@ -733,7 +793,7 @@ export class Sim {
         am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), rk: r2(Math.max(0, p.rakeCd / this.cfg.rake.cooldown)),
-        of: p.offers, pk: p.picked ? 1 : 0,
+        of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1,
       };
     }
     const sw = this.cfg.rake.swingTime;
@@ -756,7 +816,8 @@ export class Sim {
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz))]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z)]),
-      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake)]),
+      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog]),
+      pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       me, ev,
     };
   }

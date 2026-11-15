@@ -2,7 +2,7 @@
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SkillId, Weapon } from '../config';
-import { slotPositions } from '../sim/sim';
+import { Slot, hexR, slotAt, slotPositions } from '../sim/sim';
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
 import { play } from '../audio';
 import {
@@ -18,7 +18,9 @@ interface PView { g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: T
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
-interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; bar: THREE.Group; alive: boolean; type: number }
+interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number }
+// common, uncommon, rare, epic, legendary
+export const RARITY_COL = [0x9a9488, 0x5fd35f, 0x4a8cff, 0xb05cff, 0xffa020];
 
 export interface LocalAim { weapon: Weapon | null; x: number; z: number; show: boolean }
 
@@ -35,6 +37,13 @@ export class GameView {
   private bombs = new Map<number, JView>();
   private mines = new Map<number, JView>();
   private fields = new Map<number, FieldView>();
+  private pools = new Map<number, JView>();
+  private slots: Slot[] = [];
+  // build mode (top-down strategy view)
+  placing: FruitType | null = null;
+  private slotOverlay = new THREE.Group();
+  private hoverSlot = -1;
+  private placeT = 0;
   private aimInd: Record<string, THREE.Mesh> = {};
   private aggro: THREE.Mesh;
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
@@ -50,8 +59,56 @@ export class GameView {
     scene.add(this.dyn);
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .016)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
+  // ---------------- build mode ----------------
+  setPlacing(type: FruitType | null) {
+    if (this.placing === type) return;
+    this.placing = type; this.hoverSlot = -1;
+    for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
+    if (!type || !this.cfg) return;
+    const H = hexR(this.cfg);
+    for (const s of this.slots) {
+      const g = new THREE.Group(); g.position.set(s.x, .06, s.z);
+      const fill = new THREE.Mesh(new THREE.CircleGeometry(H * .93, 6, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .06, depthWrite: false }));
+      const line = new THREE.Mesh(new THREE.RingGeometry(H * .86, H * .95, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false }));
+      fill.rotation.x = line.rotation.x = -Math.PI / 2;
+      const pips = new THREE.Group(); pips.position.y = .02;
+      for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.scale.setScalar(.16); pips.add(m); }
+      g.add(fill, line, pips); g.renderOrder = 5; this.slotOverlay.add(g);
+    }
+  }
+  setHover(cx: number, cy: number) { this.hoverSlot = this.slotFromScreen(cx, cy); }
+  slotFromScreen(cx: number, cy: number) {
+    const nx = cx / innerWidth * 2 - 1, ny = -(cy / innerHeight) * 2 + 1;
+    const o = camera.position, d = V(nx, ny, .5).unproject(camera).sub(o).normalize(); if (d.y >= 0) return -1;
+    const t = -o.y / d.y;
+    return slotAt(this.cfg, this.slots, o.x + d.x * t, o.z + d.z * t);
+  }
+  private updateOverlay() {
+    if (!this.placing) return;
+    const type = FRUITS.indexOf(this.placing), cost = this.cfg.fields.rarityCost;
+    this.slotOverlay.children.forEach((g, i) => {
+      const [fill, line, pips] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Group];
+      const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
+      const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
+      const hov = i === this.hoverSlot;
+      (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? .38 : .07;
+      (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : .45;
+      // rarity progress pips (how many more fields of this type until the next rarity)
+      const n = same && !maxed ? cost[f!.rarity] : 0;
+      pips.children.forEach((p, k) => {
+        p.visible = k < n; if (!p.visible) return;
+        p.position.set((k - (n - 1) / 2) * .42, 0, 0);
+        const filled = k < f!.prog, next = hov && k === f!.prog;
+        (( p as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(filled ? RARITY_COL[Math.min(4, f!.rarity + 1)] : next ? 0xffffff : 0x333333);
+        (( p as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = filled || next ? 1 : .8;
+      });
+    });
+  }
+
   setConfig(cfg: Balancing) {
     this.cfg = cfg;
+    this.slots = slotPositions(cfg);
+    if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     const arc = cfg.rake.arc * Math.PI / 180;
     this.aimInd = {
@@ -68,7 +125,8 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
-    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields].forEach(m => m.clear());
+    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools].forEach(m => m.clear());
+    this.setPlacing(null);
     PART.clear(); clearFx(); clearEyes(); this.snap = null;
   }
 
@@ -90,15 +148,29 @@ export class GameView {
     }
     for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); barGroup.remove(v.bar); this.players.delete(pid); }
     // fields
-    const slots = slotPositions(this.cfg);
+    const slots = this.slots;
+    const seenF = new Set<number>();
     for (const f of s.fi) {
+      seenF.add(f[0]);
       let v = this.fields.get(f[0]);
+      if (v && (v.type !== f[1] || (!v.alive && f[3]))) { this.removeField(f[0], v); v = undefined; } // overbuilt
       if (!v) v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]);
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
-      setBar(v.bar, f[2]); v.bar.visible = v.alive; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.plant.rotation.z = Math.sin(performance.now() / 20) * f[4] * .25; v.plant.scale.y = (v.alive ? 1 : .55) * (1 + f[4] * .4);
+      if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
+      v.prog = f[6];
+      setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
+      v.plant.rotation.z = Math.sin(performance.now() / 20) * f[4] * .25; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
     }
+    for (const [slot, v] of this.fields) if (!seenF.has(slot)) this.removeField(slot, v);
+    // cabbage poison pools
+    this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
+      const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.scale.setScalar(p[3]); return m;
+    }, (v, p) => {
+      v.tx = p[1]; v.ty = .04; v.tz = p[2]; ((v.m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .38 * Math.min(1, p[4] * 3);
+      if (Math.random() < .5) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * p[3]; PART.spawn(V(p[1] + Math.cos(a) * r, .05, p[2] + Math.sin(a) * r), V(0, rand(.3, .7), 0), 0x7dff4a, rand(.08, .16), rand(.4, .8), { a: .7 }); }
+    });
     // enemies
     for (const e of s.en) {
       let v = this.enemies.get(e[0]);
@@ -147,17 +219,26 @@ export class GameView {
     for (const [k, v] of map) if (v.seen !== id) { this.dyn.remove(v.m); map.delete(k); }
   }
   private makeField(slot: number, type: FruitType, p: { x: number; z: number }) {
+    const H = hexR(this.cfg);
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
-    const bed = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.32, .16, 6), M(0x3a2818, { r: 1 })); bed.position.y = .02; bed.rotation.y = Math.PI / 6; bed.receiveShadow = true; g.add(bed);
-    const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.36, 1.4, .12, 6, 1, true), M(0x5a5048)); rim.position.y = .04; rim.rotation.y = Math.PI / 6; rim.castShadow = true; g.add(rim);
+    // flat bed, flush with the ground: walkable, no collider
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(H * .97, H * .97, .03, 6), M(0x33231a, { r: 1 })); bed.position.y = .015; bed.receiveShadow = true; g.add(bed);
+    const rim = new THREE.Mesh(new THREE.RingGeometry(H * .9, H * .97, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: RARITY_COL[0], transparent: true, opacity: .55, depthWrite: false }));
+    rim.rotation.x = -Math.PI / 2; rim.position.y = .035; g.add(rim);
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : 0x4f8a35), head: M(0x9ad870) };
-    const { g: plant, fruits } = buildPlant(type, mats); g.add(plant);
-    const v: FieldView = { g, plant, fruits, mats, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type) };
-    v.bar.position.set(p.x, 1.45, p.z);
+    const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
+    for (let i = 0; i < 3; i++) { // three low clumps per bed
+      const a = i / 3 * Math.PI * 2 + .5, b = buildPlant(type, mats);
+      b.g.position.set(Math.cos(a) * H * .42, 0, Math.sin(a) * H * .42); b.g.scale.set(.72, .62, .72); b.g.rotation.y = rand(0, 7);
+      plant.add(b.g); fruits.push(...b.fruits);
+    }
+    const v: FieldView = { g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0 };
+    v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
-    burst(V(p.x, .5, p.z), 0x8fe36a, 30, 2.5, .2, .8);
+    burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
     return v;
   }
+  private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g); barGroup.remove(v.bar); this.fields.delete(slot); }
   private killField(v: FieldView) {
     v.mats.leaf.color.set(0x4a3a24); v.mats.head.color.set(0x5a4a2a); v.plant.scale.set(1, .55, 1);
     v.fruits.forEach(f => f.visible = false);
@@ -208,6 +289,7 @@ export class GameView {
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
+      case 'rarity': { const sl = this.slots[e.s]; if (sl) { burst(V(sl.x, .3, sl.z), RARITY_COL[e.r] ?? 0xffffff, 60, 3.5, .25, 1.1); decal(sl.x, sl.z, RARITY_COL[e.r] ?? 0xffffff, .3, .7, { ring: true, add: true, grow: hexR(this.cfg) * 1.2, op: .9 }); } break; }
       case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); play('merge'); break;
       case 'collect': {
         burst(V(e.x, .9, e.z), FRUIT_HEX[FRUITS[e.t]], 6 + e.tier * 6, 1.8, .12, .35);
@@ -242,9 +324,10 @@ export class GameView {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z);
         if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
       }
-      for (const map of [this.bombs, this.mines]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
+      for (const map of [this.bombs, this.mines, this.pools]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) f.bar.quaternion.copy(camera.quaternion);
     }
+    this.updateOverlay();
     this.updateAim();
     updateEyes(dt);
     if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
@@ -342,8 +425,13 @@ export class GameView {
     this.camX = lerp(this.camX, tx * .92, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
     this.shake = Math.max(0, this.shake - dt * 1.2);
     const sx = this.shake ? rand(-1, 1) * this.shake * .5 : 0, sz = this.shake ? rand(-1, 1) * this.shake * .5 : 0;
-    camera.position.set(this.camX + off.x + sx, off.y, this.camZ + off.z + sz);
-    camera.lookAt(this.camX + sx, 0, this.camZ + sz);
+    // build mode: blend to a top-down view of the whole garden
+    this.placeT = clamp(this.placeT + (this.placing ? dt : -dt) * 3, 0, 1);
+    const k = this.placeT * this.placeT * (3 - 2 * this.placeT);
+    const ext = this.slots.reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
+    const topH = ext / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
+    camera.position.set(lerp(this.camX + off.x + sx, 0, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, .01, k));
+    camera.lookAt(lerp(this.camX + sx, 0, k), 0, lerp(this.camZ + sz, 0, k));
     torch.position.set(tx, 2.2, tz + .4);
     this.aggro.position.set(tx, .03, tz); this.aggro.visible = !!(me && me.s.al);
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);

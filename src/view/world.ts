@@ -22,12 +22,12 @@ function groundTexture() {
     g.moveTo(toPx(Math.cos(a) * 26), toPx(Math.sin(a) * 26));
     g.quadraticCurveTo(toPx(Math.cos(a + .3) * 12), toPx(Math.sin(a + .3) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
   }
-  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 6.2 / W);
+  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 9.8 / W);
   grd.addColorStop(0, 'rgba(58,42,28,.95)'); grd.addColorStop(.75, 'rgba(52,38,26,.85)'); grd.addColorStop(1, 'rgba(52,38,26,0)');
-  g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 6.2 / W, 0, 7); g.fill();
-  for (let i = 0; i < 1500; i++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * S * 5.5 / W; g.fillStyle = `rgba(${rand(20, 90)},${rand(18, 60)},${rand(10, 40)},.4)`; g.fillRect(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, rand(1, 4), rand(1, 4)); }
+  g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 9.8 / W, 0, 7); g.fill();
+  for (let i = 0; i < 1500; i++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * S * 9.2 / W; g.fillStyle = `rgba(${rand(20, 90)},${rand(18, 60)},${rand(10, 40)},.4)`; g.fillRect(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, rand(1, 4), rand(1, 4)); }
   // the edge falls off into total darkness
-  const dark = g.createRadialGradient(S / 2, S / 2, S * 12.5 / W, S / 2, S / 2, S * 17.5 / W);
+  const dark = g.createRadialGradient(S / 2, S / 2, S * 13 / W, S / 2, S / 2, S * 17.5 / W);
   dark.addColorStop(0, 'rgba(0,0,0,0)'); dark.addColorStop(1, 'rgba(0,0,0,1)');
   g.fillStyle = dark; g.fillRect(0, 0, S, S);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
@@ -72,7 +72,7 @@ export function buildWorld() {
     const gm = windify(new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: .9 }));
     const N = 1300, im = new THREE.InstancedMesh(tuft, gm, N); let n = 0;
     while (n < N) {
-      const a = rand(0, 7), r = Math.sqrt(Math.random()) * 16.5; if (r < 5.3) continue;
+      const a = rand(0, 7), r = Math.sqrt(Math.random()) * 16.5; if (r < 9.8) continue;
       const s = rand(.7, 1.6) * (r > 12 ? 1.25 : 1);
       m4.compose(V(Math.cos(a) * r, 0, Math.sin(a) * r), q.setFromAxisAngle(V(0, 1, 0), rand(0, 7)), V(s, s, s)); im.setMatrixAt(n, m4);
       im.setColorAt(n, c.setHSL(rand(.2, .3), rand(.35, .55), rand(.1, .18) * (r > 13 ? .4 : 1))); n++;
@@ -98,15 +98,15 @@ export function buildWorld() {
     scene.add(bushes);
   }
   { // rocks along the garden border, glowing mushrooms inside
-    const rocks = new THREE.InstancedMesh(GEO.lo, M(0x3c4046, { r: .95 }), 18);
-    for (let i = 0; i < 18; i++) {
-      const s = rand(.14, .25), ang = i / 18 * Math.PI * 2, r = rand(4.9, 5.3);
+    const rocks = new THREE.InstancedMesh(GEO.lo, M(0x3c4046, { r: .95 }), 30);
+    for (let i = 0; i < 30; i++) {
+      const s = rand(.14, .25), ang = i / 30 * Math.PI * 2, r = rand(10, 10.4);
       m4.compose(V(Math.cos(ang) * r, s * .3, Math.sin(ang) * r), q.setFromEuler(new THREE.Euler(rand(0, 3), rand(0, 3), 0)), V(s, s * .7, s)); rocks.setMatrixAt(i, m4);
     }
     rocks.castShadow = true; rocks.receiveShadow = true; scene.add(rocks);
     const stems = new THREE.InstancedMesh(GEO.cyl, M(0x9a948a), 24), caps = new THREE.InstancedMesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0x1a3a40, emissive: 0x3fe0d0, emissiveIntensity: 1.6, roughness: .4 }), 24);
     for (let i = 0; i < 24; i++) {
-      const a = rand(0, 7), r = rand(10, 14), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.6, 1.3);
+      const a = rand(0, 7), r = rand(11, 14.5), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.6, 1.3);
       m4.compose(V(x, .07 * s, z), q.identity(), V(.025 * s, .14 * s, .025 * s)); stems.setMatrixAt(i, m4);
       m4.compose(V(x, .15 * s, z), q, V(.08 * s, .04 * s, .08 * s)); caps.setMatrixAt(i, m4);
     }

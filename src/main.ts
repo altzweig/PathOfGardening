@@ -1,14 +1,14 @@
 import './style.css';
-import { Balancing, WEAPONS, Weapon, loadBalancing } from './config';
+import { Balancing, FRUITS, WEAPONS, Weapon, loadBalancing } from './config';
 import { Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
 import { applyQuality, gfx, isTouch } from './view/core';
 import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
-import { mini } from './ui/icons';
+import { mini, pic } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
-import { audio, initAudio, tickAudio } from './audio';
+import { audio, initAudio, play, tickAudio } from './audio';
 import { Client, Host } from './net/net';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -33,6 +33,7 @@ class Game {
   private lastIntent = '';
   private luShownFor = '';
   private overShown = false;
+  private placeShown: string | null = null;
   private backTo = '#menu';
 
   constructor() {
@@ -91,6 +92,16 @@ class Game {
     click('#leaveBtn', () => this.leave());
     click('#againBtn', () => { only(null); this.restart(); });
     click('#overMenu', () => this.leave());
+    // build mode input (mouse or touch on the 3D view)
+    const canvas = $('#c');
+    canvas.addEventListener('pointermove', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerdown', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerup', e => {
+      if (!this.view.placing) return;
+      const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
+      if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
+      play('field');
+    });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
   }
@@ -125,6 +136,7 @@ class Game {
     h.onChange = () => this.renderLobby();
     h.onIntent = (id, it) => this.sim?.setIntent(id, it);
     h.onPick = (id, key) => this.sim?.pick(id, key);
+    h.onPlace = (id, slot) => this.sim?.place(id, slot);
     h.onJoin = p => { if (this.mode === 'host' && this.sim) this.sim.addPlayer(p.id, p.color); };
     h.onLeave = id => { if (this.mode === 'host' && this.sim) this.sim.removePlayer(id); };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');
@@ -203,7 +215,18 @@ class Game {
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];
+    // build mode: card chosen, now pick a spot in the top-down view
+    const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
+    this.view.setPlacing(placing);
+    show('#placeBar', !!placing);
+    if (placing) {
+      show('#levelup', false);
+      if (this.placeShown !== placing) { this.placeShown = placing; $('#placeBar').innerHTML = `<div class="pic">${pic('field_' + placing)}</div>`; }
+      return;
+    }
+    this.placeShown = null;
     if (s.ph === 'lvl' && pr?.of) {
+      if (!pr.pk && $('#levelup').hidden && this.luShownFor) this.luShownFor = ''; // came back from build mode with another level pending
       const key = s.lr + ':' + pr.of.map(o => o.key).join(',');
       if (this.luShownFor !== key) {
         this.luShownFor = key; this.input.releaseAll(); only('#levelup');

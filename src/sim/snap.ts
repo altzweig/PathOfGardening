@@ -19,7 +19,7 @@ export interface PSnap {
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; rg: number[]; ac: number; rk: number;
-  of: Offer[] | null; pk: 0 | 1;
+  of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
@@ -31,8 +31,10 @@ export type JSnap = [number, number, number, number, number, number];
 export type BSnap = [number, number, number, number, number, number];
 // mine: [id, x, z]
 export type MSnap = [number, number, number];
-// field: [slot, type, hpFrac, alive, shake]
-export type FiSnap = [number, number, number, number, number];
+// field: [slot, type, hpFrac, alive, shake, rarity, progress]
+// pool: [id, x, z, radius, lifeFrac]
+export type PuSnap = [number, number, number, number, number];
+export type FiSnap = [number, number, number, number, number, number, number];
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512 } as const;
 
@@ -41,7 +43,7 @@ export type Ev = { k: string; [key: string]: any };
 export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; lr: number;
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number;
-  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[];
+  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   me: Record<number, Priv>;
   ev: Ev[];
 }

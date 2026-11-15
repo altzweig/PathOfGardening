@@ -33,8 +33,8 @@ moon.position.set(-9, 18, 7); moon.castShadow = true;
 Object.assign(moon.shadow.camera, { left: -19, right: 19, top: 19, bottom: -19, near: 1, far: 50 });
 moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.03;
 scene.add(moon); scene.add(moon.target);
-export const LANT = new THREE.Vector3(Math.cos(Math.PI / 6) * 4.4, 0, Math.sin(Math.PI / 6) * 4.4);
-const lantern = new THREE.PointLight(0xffa04a, 18, 12, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
+export const LANT = new THREE.Vector3(Math.cos(Math.PI / 6) * 10.8, 0, Math.sin(Math.PI / 6) * 10.8);
+const lantern = new THREE.PointLight(0xffa04a, 22, 14, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
 export const torch = new THREE.PointLight(0xffc27a, 9, 7.5, 1.6); scene.add(torch);
 
 export type Quality = 'hoch' | 'mittel' | 'niedrig';

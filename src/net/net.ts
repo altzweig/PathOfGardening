@@ -9,7 +9,7 @@ const PREFIX = 'pathofgardening-v1-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from({ length: 5 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join('');
 
-export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'hello' };
+export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello' };
 export type ToClient =
   | { t: 'welcome'; id: number; color: number; cfg: Balancing }
   | { t: 'lobby'; players: { id: number; color: number }[] }
@@ -25,6 +25,7 @@ export class Host {
   onChange: () => void = () => {};
   onIntent: (id: number, it: Intent) => void = () => {};
   onPick: (id: number, key: string) => void = () => {};
+  onPlace: (id: number, slot: number) => void = () => {};
   onJoin: (p: LobbyPlayer) => void = () => {};
   onLeave: (id: number) => void = () => {};
   onError: (msg: string) => void = () => {};
@@ -60,6 +61,7 @@ export class Host {
         const m = d as ToHost;
         if (m.t === 'in') this.onIntent(p.id, m.i);
         else if (m.t === 'pick') this.onPick(p.id, m.key);
+        else if (m.t === 'place') this.onPlace(p.id, m.slot);
       });
       const gone = () => {
         const i = this.players.indexOf(p); if (i < 0) return;

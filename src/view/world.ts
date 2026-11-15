@@ -1,9 +1,7 @@
 // Static garden + the dark rim: black bush/tree silhouettes with a faint cold edge,
 // and blinking eye pairs behind them (more of them where the next wave comes from).
 import * as THREE from 'three';
-import { ENEMIES, EnemyType } from '../config';
 import { GEO, LANT, M, V, part, rand, scene, windU } from './core';
-import { EYE_COL } from './models';
 
 const ARENA = 15;
 
@@ -94,7 +92,7 @@ export function buildWorld() {
     for (let i = 0; i < NB; i++) {
       const a = rand(0, Math.PI * 2), r = rand(16.2, 18.8), s = rand(.5, 1.05);
       m4.compose(V(Math.cos(a) * r, s * .45, Math.sin(a) * r), q.setFromEuler(new THREE.Euler(rand(-.3, .3), rand(0, 7), rand(-.3, .3))), V(s * rand(.9, 1.4), s * rand(.6, .9), s * rand(.9, 1.4)));
-      bushes.setMatrixAt(i, m4);
+      bushes.setMatrixAt(i, m4); BUSHES.push({ x: Math.cos(a) * r, y: s * .45, z: Math.sin(a) * r, r: s * .85, a });
     }
     scene.add(bushes);
   }
@@ -118,53 +116,56 @@ export function buildWorld() {
   }
 }
 
-// ---------------- eyes in the bushes ----------------
-// A steady population of eye pairs sits inside the bush ring (r 16.4-18.4). Pairs are always
-// horizontal on screen, blink at random and drift a little. Before a wave more pairs gather
-// in that direction, in the colours of the coming creatures.
-interface Eye { g: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; t: number; blink: number; base: number; a: number; rad: number; y: number; da: number; ph: number; warn: boolean }
-const eyes: Eye[] = [];
+// ---------------- eyes on the bushes ----------------
+// Small dark-blue to purple eye pairs sit on the bush silhouettes, 2-3 pairs per bush.
+// They are self-lit (no light source, below the bloom threshold) and blink with quick lids.
+// Before a wave, bushes in that direction fill up with eyes.
+const BUSHES: { x: number; y: number; z: number; r: number; a: number }[] = [];
+interface Pair { g: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; mat: THREE.MeshBasicMaterial; size: number; y0: number; blink: number; ph: number }
+interface EyeBush { b: number; pairs: Pair[]; life: number; t: number }
+const eyeBushes: EyeBush[] = [];
 const eyeGeo = new THREE.SphereGeometry(1, 10, 8);
-const AMBIENT: EnemyType[] = ['raccoon', 'panda', 'toad'];
-const BASE_PAIRS = 16;
-function spawnEye(type: EnemyType, angle: number, life: number, warn = false) {
-  if (eyes.length > 60) return;
-  // drawn over the bush silhouettes so they peek out of the foliage
-  const mat = new THREE.MeshBasicMaterial({ color: EYE_COL[type], transparent: true, opacity: 0, toneMapped: false, fog: false, depthWrite: false, depthTest: false });
-  const g = new THREE.Group(), size = type === 'toad' ? .09 : .075, gap = type === 'toad' ? .24 : .17;
-  const l = new THREE.Mesh(eyeGeo, mat), rr = new THREE.Mesh(eyeGeo, mat);
-  l.scale.setScalar(size); rr.scale.setScalar(size); l.position.x = -gap / 2; rr.position.x = gap / 2; g.add(l, rr); // pair along world X = horizontal on screen
-  const e: Eye = { g, l, r: rr, mat, life, t: 0, blink: rand(.3, 4), base: size, a: angle, rad: rand(16.4, 18.4), y: rand(.22, .62), da: rand(-.012, .012), ph: rand(0, 7), warn };
-  g.position.set(Math.cos(angle) * e.rad, e.y, Math.sin(angle) * e.rad);
-  l.renderOrder = rr.renderOrder = 20; scene.add(g); eyes.push(e);
+const BASE_BUSHES = 14, EYE_SIZE = .032;
+function eyeColor() { return new THREE.Color().setHSL(rand(.64, .78), rand(.6, .8), rand(.28, .36)); }
+function activateBush(b: number, life: number) {
+  if (b < 0 || eyeBushes.some(e => e.b === b) || eyeBushes.length > 40) return;
+  const B = BUSHES[b], pairs: Pair[] = [], n = Math.random() < .5 ? 2 : 3;
+  // face the garden: put the pairs on the inner side of the bush
+  const ix = -Math.cos(B.a), iz = -Math.sin(B.a), tx = -iz, tz = ix;
+  for (let k = 0; k < n; k++) {
+    const size = EYE_SIZE * rand(.9, 1.1), gap = size * 2.7;
+    const mat = new THREE.MeshBasicMaterial({ color: eyeColor(), transparent: true, opacity: 0, fog: false, depthWrite: false, depthTest: false });
+    const g = new THREE.Group(), l = new THREE.Mesh(eyeGeo, mat), rr = new THREE.Mesh(eyeGeo, mat);
+    l.scale.setScalar(size); rr.scale.setScalar(size); l.position.x = -gap / 2; rr.position.x = gap / 2; // always horizontal
+    l.renderOrder = rr.renderOrder = 20; g.add(l, rr);
+    const side = rand(-.6, .6) * B.r, up = rand(-.15, .45) * B.r;
+    g.position.set(B.x + ix * B.r * .8 + tx * side, B.y + up, B.z + iz * B.r * .8 + tz * side);
+    scene.add(g); pairs.push({ g, l, r: rr, mat, size, y0: 0, blink: rand(.3, 4), ph: rand(0, 7) });
+  }
+  eyeBushes.push({ b, pairs, life, t: 0 });
 }
-export function warnEyes(dirs: number[], types: number[][], warnTime: number) {
-  dirs.forEach((a, i) => {
-    const grp = types[i] || [0], n = Math.min(6, 2 + grp.length);
-    for (let k = 0; k < n; k++) {
-      const t = ENEMIES[grp[k % grp.length]] || 'raccoon';
-      spawnEye(t === 'sheep' ? AMBIENT[k % 3] : t, a + rand(-.25, .25), warnTime + rand(.6, 1.4), true);
-    }
-  });
+const nearestBushes = (angle: number, count: number) => BUSHES.map((B, i) => ({ i, d: Math.abs(Math.atan2(Math.sin(B.a - angle), Math.cos(B.a - angle))) })).sort((p, q) => p.d - q.d).slice(0, count).map(p => p.i);
+export function warnEyes(dirs: number[], _types: number[][], warnTime: number) {
+  for (const a of dirs) for (const b of nearestBushes(a + rand(-.1, .1), 3)) activateBush(b, warnTime + rand(1, 2));
 }
 export function updateEyes(dt: number) {
-  // keep the bushes populated
-  if (eyes.filter(e => !e.warn).length < BASE_PAIRS) spawnEye(AMBIENT[Math.floor(Math.random() * 3)], rand(0, Math.PI * 2), rand(6, 16));
-  for (let i = eyes.length - 1; i >= 0; i--) {
-    const e = eyes[i]; e.t += dt;
-    if (e.t >= e.life) { scene.remove(e.g); e.mat.dispose(); eyes.splice(i, 1); continue; }
-    e.mat.opacity = Math.min(1, e.t / .6, (e.life - e.t) / .6);
-    // slight wandering inside the bushes
-    e.a += e.da * dt; e.ph += dt;
-    const rad = e.rad + Math.sin(e.ph * .7) * .25, y = e.y + Math.sin(e.ph * 1.3) * .04;
-    e.g.position.set(Math.cos(e.a) * rad, y, Math.sin(e.a) * rad);
-    // random blinks (sometimes double)
-    e.blink -= dt; let sy = 1;
-    if (e.blink < 0) { const b = -e.blink; sy = b < .06 ? 1 - b / .06 : b < .12 ? (b - .06) / .06 : 1; sy = Math.max(.06, sy); if (b > .12) e.blink = Math.random() < .2 ? .12 : rand(.8, 4.5); }
-    e.l.scale.set(e.base, e.base * sy, e.base); e.r.scale.set(e.base, e.base * sy, e.base);
+  if (BUSHES.length && eyeBushes.length < BASE_BUSHES) activateBush(Math.floor(Math.random() * BUSHES.length), rand(7, 16));
+  for (let i = eyeBushes.length - 1; i >= 0; i--) {
+    const E = eyeBushes[i]; E.t += dt;
+    if (E.t >= E.life) { for (const p of E.pairs) { scene.remove(p.g); p.mat.dispose(); } eyeBushes.splice(i, 1); continue; }
+    const fade = Math.min(1, E.t / .8, (E.life - E.t) / .8);
+    for (const p of E.pairs) {
+      p.mat.opacity = fade; p.ph += dt;
+      // quick lid: closes from the top (bottom edge stays), opens again
+      p.blink -= dt; let open = 1;
+      if (p.blink < 0) { const b = -p.blink; open = b < .05 ? 1 - b / .05 : b < .12 ? (b - .05) / .07 : 1; if (b >= .12) p.blink = Math.random() < .18 ? .1 : rand(1.5, 6); }
+      open = Math.max(.06, open);
+      for (const m of [p.l, p.r]) { m.scale.set(p.size, p.size * open, p.size); m.position.y = -p.size * (1 - open); }
+      p.g.position.y += Math.sin(p.ph * 1.1) * .0006; // barely moving
+    }
   }
 }
-export function clearEyes() { for (const e of eyes) scene.remove(e.g); eyes.length = 0; }
+export function clearEyes() { for (const E of eyeBushes) for (const p of E.pairs) scene.remove(p.g); eyeBushes.length = 0; }
 
 // ---------------- fog drifting through the bushes ----------------
 const fogTex = (() => {

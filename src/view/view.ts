@@ -2,7 +2,9 @@
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SkillId, Weapon } from '../config';
-import { Slot, hexR, slotAt, slotPositions } from '../sim/sim';
+import { Slot, cornerAngle, hexR, slotAt, slotPositions } from '../sim/sim';
+// soft round glow for the rim pulse
+const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
 import { play, setListener, sfx } from '../audio';
 import {
@@ -19,7 +21,7 @@ interface PView { stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
-interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number }
+interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number }
 // common, uncommon, rare, epic, legendary
 export const RARITY_COL = [0x9a9488, 0x5fd35f, 0x4a8cff, 0xb05cff, 0xffa020];
 
@@ -171,9 +173,9 @@ export class GameView {
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
-      v.prog = f[6];
+      v.prog = f[6]; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.plant.rotation.z = Math.sin(performance.now() / 20) * f[4] * .25; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
+      v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) this.removeField(slot, v);
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.map(f => slots[f[0]]), hexR(this.cfg)); }
@@ -246,13 +248,37 @@ export class GameView {
       b.g.position.set(Math.cos(a) * H * .42, 0, Math.sin(a) * H * .42); b.g.scale.set(.72, .62, .72); b.g.rotation.y = rand(0, 7);
       plant.add(b.g); fruits.push(...b.fruits);
     }
-    const v: FieldView = { g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0 };
+    const pulse: THREE.Sprite[] = [];
+    for (let i = 0; i < 6; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pulseTex, color: new THREE.Color(FRUIT_HEX[type]).lerp(new THREE.Color(0xffffff), .45), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); sp.renderOrder = 3; this.dyn.add(sp); pulse.push(sp); }
+    const v: FieldView = { g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
     return v;
   }
-  private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g); barGroup.remove(v.bar); this.fields.delete(slot); }
+  /** rim = loading bar: an energy pulse runs clockwise, one edge per harvest; tilled fields glow and wiggle */
+  private animField(v: FieldView, dt: number) {
+    const H = hexR(this.cfg) * .935, now = performance.now() / 1000;
+    const target = v.edge + v.ep; // 0..6 around the rim
+    if (v.pos < 0 || !this.smooth) v.pos = target;
+    else { let d = target - v.pos; if (d < -3) d += 6; if (d > 3) d -= 6; v.pos += d * Math.min(1, dt * 10); if (v.pos >= 6) v.pos -= 6; if (v.pos < 0) v.pos += 6; }
+    v.glow = lerp(v.glow, v.tilled ? 1 : 0, Math.min(1, dt * 6));
+    const at = (pp: number) => { pp = ((pp % 6) + 6) % 6; const k = Math.floor(pp), t = pp - k; const a0 = cornerAngle(k), a1 = cornerAngle(k + 1);
+      return [v.x + lerp(Math.cos(a0), Math.cos(a1), t) * H, v.z + lerp(Math.sin(a0), Math.sin(a1), t) * H]; };
+    v.pulse.forEach((s, i) => {
+      s.visible = v.alive; if (!v.alive) return;
+      const [x, z] = at(v.pos - i * .05); s.position.set(x, .12, z);
+      const head = 1 - i / v.pulse.length, sz = (.34 + v.glow * .22) * head;
+      s.scale.set(sz, sz, 1); (s.material as THREE.SpriteMaterial).opacity = (.45 + v.glow * .5) * head;
+    });
+    const rm = v.rim.material as THREE.MeshBasicMaterial;
+    rm.opacity = .5 + v.glow * (.4 + .1 * Math.sin(now * 8));
+    rm.color.set(RARITY_COL[v.rarity] ?? RARITY_COL[0]).lerp(new THREE.Color(0xfff0c0), v.glow * .55);
+    // shake on hits/harvest, gentle wiggle while tilled
+    v.plant.rotation.z = Math.sin(now * 50) * v.shake * .25 + Math.sin(now * 11) * .06 * v.glow;
+    v.plant.rotation.x = Math.sin(now * 9 + 1) * .04 * v.glow;
+  }
+  private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g, ...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot); }
   private killField(v: FieldView) {
     v.mats.leaf.color.set(0x4a3a24); v.mats.head.color.set(0x5a4a2a); v.plant.scale.set(1, .55, 1);
     v.fruits.forEach(f => f.visible = false);
@@ -341,7 +367,7 @@ export class GameView {
         if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
       }
       for (const map of [this.bombs, this.mines, this.pools]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
-      for (const [, f] of this.fields) f.bar.quaternion.copy(camera.quaternion);
+      for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
     this.updateOverlay();
     this.updateAim();
@@ -367,7 +393,9 @@ export class GameView {
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
     const arc = this.cfg.rake.arc * Math.PI / 180, L = this.cfg.rake.range - .12;
-    if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
+    v.rake.position.z = 0;
+    if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(.6, L); v.rake.position.z = Math.sin(s.ti * Math.PI) * .45; } // till: forward push
+    else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
     else { v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2); }
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     const other = s.id !== this.me;

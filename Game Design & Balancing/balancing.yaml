@@ -65,6 +65,10 @@ arena:
 fields:
   hp: 100
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
+  # Beackern: Harke benutzen, wenn kein Gegner im Kegel ist und 1 m vor dem Spieler ein Feld liegt
+  tillReach: 1.0           # m vor dem Spieler
+  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert
+  tillMultiplier: 2        # Produktion x2 während es beackert wird (nur 1 Feld pro Spieler gleichzeitig)
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
   rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
@@ -77,8 +81,7 @@ fruit:
   tierValue: [1, 10, 100]     # Wert Stufe 1/2/3
   mergeCount: 10              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
   mergeCheck: 0.4             # s zwischen Verschmelz-Prüfungen
-  throwMin: 0.95              # m, Früchte fallen so weit vom Beet
-  throwMax: 1.6
+  cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
 
 plants:
   blue: { interval: 1 }                 # 1 Frucht alle x s

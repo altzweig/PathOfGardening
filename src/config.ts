@@ -23,8 +23,8 @@ export interface Balancing {
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
-  fields: { hp: number; healPerSecond: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
-  fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; throwMin: number; throwMax: number };
+  fields: { hp: number; healPerSecond: number; tillReach: number; tillDuration: number; tillMultiplier: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
+  fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number }>;
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number };
   skills: {

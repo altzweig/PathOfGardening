@@ -30,18 +30,20 @@ export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
   if (dq > dr && dq > ds) q = -r - s; else if (dr > ds) r = -q - s;
   return slots.findIndex(sl => sl.q === q && sl.r === r);
 }
-export const hexDist = (a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+/** corner k of a pointy-top hex; increasing k = clockwise as seen from the camera (top = -z) */
+export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
+export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
 interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; cdT: number; firing: boolean }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
-  stun: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number;
+  stun: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number; tillT: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>;
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
 interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
@@ -105,7 +107,7 @@ export class Sim {
     const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, cdT: 0, firing: false });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
-      stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0,
+      stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0 }, collected: { asp: 0, cran: 0, cab: 0 }, skills: { asp: mk(), cran: mk(), cab: mk() },
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, fieldLock: 0, taken: {},
     };
@@ -142,7 +144,7 @@ export class Sim {
       return f;
     }
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
-    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0 };
+    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1 };
     this.fields.push(f);
     this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
@@ -188,9 +190,12 @@ export class Sim {
       const extra = this.f(this.cfg.coop.xpYieldExponent) - 1;
       n += Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);
     }
+    // the energy pulse on the rim reached the next corner: the harvest drops there
+    f.edge = (f.edge + 1) % 6;
+    const H = hexR(this.cfg), ca = cornerAngle(f.edge), cx = f.x + Math.cos(ca) * H, cz = f.z + Math.sin(ca) * H;
     for (let i = 0; i < n; i++) {
-      const a = rand(0, Math.PI * 2), d = rand(this.cfg.fruit.throwMin, this.cfg.fruit.throwMax);
-      this.spawnFruit(f.type, 0, f.x, .8, f.z, f.x + Math.cos(a) * d, f.z + Math.sin(a) * d, f.slot);
+      const a = rand(0, Math.PI * 2), d = rand(0, this.cfg.fruit.cornerScatter);
+      this.spawnFruit(f.type, 0, cx, .5, cz, cx + Math.cos(a) * d, cz + Math.sin(a) * d, f.slot);
     }
     f.shake = .18; this.sfx('plants.produce.' + f.type, f.x, f.z);
   }
@@ -300,19 +305,38 @@ export class Sim {
     if (n) { const dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; }
     return [p.aimX, p.aimZ];
   }
-  rakeAttack(p: Player, dx: number, dz: number) {
+  private inRakeCone(p: Player, e: Enemy, dx: number, dz: number) {
     const R = this.cfg.rake, arc = R.arc * Math.PI / 180;
-    p.rakeCd = R.cooldown; p.swing = R.swingTime; p.swingDir = Math.atan2(dx, dz); p.face = p.swingDir; p.aimX = dx; p.aimZ = dz;
+    const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez);
+    if (d > R.range + e.r * .5) return false;
+    const da = Math.acos(clamp((ex * dx + ez * dz) / (d || 1), -1, 1));
+    return d < e.r + .2 || da <= arc / 2 + Math.atan2(e.r, Math.max(d, .01)) * .5;
+  }
+  rakeAttack(p: Player, dx: number, dz: number) {
+    const R = this.cfg.rake;
+    p.rakeCd = R.cooldown; p.aimX = dx; p.aimZ = dz; p.face = Math.atan2(dx, dz);
+    // no enemy in the cone but a field 1 m ahead: till it (forward push) instead of swinging
+    const targets = this.enemies.filter(e => !e.dead && this.inRakeCone(p, e, dx, dz));
+    if (!targets.length) {
+      const F = this.cfg.fields;
+      const f = this.fieldAt(slotAt(this.cfg, this.slots, p.x + dx * F.tillReach, p.z + dz * F.tillReach));
+      if (f && f.alive) { this.till(p, f); return; }
+    }
+    p.swing = R.swingTime; p.swingDir = p.face;
     this.snd('rake');
     this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id });
     let hits = 0;
-    for (const e of [...this.enemies]) {
-      if (e.dead) continue; const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez);
-      if (d > R.range + e.r * .5) continue;
-      const da = Math.acos(clamp((ex * dx + ez * dz) / (d || 1), -1, 1));
-      if (d < e.r + .2 || da <= arc / 2 + Math.atan2(e.r, Math.max(d, .01)) * .5) { if (this.hurtEnemy(e, R.damage, { color: 'r', punch: true })) hits++; }
-    }
+    for (const e of targets) if (this.hurtEnemy(e, R.damage, { color: 'r', punch: true })) hits++;
     if (hits) this.emit({ k: 'punches', n: hits, x: r2(p.x), z: r2(p.z) });
+  }
+  /** tilling: the field produces faster for a moment; each player tills only one field at a time */
+  till(p: Player, f: Field) {
+    const F = this.cfg.fields;
+    for (const o of this.fields) if (o !== f && o.tilledBy === p.id) { o.tilledT = 0; o.tilledBy = -1; }
+    f.tilledT = F.tillDuration; f.tilledBy = p.id; f.shake = Math.max(f.shake, .2);
+    p.tillT = this.cfg.rake.swingTime * 1.6;
+    this.sfx('player.till', f.x, f.z);
+    this.burst(p.x + p.aimX * F.tillReach, .1, p.z + p.aimZ * F.tillReach, 0x8a6a3a, 8, 1.2, .14, .4, { g: 4 });
   }
   tryFire(p: Player, id: SkillId, dir?: [number, number]) {
     const s = p.skills[id];
@@ -552,7 +576,7 @@ export class Sim {
   // ---------- per-player control ----------
   private updatePlayer(p: Player, dt: number) {
     const P = this.cfg.player, it = p.intent;
-    p.flash -= dt; p.swing -= dt;
+    p.flash -= dt; p.swing -= dt; p.tillT -= dt;
     if (!p.alive) {
       p.respawnT -= dt;
       if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
@@ -607,7 +631,8 @@ export class Sim {
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
-      if (f.alive) { f.t -= dt * this.prodMult(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
+      if (f.tilledT > 0) { f.tilledT -= dt; if (f.tilledT <= 0) f.tilledBy = -1; }
+      if (f.alive) { f.t -= dt * this.prodMult(f) * (f.tilledT > 0 ? this.cfg.fields.tillMultiplier : 1); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
     // fruit
@@ -806,7 +831,7 @@ export class Sim {
       t: r2(this.time), ph: this.phase, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
-        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0,
+        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0,
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
@@ -821,7 +846,7 @@ export class Sim {
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz))]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z)]),
-      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog]),
+      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       me, ev,
     };

@@ -102,7 +102,7 @@ export const SND: Record<string, (arg?: any) => void> = {
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
 
 // ---------------- sample-based sounds (Game Design & Balancing/sounds.yaml) ----------------
-interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean }
+interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean; lp?: number }
 const riseStep = new Map<string, { n: number; t: number }>();
 let SC: any = null;
 const bufs = new Map<string, AudioBuffer>();
@@ -161,7 +161,8 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   const g = AC.createGain(); g.gain.value = (e.vol ?? .5) * (SC.master ?? 1) * att * volMul;
   let node: AudioNode = g;
   if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
-  src.connect(g); node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
+  if (e.lp) { const bq = AC.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = e.lp; bq.Q.value = .5; src.connect(bq); bq.connect(g); } else src.connect(g);
+  node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
 }
 let ambWanted = false;
 function startAmbient() {

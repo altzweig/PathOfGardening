@@ -11,6 +11,7 @@
 #  chance: Wahrscheinlichkeit, dass der Sound überhaupt spielt (0..1)
 #  delay:  [min, max] zufällige Verzögerung in s (macht Rufe unregelmäßiger)
 #  rising: true = jede schnelle Wiederholung einen Halbton höher (Einsammel-Kette)
+#  lp:     Tiefpass in Hz (kleiner = dumpfer)
 #  Rohdateien liegen in sfx/<zweck>/ (ungenutzte in sfx/unused/), geschnittene Clips in public/audio/.
 # =====================================================================
 
@@ -18,7 +19,7 @@ master: 0.9
 distance: { full: 5, silent: 26 }   # m vom eigenen Spieler: bis "full" volle Lautstärke, ab "silent" stumm
 
 ambient:
-  night: { file: amb_night, vol: 0.30 }               # Grillen-Teppich (Loop)
+  night: { file: amb_night, vol: 0.18 }               # Grillen-Teppich (Loop)
   fire:  { file: amb_fire, vol: 0.10 }                # leises Feuerknistern der Fackeln (Loop)
   calls: { files: [crow_1, crow_2, crow_3, owl_1], vol: 0.16, pitch: [0.9, 1.05], every: [12, 28] }  # Rufe aus dem Wald
 
@@ -41,10 +42,10 @@ panda:
   die:         { files: [rac_die_1, rac_die_2], vol: 0.28, pitch: [0.95, 1.05], gap: 0.15 }
 
 toad:
-  wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.3, pitch: [0.85, 1.1], gap: 4, chance: 0.4, delay: [0, 3] }   # Quaken aus dem Hintergrund: selten, unregelmäßig
-  attack:      { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.25, pitch: [0.9, 1.15], gap: 0.2, synth: tongue }
-  fieldAttack: { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.18, pitch: [0.85, 1.0], gap: 0.4, synth: tongue }
-  die:         { files: [toad_die_1, toad_die_2, toad_die_3], vol: 0.3, pitch: [0.75, 0.9], gap: 0.1 }
+  wave:        { files: [toad_wave_1, toad_wave_2, toad_wave_3], vol: 0.1, pitch: [0.85, 1.1], gap: 20, chance: 0.75, delay: [0, 6] }   # Quaken im Hintergrund: leise, etwa 2-3x pro Minute
+  attack:      { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.12, pitch: [0.9, 1.15], gap: 0.2, synth: tongue }
+  fieldAttack: { files: [toad_tongue_1, toad_tongue_2, toad_tongue_3], vol: 0.08, pitch: [0.85, 1.0], gap: 0.4, synth: tongue }
+  die:         { files: [toad_die_1, toad_die_2, toad_die_3], vol: 0.15, pitch: [0.75, 0.9], gap: 0.1 }
 
 sheep:
   wave:        { files: [sheep_baa_1, sheep_baa_2, sheep_baa_3], vol: 0.25, pitch: [0.95, 1.1], gap: 0.6 }
@@ -58,6 +59,7 @@ player:
   hurt:   { synth: hurt, gap: 0.2 }
   die:    { synth: playerDie, gap: 1 }
   spawn:  { synth: respawn, gap: 0.5 }
+  till:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.2, pitch: [0.8, 1.0], gap: 0.1, lp: 2500 }   # Feld beackern
 
 plants:
   produce:
@@ -87,9 +89,9 @@ ui:
   gameOver:    { files: [game_over], vol: 0.6 }
 
 collect:
-  xp:    { files: [collect_xp_1, collect_xp_2, collect_xp_3, collect_xp_4], vol: 0.35, pitch: [0.9, 0.9], rising: true }    # Blaubeeren
-  ammo:  { files: [collect_ammo_1, collect_ammo_2, collect_ammo_3, collect_ammo_4], vol: 0.35, pitch: [0.95, 1.15], gap: 0.04 } # Munition
-  big:   { files: [collect_big], vol: 0.45, pitch: [0.95, 1.1] }                 # große Frucht (Stufe 2/3)
+  xp:    { files: [collect_xp_1, collect_xp_2, collect_xp_3, collect_xp_4], vol: 0.14, pitch: [0.68, 0.68], rising: true, lp: 1600 }    # Blaubeeren
+  ammo:  { files: [collect_ammo_1, collect_ammo_2, collect_ammo_3, collect_ammo_4], vol: 0.14, pitch: [0.72, 0.85], gap: 0.04, lp: 1500 } # Munition
+  big:   { files: [collect_big], vol: 0.2, pitch: [0.72, 0.82], lp: 1800 }                 # große Frucht (Stufe 2/3)
   merge: { files: [merge], vol: 0.4, pitch: [0.9, 1.15], gap: 0.1 }              # 10 Früchte verschmelzen
 
 effects:

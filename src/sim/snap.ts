@@ -14,7 +14,7 @@ export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: fal
 export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
-  sw: number; sd: number; wk: number; rs: number; po: number; fl: number;
+  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number;
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
@@ -31,10 +31,10 @@ export type JSnap = [number, number, number, number, number, number];
 export type BSnap = [number, number, number, number, number, number];
 // mine: [id, x, z]
 export type MSnap = [number, number, number];
-// field: [slot, type, hpFrac, alive, shake, rarity, progress]
+// field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]
 // pool: [id, x, z, radius, lifeFrac]
 export type PuSnap = [number, number, number, number, number];
-export type FiSnap = [number, number, number, number, number, number, number];
+export type FiSnap = [number, number, number, number, number, number, number, number, number, number];
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512 } as const;
 

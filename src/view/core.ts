@@ -35,7 +35,7 @@ moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.03;
 scene.add(moon); scene.add(moon.target);
 export const LANT = new THREE.Vector3(Math.cos(Math.PI / 6) * 10.8, 0, Math.sin(Math.PI / 6) * 10.8);
 const lantern = new THREE.PointLight(0xffa04a, 22, 14, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
-export const torch = new THREE.PointLight(0xffc27a, 5, 7.5, 1.6); scene.add(torch);
+export const torch = new THREE.PointLight(0xffc27a, 3.5, 7.5, 1.6); scene.add(torch);
 // soft light over the garden so the fields read a bit brighter than the rest of the night
 const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
 
@@ -159,7 +159,7 @@ const fx: Fx[] = [];
 export function decal(x: number, z: number, color: number, r: number, life: number, o: { ring?: boolean; add?: boolean; grow?: number; op?: number } = {}) {
   const mat = o.add ? addMat(color, o.op ?? .7) : new THREE.MeshBasicMaterial({ color, transparent: true, opacity: o.op ?? .75, depthWrite: false });
   const m = new THREE.Mesh(o.ring ? GEO.ring : GEO.circle, mat);
-  m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 7); m.position.set(x, .025 + Math.random() * .01, z); m.scale.setScalar(r); scene.add(m);
+  m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 7); m.position.set(x, .03 + Math.random() * .008, z); m.scale.setScalar(r); scene.add(m);
   fx.push({ m, t: 0, life, r0: r, r1: o.grow ?? r, op: o.op ?? .75, own: false });
 }
 /** rake swipe: exactly the hit cone (radius = range, arc) */

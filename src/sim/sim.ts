@@ -782,6 +782,7 @@ export class Sim {
       if (id === 'asp') {
         if (s.pierce < (U.aspPierce.max || 4)) mk('asp_pierce', x => x.pierce += U.aspPierce.step, b => `{pierce} ${a.pierce} → ${b.pierce}`);
         if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) mk('asp_pb', x => x.pierceBonus++, b => `{pierce} ${nf(a.pf * 100)} → ${nf(b.pf * 100)} %`);
+        if (s.sizeLv < (U.aspSize.maxLevel || 5)) mk('asp_size', x => x.sizeLv++, b => `{size} ${nf(a.width * 100)} → ${nf(b.width * 100)} cm`);
       }
       if (id === 'cran') {
         if (s.extraPel < (U.cranPellets.maxLevel || 3)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} → ${b.pellets}`);
@@ -789,6 +790,14 @@ export class Sim {
       }
       if (id === 'cab' && s.minis < (U.cabMini.maxLevel || 5)) mk('cab_mini', x => x.minis += U.cabMini.step, b => `{mini} ${a.minis} → ${b.minis}`);
     }
+    // starting weapon (rake) upgrades: always available until maxed
+    { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, lv: number, max: number | undefined, line: string) => { if (lv < (max || 10)) pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] }); };
+      const nx = { ...p, rakeLv: { ...RL } } as Player;
+      nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', RL.rng, U.rakeRange.maxLevel, `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
+      nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', RL.dmg, U.rakeDamage.maxLevel, `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
+      nx.rakeLv = { ...RL, kb: RL.kb + 1 }; mkR('rake_kb', RL.kb, U.rakeKnockback.maxLevel, `{knock} ${nf(RS.kb * 100)} → ${nf(this.rakeStats(nx).kb * 100)} cm`); }
+    // field care: tilling heals the tilled field
+    if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; pool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
     for (const f of FRUITS) if (this.fieldOf(f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
       const lv = this.yieldLv[f], st = U.doubleHarvest.step;
       pool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
@@ -813,6 +822,8 @@ export class Sim {
     if (a === 'field') { p.placing = b as FruitType; p.fieldLock = U.fieldCardPause; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
+    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'kb') p.rakeLv.kb++; return; }
+    if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
       case 'asp_dmg': case 'cran_dmg': case 'cab_dmg': s.lvDmg++; break;
@@ -820,6 +831,7 @@ export class Sim {
       case 'asp_cd': case 'cran_cd': case 'cab_cd': s.lvCd++; break;
       case 'asp_pierce': s.pierce += U.aspPierce.step; break;
       case 'asp_pb': s.pierceBonus++; break;
+      case 'asp_size': s.sizeLv++; break;
       case 'cran_pel': s.extraPel++; break;
       case 'cran_mine': s.mineLv++; break;
       case 'cab_mini': s.minis += U.cabMini.step; break;

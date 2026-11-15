@@ -217,7 +217,7 @@ export class GameView {
       const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
       return m;
-    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; });
+    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } });
     this.sync(this.bombs, s.bo, id, b => b[0], (b) => fruitMesh('cab', b[4] ? .6 : 1, false, true), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3]; v.m.rotation.x += .13;
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
@@ -238,9 +238,9 @@ export class GameView {
     const H = hexR(this.cfg);
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
     // flat bed, flush with the ground: walkable, no collider
-    const bed = new THREE.Mesh(new THREE.CylinderGeometry(H * .97, H * .97, .03, 6), M(0x33231a, { r: 1 })); bed.position.y = .015; bed.receiveShadow = true; g.add(bed);
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(H * .97, H * .97, .02, 6), M(0x33231a, { r: 1 })); bed.position.y = .01; // top at y=.02, decals sit above at .03+ bed.receiveShadow = true; g.add(bed);
     const rim = new THREE.Mesh(new THREE.RingGeometry(H * .9, H * .97, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: RARITY_COL[0], transparent: true, opacity: .55, depthWrite: false }));
-    rim.rotation.x = -Math.PI / 2; rim.position.y = .035; g.add(rim);
+    rim.rotation.x = -Math.PI / 2; rim.position.y = .045; g.add(rim);
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : 0x4f8a35), head: M(0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     for (let i = 0; i < 3; i++) { // three low clumps per bed
@@ -303,7 +303,7 @@ export class GameView {
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
       case 'impact': punchStar(e.x, e.z, .45); break;
       case 'swipe': {
-        const arc = this.cfg.rake.arc * Math.PI / 180; swipe(e.x, e.z, e.a, this.cfg.rake.range, arc);
+        const arc = this.cfg.rake.arc * Math.PI / 180; swipe(e.x, e.z, e.a, e.r || this.cfg.rake.range, arc);
         break;
       }
       case 'shot': {
@@ -392,7 +392,8 @@ export class GameView {
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
-    const arc = this.cfg.rake.arc * Math.PI / 180, L = this.cfg.rake.range - .12;
+    const arc = this.cfg.rake.arc * Math.PI / 180, L = (s.rr || this.cfg.rake.range) - .12;
+    v.rake.scale.z = (s.rr || this.cfg.rake.range) / this.cfg.rake.range; // longer rake with range upgrades
     v.rake.position.z = 0;
     if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(.6, L); v.rake.position.z = Math.sin(s.ti * Math.PI) * .45; } // till: forward push
     else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
@@ -451,7 +452,7 @@ export class GameView {
     const w = a.weapon, ang = Math.atan2(a.x, a.z), px = me.x, pz = me.z, priv = this.snap.me[this.me];
     const rng = (id: SkillId) => priv ? priv.rg[['asp', 'cran', 'cab'].indexOf(id)] : 1;
     if (w === 'rake' || w === 'cran') {
-      const m = this.aimInd[w], r = w === 'rake' ? this.cfg.rake.range : rng('cran');
+      const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp') {
       const m = this.aimInd.asp, r = rng('asp');

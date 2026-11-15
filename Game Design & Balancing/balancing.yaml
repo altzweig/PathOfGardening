@@ -27,6 +27,7 @@ names:
     cran: Preiselbeerfeld
     cab: Kohlfeld
   tea: Kräutertee
+  care: Feldpflege          # Upgrade: Beackern heilt das Feld
 
 player:
   hp: 100

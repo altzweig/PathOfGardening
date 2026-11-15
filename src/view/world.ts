@@ -25,7 +25,7 @@ function groundTexture() {
   g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 9.8 / W, 0, 7); g.fill();
   for (let i = 0; i < 1500; i++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * S * 9.2 / W; g.fillStyle = `rgba(${rand(20, 90)},${rand(18, 60)},${rand(10, 40)},.4)`; g.fillRect(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, rand(1, 4), rand(1, 4)); }
   // the edge falls off into total darkness
-  const dark = g.createRadialGradient(S / 2, S / 2, S * 13 / W, S / 2, S / 2, S * 17.5 / W);
+  const dark = g.createRadialGradient(S / 2, S / 2, S * 14 / W, S / 2, S / 2, S * 18.5 / W);
   dark.addColorStop(0, 'rgba(0,0,0,0)'); dark.addColorStop(1, 'rgba(0,0,0,1)');
   g.fillStyle = dark; g.fillRect(0, 0, S, S);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
@@ -82,7 +82,7 @@ export function buildWorld() {
     const sil = silhouetteMat();
     const NT = 80, trunks = new THREE.InstancedMesh(GEO.cyl, sil, NT), crowns = new THREE.InstancedMesh(GEO.cone, sil, NT * 2);
     for (let i = 0; i < NT; i++) {
-      const a = i / NT * Math.PI * 2 + rand(-.04, .04), r = rand(18.5, 25), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.8, 1.6);
+      const a = i / NT * Math.PI * 2 + rand(-.04, .04), r = rand(15.3, 21), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.8, 1.6);
       m4.compose(V(x, .6 * s, z), q.identity(), V(.18 * s, 1.2 * s, .18 * s)); trunks.setMatrixAt(i, m4);
       m4.compose(V(x, 2 * s, z), q.setFromAxisAngle(V(0, 1, 0), rand(0, 7)), V(1.3 * s, 2.4 * s, 1.3 * s)); crowns.setMatrixAt(i * 2, m4);
       m4.compose(V(x, 3.2 * s, z), q, V(.95 * s, 2 * s, .95 * s)); crowns.setMatrixAt(i * 2 + 1, m4);
@@ -90,7 +90,7 @@ export function buildWorld() {
     scene.add(trunks, crowns);
     const NB = 150, bushes = new THREE.InstancedMesh(GEO.ico, sil, NB);
     for (let i = 0; i < NB; i++) {
-      const a = rand(0, Math.PI * 2), r = rand(16.2, 18.8), s = rand(.5, 1.05);
+      const a = rand(0, Math.PI * 2), r = rand(13, 15), s = rand(.5, 1.05); // close to the garden: enemies visibly come out of here
       m4.compose(V(Math.cos(a) * r, s * .45, Math.sin(a) * r), q.setFromEuler(new THREE.Euler(rand(-.3, .3), rand(0, 7), rand(-.3, .3))), V(s * rand(.9, 1.4), s * rand(.6, .9), s * rand(.9, 1.4)));
       bushes.setMatrixAt(i, m4); BUSHES.push({ x: Math.cos(a) * r, y: s * .45, z: Math.sin(a) * r, r: s * .85, a });
     }
@@ -105,7 +105,7 @@ export function buildWorld() {
     rocks.castShadow = true; rocks.receiveShadow = true; scene.add(rocks);
     const stems = new THREE.InstancedMesh(GEO.cyl, M(0x9a948a), 24), caps = new THREE.InstancedMesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0x1a3a40, emissive: 0x3fe0d0, emissiveIntensity: 1.6, roughness: .4 }), 24);
     for (let i = 0; i < 24; i++) {
-      const a = rand(0, 7), r = rand(11, 14.5), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.6, 1.3);
+      const a = rand(0, 7), r = rand(10.5, 12.5), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.6, 1.3);
       m4.compose(V(x, .07 * s, z), q.identity(), V(.025 * s, .14 * s, .025 * s)); stems.setMatrixAt(i, m4);
       m4.compose(V(x, .15 * s, z), q, V(.08 * s, .04 * s, .08 * s)); caps.setMatrixAt(i, m4);
     }
@@ -183,7 +183,7 @@ function buildFog() {
   for (let i = 0; i < 22; i++) {
     const mat = new THREE.SpriteMaterial({ map: fogTex, color: 0x8aa0c8, transparent: true, opacity: 0, depthWrite: false, fog: false });
     const s = new THREE.Sprite(mat); const sc = rand(5, 9); s.scale.set(sc, sc * .45, 1);
-    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(15.5, 19.5), y: rand(.4, 1.4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
+    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(12.5, 16.5), y: rand(.4, 1.4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
     scene.add(s); wisps.push(w);
   }
 }
@@ -221,7 +221,7 @@ export function syncTorches(fields: { x: number; z: number }[], H: number) {
     const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffb060, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
     flame.position.y = .7; flame.scale.set(.32, .45, 1); g.add(flame);
     const glow = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffa050, transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending }));
-    glow.rotation.x = -Math.PI / 2; glow.position.y = .03; glow.scale.setScalar(1.25); g.add(glow);
+    glow.rotation.x = -Math.PI / 2; glow.position.y = .052; glow.scale.setScalar(1.25); g.add(glow);
     torchGroup.add(g); torches.push({ g, flame, glow, ph: rand(0, 7) });
   }
 }

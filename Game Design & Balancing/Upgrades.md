@@ -13,8 +13,8 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 | Karte | Effekt | Parameter |
 |---|---|---|
 | Blaubeerfeld | 1 Blaubeere (XP) alle 1 s | `plants.blue.interval` |
-| Spargelfeld | 1 Spargel alle 4 s. Schaltet das Spargelgewehr frei | `plants.asp.interval` |
-| Preiselbeerfeld | 1 Preiselbeere alle 1 s. Schaltet die Schrotflinte frei | `plants.cran.interval` |
+| Spargelfeld | 3 Spargel alle 4 s (an einer Feldecke). Schaltet das Spargelgewehr frei | `plants.asp.interval`, `plants.asp.amount` |
+| Preiselbeerfeld | 3 Preiselbeeren alle 1 s. Schaltet die Schrotflinte frei | `plants.cran.interval`, `plants.cran.amount` |
 | Kohlfeld | 1 Kohlkopf alle 8 s. Schaltet die Kohlbombe frei | `plants.cab.interval` |
 
 Feld-Karten gibt es für alle Typen, beliebig oft. Nach der Wahl öffnet sich die **Bauansicht von oben**, dort setzt man das Feld:
@@ -35,15 +35,23 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 
 | Karte | Effekt | Bedingung | Parameter |
 |---|---|---|---|
-| Spargelgewehr | Durchbohrender Schuss: 15 Schaden, **7,5 m**, 0,5 s, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
-| Preiselbeer-Schrotflinte | 6 Beeren im 60°-Fächer, je 5 Schaden + Blutung 1/s für 3 s, **4,5 m**, 1,5 s, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
+| Spargelgewehr | Durchbohrender Schuss: 15 Schaden, 7,5 m, **0,25 s**, 30 cm breit, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
+| Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 4,5 m, **0,75 s**, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
 **Giftlache der Kohlbombe:** bleibt 3 s liegen (Radius = Explosionsradius), tickt 2× pro Sekunde mit je 10 % des Kohlschadens, also insgesamt 60 %. Gegner darin sind 35 % langsamer. Parameter: `skills.cab.poolDuration`, `poolTicksPerSecond`, `poolTickDamage`, `poolSlow`. Keine Betäubung mehr.
 
 Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skills.readySeconds`).
 
-## 3. Waffen-Upgrades (für jede freigeschaltete Waffe)
+## 3. Harke (Startwaffe)
+
+| Karte | Effekt | Max. | Parameter |
+|---|---|---|---|
+| Reichweite | +8 % Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
+| Schaden | +10 % Schaden | 10 | `upgrades.rakeDamage` |
+| Rückstoß | +10 cm Rückstoß je Treffer | 10 | `upgrades.rakeKnockback`, `rake.knockback` |
+
+## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
@@ -55,12 +63,13 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
 | Durchbohren | +1 durchbohrtes Ziel | 4 Ziele gesamt | `upgrades.aspPierce` |
-| Durchbohr-Schaden | +5 Prozentpunkte Restschaden (Start 50 %) | 5 Stufen | `upgrades.aspPierceBonus` |
+| Durchbohr-Schaden | +10 Prozentpunkte Restschaden (Start 50 %, max. 100 %) | 5 Stufen | `upgrades.aspPierceBonus` |
+| Geschossgröße | Geschoss +30 % breiter | 5 Stufen | `upgrades.aspSize`, `skills.asp.width` |
 
 ### Preiselbeer-Schrotflinte
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| +1 Projektil | 1 Beere mehr pro Schuss | 3 Stufen | `upgrades.cranPellets` |
+| +1 Projektil | 1 Beere mehr pro Schuss, Fächer 10° breiter | 3 Stufen | `upgrades.cranPellets` |
 | Beeren-Minen | +20 % Chance, dass eine Beere als Mine liegen bleibt (15 s) | 5 Stufen | `upgrades.cranMine` |
 
 ### Kohlbombe
@@ -74,15 +83,20 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 |---|---|---|---|
 | Doppelernte (je Pflanzentyp) | +25 % Chance auf doppelte Ernte | 4 Stufen (100 %) | `upgrades.doubleHarvest` |
 
+### Feldpflege
+| Karte | Effekt | Max. | Parameter |
+|---|---|---|---|
+| Feldpflege | Beackern heilt das beackerte Feld um +1 HP/s je Stufe. Ziehgewicht 1,2 (+20 %) | 5 | `upgrades.tillHeal` |
+
 ## 5. Sonstiges
 
 | Karte | Effekt | Wann | Parameter |
 |---|---|---|---|
-| Kräutertee | Heilt dich um 40, alle lebenden Felder um 25 | Nur wenn keine andere Karte verfügbar ist | `upgrades.herbalTea` |
+| Kräutertee | Heilt dich um 40, alle lebenden Felder um 25 | Nur wenn wirklich keine andere Karte mehr gezogen werden kann | `upgrades.herbalTea` |
 
 ## Ohne Karte (fest)
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 10 Schaden, 90° Kegel, 1,8 m, 0,5 s | `rake.*` |
+| Harke | 10 Schaden, 90° Kegel, 1,8 m, 0,5 s. Auf ein Feld 1 m voraus: beackern statt schlagen | `rake.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

@@ -38,6 +38,8 @@ const MINI: Record<string, string> = {
   poison: `<path d="M20 5 C14 15 10 20 10 25 a10 10 0 0 0 20 0 C30 20 26 15 20 5z" fill="#6dff3a"/>`,
   stun: `<path d="M20 4 l3.5 9 9.5 .5 -7.5 6 2.5 9.5 -8 -5.5 -8 5.5 2.5 -9.5 -7.5 -6 9.5 -.5z" fill="#ffe066"/>`,
   unlock: `<rect x="9" y="18" width="22" height="17" rx="3" fill="#e3b964"/><path d="M14 18 v-5 a6 6 0 0 1 12 0" stroke="#e3b964" stroke-width="3.4" fill="none" transform="rotate(-20 26 13)"/>`,
+  size: `<path d="M6 20 H34" stroke="#8fe36a" stroke-width="9" stroke-linecap="round"/><path d="M12 9 l-5 -4 v8 z M28 9 l5 -4 v8 z M12 31 l-5 4 v-8 z M28 31 l5 4 v-8 z" fill="#e3d9c3"/>`,
+  knock: `<circle cx="27" cy="20" r="7" fill="#77726c"/><path d="M4 20 H17" stroke="#e3d9c3" stroke-width="3"/><path d="M17 20 l-6 -5 v10 z" fill="#e3d9c3"/><path d="M33 12 q4 8 0 16" stroke="#e3b964" stroke-width="2.4" fill="none"/>`,
   player: `<circle cx="20" cy="12" r="6" fill="#e0b08a"/><path d="M8 36 q12 -22 24 0z" fill="#3c5a3e"/><path d="M11 8 h18 l-3 -4 h-12z" fill="#c9a35a"/>`,
 };
 const TEA = `<path d="M8 16 h20 v10 a9 9 0 0 1 -9 9 h-2 a9 9 0 0 1 -9 -9z" fill="#c9a35a"/><path d="M28 19 h3 a4 4 0 0 1 0 8 h-3" stroke="#c9a35a" stroke-width="2.6" fill="none"/><path d="M14 12 q-2 -4 1 -7 M20 12 q-2 -4 1 -7" stroke="#8fe36a" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="17" rx="9" ry="2" fill="#6a8f3a"/>`;
@@ -52,6 +54,7 @@ export function pic(name: string) {
   if (kind === 'field') return svg(BED + (PLANT as any)[id] + `<g transform="translate(25 2) scale(.38)">${(FRUIT as any)[id]}</g>`);
   if (kind === 'plant') return svg(BED + (PLANT as any)[id] + `<g transform="translate(22 0) scale(.45)">${MINI.x2}</g>`);
   if (kind === 'tea') return svg(TEA);
+  if (kind === 'care') return svg(BED + PLANT.cab + `<g transform="translate(18 -2) scale(.55)">${RAKE}</g><g transform="translate(2 2) scale(.4)">${MINI.heart}</g>`);
   return svg(MINI.dmg);
 }
 /** replaces {token} with inline mini icons */

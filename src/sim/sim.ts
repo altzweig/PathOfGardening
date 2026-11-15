@@ -138,7 +138,7 @@ export class Sim {
     if (f && f.type === type && f.alive) {
       if (f.rarity < F.rarityCost.length) {
         f.prog++;
-        if (f.prog >= F.rarityCost[f.rarity]) { f.rarity++; f.prog = 0; this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.emit({ k: 'sfx', s: 'ui.rarity' }); }
+        if (f.prog >= F.rarityCost[f.rarity]) { f.rarity++; f.prog = 0; f.maxHp = F.hp * Math.pow(F.rarityHp, f.rarity); this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.emit({ k: 'sfx', s: 'ui.rarity' }); }
       }
       f.hp = f.maxHp;
       this.burst(s.x, .4, s.z, 0xffe08a, 30, 2.5, .2, .8);
@@ -233,7 +233,6 @@ export class Sim {
     const p = this.player(id); if (!p || this.phase !== 'lvl' || p.picked || !p.offers) return;
     const o = p.offers.find(x => x.key === key); if (!o) return;
     p.taken[key] = (p.taken[key] || 0) + 1;
-    if (o.cat !== 'field' && p.fieldLock > 0) p.fieldLock--;
     this.applyOffer(p, key);
     if (p.placing) return; // field card: player now chooses where to build (see place())
     p.picked = true;
@@ -582,7 +581,11 @@ export class Sim {
     for (let i = this.spawnQueue.length - 1; i >= 0; i--) {
       const s = this.spawnQueue[i]; if (s.at > this.time) continue;
       this.spawnQueue.splice(i, 1);
-      if (this.enemies.length < cap) this.spawnEnemy(s.type, s.angle);
+      if (this.enemies.length < cap) {
+        const lim = this.cfg.enemies[s.type].maxAlive; // e.g. at most 5 sheep at once
+        const type = lim !== undefined && this.enemies.filter(e => e.type === s.type).length >= lim ? 'raccoon' : s.type;
+        this.spawnEnemy(type, s.angle);
+      }
     }
   }
 
@@ -763,11 +766,13 @@ export class Sim {
         prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`] });
       }
     }
-    // new fields of every type (blocked for fieldCardPause level-ups after taking one)
-    if (p.fieldLock <= 0) for (const id of FRUITS) {
-      const lines = [`1 {${id}} / ${nf(PL[id].interval)} s`];
+    // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
+    const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
+    for (const id of FRUITS) {
+      const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval)} s`];
       if (id !== 'blue' && !p.skills[id as SkillId].learned) lines.push(`Unlock: ${N.skills[id]}`);
-      pool.push({ key: 'field_' + id, cat: 'field', w: U.newFieldWeight, pic: 'field_' + id, title: N.fields[id], lines });
+      const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };
+      if (owned.has(id)) fieldPool.push(card); else newTypes.push(card);
     }
     for (const id of SKILLS) {
       const s = p.skills[id]; if (!s.learned) continue;
@@ -797,19 +802,31 @@ export class Sim {
       nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', RL.dmg, U.rakeDamage.maxLevel, `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
       nx.rakeLv = { ...RL, kb: RL.kb + 1 }; mkR('rake_kb', RL.kb, U.rakeKnockback.maxLevel, `{knock} ${nf(RS.kb * 100)} → ${nf(this.rakeStats(nx).kb * 100)} cm`); }
     // field care: tilling heals the tilled field
-    if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; pool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
+    if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; fieldPool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
     for (const f of FRUITS) if (this.fieldOf(f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
       const lv = this.yieldLv[f], st = U.doubleHarvest.step;
-      pool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
+      fieldPool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
     }
     // cards you already took come up a bit more often
-    for (const o of pool) if (o.cat !== 'field') o.w *= 1 + U.repeatWeight * (p.taken[o.key] || 0);
-    const out: Offer[] = prio.slice(0, U.offersPerLevel);
-    while (out.length < U.offersPerLevel && pool.length) {
-      const tot = pool.reduce((a, o) => a + o.w, 0); let r = Math.random() * tot, k = 0;
-      for (; k < pool.length; k++) { r -= pool[k].w; if (r <= 0) break; }
-      const { w, ...o } = pool.splice(Math.min(k, pool.length - 1), 1)[0]; void w; out.push(o);
-    }
+    for (const o of [...pool, ...fieldPool]) o.w *= 1 + U.repeatWeight * (p.taken[o.key] || 0);
+    const draw = (from: (Offer & { w: number })[]): Offer | null => {
+      if (!from.length) return null;
+      const tot = from.reduce((a, o) => a + o.w, 0); let r = Math.random() * tot, k = 0;
+      for (; k < from.length; k++) { r -= from[k].w; if (r <= 0) break; }
+      const { w, ...o } = from.splice(Math.min(k, from.length - 1), 1)[0]; void w; return o;
+    };
+    // 1) field slot: every newFieldTypeEvery levels a choice of new field types, otherwise 1 field/plant card
+    const lvNow = this.level - this.pendingLv + 1, fieldOut: Offer[] = [];
+    if (U.newFieldTypeEvery > 0 && lvNow % U.newFieldTypeEvery === 0 && newTypes.length) {
+      const nt = newTypes.map(o => ({ ...o, w: 1 }));
+      while (fieldOut.length < U.newFieldTypeChoices && nt.length) fieldOut.push(draw(nt)!);
+    } else for (let i = 0; i < U.fieldCardsPerLevel; i++) { const o = draw(fieldPool); if (o) fieldOut.push(o); }
+    // 2) weapons: unlock cards first, then upgrades, at most weaponCardsMax
+    const weaponOut: Offer[] = prio.slice(0, U.weaponCardsMax);
+    while (weaponOut.length < U.weaponCardsMax && fieldOut.length + weaponOut.length < U.offersPerLevel) { const o = draw(pool); if (!o) break; weaponOut.push(o); }
+    const out: Offer[] = [...fieldOut, ...weaponOut].slice(0, U.offersPerLevel);
+    // 3) still room: more field/plant cards, herbal tea only if nothing else can be drawn
+    while (out.length < U.offersPerLevel) { const o = draw(fieldPool); if (!o) break; out.push(o); }
     const T = U.herbalTea;
     while (out.length < U.offersPerLevel) out.push({ key: 'tea_' + out.length, cat: 'misc', pic: 'tea', title: N.tea, lines: [`{heart} +${T.playerHeal} · {fieldhp} +${T.fieldHeal}`] });
     return out;
@@ -819,7 +836,7 @@ export class Sim {
     const [a, b] = key.split('_') as [string, string];
     const tea = () => { p.hp = Math.min(this.cfg.player.hp, p.hp + U.herbalTea.playerHeal); this.fields.forEach(f => f.alive && (f.hp = Math.min(f.maxHp, f.hp + U.herbalTea.fieldHeal))); };
     if (a === 'learn') { p.skills[b as SkillId].learned = true; return; }
-    if (a === 'field') { p.placing = b as FruitType; p.fieldLock = U.fieldCardPause; return; }
+    if (a === 'field') { p.placing = b as FruitType; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
     if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'kb') p.rakeLv.kb++; return; }

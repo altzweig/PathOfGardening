@@ -440,7 +440,7 @@ export class GameView {
         v.ind.position.set(v.x + dx * 3.5, .05, v.z + dz * 3.5); v.ind.rotation.set(-Math.PI / 2, 0, Math.atan2(-dx, -dz));
         if (Math.random() < .3) PART.spawn(V(v.x + rand(-.2, .2), .05, v.z + rand(-.2, .2)), V(rand(-.5, .5), .8, rand(-.5, .5)), 0x8a7050, .25, .5, { a: .5 });
       } else if (v.ind) v.ind.visible = false;
-      const sk = e[6]; v.P.shield!.visible = sk > 0; ((v.P.shield!.material as THREE.ShaderMaterial).uniforms.uStr.value = .35 + Math.max(0, sk) * .8);
+      const sk = e[6]; v.P.shield!.visible = sk > 0; ((v.P.shield!.material as THREE.ShaderMaterial).uniforms.uStr.value = .1 + Math.max(0, sk) * .22); // faint shield, no bloom
     }
     // punch squash
     v.squash = Math.max(0, v.squash - dt); const q = v.squash / .14;

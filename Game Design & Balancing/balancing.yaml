@@ -54,7 +54,7 @@ coop:
 xp:
   # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
   base: 40
-  growth: 1.1
+  growth: 1.05             # flachere Kurve (vorher 1.1)
   linear: 5
 
 arena:
@@ -75,6 +75,7 @@ fields:
   rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
   rarityCost: [1, 2, 3, 4]     # Felder, die für Stufe 1->2, 2->3, 3->4, 4->5 draufgebaut werden müssen
   rarityProduction: 1.5        # Produktion x1,5 je Seltenheitsstufe (multiplikativ)
+  rarityHp: 2                  # max. HP x2 je Seltenheitsstufe (Feld wird beim Aufstieg voll geheilt)
   neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
 
 fruit:
@@ -111,8 +112,8 @@ skills:
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
   cran:
     damage: 5              # je Projektil
-    range: 4.5             # m (vorher 3 -> +50 %)
-    cooldown: 0.75         # doppelt so schnell (vorher 1.5)
+    range: 6.75            # m (4,5 -> +50 %)
+    cooldown: 0.5          # +50 % Feuerrate (vorher 0.75)
     ammoPerShot: 6
     pelletStep: 10         # Grad zwischen zwei Beeren: 50 Grad Fächer -> 6 Beeren
     spread: 50             # Grad, Fächer (gleichmäßig verteilt)
@@ -149,8 +150,11 @@ upgrades:
   cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
   cabMini:        { step: 1,    maxLevel: 5 }
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
-  newFieldWeight: 1.0      # Ziehgewicht "Neues Feld" (andere Karten: 1). Feld-Karten gibt es für alle Typen.
-  fieldCardPause: 5        # nach einer Feld-Karte kommen für so viele Level-ups keine Feld-Karten
+  # Kartenregeln pro Level-up (3 Karten):
+  fieldCardsPerLevel: 1    # immer 1 Feld-Karte: Feld eines vorhandenen Typs (bauen/hochleveln), Doppelernte oder Feldpflege
+  weaponCardsMax: 2        # höchstens 2 Waffen-Karten (Freischalten + Upgrades, inkl. Harke)
+  newFieldTypeEvery: 5     # alle 5 Level: neue Feldtypen zur Wahl statt der normalen Feld-Karte
+  newFieldTypeChoices: 2   # so viele verschiedene neue Typen (wenn noch vorhanden)
   repeatWeight: 0.25       # jede schon genommene Karte: Ziehgewicht +25 % (z. B. 2x Spargel-Reichweite -> x1,5)
   herbalTea: { playerHeal: 40, fieldHeal: 25 } # Notfall-Karte, wenn nichts anderes übrig ist
 
@@ -172,6 +176,7 @@ enemies:
     poisonInterval: 2
     poisonDamage: 1
   sheep:
+    maxAlive: 5            # höchstens so viele Schafe gleichzeitig
     hp: 3
     speed: 1.7
     radius: 0.44
@@ -208,7 +213,7 @@ waves:
     raccoon: { from: 0,   weight: 3 }
     panda:   { from: 120,  weight: 2, early: 1 }  # early: Gewicht vor "from", sobald Spargel- oder Preiselbeerfeld steht
     toad:    { from: 230, weight: 1.2 }
-    sheep:   { from: 390, weight: 0.8 }
+    sheep:   { from: 390, weight: 0.4 }   # halbiert
 
 hud:
   hat:                     # Leben = Strohhut, der angefressen wird

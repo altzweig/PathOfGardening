@@ -135,7 +135,7 @@ export function buildEnemy(type: EnemyType) {
     tongue.scale.set(1, 1, .01); tongue.visible = false; P.tongue = tongue;
     P.mats = [sk, bl, wart];
   } else {
-    const wool = M(0xece6da), dk = M(0x1e1a18);
+    const wool = M(0xa29c90), dk = M(0x1e1a18); // greyer wool: no bloom
     for (let i = 0; i < 9; i++) { const a = i / 9 * 7; part(body, GEO.ico, wool, rand(.18, .24), rand(.18, .22), rand(.18, .24), Math.cos(a) * .2, .44 + rand(-.05, .08), Math.sin(a) * .26); }
     part(body, GEO.ico, wool, .3, .26, .36, 0, .45, 0);
     part(body, GEO.box, dk, .17, .19, .24, 0, .52, .4); part(body, GEO.box, dk, .14, .04, .06, -.13, .58, .36).rotation.z = .4; part(body, GEO.box, dk, .14, .04, .06, .13, .58, .36).rotation.z = -.4;

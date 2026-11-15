@@ -4,7 +4,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 
 **Ziehung pro Stufe:** 3 Karten (`upgrades.offersPerLevel`). Freischalt-Karten haben Vorrang, der Rest wird gewichtet zufällig gezogen (Grundgewicht 1, Feld-Karten `upgrades.newFieldWeight`).
 - **Wiederholung:** Jede Karte, die man schon genommen hat, kommt etwas häufiger: Gewicht × (1 + 0,25 × Anzahl genommen) (`upgrades.repeatWeight`).
-- **Feld-Pause:** Nach einer Feld-Karte kommen für 5 Level-ups keine Feld-Karten (`upgrades.fieldCardPause`).
+- **Aufteilung:** pro Level-up 1 Feld-Karte (vorhandener Typ, Doppelernte oder Feldpflege) + höchstens 2 Waffen-Karten. Alle 5 Level stattdessen 2 neue Feldtypen zur Wahl (`upgrades.fieldCardsPerLevel`, `weaponCardsMax`, `newFieldTypeEvery`, `newFieldTypeChoices`).
 - Wenn nichts mehr übrig ist, gibt es Kräutertee.
 - Im Koop wählt jeder Spieler eigene Karten. Felder und Doppelernte gelten für alle.
 
@@ -36,7 +36,7 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 | Karte | Effekt | Bedingung | Parameter |
 |---|---|---|---|
 | Spargelgewehr | Durchbohrender Schuss: 15 Schaden, 7,5 m, **0,25 s**, 30 cm breit, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
-| Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 4,5 m, **0,75 s**, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
+| Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 6,75 m, 0,5 s, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
 **Giftlache der Kohlbombe:** bleibt 3 s liegen (Radius = Explosionsradius), tickt 2× pro Sekunde mit je 10 % des Kohlschadens, also insgesamt 60 %. Gegner darin sind 35 % langsamer. Parameter: `skills.cab.poolDuration`, `poolTicksPerSecond`, `poolTickDamage`, `poolSlow`. Keine Betäubung mehr.

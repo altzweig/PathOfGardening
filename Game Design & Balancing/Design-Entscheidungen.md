@@ -204,3 +204,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Gegner-Skalierung über die Wellen (16.11.2026)
 - Leben und Angriff aller Gegner (auch Elite, Boss und Boss-Bomben) wachsen über die Wellen mit derselben Kurvenform wie der XP-Bedarf: Faktor = growth^(w−1) + linear·(w−1), Welle 1 = 1.
 - Leben: Welle 10 ≈ 1,6×, Welle 24 ≈ 2,7×, Welle 48 ≈ 5,4×. Angriff: Welle 10 ≈ 1,3×, Welle 24 ≈ 1,9×, Welle 48 ≈ 3,3×. Nachts kommt der Nachtfaktor obendrauf. Werte unter `enemies.scaling`.
+
+## Feld-Stufen im Baumodus (16.11.2026)
+- Über jedem Feld eine Reihe aus 5 Rauten = Seltenheitsstufen; erreichte Stufen leuchten in ihrer Farbe (grau, grün, blau, lila, orange). Der Rand des Frucht-Icons hat die Farbe der aktuellen Stufe.
+- Unter dem Icon die Produktion als Chip: Frucht-Icon + Früchte pro Sekunde (Durchschnitt inkl. Seltenheit, Nachbarbonus, Doppelernte, Koop-Blaubeeren; ohne Beackern).
+- Nur auf Feldern der Frucht, die gerade gebaut wird: Stufen-Leiste zur nächsten Seltenheit, ein Segment pro nötigem Feld, gefüllte Segmente in der Farbe der nächsten Stufe, am Ende eine Raute dieser Farbe. Keine Zahlen. Beim Zeigen blinkt das Segment, das der Bau füllen würde, und, wenn er die Stufe abschließt, auch die nächste Raute.

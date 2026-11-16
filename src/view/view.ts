@@ -43,24 +43,26 @@ interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; 
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
-const BADGES: Partial<Record<FruitType, THREE.CanvasTexture>> = {};
-function badgeTex(t: FruitType) {
-  const have = BADGES[t]; if (have) return have;
+const BADGE = 1.0; // badge diameter in hex radii
+const BADGES: Record<string, THREE.CanvasTexture> = {};
+function badgeTex(t: FruitType, rarity = 0) {
+  const key = t + rarity, have = BADGES[key]; if (have) return have;
+  const rim = '#' + (RARITY_COL[rarity] ?? 0xe3b964).toString(16).padStart(6, '0');
   const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d')!;
   const plate = () => {
     x.clearRect(0, 0, S, S);
     const g = x.createRadialGradient(S * .42, S * .36, S * .05, S / 2, S / 2, S * .47); g.addColorStop(0, '#2c353e'); g.addColorStop(1, '#0c1014');
     x.beginPath(); x.arc(S / 2, S / 2, S * .44, 0, Math.PI * 2); x.fillStyle = g; x.globalAlpha = .88; x.fill(); x.globalAlpha = 1;
-    x.lineWidth = S * .035; x.strokeStyle = '#e3b964'; x.stroke();
+    x.lineWidth = S * .05; x.strokeStyle = rim; x.stroke();
   };
   plate();
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; BADGES[t] = tex;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; BADGES[key] = tex;
   const img = new Image();
   img.onload = () => { plate(); x.drawImage(img, S * .14, S * .14, S * .72, S * .72); tex.needsUpdate = true; };
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number }
+interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -139,6 +141,7 @@ export class GameView {
     if (this.placing === type) return;
     this.placing = type; this.hoverSlot = -1;
     for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
+    this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = [];
     if (!type || !this.cfg) return;
     const H = hexR(this.cfg);
     for (const s of this.slots) {
@@ -146,15 +149,19 @@ export class GameView {
       const fill = new THREE.Mesh(new THREE.CircleGeometry(H * .93, 6, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .06, depthWrite: false }));
       const line = new THREE.Mesh(new THREE.RingGeometry(H * .86, H * .95, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false }));
       fill.rotation.x = line.rotation.x = -Math.PI / 2;
-      const pips = new THREE.Group(); pips.position.y = .02;
-      for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.scale.setScalar(.16); pips.add(m); }
-      pips.position.z = H * .66;
       // big fruit badge in the middle: what grows here (top-down: instantly visible what would be overbuilt)
-      const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex('blue'), transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
-      badge.position.y = .4; badge.scale.setScalar(H * 1.3); badge.renderOrder = 20; badge.visible = false;
-      g.add(fill, line, pips, badge); g.renderOrder = 5; this.slotOverlay.add(g);
+      const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex('blue'), transparent: true, depthTest: false, depthWrite: false, toneMapped: false, fog: false }));
+      badge.position.set(0, .4, -H * .1); badge.scale.setScalar(H * BADGE); badge.renderOrder = 20; badge.visible = false;
+      g.add(fill, line, badge); g.renderOrder = 5; this.slotOverlay.add(g);
+      // field info (HTML): level gems on top, below: fruit per second and the step bar to the next rarity
+      const el = document.createElement('div'); el.className = 'fInfo'; el.hidden = true;
+      el.innerHTML = `<div class="fLv"></div><div class="fBot"><div class="fRate"></div><div class="fBar"></div></div>`;
+      this.infoLayer.appendChild(el); this.infoEls.push(el);
     }
   }
+  private infoLayer = (() => { const d = document.createElement('div'); d.id = 'fieldInfo'; document.getElementById('dmg')!.after(d); return d; })();
+  private infoEls: HTMLElement[] = [];
+  private infoKey: string[] = [];
   setHover(cx: number, cy: number) { this.hoverSlot = this.slotFromScreen(cx, cy); }
   /** slot kept highlighted while the overbuild confirmation is open */
   confirmSlot = -1;
@@ -169,30 +176,52 @@ export class GameView {
   private updateOverlay() {
     if (!this.placing) return;
     const type = FRUITS.indexOf(this.placing), cost = this.cfg.fields.rarityCost;
+    // screen scale of one hex (for the HTML labels)
+    const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera);
+    const px = Math.abs(pb.x - pa.x) * innerWidth / 2; // pixels per H
     this.slotOverlay.children.forEach((g, i) => {
-      const [fill, line, pips, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Group, THREE.Sprite];
+      const [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
       const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
       const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
       const hov = i === this.hoverSlot || i === this.confirmSlot;
       const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
       if (f && f.alive) {
-        const t = badgeTex(FRUITS[f.type]); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
+        const t = badgeTex(FRUITS[f.type], f.rarity); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
         const over = !same && hov, now = performance.now() / 1000;
-        badge.scale.setScalar(hexR(this.cfg) * (hov ? 1.42 : 1.3) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
+        badge.scale.setScalar(hexR(this.cfg) * BADGE * (hov ? 1.1 : 1) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
         bm.color.set(over ? 0xffb0a0 : 0xffffff); bm.opacity = hov ? 1 : .92;
       }
       (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? .38 : .07;
       (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : .45;
-      // rarity progress pips (how many more fields of this type until the next rarity)
-      const n = same && !maxed ? cost[f!.rarity] : 0;
-      pips.children.forEach((p, k) => {
-        p.visible = k < n; if (!p.visible) return;
-        p.position.set((k - (n - 1) / 2) * .42, 0, 0);
-        const filled = k < f!.prog, next = hov && k === f!.prog;
-        (( p as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(filled ? RARITY_COL[Math.min(4, f!.rarity + 1)] : next ? 0xffffff : 0x333333);
-        (( p as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = filled || next ? 1 : .8;
-      });
+      this.fieldInfo(i, f && f.alive ? f : null, same, hov, px);
     });
+  }
+
+  /** HTML label of one slot: level (gems in rarity colours), fruit per second, step bar to the next rarity (only for the type being built) */
+  private fieldInfo(i: number, f: FieldView | null, same: boolean, hov: boolean, px: number) {
+    const el = this.infoEls[i]; if (!el) return;
+    el.hidden = !f; if (!f) { this.infoKey[i] = ''; return; }
+    const cost = this.cfg.fields.rarityCost, maxR = cost.length, r = f.rarity, maxed = r >= maxR;
+    const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+    const s = this.slots[i], p = V(s.x, 0, s.z).project(camera);
+    el.style.transform = `translate(${(p.x + 1) / 2 * innerWidth}px,${(1 - p.y) / 2 * innerHeight}px) translate(-50%,-50%)`;
+    el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
+    el.classList.toggle('hov', hov);
+    const key = [r, f.prog, f.rate, same ? 1 : 0, hov ? 1 : 0].join('|'); if (this.infoKey[i] === key) return; this.infoKey[i] = key;
+    const lv = el.children[0] as HTMLElement, rate = el.querySelector('.fRate') as HTMLElement, bar = el.querySelector('.fBar') as HTMLElement;
+    // level: one gem per rarity reached, coloured like that rarity; on hover the gem that the next build completes blinks
+    const n = !maxed ? cost[r] : 0, completes = same && hov && !maxed && f.prog + 1 >= n;
+    let h = '';
+    for (let k = 0; k <= maxR; k++) h += `<i class="${k <= r ? 'on' : ''}${k === r + 1 && completes ? ' nx' : ''}" style="--c:${hex(RARITY_COL[k])}"></i>`;
+    lv.innerHTML = h;
+    rate.innerHTML = `${fruitIcon(FRUITS[f.type])}<span>${f.rate.toLocaleString('de-DE', { maximumFractionDigits: f.rate < 1 ? 2 : 1 })}/s</span>`;
+    // step bar: one segment per field still needed for the next rarity, filled in the next rarity's colour
+    bar.hidden = !same || maxed;
+    if (same && !maxed) {
+      let b = '';
+      for (let k = 0; k < n; k++) b += `<i class="${k < f.prog ? 'on' : ''}${hov && k === f.prog ? ' nx' : ''}"></i>`;
+      bar.innerHTML = b + `<b></b>`; bar.style.setProperty('--c', hex(RARITY_COL[r + 1])); bar.style.setProperty('--c0', hex(RARITY_COL[r]));
+    }
   }
 
   private rakeArcDeg = 0;
@@ -252,7 +281,7 @@ export class GameView {
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
-      v.prog = f[6]; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
+      v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
       v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
     }
@@ -351,7 +380,7 @@ export class GameView {
       lava = new THREE.Mesh(new THREE.CylinderGeometry(H * .9, H * .9, .002, 6), new THREE.MeshBasicMaterial({ map: lavaTex, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, ftype: type, lava, lavaT: 9, lv: 0 };
+    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);

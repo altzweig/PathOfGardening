@@ -142,7 +142,41 @@ export class SwapDrag {
 }
 
 export function cardEl(o: Offer) {
-  const b = document.createElement('button'); b.className = `card ${o.cat}-c`; b.dataset.key = o.key;
-  b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3>${o.lines.slice(0, 2).map(l => `<div class="ln">${iconText(l)}</div>`).join('')}`;
+  const b = document.createElement('button'); b.className = `card ${o.cat}-c${o.wp ? ' wpn' : ''}`; b.dataset.key = o.key;
+  if (o.wp) {
+    b.dataset.skill = o.wp;
+    b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3><div class="stats">${o.lines.map(l => `<span>${iconText(l)}</span>`).join('')}</div>${o.fx ? `<div class="fx">${o.fx}</div>` : ''}<i class="shine"></i>`;
+  } else {
+    b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3>${o.lines.slice(0, 2).map(l => `<div class="ln">${iconText(l)}</div>`).join('')}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}<i class="shine"></i>`;
+  }
+  tilt(b);
   return b;
+}
+
+/** card tilts toward the pressed point like a real card and shimmers (mouse hover, touch drag).
+ *  Only writes 4 CSS variables per frame; transform + opacity stay on the compositor. */
+const noMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function tilt(el: HTMLElement) {
+  if (noMotion) return;
+  let raf = 0, x = 0.5, y = 0.5;
+  const apply = () => {
+    raf = 0;
+    el.style.setProperty('--ry', `${((x - 0.5) * 22).toFixed(2)}deg`); // pressed side goes into the screen
+    el.style.setProperty('--rx', `${((0.5 - y) * 22).toFixed(2)}deg`);
+    el.style.setProperty('--mx', `${(x * 100).toFixed(1)}%`);
+    el.style.setProperty('--my', `${(y * 100).toFixed(1)}%`);
+  };
+  const move = (e: PointerEvent) => {
+    const r = el.getBoundingClientRect();
+    x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    el.classList.add('tilt');
+    if (!raf) raf = requestAnimationFrame(apply);
+  };
+  const leave = () => { if (raf) cancelAnimationFrame(raf); raf = 0; el.classList.remove('tilt'); };
+  el.addEventListener('pointerenter', move);
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerdown', move);
+  el.addEventListener('pointerleave', leave);
+  el.addEventListener('pointercancel', leave);
+  el.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') leave(); });
 }

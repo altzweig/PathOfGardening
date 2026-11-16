@@ -13,7 +13,7 @@
 names:
   skills:
     rake: Harke
-    asp: Spargelgewehr
+    asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
     cab: Kohlbombe
     lemon: Citrateaser
@@ -34,6 +34,34 @@ names:
     chili: Chilifeld
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
+  # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
+  hints:
+    dmg: Schaden
+    rng: Reichweite
+    cab_rng: Radius
+    cd: Abklingzeit
+    arc: Kegelbreite
+    pierce: Durchbohren
+    pb: Durchbohr-Schaden
+    size: Bolzenbreite
+    pel: Beeren pro Schuss
+    mine: Platzschaden
+    tgt: Kettenziel
+    xfer: Weiterleitung
+    mini: Mini-Kohl
+    chili_dmg: Brandschaden
+    sweep: Schwenk
+    tick: Brandtempo
+    till: Heilen beim Beackern
+    yield: Doppelernte
+    tea: Heilung
+  # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
+  effects:
+    asp: 3er-Salve · durchbohrt
+    cran: Blutung · Beeren platzen
+    cab: Giftlache · verlangsamt
+    lemon: Kettenblitz
+    chili: Brand stapelt sich · Flächenbrand
 
 player:
   hp: 100
@@ -107,15 +135,17 @@ rake:
   arc: 50                  # Grad, Breite des Kegels
   cooldown: 0.5            # s
   swingTime: 0.15          # s, Animation
-  knockback: 0             # m Rückstoß pro Treffer (Upgrade +10 cm)
+  knockback: 0             # m Rückstoß pro Treffer (kein Upgrade mehr, 16.11.2026)
 
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
   asp:
     damage: 15
     range: 7.5             # m (vorher 5 -> +50 %)
-    cooldown: 0.25         # doppelte Feuerrate (vorher 0.5)
-    ammoPerShot: 1
+    cooldown: 0.75         # s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
+    burstShots: 3          # Armbrust schießt Salven aus 3 Spargel-Bolzen, dann Pause
+    burstGap: 0.1          # s zwischen den Bolzen einer Salve (skaliert mit dem Abklingzeit-Upgrade) -> Pause 0,55 s
+    ammoPerShot: 1         # je Bolzen (3 pro Salve)
     speed: 15              # m/s
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
@@ -123,13 +153,16 @@ skills:
   cran:
     damage: 5              # je Projektil
     range: 7.00            # m (4,5 -> +50 %)
-    cooldown: 0.5          # +50 % Feuerrate (vorher 0.75)
+    cooldown: 0.625        # -20 % Feuerrate (vorher 0.5)
     ammoPerShot: 6
-    pelletStep: 10         # Grad zwischen zwei Beeren: 50 Grad Fächer -> 6 Beeren
-    spread: 50             # Grad, Fächer (gleichmäßig verteilt)
+    pellets: 6             # Beeren pro Schuss
+    cone: 80               # Grad, maximaler Streukegel (±40 Grad), nichts fliegt weiter raus
+    spreadSigma: 20        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 40 Grad
     bleedDuration: 3       # s
     bleedDps: 1
-    mineLifetime: 3        # s
+    splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
+    splashDamage: 0.5      # Platzschaden = Anteil des Beerenschadens (ohne Blutung)
+    splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
   lemon:                   # Citrateaser: Kettenblitz, trifft immer genau 1 Ziel direkt
     damage: 20             # Grundschaden am ersten Ziel
     cooldown: 1.0          # 1 Angriff pro Sekunde
@@ -181,7 +214,6 @@ upgrades:
   rakeArc:        { step: 20,   maxLevel: 10 } # Harke +20 Grad Kegelbreite
   rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm Reichweite (absolut, in m)
   rakeDamage:     { step: 0.20, maxLevel: 10 } # Harke +20 % Grundschaden (additiv)
-  rakeKnockback:  { step: 0.10, maxLevel: 10 } # Harke +10 cm Rückstoß
   rakeSpeed:      { step: 0.10, maxLevel: 5 }  # Harke Abklingzeit x 0.9 je Stufe (multiplikativ) -> schneller schlagen UND mehr Ertrag beim Harken
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
@@ -195,7 +227,7 @@ upgrades:
     maxCone: 360             # Schluss, sobald die Flamme 360 Grad breit ist
   chiliTick:      { factor: 0.8, min: 0.1 }              # Brand-Tick x 0,8 je Stufe (0,5 -> 0,4 -> 0,32 s ...), bis 0,1 s
   cranPellets:    { step: 1,    maxLevel: 3 }
-  cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
+  cranSplash:     { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Platzschaden liegender Beeren (50 -> 100 %)
   cabMini:        { step: 1,    maxLevel: 5 }
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
   # Kartenregeln pro Level-up (3 Karten):
@@ -255,9 +287,29 @@ enemies:
       interval: 0.1
       warn: 0.5            # s zum Ausweichen
       radius: 10           # m um die Gartenmitte
-  raccoon: { hp: 7, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
-  panda:   { hp: 11, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
-  toad:
+  # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
+  # Gilt für Spieler und Gegner gleich.
+  resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
+  raccoon:                 # greift nie an, streunt umher, sammelt 5 XP (Blaubeeren) und haut damit ab
+    hp: 7
+    speed: 2.75
+    wanderSpeed: 2.0       # m/s beim Umherstreunen
+    radius: 0.32
+    peaceful: true
+    steals: [blue]
+    carryMax: 5
+    fleeSpeed: 6.2
+    fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
+  panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
+    hp: 11
+    speed: 2.2
+    radius: 0.34
+    prefers: [cran, chili] # rote Früchte zuerst ...
+    steals: [cran, chili, asp, cab, lemon, blue]   # ... sonst alle anderen
+    carryMax: 5
+    fleeSpeed: 3.2
+    resist: [chili, cran]
+  toad:                    # Frosch: leuchtet am Boden, Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
     hp: 6
     speed: 2.1
     radius: 0.30
@@ -267,6 +319,8 @@ enemies:
     poisonTicks: 3
     poisonInterval: 2
     poisonDamage: 1
+    prefersFields: [cab, lemon]
+    resist: [cab, lemon]
   sheep:
     maxAlive: 5            # höchstens so viele Schafe gleichzeitig
     hp: 3
@@ -274,14 +328,25 @@ enemies:
     radius: 0.44
     shield: 6
     shieldRegen: 3         # s bis Schild wieder voll
-    chargeRange: 4.5       # m, ab hier holt es Anlauf
-    windup: 2
+    chargeRange: 4.5       # m, ab hier holt es Anlauf (Richtung wird zu Beginn festgelegt und nicht mehr nachgeführt)
+    windup: 1              # s Anlauf (vorher 2)
     chargeSpeed: 9
     chargeTime: 0.8
     ramDamage: 4
-    ramStun: 1
-    knockback: 3           # m
+    ramStun: 1             # s Betäubung (kein Rückstoß mehr)
     rest: 2
+    resist: [asp]
+  hedgehog:                # Igel: kommen in Gruppen, plustern sich regelmäßig auf (Stachel-Schaden), fressen Beeren
+    hp: 6
+    speed: 1.8
+    radius: 0.30
+    eats: [blue, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
+    puffEvery: 2           # s pro Aufplustern
+    puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
+    puffScale: 0.3         # +30 % Größe
+    puffDamage: 2          # Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
+    puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
+    resist: [blue, cran]
 
 waves:
   # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
@@ -317,7 +382,8 @@ waves:
     raccoon: { from: 1,  weight: 3 }
     panda:   { from: 4,  weight: 2, early: 1 }   # early: Gewicht schon vor "from", sobald Spargel- oder Preiselbeerfeld steht (ab Welle 2)
     toad:    { from: 7,  weight: 1.2 }
-    sheep:   { from: 11, weight: 0.4 }
+    hedgehog: { from: 11, weight: 0.4, group: [3, 4] }  # group: kommt immer als Gruppe aus 3-4 Tieren
+    sheep:   { from: 21, weight: 0.4 }
 
 weaponSlots:               # Waffen neben der Harke
   max: 2                   # so viele Waffen sind gleichzeitig aktiv; weitere sind inaktiv (unsichtbar, aber weiter skillbar)

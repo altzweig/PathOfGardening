@@ -51,6 +51,10 @@ export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
 composer.addPass(bloom);
+// lightning overlay: drawn after bloom (keeps scene depth) so bolts stay crisp
+export const fxTop = new THREE.Scene();
+const boltU = { uRes: { value: new THREE.Vector2(1, 1) } };
+const topPass = new RenderPass(fxTop, camera); topPass.clear = false;
 export const gradePass = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 }, uLow: { value: 0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
@@ -63,6 +67,7 @@ export const gradePass = new ShaderPass({
       c.rgb+=vec3(.42,.0,.03)*uLow*smoothstep(.42,.8,r); // low-HP: soft red glow on the screen edges, centre stays clear
       gl_FragColor=c; }`,
 });
+composer.addPass(topPass);
 composer.addPass(gradePass);
 composer.addPass(new OutputPass());
 
@@ -74,6 +79,7 @@ export function resize() {
   renderer.setSize(w, h, false); composer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   pxScale = h * renderer.getPixelRatio() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  renderer.getDrawingBufferSize(boltU.uRes.value);
   onResize.forEach(f => f());
 }
 addEventListener('resize', resize);
@@ -197,6 +203,24 @@ export function punchStar(x: number, z: number, big = 1) {
   const s = new THREE.Sprite(mat); s.position.set(x + rand(-.08, .08), .55 + rand(0, .15), z + rand(-.08, .08)); s.renderOrder = 1000; scene.add(s);
   fx.push({ m: s as any, t: 0, life: .24, r0: .1, r1: .75 * big, op: 1, own: false, sprite: true });
 }
+// comic dust cloud (sheep ram): round puffs with a dark outline, like a cartoon brawl
+const cloudTex = (() => {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const blobs: [number, number, number][] = [[64, 70, 30], [40, 64, 22], [88, 62, 24], [54, 44, 22], [78, 44, 20], [64, 86, 22]];
+  const draw = (grow: number, col: string) => { g.fillStyle = col; for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x, y, r + grow, 0, Math.PI * 2); g.fill(); } };
+  draw(5, '#2a2016'); draw(0, '#d8cdb4');
+  g.globalAlpha = .7; g.fillStyle = '#fff8e8'; for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x - r * .3, y - r * .3, r * .45, 0, Math.PI * 2); g.fill(); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+export function dustCloud(x: number, z: number) {
+  const n = 8;
+  for (let i = 0; i <= n; i++) {
+    const mat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, rotation: rand(0, 7), toneMapped: false });
+    const s = new THREE.Sprite(mat), a = i / n * Math.PI * 2 + rand(-.2, .2), r = i === n ? 0 : rand(.45, .6);
+    s.position.set(x + Math.cos(a) * r, i === n ? .5 : rand(.15, .55), z + Math.sin(a) * r); s.renderOrder = 999; scene.add(s);
+    fx.push({ m: s as any, t: 0, life: rand(.45, .6), r0: .15, r1: i === n ? .9 : rand(.5, .7), op: 1, own: false, sprite: true });
+  }
+}
 export function updateFx(dt: number) {
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt; const k = f.t / f.life;
@@ -232,31 +256,116 @@ export function setBar(bar: THREE.Group, frac: number, shield = -1) {
   if (shield >= 0) { sh.visible = shield > 0; sh.scale.x = Math.max(.0001, w * shield); sh.position.x = -w * (1 - shield) / 2; }
 }
 
-/** jagged lightning ribbon through the given points (world space), fades out */
-export function bolt(pts: { x: number; y: number; z: number }[], color = 0xbfe4ff, width = .05, life = .18, jag = .12) {
-  const path: THREE.Vector3[] = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i], b = pts[i + 1], n = 5;
-    for (let k = 0; k < n; k++) {
-      const t = k / n, j = k === 0 ? 0 : jag;
-      path.push(new THREE.Vector3(lerp(a.x, b.x, t) + rand(-j, j), lerp(a.y, b.y, t) + rand(-j, j) * .6, lerp(a.z, b.z, t) + rand(-j, j)));
+// ---------------- lightning ----------------
+// Fine, realistic lightning: fractal main channel (midpoint displacement) with side arms that fork again.
+// Drawn as screen-space ribbons (min. ~1 px, soft edges = no aliasing) in an overlay scene that is
+// rendered AFTER the bloom pass, so the bolts keep crisp contours and do not bloom.
+const boltMat = (op: number) => new THREE.ShaderMaterial({
+  uniforms: { uRes: boltU.uRes, uOp: { value: op }, uK: { value: 0 }, uCore: { value: new THREE.Color(1.5, 1.55, 1.7) }, uHalo: { value: new THREE.Color(.5, .6, 1.2) } },
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+  vertexShader: `attribute vec3 pOther; attribute vec4 wi; uniform vec2 uRes; uniform float uK; varying float vS; varying float vI;
+    void main(){
+      vec4 c0=projectionMatrix*modelViewMatrix*vec4(position,1.), c1=projectionMatrix*modelViewMatrix*vec4(pOther,1.);
+      vec2 d=(c1.xy/c1.w-c0.xy/c0.w)*uRes; float l=length(d); d= l>1e-4 ? d/l : vec2(1.,0.);
+      if(wi.w<0.) d=-d;
+      vec2 n=vec2(-d.y,d.x);
+      float px=wi.x*projectionMatrix[1][1]*.5*uRes.y/c0.w;      // core width in px
+      float pw=max(px,1.3);                                    // never thinner than ~1 px: stays fine but does not flicker
+      float side=sign(wi.w)*(abs(wi.w)>1.5?1.:-1.);
+      c0.xy+=n*side*pw*4.*c0.w/uRes;                         // ribbon = 4x core width (faint halo)
+      vS=side; vI=wi.y*(px/pw)*pow(max(0.,1.-uK),1.+wi.z*1.8); // side arms fade faster than the main channel
+      gl_Position=c0; }`,
+  fragmentShader: `uniform float uOp; uniform vec3 uCore; uniform vec3 uHalo; varying float vS; varying float vI;
+    void main(){ float s=abs(vS)*4.; float core=exp(-s*s*1.6); float halo=exp(-s*s*.16)*.16;
+      vec3 c=(uCore*core+uHalo*halo)*vI*uOp; gl_FragColor=vec4(c,1.); }`,
+});
+type P3 = THREE.Vector3;
+/** jagged channel a→b by midpoint displacement; rough = first offset relative to the length */
+function channel(a: P3, b: P3, rough: number, step: number) {
+  let pts = [a.clone(), b.clone()];
+  const dir = b.clone().sub(a), len = dir.length() || 1; dir.divideScalar(len);
+  const h = V(-dir.z, 0, dir.x); if (h.lengthSq() < 1e-6) h.set(1, 0, 0); h.normalize();
+  let off = len * rough;
+  while (pts.length < 129 && len / (pts.length - 1) > step) {
+    const n: P3[] = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const m = pts[i - 1].clone().lerp(pts[i], .5).addScaledVector(h, rand(-off, off)); m.y += rand(-off, off) * .55;
+      n.push(m, pts[i]);
+    }
+    pts = n; off *= .52;
+  }
+  return pts;
+}
+interface Strand { pts: P3[]; w0: number; w1: number; i0: number; i1: number; gen: number }
+/**
+ * segs: [from, to, chainDepth]. More hit targets (segs.length) = more side arms, longer and forking deeper.
+ */
+export function lightning(segs: [P3, P3, number][], o: { width?: number; life?: number; fork?: number; core?: number; halo?: number } = {}) {
+  if (!segs.length) return;
+  const N = Math.max(1, o.fork ?? segs.length), W = o.width ?? .022;
+  const pBranch = Math.min(.32, .05 + .035 * N), maxGen = N >= 6 ? 3 : N >= 3 ? 2 : 1, budget = 260 + N * 90;
+  const strands: Strand[] = []; let used = 0;
+  const grow = (s: Strand, dirHint: P3, lenRef: number) => {
+    strands.push(s); used += s.pts.length;
+    if (s.gen >= maxGen) return;
+    const n = s.pts.length, p = pBranch * Math.pow(.62, s.gen);
+    for (let i = 2; i < n - 3; i++) {
+      if (used > budget || Math.random() > p) continue;
+      const t = i / (n - 1), a = s.pts[i];
+      const loc = s.pts[Math.min(n - 1, i + 2)].clone().sub(s.pts[Math.max(0, i - 2)]).normalize().lerp(dirHint, .5).normalize();
+      const ang = (Math.random() < .5 ? -1 : 1) * rand(.3, .95), c = Math.cos(ang), sn = Math.sin(ang);
+      const d = V(loc.x * c - loc.z * sn, loc.y - rand(0, .35), loc.x * sn + loc.z * c).normalize();
+      const L = lenRef * rand(.14, .42) * (1 - t * .5) * (1 + Math.min(N, 10) * .05);
+      const w = lerp(s.w0, s.w1, t) * rand(.45, .62), it = lerp(s.i0, s.i1, t) * rand(.5, .7);
+      grow({ pts: channel(a, a.clone().addScaledVector(d, L), rand(.16, .26), .045), w0: w, w1: 0, i0: it, i1: it * .15, gen: s.gen + 1 }, d, L);
+    }
+  };
+  for (const [a, b, depth] of segs) {
+    const len = a.distanceTo(b), w = W * Math.pow(.85, depth), it = Math.pow(.9, depth);
+    const dir = b.clone().sub(a).normalize();
+    grow({ pts: channel(a, b, rand(.11, .17), .05), w0: w, w1: w * .7, i0: it, i1: it * .85, gen: 0 }, dir, len);
+    // forks right at the impact: a few short twigs splaying out around the target
+    const tw = Math.min(4, 1 + Math.floor(N / 2));
+    for (let k = 0; k < tw && used < budget * 1.2; k++) {
+      const an = rand(0, 7), L = rand(.15, .35), e = b.clone().add(V(Math.cos(an) * L, -rand(.1, .35), Math.sin(an) * L)); e.y = Math.max(.02, e.y);
+      strands.push({ pts: channel(b, e, .25, .04), w0: w * .5, w1: 0, i0: it * .6, i1: .05, gen: 1 }); used += 8;
     }
   }
-  const last = pts[pts.length - 1]; path.push(new THREE.Vector3(last.x, last.y, last.z));
-  // 3 layers: wide soft glow, colored body, white-hot core. Colors above 1 (no tone mapping) feed the bloom.
-  const layer = (w: number, c: THREE.Color, op: number, ro: number) => {
-    const pos: number[] = [];
-    for (let i = 0; i < path.length - 1; i++) { // flat strip, thick enough to read from the top-down camera
-      const a = path[i], b = path[i + 1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w, nz = dx / l * w;
-      pos.push(a.x - nx, a.y, a.z - nz, a.x + nx, a.y, a.z + nz, b.x + nx, b.y, b.z + nz, a.x - nx, a.y, a.z - nz, b.x + nx, b.y, b.z + nz, b.x - nx, b.y, b.z - nz);
+  // build one ribbon mesh for the whole strike (4 verts per piece, indexed)
+  let nSeg = 0; for (const s of strands) nSeg += s.pts.length - 1;
+  const pos = new Float32Array(nSeg * 12), oth = new Float32Array(nSeg * 12), wi = new Float32Array(nSeg * 16), idx: number[] = [];
+  let v = 0;
+  for (const s of strands) {
+    const n = s.pts.length;
+    for (let i = 0; i < n - 1; i++) {
+      const a = s.pts[i], b = s.pts[i + 1], ta = i / (n - 1), tb = (i + 1) / (n - 1);
+      const wa = lerp(s.w0, s.w1, ta), wb = lerp(s.w0, s.w1, tb), ia = lerp(s.i0, s.i1, ta), ib = lerp(s.i0, s.i1, tb);
+      // wi.w encodes end + side: a-end ±1 (1 / 2), b-end ±1 (-1 / -2), b-end flips the direction
+      const verts: [P3, P3, number, number, number][] = [[a, b, wa, ia, 1], [a, b, wa, ia, 2], [b, a, wb, ib, -2], [b, a, wb, ib, -1]];
+      for (const [p, q, w, it, code] of verts) {
+        pos.set([p.x, p.y, p.z], v * 3); oth.set([q.x, q.y, q.z], v * 3); wi.set([w, it, s.gen, code], v * 4); v++;
+      }
+      const k = v - 4; idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
     }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-    m.renderOrder = ro; scene.add(m);
-    fx.push({ m, t: 0, life, r0: 1, r1: 1, op, own: true });
-  };
-  const c = new THREE.Color(color);
-  layer(width * 4, c.clone().multiplyScalar(1.4), .35, 5);
-  layer(width * 1.6, c.clone().multiplyScalar(2.6), .9, 6);
-  layer(width * .55, new THREE.Color(1, 1, 1).multiplyScalar(3), 1, 7);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('pOther', new THREE.BufferAttribute(oth, 3)); g.setAttribute('wi', new THREE.BufferAttribute(wi, 4));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, boltMat(1)); m.frustumCulled = false;
+  const U = (m.material as THREE.ShaderMaterial).uniforms;
+  if (o.core !== undefined) U.uCore.value.setHex(o.core); if (o.halo !== undefined) U.uHalo.value.setHex(o.halo);
+  fxTop.add(m);
+  bolts.push({ m, t: 0, life: o.life ?? .28, restrike: rand(.07, .11) });
 }
+const bolts: { m: THREE.Mesh; t: number; life: number; restrike: number }[] = [];
+/** flicker like a real strike: flash, short dip, re-strike along the same channel, then fade */
+export function updateBolts(dt: number) {
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    const b = bolts[i]; b.t += dt; const k = b.t / b.life;
+    const mat = b.m.material as THREE.ShaderMaterial;
+    if (k >= 1) { fxTop.remove(b.m); b.m.geometry.dispose(); mat.dispose(); bolts.splice(i, 1); continue; }
+    const dip = b.t > b.restrike * .55 && b.t < b.restrike ? .25 : 1;
+    mat.uniforms.uK.value = k; mat.uniforms.uOp.value = dip * (.82 + Math.random() * .18) * (k < .1 ? 1.25 : 1);
+  }
+}
+export function clearBolts() { for (const b of bolts) fxTop.remove(b.m); bolts.length = 0; }

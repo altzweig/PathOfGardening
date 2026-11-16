@@ -121,10 +121,34 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #lobbyPlayers .lp.me{box-shadow:0 0 0 3px #fff}
 
 /* level-up cards: picture + title + max. 2 lines */
-#cards{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:980px;width:100%}
-.card{pointer-events:auto;cursor:pointer;flex:1 1 200px;max-width:250px;min-width:0;background:linear-gradient(180deg,#1d252d,#0f1418);border:2px solid var(--gold-dim);border-radius:14px;padding:14px 14px 16px;color:var(--parch);font-family:var(--f-body);display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 6px 20px #000a;transition:transform .12s,border-color .12s}
-.card:hover,.card:focus-visible{transform:translateY(-4px);border-color:var(--gold);outline:none}
+#cards{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;max-width:980px;width:100%}
+.card{position:relative;overflow:hidden;pointer-events:auto;cursor:pointer;flex:1 1 200px;max-width:250px;min-width:0;background:linear-gradient(180deg,#1d252d,#0f1418);border:2px solid var(--gold-dim);border-radius:14px;padding:14px 14px 16px;color:var(--parch);font-family:var(--f-body);display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 6px 20px #000a;
+  --rx:0deg;--ry:0deg;--mx:50%;--my:50%;--lift:0px;transform:perspective(800px) translateY(var(--lift)) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .45s cubic-bezier(.2,.9,.3,1.2),border-color .15s,box-shadow .2s;touch-action:none}
+.card:hover,.card:focus-visible,.card.tilt{--lift:-6px;border-color:var(--gold);outline:none}
+.card.tilt{transition:transform .09s linear,border-color .15s,box-shadow .2s;box-shadow:0 14px 30px #000c}
 .card.skill-c{border-color:#c0803a}.card.field-c{border-color:#8a6a3a}.card.plant-c{border-color:#4f8a3a}.card.misc-c{border-color:#5a6aa0}
+/* shimmer: light spot at the pressed point + holo band that moves with it */
+.card .shine{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;mix-blend-mode:screen;
+  background:radial-gradient(circle at var(--mx) var(--my),#ffffff30,#ffffff00 40%),linear-gradient(115deg,#0000 40%,#ffe6a822 46%,#a8dcff26 50%,#ffb4ec1e 54%,#0000 60%);
+  background-size:100% 100%,260% 260%;background-position:0 0,var(--mx) var(--my)}
+.card.tilt .shine{opacity:1}
+.card .hint{font-size:14px;color:var(--mut);letter-spacing:.03em;text-align:center;margin-top:-2px}
+/* weapon unlock card: bigger, glowing in the weapon colour, glossy */
+.card.wpn{--glow:#e3b964;--glowA:#e3b96466;flex:1 1 240px;max-width:300px;border-color:var(--glow);padding:16px 14px 16px;gap:8px;
+  background:linear-gradient(160deg,#ffffff14,#ffffff00 38%),linear-gradient(180deg,#222b33,#0d1216);
+  box-shadow:0 0 22px 2px var(--glowA),inset 0 0 18px var(--glowA),0 8px 24px #000c}
+.card.wpn:hover,.card.wpn:focus-visible,.card.wpn.tilt{border-color:var(--glow);box-shadow:0 0 34px 6px var(--glowA),inset 0 0 22px var(--glowA),0 16px 32px #000c}
+.card.wpn[data-skill=asp]{--glow:#8fe36a;--glowA:#8fe36a66}.card.wpn[data-skill=cran]{--glow:#ff4d5e;--glowA:#ff4d5e66}.card.wpn[data-skill=cab]{--glow:#b8f070;--glowA:#b8f07066}
+.card.wpn[data-skill=lemon]{--glow:#ffe44a;--glowA:#ffe44a66}.card.wpn[data-skill=chili]{--glow:#ff6a2a;--glowA:#ff6a2a66}
+.card.wpn::before{content:"";position:absolute;top:-20%;left:-60%;width:40%;height:140%;pointer-events:none;background:linear-gradient(90deg,#fff0,#ffffff2e,#fff0);transform:translateX(0) rotate(18deg);animation:gloss 3.6s ease-in-out infinite;will-change:transform}
+@keyframes gloss{0%,55%{transform:translateX(0) rotate(18deg)}100%{transform:translateX(480%) rotate(18deg)}}
+.card.wpn .pic{width:118px;height:118px;border-color:var(--glow);box-shadow:0 0 16px var(--glowA),inset 0 0 14px var(--glowA)}
+.card.wpn h3{font-size:20px;color:var(--glow);text-shadow:0 0 10px var(--glowA)}
+.card.wpn .stats{display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;width:100%}
+.card.wpn .stats span{display:flex;align-items:center;justify-content:center;gap:3px;padding:2px 6px;border-radius:999px;background:#0b1016b3;border:1px solid #ffffff14;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.card.wpn .stats .ic{width:20px;height:20px}
+.card.wpn .stats span:last-child:nth-child(odd){grid-column:1/-1;justify-self:center;padding:2px 18px}
+.card.wpn .fx{font-size:15px;font-weight:700;color:var(--glow);text-align:center;letter-spacing:.02em}
 .card .pic{width:96px;height:96px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);display:grid;place-items:center;border:1px solid #ffffff18}
 .card .pic svg{width:72%;height:72%;filter:drop-shadow(0 3px 3px #000)}
 .card h3{margin:2px 0 0;font-family:var(--f-display);font-size:18px;color:var(--gold);text-align:center;text-wrap:balance}
@@ -132,7 +156,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 .ic{display:inline-block;width:22px;height:22px;vertical-align:middle}
 .ic svg{width:100%;height:100%;display:block}
 .cards-done .card{opacity:.4;pointer-events:none}
-.card.chosen{opacity:1!important;border-color:#fff;transform:translateY(-4px)}
+.card.chosen{opacity:1!important;border-color:#fff;--lift:-6px}
 #luWait{display:flex;gap:10px}
 #luWait span{width:14px;height:14px;border-radius:50%;border:2px solid #0009;opacity:.35}
 #luWait span.ok{opacity:1;box-shadow:0 0 10px currentColor}
@@ -148,8 +172,9 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #ctrlView{width:min(1100px,96vw);max-height:72vh;display:flex;justify-content:center}
 #ctrlView svg{width:100%;height:auto;max-height:72vh}
 #ctrlView text{font-family:var(--f-body);font-weight:700}
-@media (prefers-reduced-motion:reduce){.skill.pulse::before{animation:none}}
-@media (max-height:430px){.ov h1{font-size:30px}.ov{gap:8px;justify-content:flex-start}.card .pic{width:64px;height:64px}.card{padding:8px 10px}.btn{padding:9px 22px;font-size:16px}.col{gap:8px}}
+@media (orientation:portrait){.card{touch-action:pan-y}} /* stacked cards must stay scrollable */
+@media (prefers-reduced-motion:reduce){.skill.pulse::before,.card.wpn::before{animation:none}}
+@media (max-height:430px){.ov h1{font-size:30px}.ov{gap:8px;justify-content:flex-start}.card .pic,.card.wpn .pic{width:64px;height:64px}.card{padding:8px 10px}.card.wpn .stats span{font-size:13px}.btn{padding:9px 22px;font-size:16px}.col{gap:8px}}
 /* build mode */
 #placeBar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 56px);transform:translateX(-50%);pointer-events:none}
 #placeBar .pic{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);display:grid;place-items:center;border:2px solid var(--gold);box-shadow:0 0 24px #e3b96466;animation:pulse2 1.2s ease-in-out infinite alternate}

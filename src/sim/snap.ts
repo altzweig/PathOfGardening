@@ -15,9 +15,12 @@ export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
   sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
+  xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
+  lw: 0 | 1; // lemon wand equipped
 }
-export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
+/** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
+export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string }
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   sl: number[]; sn: number; sh: 0 | 1; // active weapon slots (SKILLS index), weapon waiting for a swap (-1 none), swap done and holding
@@ -31,8 +34,8 @@ export type FSnap = [number, number, number, number, number, number];
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse]
 export type BSnap = [number, number, number, number, number, number];
-// mine: [id, x, z]
-export type MSnap = [number, number, number];
+// lying cranberry (missed pellet): [id, x, z, fuse progress 0..1]
+export type MSnap = [number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]
 // pool: [id, x, z, radius, lifeFrac]
 export type PuSnap = [number, number, number, number, number];

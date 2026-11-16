@@ -28,17 +28,17 @@ import { loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FlameFx, makeFlame, updateFlame } from './flame';
 import { skillIcon } from '../ui/icons';
 import {
-  GEO, M, PART, V, addMat, bolt, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
+  GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
+  part, punchStar, dustCloud, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
-import { BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
-interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
+interface PView { xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number }
@@ -171,7 +171,7 @@ export class GameView {
     const arc = cfg.rake.arc * Math.PI / 180;
     this.aimInd = {
       rake: new THREE.Mesh(sectorGeo(1, arc), addMat(0xffe3a0, .12)),
-      cran: new THREE.Mesh(sectorGeo(1, cfg.skills.cran.spread * Math.PI / 180), addMat(0xff8090, .12)),
+      cran: new THREE.Mesh(sectorGeo(1, cfg.skills.cran.cone * Math.PI / 180), addMat(0xff8090, .12)),
       asp: new THREE.Mesh(GEO.plane, addMat(0x9cff70, .2)),
       cab: new THREE.Mesh(GEO.circle, addMat(0xb8f070, .14)),
       chili: new THREE.Mesh(sectorGeo(1, 1), addMat(0xff7a30, .12)),
@@ -187,7 +187,7 @@ export class GameView {
     for (const q of this.equips) q.el.remove(); this.equips.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
-    stopAllLoops(); PART.clear(); clearFx(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    stopAllLoops(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
@@ -279,8 +279,9 @@ export class GameView {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3]; v.m.rotation.x += .13;
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
-    this.sync(this.mines, s.mi, id, m => m[0], () => { const m = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0xff2040, emissive: 0xff1030, emissiveIntensity: 2.4 })); return m; },
-      (v, m) => { v.tx = m[1]; v.ty = .07; v.tz = m[2]; v.m.scale.setScalar(.07 * (1 + Math.sin(performance.now() / 160 + m[0]) * .15)); });
+    // missed cranberries lying on the ground: swell and pulse faster until they pop
+    this.sync(this.mines, s.mi, id, m => m[0], () => { const m = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0xff2040, emissive: 0xff1030, emissiveIntensity: 1.6 })); return m; },
+      (v, m) => { const k = m[3] || 0, mat = (v.m as THREE.Mesh).material as THREE.MeshStandardMaterial; v.tx = m[1]; v.ty = .06; v.tz = m[2]; v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
     for (const e of s.ev) this.event(e);
   }
   private sync<T>(map: Map<number, JView>, arr: T[], id: number, key: (t: T) => number, make: (t: T) => THREE.Object3D, upd: (v: JView, t: T) => void) {
@@ -447,21 +448,39 @@ export class GameView {
         for (let k = 0; k < 4; k++) decal(e.x + rand(-.15, .15), e.z + rand(-.15, .15), 0xa01020, rand(.03, .06), 5, { op: .8 });
         break;
       }
+      case 'berryPop': { // lying cranberry pops into a red stain
+        burst(V(e.x, .15, e.z), 0xff2040, 12, 1.8, .12, .35, { g: 5 });
+        decal(e.x, e.z, 0xff3050, .05, .25, { ring: true, add: true, grow: e.r, op: .7 });
+        decal(e.x, e.z, 0x8a0a1a, e.r * rand(.55, .7), 3.5, { op: .6 });
+        for (let k = 0; k < 4; k++) decal(e.x + rand(-1, 1) * e.r * .8, e.z + rand(-1, 1) * e.r * .8, 0xa01020, rand(.04, .08), 3.5, { op: .7 });
+        break;
+      }
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
+      case 'poof': dustCloud(e.x, e.z); this.shake = Math.min(.25, this.shake + .07); break; // sheep ram hit: comic dust cloud around the player
+      case 'lick': setTimeout(() => { burst(V(e.x, .3, e.z), 0xff5a80, 8, 1.4, .1, .3); decal(e.x, e.z, 0xff4070, .12, .6, { op: .5 }); }, (e.d || 0) * 1000); break;
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
       case 'berryBoom': { burst(V(e.x, .3, e.z), 0x6a5cff, 26, 3, .2, .5); burst(V(e.x, .3, e.z), 0x3550e0, 14, 2, .3, .6, { g: 4 }); decal(e.x, e.z, 0x7a5cff, .2, .45, { ring: true, add: true, grow: e.r, op: .9 }); decal(e.x, e.z, 0x221a50, e.r * .6, 3, { op: .5 }); this.shake = Math.min(.25, this.shake + .04); break; }
       case 'bossEat': burst(V(e.x, .5, e.z), 0x5a74ff, 6, 1.5, .12, .3); break;
       case 'bossDead': burst(V(e.x, .8, e.z), 0x8a4cff, 80, 5, .3, 1.2); burst(V(e.x, .8, e.z), 0xffe0b0, 40, 4, .2, .8); this.shake = .35; break;
-      case 'zap': { // Citrateaser chain: one bolt per link, thinner further down the chain
-        for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xeaf6ff, 12, 2.2, .14, .3); decal(sg[2], sg[3], d ? 0x9fd8ff : 0xfff080, .2, .3, { ring: true, add: true, grow: .9, op: .9 }); }
-        this.shake = Math.min(.2, this.shake + .03); break;
+      case 'zap': { // Citrateaser: fine, realistic lightning out of the lemon on the wand; more targets = more forks
+        const sgs = e.s as number[][], pv = this.players.get(e.p);
+        let tip: THREE.Vector3 | null = null;
+        if (pv && e.a !== undefined) { pv.rot = e.a; pv.g.rotation.y = e.a; pv.wand.visible = true; pv.g.updateMatrixWorld(true); tip = pv.wandTip.getWorldPosition(V()); pv.lemonMat.emissiveIntensity = .55; }
+        const miss = sgs.length === 1 && sgs[0][4] === 2, hits = sgs.length;
+        const list: [THREE.Vector3, THREE.Vector3, number][] = sgs.map(sg => {
+          const d = miss ? 0 : sg[4], from = d === 0 && tip ? tip.clone() : V(sg[0], .5, sg[1]);
+          return [from, V(sg[2], miss ? .2 : .42, sg[3]), d];
+        });
+        lightning(list, { fork: miss ? 1 : hits, width: miss ? .014 : .022 });
+        if (!miss) for (const sg of sgs) { burst(V(sg[2], .42, sg[3]), 0xc8d8ff, 5, 1.6, .06, .18); decal(sg[2], sg[3], 0x9fb8ff, .12, .25, { ring: true, add: true, grow: .45, op: .3 }); }
+        this.shake = Math.min(.2, this.shake + .02); break;
       }
       case 'till': this.rakeStroke(e.s); break;
       case 'lemonZap': { // harvest: lightning jumps between the lemons of the tree
         const v = this.fields.get(e.s); if (!v) break;
         const ps = v.fruits.filter(m => m.visible).sort(() => Math.random() - .5).slice(0, 4).map(m => m.getWorldPosition(V()));
-        if (ps.length > 1) bolt(ps, 0xfff6a0, .03, .25, .05);
+        if (ps.length > 1) lightning(ps.slice(1).map((q, i) => [ps[i], q, 1] as [THREE.Vector3, THREE.Vector3, number]), { fork: 1, width: .008, life: .22 });
         BUSH_MAT.lemon.emissiveIntensity = 2.6; break;
       }
       case 'wildfire': { // a burning enemy died: fire jumps to the enemies around it
@@ -516,7 +535,7 @@ export class GameView {
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
-    PART.update(dt); updateFx(dt); this.updateBits(dt); this.updateNums(dt);
+    PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);
@@ -541,11 +560,40 @@ export class GameView {
     if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(1.1, L * .55); v.rake.position.z = .15 - Math.sin(s.ti * Math.PI) * .75; v.body.rotation.x = Math.sin(s.ti * Math.PI) * .18; } // till: scrape the bed underfoot, pulling the rake back
     else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
     else { v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2); }
+    v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.hatHp(v, s.hp / s.mhp);
     this.animFlame(v, dt);
+    this.animXbow(v);
     const other = s.id !== this.me;
     v.bar.visible = other && !!s.al; v.bar.position.set(v.x, 1.6, v.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, s.hp / s.mhp);
+  }
+  /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */
+  private animXbow(v: PView) {
+    const on = !!v.s.xb && !!v.s.al;
+    if (!on && !v.xbow) return;
+    if (!v.xbow) {
+      const g = new THREE.Group(), wood = M(0x6a4528), dark = M(0x3d2a18), str = new THREE.MeshBasicMaterial({ color: 0xe8dcc0 });
+      const stock = part(g, GEO.box, wood, .07, .06, .5, 0, 0, -.02, false);
+      part(g, GEO.box, dark, .05, .1, .06, 0, -.07, -.18, false); // grip
+      const seg = (mat: THREE.Material, r: number, a: number[], b: number[]) => { // cylinder from a to b
+        const d = V(b[0] - a[0], b[1] - a[1], b[2] - a[2]), m = part(g, GEO.cyl, mat, r, d.length(), r, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, false);
+        m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); return m;
+      };
+      for (const sd of [-1, 1]) { // bow limbs: asparagus spears swept back, purple tips, string to the nut
+        seg(BUSH_MAT.asp, .025, [0, 0, .24], [sd * .28, 0, .13]);
+        const tip = part(g, GEO.sph, ASP_TIP_BUSH, .03, .03, .03, sd * .28, 0, .13, false); void tip;
+        seg(str, .006, [sd * .28, 0, .13], [0, .02, -.02]);
+      }
+      const bolt = new THREE.Group(); g.add(bolt); // loaded asparagus bolt
+      const sh = part(bolt, GEO.cyl, PROJ_ASP, .02, .36, .02, 0, .05, .08, false); sh.rotation.x = Math.PI / 2;
+      const bt = part(bolt, GEO.cone, PROJ_ASP_TIP, .03, .08, .03, 0, .05, .29, false); bt.rotation.x = Math.PI / 2;
+      void stock; v.g.add(g); g.position.set(.2, .78, .22);
+      v.xbow = { g, bolt };
+    }
+    const X = v.xbow; X.g.visible = on; if (!on) return;
+    X.bolt.visible = v.recoil < .04; // bolt gone right after the shot, reloaded before the next one
+    X.g.position.z = .22 - v.recoil * .5; X.g.rotation.x = -v.recoil * 1.2;
   }
   /** flamethrower: chili-shaped nozzle at the hand, shader flame (flame.ts), embers, light; start burst / roar loop / tail sounds */
   private animFlame(v: PView, dt: number) {
@@ -593,6 +641,15 @@ export class GameView {
       const air = !!(fl & EF.air); v.P.body.position.y = air ? Math.sin(e[9] / .5 * Math.PI) * .55 : 0;
       for (const m of v.P.mats) m.opacity = air ? .4 : 1;
       if (fl & EF.tongue) { v.P.tongue!.visible = true; v.P.tongue!.scale.z = Math.max(.01, e[10]); } else v.P.tongue!.visible = false;
+      if (!air && Math.random() < dt * 6) PART.spawn(V(v.x + rand(-.25, .25), rand(.15, .4), v.z + rand(-.25, .25)), V(0, .5, 0), 0xb8ffb0, rand(.06, .1), .5, { a: .8 }); // shimmer while sitting
+    }
+    if (v.type === 'hedgehog') { // jerky puff up, slow contraction; the spines flash once
+      const H = this.cfg.enemies.hedgehog, up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9];
+      const k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up);
+      v.P.puff!.scale.setScalar(1 + (H.puffScale ?? .3) * (ph < up ? k2 : k2 * k2));
+      v.P.spines!.emissiveIntensity = ph < .15 ? (1 - ph / .15) * 1.6 : 0;
+      if (v.ph !== undefined && ph < v.ph - .3) { burst(V(v.x, .35, v.z), 0xfff0c0, 10, 1.6, .07, .25); decal(v.x, v.z, 0xffe0a0, .3, .25, { ring: true, add: true, grow: (H.radius * (1 + (H.puffScale ?? .3)) + (H.puffRadius ?? .5)) * v.g.scale.x, op: .5 }); }
+      v.ph = ph;
     } else if (!(fl & EF.windup)) v.P.body.position.y = Math.abs(Math.sin(now * 9 + e[0])) * .06 * (stun ? 0 : 1);
     v.P.body.position.z = fl & EF.lunge ? .12 : 0;
     if (v.type === 'sheep') {
@@ -617,7 +674,9 @@ export class GameView {
       if (Math.random() < .4) PART.spawn(V(v.x + rand(-.6, .6), rand(.3, 1.2), v.z + rand(-.6, .6)), V(0, .8, 0), 0x8a4cff, .2, .5); return;
     }
     const burning = fl & EF.burn, fire = burning ? .5 + .3 * Math.sin(now * 23 + e[0]) + .15 * Math.sin(now * 37) : 0;
-    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow, 0, bleedGlow * .05); }
+    // toad: glows brighter and shimmers while sitting, the glow goes out when it jumps off
+    const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - .5) * 12) : 0;
+    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 28) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);

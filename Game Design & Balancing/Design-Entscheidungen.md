@@ -5,12 +5,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Grundsätze
 - **Keine Erklärtexte im Spiel.** Mechaniken, Steuerung, Upgrades werden nicht erklärt. Spieler entdecken selbst. Später kommt ein Tutorial für die zentralen Mechaniken.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil, groß genug für das jeweilige Gerät.
-- **Level-up-Karten:** Bild + Titel + höchstens 2 Zeilen, Zahlen mit Icons statt Sätzen. Es darf spannend bleiben.
+- **Level-up-Karten:** Bild + Titel + höchstens 2 Zeilen, Zahlen mit Icons statt Sätzen. Es darf spannend bleiben. Ausnahme (16.11.2026): Upgrade-Karten bekommen darunter eine knappe Erklärzeile, meist ein Wort (`names.hints`).
 - Arbeitstitel: **PathOfGardening** (früher „Beerenwacht“).
 
 ## Steuerung
 - **PC:** WASD laufen, Maus zielen, linke Maustaste = aktive Waffe (halten = Dauerfeuer), Leertaste = nächste verfügbare Waffe, Esc = Pause.
-  - Reihenfolge Harke → Spargelgewehr → Schrotflinte → Kohlbombe. Leertaste springt nur auf Waffen, die gerade *bereit* sind.
+  - Reihenfolge Harke → Spargel-Armbrust → Schrotflinte → Kohlbombe. Leertaste springt nur auf Waffen, die gerade *bereit* sind.
   - Wird die aktive Waffe leer, wechselt das Spiel automatisch zur nächsten bereiten Nicht-Harke-Waffe, sonst zur Harke.
   - Die aktive Waffe ist unten rechts hervorgehoben.
 - **Mobil:** linker Daumen irgendwo links = laufen. Rechts wischen = Harke zielen. Jede Waffe ist ein eigener Joystick: tippen = automatisch zielen, halten + ziehen = zielen und feuern.
@@ -113,7 +113,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Eine Welle besteht aus Gruppen (Stößen) aus mehreren Richtungen. Innerhalb der Welle werden die Gruppen größer (50 % → 150 % der Grundgröße), am Ende kommt eine große Schlussgruppe (250 %).
 - Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist. Die Pause beginnt sofort, auch wenn noch Gegner leben.
 - Welle 1: genau 5 Waschbären. Danach wächst jede Welle: länger (+2,5 s), Gruppen größer (+0,8 je Welle), Gruppen dichter; die Pause wird nur minimal länger (+0,1 s).
-- Tiere kommen ab Welle: Waschbär 1, Panda 4 (früher, sobald Spargel/Preiselbeere steht), Kröte 7, Schaf 11.
+- Tiere kommen ab Welle: Waschbär 1, Panda 4 (früher, sobald Spargel/Preiselbeere steht), Kröte 7, Igel 11, Schaf 21 (seit 16.11.2026, vorher Schaf 11).
 - HUD zeigt dezent „Welle / Gesamt“ (grau während der Pause).
 - Testmodus: Im Cheat-Menü (E) kann man jede Welle 1–100 direkt starten.
 
@@ -148,6 +148,29 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Zirkel-Upgrade: +30° Schwenk, +5° Flamme, Dauer pro Schwenk bleibt 1,5 s. Ab 360° (11. Stufe) dreht die Flamme im Kreis mit +50 % Tempo (2 Umdrehungen/s), danach +10° Flamme und +10 % Tempo pro Stufe, Schluss bei 360° Flamme. Die Karte zeigt Grad bzw. Umdrehungen pro Sekunde (U/s).
 - Brand-Tick-Upgrade: Tick × 0,8 bis minimal 0,1 s (8 Stufen). Da jeder Tick einen Stapel verbraucht, brennt der Stapel schneller ab: mehr Schaden pro Sekunde, gleicher Gesamtschaden je Stapel.
 - Alle Werte unter `skills.chili`, `upgrades.chiliSweep`, `upgrades.chiliTick`, Feld unter `plants.chili`.
+
+## Gegnertypen überarbeitet (16.11.2026)
+- **Betäubt (Stun), neue Definition für Spieler und Gegner:** Tempo für Bewegung und Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal. Beim Spieler laufen auch alle Abklingzeiten im Stun-Tempo, und jede Waffe muss erst einmal abklingen, bevor sie wieder feuert. Kein Rückstoß mehr durch Gegner.
+- **Waschbär:** greift nie an (weder Spieler noch Felder), streunt zwischen den Feldern umher, sammelt 5 XP-Blaubeeren und haut damit ab. Fällt sein Leben unter 50 %, haut er sofort ab, mit allem, was er schon trägt (`fleeBelow`). Der Boss-Waschbär ist davon ausgenommen.
+- **Roter Panda:** greift Spieler in Aggro-Reichweite an, sammelt bevorzugt Preiselbeeren und Chilis, sonst jede andere Frucht (auch XP), bei 5 haut er ab. Ohne Früchte greift er Felder an.
+- **Frosch:** leuchtet und schimmert, solange er sitzt, das Leuchten geht beim Absprung aus. Die Zunge (dicker, mit Spitze, Treffer-Spritzer) schlägt sichtbar zu, bevorzugt auf Kohl- und Zitronenfelder, in Aggro-Reichweite auf Spieler.
+- **Schaf:** Anlauf-Richtung wird beim Start des Anlaufs einmal festgelegt und nicht mehr nachgeführt, Anlauf 1 s statt 2 s. Trifft es den Spieler: comicartige Staubwolke um ihn, 1 s Stun, kein Rückstoß.
+- **Igel (neu):** kommen statt der Schafe ab Welle 11, immer als Gruppe aus 3–4 Tieren aus einer Richtung. Stachelig, langsamer (1,8 m/s). Alle 2 s plustern sie sich ruckartig um 30 % auf (Stacheln funkeln einmal, Ring zeigt die Reichweite) und ziehen sich in 1,8 s wieder zusammen. Nur beim Aufplustern machen sie Schaden: Spieler in Stachel-Reichweite und das Feld, auf dem sie stehen. Sie fressen bevorzugt alle Beeren (Blaubeeren und Preiselbeeren), gefressene Beeren sind weg.
+- **Resistenzen:** 30 % weniger Schaden (`enemies.resistance`): Panda durch Chilis und Preiselbeeren (auch Blutung), Schaf durch Spargel, Frosch durch Kohl (Bombe und Lache) und Zitronen, Igel durch Blaubeeren und Preiselbeeren. Waschbär ohne Resistenz. Annahme: „Blaubeeren“ zählt erst, sobald es eine Blaubeer-Waffe gibt; die Harke zählt zu keiner Frucht.
+- Annahmen: „10 Level später“ = 10 Wellen später (Schaf ab Welle 21). Igel-Schaden 2 je Aufplustern, Igel-Leben 6.
+
+## Spargel-Armbrust und Beerenshotgun (16.11.2026)
+- **Spargel-Armbrust** statt Spargelgewehr: Der Spieler hält beim Schießen eine Armbrust (Holzschaft, Bogen aus zwei Spargelstangen, Sehne, aufgelegter Spargel-Bolzen), die Spargel als Bolzen verschießt. Neuer Sehnen-Sound.
+- Sie feuert nicht mehr gleichmäßig, sondern in **Salven aus 3 Bolzen** (0,1 s Abstand), dann Pause. Salve alle 0,75 s, also Ø 4 Bolzen/s wie vorher: gleicher Durchschnitts-DPS. Jeder Bolzen kostet 1 Spargel und zielt neu. Eine angefangene Salve läuft zu Ende, solange Spargel da ist. Das Abklingzeit-Upgrade verkürzt Salve und Pause gleichermaßen. „Bereit“ zählt mit 3 Spargel pro Salve. Werte `skills.asp.cooldown/burstShots/burstGap`.
+- **Beerenshotgun:** Streuung zufällig statt gleichmäßigem Fächer, normalverteilt um die Zielrichtung (σ 20°), hart begrenzt auf 80° (±40°). Dadurch landen grob 2/3 (gemessen etwa 70 %) der Beeren in den inneren 40°. Feuerrate −20 % (0,5 → 0,625 s). Das +1-Projektil-Upgrade macht den Kegel nicht mehr breiter. Werte `skills.cran.pellets/cone/spreadSigma`.
+- **Liegende Beeren:** Jede Beere, die nichts trifft, bleibt 2 s liegen (schwillt an, pulsiert schneller) und platzt dann zu einem roten Fleck: 50 % des Beerenschadens an allen Gegnern im Radius 0,6 m (ohne Blutung, keine fliegenden Kröten). Ersetzt die alten Beeren-Minen. Werte `skills.cran.splashDelay/splashDamage/splashRadius`.
+- Annahme: Die bisherige Minen-Karte wird zur Karte **Platzschaden** (+10 Prozentpunkte je Stufe, 50 → 100 %, `upgrades.cranSplash`), weil jetzt ohnehin alle verfehlten Beeren liegen bleiben.
+
+## Level-up-Karten (16.11.2026)
+- Upgrade-Karten: unter den Werten eine Erklärzeile, meist ein Wort (Reichweite, Kegelbreite, Abklingzeit …). Texte in `names.hints` (Suche: ganzer Karten-Key, dann Teil nach „_“, dann Teil davor).
+- Waffen-Freischaltkarten sind größer, in der Waffenfarbe leuchtend umrandet, mit wanderndem Glanz. Alle Werte stehen als Icon-Chips da (Schaden, Reichweite/Radius, Abklingzeit, Munition pro Angriff, ggf. Durchbohren/Kettenradius/Schwenk), der Spezialeffekt knapp darunter (`names.effects`).
+- Alle drei Karten kippen wie echte Karten zur Stelle unter Maus bzw. Finger (die gedrückte Seite geht nach hinten) und schimmern dabei (Lichtfleck + Holo-Streifen). Mobile: Finger auf der Karte ziehen. Im Hochformat bleibt senkrechtes Wischen zum Scrollen frei. Bei „Bewegung reduzieren“ aus.
+- Das Rückstoß-Upgrade der Harke ist entfernt (16.11.2026), die Harke braucht es nicht. `rake.knockback` bleibt als Grundwert (0).
 
 ## Feuer-Mechanik, Flammen-Shader, Fauch-Sounds (16.11.2026)
 - Brand nicht mehr an Gegner-HP gekoppelt, sondern an die Waffe (Ersatz für die Prozent-Regel oben): Jeder Flammenstoß, der trifft, macht 1 Sofortschaden und gibt 1 Brand-Stapel (max. 6). Brennen tickt alle 0,5 s mit Stapel × 0,5 Schaden und erlischt 3 s nach dem letzten Treffer (jeder Treffer frischt auf). Wer in der Flamme bleibt, brennt also immer heißer.

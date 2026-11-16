@@ -290,6 +290,16 @@ waves:
     toad:    { from: 7,  weight: 1.2 }
     sheep:   { from: 11, weight: 0.4 }
 
+weaponSlots:               # Waffen neben der Harke
+  max: 2                   # so viele Waffen sind gleichzeitig aktiv; weitere sind inaktiv (unsichtbar, aber weiter skillbar)
+  resumeDelay: 1.0         # s nach dem Tausch, bis das Spiel weiterläuft
+  equipShots: 3            # so oft "feuert" die neue Waffe beim Spieler ohne Wirkung
+  equipShotGap: 0.09       # s zwischen diesen Schüssen
+
+transitions:               # Pausieren / Weiterspielen (Level-up, Menü, Tausch …)
+  slow: 0.5                # s, in denen das Spiel bis zum Stillstand langsamer bzw. wieder schneller wird
+  uiFade: 0.25             # s Ein-/Ausblenden der Pause-Oberfläche
+
 hud:
   hat:                     # Leben = Strohhut, der angefressen wird
     colors:                # [Leben-Anteil, Farbe] – dazwischen wird gemischt

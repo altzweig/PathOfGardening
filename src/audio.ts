@@ -104,6 +104,12 @@ export const SND: Record<string, (arg?: any) => void> = {
   tongue() { if (can('tongue', .1)) tone({ f: 180, f2: 700, t: .12, vol: .08 }); },
   respawn() { if (can('resp', .3)) [392, 523, 659].forEach((f, i) => tone({ f, t: .35, vol: .08, when: i * .07 })); },
   cycle() { if (can('cycle', .05)) tone({ type: 'triangle', f: 880, f2: 1320, t: .07, vol: .06 }); },
+  /** soft "time slows down": muffled downward sweep + low airy whoosh */
+  pauseIn() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 520, f2: 260, t: .5, vol: .045, at: .06, filt: { type: 'lowpass', f: 1400 } }); noise({ t: .5, vol: .035, type: 'lowpass', f: 1600, f2: 260, at: .08 }); },
+  /** the reverse: gentle upward sweep as the game speeds up again */
+  pauseOut() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 260, f2: 520, t: .5, vol: .04, at: .12, filt: { type: 'lowpass', f: 1600 } }); noise({ t: .45, vol: .03, type: 'lowpass', f: 300, f2: 1800, at: .15 }); },
+  /** weapon swap: two soft clicks + a short rising chime */
+  swap() { if (!can('swap', .2)) return; noise({ t: .05, vol: .09, type: 'bandpass', f: 2400, q: 2 }); noise({ t: .05, vol: .08, type: 'bandpass', f: 1800, q: 2, when: .12 }); tone({ type: 'triangle', f: 660, f2: 990, t: .25, vol: .06, when: .1 }); },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }

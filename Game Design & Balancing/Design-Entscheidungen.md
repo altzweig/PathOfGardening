@@ -130,3 +130,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Attacke 3 „Regen“: 30 große Blaubeeren im 0,1-s-Takt, die Hälfte nahe beim Spieler; 0,5 s Zeit zum Ausweichen.
 - Bomben landen, leuchten als violett-blauer Kreis und explodieren (8 Schaden an Spielern, halb an Feldern). Besiegt lässt er 30 Blaubeeren fallen. Alle Werte unter `enemies.boss`.
 - Annahme: „Erstmal nur diesen“ = nur der Waschbär-Boss; die anderen Bosse kommen später.
+
+## Waffenslots und Tausch (16.11.2026)
+- Neben der Harke sind höchstens 2 Waffen aktiv (`weaponSlots.max`). Weitere freigeschaltete Waffen sind inaktiv und unsichtbar, können aber weiter über Level-up-Karten geskillt werden. Munition sammelt sich auch für inaktive Waffen.
+- Wird eine dritte Waffe freigeschaltet, zeigt die Waffenleiste alle inaktiven Waffen ausgegraut, die neue leuchtet. Die neue (oder jede andere inaktive) Waffe wird per Drag and drop (Maus oder Touch) auf eine aktive gezogen: Tausch-Animation, die neue Waffe erscheint beim Spieler und „feuert“ 3× ohne Wirkung, die alte wird ausgegraut, nach 1 s geht das Spiel weiter (`weaponSlots.resumeDelay`).
+- Annahme: Ein Häkchen-Knopf neben der Leiste behält die aktuellen Waffen (kein Tausch). Ein späterer Tausch ist nur beim nächsten Freischalten möglich.
+
+## Pause-Übergänge (16.11.2026)
+- Jede Pause (Level-up, Pausemenü, Testmenü, Tausch) und jedes Weiterspielen läuft weich: 0,5 s wird das Spiel langsamer bis zum Stillstand bzw. wieder schneller (`transitions.slow`), die Oberfläche blendet in 0,25 s ein/aus (`transitions.uiFade`).
+- Dazu dezente Sounds: absteigendes Rauschen beim Pausieren, aufsteigendes beim Weiterspielen (`ui.pauseIn` / `ui.pauseOut` in sounds.yaml), ein Klick-Klang beim Tausch (`ui.weaponSwap`).

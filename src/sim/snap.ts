@@ -19,6 +19,7 @@ export interface PSnap {
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
+  sl: number[]; sn: number; sh: 0 | 1; // active weapon slots (SKILLS index), weapon waiting for a swap (-1 none), swap done and holding
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
@@ -41,8 +42,8 @@ export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32,
 export type Ev = { k: string; [key: string]: any };
 
 export interface Snap {
-  t: number; ph: 'play' | 'lvl' | 'over'; lr: number; wv: number; wn: number; wp: 0 | 1; won: 0 | 1;
-  lv: number; xp: number; nx: number; ki: number; cx: number; n: number;
+  t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; wp: 0 | 1; won: 0 | 1;
+  lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss

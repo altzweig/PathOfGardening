@@ -147,7 +147,8 @@ export class GameView {
     const s = this.snap; const k = s && s.nx ? clamp(s.xp / s.nx, 0, 1) : 0;
     this.berryT += dt * (1.5 + k * k * 9);
     const pulse = .5 + .5 * Math.sin(this.berryT * Math.PI * 2);
-    GROUND_MAT.blue.emissiveIntensity = 1.1 + k * 1.6 + pulse * (.15 + k * k * 2.6);
+    // no glow normally; swells gently towards the next level-up (max ~.5, was ~5)
+    GROUND_MAT.blue.emissiveIntensity = k * k * .32 + pulse * k * k * k * .18;
   }
   private fieldKey = '';
   private frameId = 0;
@@ -445,7 +446,7 @@ export class GameView {
     // raked plants: their fruit lights up with the strength of the stroke there, then fades
     const oneB = v.bmats.length === 1, base = v.ftype === 'lemon' ? BUSH_MAT.lemon.emissiveIntensity : 0;
     for (let k = 0; k < 6; k++) v.bglow[k] = Math.max(0, v.bglow[k] - dt * 1.6);
-    v.bmats.forEach((m, i) => { const gl = oneB ? Math.max(...v.bglow) : v.bglow[i]; m.emissiveIntensity = base + gl * gl * 2.4; });
+    v.bmats.forEach((m, i) => { const gl = oneB ? Math.max(...v.bglow) : v.bglow[i]; m.emissiveIntensity = base + gl * gl * .55; });
     if (v.lava) { // lava breath: swells up quickly after a harvest, then sinks back slowly
       v.lavaT += dt; const t = v.lavaT, want = !v.alive ? 0 : t < .25 ? Math.sin(t / .25 * Math.PI / 2) : Math.exp(-(t - .25) * 2.2);
       v.lv = lerp(v.lv, want, Math.min(1, dt * 5));

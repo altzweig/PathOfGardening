@@ -2,7 +2,7 @@
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon } from '../config';
-import { Slot, cornerAngle, hexR, slotAt, slotFits, slotPositions } from '../sim/sim';
+import { Slot, cornerAngle, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -63,7 +63,7 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
+interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; combs: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -371,9 +371,9 @@ export class GameView {
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     if (type === 'nut') { const b = buildPlant(type, mats); b.g.rotation.y = rand(0, 7); plant.add(b.g); fruits.push(...b.fruits); } // one big tree in the middle
-    else for (let i = 0; i < 3; i++) { // three low clumps per bed
-      const a = i / 3 * Math.PI * 2 + .5, b = buildPlant(type, mats);
-      b.g.position.set(Math.cos(a) * H * .42, 0, Math.sin(a) * H * .42); b.g.scale.set(.72, .62, .72); b.g.rotation.y = rand(0, 7);
+    else for (let k = 0; k < 6; k++) { // one low plant per triangle of the hex (the rake works per triangle)
+      const b = buildPlant(type, mats), [px, pz] = triPlant(0, 0, H, k);
+      b.g.position.set(px, 0, pz); b.g.scale.set(.56, .5, .56); b.g.userData.sy = .5; b.g.rotation.y = rand(0, 7);
       plant.add(b.g); fruits.push(...b.fruits);
     }
     const pulse: THREE.Sprite[] = [];
@@ -386,7 +386,7 @@ export class GameView {
       lava = new THREE.Mesh(new THREE.CylinderGeometry(H * .9, H * .9, .002, 6), new THREE.MeshBasicMaterial({ map: lavaTex, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
@@ -425,25 +425,29 @@ export class GameView {
     v.plant.rotation.x = Math.sin(now * 9 + 1) * .04 * v.glow;
     // combed through: every clump is yanked and rattles out with a decaying wobble
     v.comb = Math.max(0, v.comb - dt * 2.2);
-    const cb = v.comb * v.comb;
+    for (let k = 0; k < 6; k++) v.combs[k] = Math.max(0, v.combs[k] - dt * 2.2);
+    const one = v.plant.children.length === 1; // nut tree: one tree for all 6 triangles
     v.plant.children.forEach((c, i) => {
+      const cv = Math.max(v.comb, one ? Math.max(...v.combs) : v.combs[i] || 0), cb = cv * cv;
       c.rotation.x = Math.sin(now * 31 + i * 2.1) * .28 * cb;
       c.rotation.z = Math.cos(now * 27 + i * 1.3) * .28 * cb;
-      c.scale.y = (v.ftype === 'nut' ? 1 : .62) * (1 - (v.ftype === 'nut' ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
+      c.scale.y = (c.userData.sy ?? 1) * (1 - (one ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
     });
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
-  private rakeStroke(slot: number, a: number) {
+  private rakeStroke(slot: number, a: number, mask: number) {
     const v = this.fields.get(slot); if (!v || !v.alive) return;
-    v.hit = Math.max(v.hit, .45 + .55 * a); v.comb = Math.max(v.comb, .5 + .5 * a);
+    v.hit = Math.max(v.hit, .45 + .55 * a);
+    const hitK: number[] = []; for (let k = 0; k < 6; k++) if (mask & (1 << k)) { v.combs[k] = 1; hitK.push(k); }
+    if (!hitK.length) return;
     play('rustle');
     decal(v.x, v.z, 0xfff0c0, hexR(this.cfg) * .3, .35, { ring: true, add: true, grow: hexR(this.cfg) * .95, op: .6 });
     const lm = leafMat(v.mats.leaf.color), clumps = v.plant.children;
-    // (the real harvest shaken loose by the stroke falls out of the bushes as normal fruit, see sim produce)
-    // leaves whirl up out of the clumps and flutter down
-    const n = Math.round((6 + rand(0, 4)) * (.35 + .65 * a));
+    // (the real harvest shaken loose by the stroke falls out of the raked plants as normal fruit, see sim produce)
+    // leaves whirl up out of the raked plants only and flutter down
+    const n = Math.max(2, Math.round(hitK.length * rand(2, 3)));
     for (let i = 0; i < n; i++) {
-      const c = clumps[i % clumps.length], p = c ? c.getWorldPosition(V()) : V(v.x, 0, v.z);
+      const k = hitK[i % hitK.length], c = clumps.length === 1 ? clumps[0] : clumps[k], p = c ? c.getWorldPosition(V()) : V(v.x, 0, v.z);
       const m = new THREE.Mesh(LEAF_GEO, lm); m.position.set(p.x + rand(-.25, .25), rand(.3, .6), p.z + rand(-.25, .25)); m.rotation.set(rand(0, 7), rand(0, 7), rand(0, 7)); this.dyn.add(m);
       const a = rand(0, 7), sp = rand(.6, 1.6);
       this.bits.push({ m, vx: Math.cos(a) * sp, vy: rand(1.6, 3), vz: Math.sin(a) * sp, t: 0, life: rand(1, 1.6), leaf: true, spin: rand(6, 14) * (Math.random() < .5 ? -1 : 1), s0: rand(.8, 1.4), landed: false });
@@ -556,7 +560,7 @@ export class GameView {
         if (!miss) for (const sg of sgs) { burst(V(sg[2], .42, sg[3]), 0xc8d8ff, 5, 1.6, .06, .18); decal(sg[2], sg[3], 0x9fb8ff, .12, .25, { ring: true, add: true, grow: .45, op: .3 }); }
         this.shake = Math.min(.2, this.shake + .02); break;
       }
-      case 'till': this.rakeStroke(e.s, e.a ?? 1); break;
+      case 'till': this.rakeStroke(e.s, e.a ?? 1, e.m ?? 63); break;
       case 'rustleTree': { // squirrel appears in the crown of a nut tree: leaves fall, the crown shakes
         for (const v of this.fields.values()) if (Math.hypot(v.x - e.x, v.z - e.z) < .5) { v.comb = Math.max(v.comb, .6); v.shake = Math.max(v.shake, .3); }
         for (let i = 0; i < 10; i++) { const a = rand(0, 7), r = rand(.3, 1.1); PART.spawn(V(e.x + Math.cos(a) * r, rand(2, 2.8), e.z + Math.sin(a) * r), V(rand(-.4, .4), rand(-.2, .3), rand(-.4, .4)), Math.random() < .5 ? 0x5a8a3a : 0x8aa840, rand(.06, .1), rand(.8, 1.4), { g: 1.5 }); }

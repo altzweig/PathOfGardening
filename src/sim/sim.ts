@@ -46,6 +46,8 @@ export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
 }
 /** corner k of a pointy-top hex; increasing k = clockwise as seen from the camera (top = -z) */
 export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
+/** plant position in triangle k of a hex (centre, corner k, corner k+1): its centroid */
+export const triPlant = (x: number, z: number, H: number, k: number): [number, number] => { const a = cornerAngle(k) + Math.PI / 6, r = H * .577; return [x + Math.cos(a) * r, z + Math.sin(a) * r]; };
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
 interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
@@ -240,8 +242,9 @@ export class Sim {
     };
     this.fruits.push(fr); return fr;
   }
-  /** harvest of a field; fromBush = shaken loose by the rake: falls out of one of the bushes instead of at the rim corner */
-  produce(f: Field, fromBush = false) {
+  /** harvest of a field; fromBush = area raked per triangle: the harvest is shaken loose and falls out of the plants
+   *  of the raked triangles (weighted by area) instead of at the rim corner */
+  produce(f: Field, fromBush: number[] | null = null) {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
     let n = (this.cfg.plants[f.type].amount || 1) * (Math.random() < dbl ? 2 : 1);
     if (f.type === 'lemon') this.emit({ k: 'lemonZap', s: f.slot }); // lightning jumps between the lemons
@@ -260,9 +263,11 @@ export class Sim {
         const [tx, tz] = this.clampArena(f.x + Math.cos(a) * d, f.z + Math.sin(a) * d); // never out of reach behind the forest edge
         this.spawnFruit(f.type, 0, f.x + Math.cos(a) * d * .5, 2.2, f.z + Math.sin(a) * d * .5, tx, tz, f.slot);
       }
-    } else if (fromBush) { // same clump layout as the view (3 clumps at 0.42 H)
+    } else if (fromBush) { // same plant layout as the view: one plant at the centroid of each triangle
+      const tot = fromBush.reduce((s, x) => s + x, 0);
       for (let i = 0; i < n; i++) {
-        const k = Math.floor(rand(0, 3)), ba = k / 3 * Math.PI * 2 + .5, bx = f.x + Math.cos(ba) * H * .42, bz = f.z + Math.sin(ba) * H * .42;
+        let r = rand(0, tot), k = 0; while (k < 5 && r > fromBush[k]) { r -= fromBush[k]; k++; }
+        const [bx, bz] = triPlant(f.x, f.z, H, k);
         const a = rand(0, Math.PI * 2), d = rand(.25, .7);
         this.spawnFruit(f.type, 0, bx + rand(-.2, .2), .75, bz + rand(-.2, .2), bx + Math.cos(a) * d, bz + Math.sin(a) * d, f.slot);
       }
@@ -469,13 +474,20 @@ export class Sim {
     const RS = this.rakeStats(p), L = RS.range, w = RS.width / 2, nx = -dz, nz = dx;
     return [[p.x + nx * w, p.z + nz * w], [p.x - nx * w, p.z - nz * w], [p.x - nx * w + dx * L, p.z - nz * w + dz * L], [p.x + nx * w + dx * L, p.z + nz * w + dz * L]];
   }
-  /** area of the rake rectangle lying on a hex field (hex clipped by the 4 rectangle edges, Sutherland-Hodgman + shoelace) */
-  rakeOverlap(f: Field, p: Player, dx: number, dz: number) {
-    const RS = this.rakeStats(p), H = hexR(this.cfg);
-    if (Math.hypot(f.x - p.x, f.z - p.z) > RS.range + RS.width + H) return 0;
-    // hex corners in rake space: u along the pull (0..range), v across (-w/2..w/2)
-    let poly: [number, number][] = [];
-    for (let k = 0; k < 6; k++) { const a = cornerAngle(k), x = f.x + Math.cos(a) * H - p.x, z = f.z + Math.sin(a) * H - p.z; poly.push([x * dx + z * dz, x * dz - z * dx]); }
+  /** area of the rake rectangle on each of the 6 triangles of a hex field (triangle k: centre, corner k, corner k+1;
+   *  one plant stands in each). Each triangle is clipped by the 4 rectangle edges (Sutherland-Hodgman + shoelace). */
+  rakeOverlap(f: Field, p: Player, dx: number, dz: number): number[] {
+    const RS = this.rakeStats(p), H = hexR(this.cfg), out = [0, 0, 0, 0, 0, 0];
+    if (Math.hypot(f.x - p.x, f.z - p.z) > RS.range + RS.width + H) return out;
+    // points in rake space: u along the pull (0..range), v across (-w/2..w/2)
+    const toR = (x: number, z: number): [number, number] => { x -= p.x; z -= p.z; return [x * dx + z * dz, x * dz - z * dx]; };
+    const c = toR(f.x, f.z), cs: [number, number][] = [];
+    for (let k = 0; k < 6; k++) { const a = cornerAngle(k); cs.push(toR(f.x + Math.cos(a) * H, f.z + Math.sin(a) * H)); }
+    for (let k = 0; k < 6; k++) out[k] = this.clipArea([c, cs[k], cs[(k + 1) % 6]], RS.range, RS.width);
+    return out;
+  }
+  private clipArea(tri: [number, number][], L: number, W: number) {
+    let poly = tri;
     const clip = (pl: [number, number][], ax: 0 | 1, lim: number, keepBelow: boolean) => {
       const out: [number, number][] = [], inside = (q: [number, number]) => keepBelow ? q[ax] <= lim : q[ax] >= lim;
       for (let i = 0; i < pl.length; i++) {
@@ -485,7 +497,7 @@ export class Sim {
       }
       return out;
     };
-    poly = clip(poly, 0, 0, false); poly = clip(poly, 0, RS.range, true); poly = clip(poly, 1, -RS.width / 2, false); poly = clip(poly, 1, RS.width / 2, true);
+    poly = clip(poly, 0, 0, false); poly = clip(poly, 0, L, true); poly = clip(poly, 1, -W / 2, false); poly = clip(poly, 1, W / 2, true);
     let A = 0; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; A += a[0] * b[1] - b[0] * a[1]; }
     return Math.abs(A) / 2;
   }
@@ -515,13 +527,15 @@ export class Sim {
     let best: Field | null = null, bestA = 0, any = false;
     for (const f of this.fields) {
       if (!f.alive) continue;
-      const A = this.rakeOverlap(f, p, dx, dz); if (A < .01) continue;
+      const tri = this.rakeOverlap(f, p, dx, dz), A = tri.reduce((s, x) => s + x, 0); if (A < .01) continue;
       any = true;
       if (A > bestA) { bestA = A; best = f; }
       f.tilledT = F.tillDuration; f.shake = Math.max(f.shake, .2);
       f.t -= F.tillStroke * (A / A0) * this.prodMult(f);
-      while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, true); }
-      this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)) }); // view: field flash, plant combed, leaves whirl, rustle
+      while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, tri); }
+      // view: field flash; only the plants of the raked triangles wobble and shed leaves (bit mask m), rustle
+      let m = 0; tri.forEach((x, k) => { if (x > .01) m |= 1 << k; });
+      this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)), m });
     }
     if (!any) return;
     // healing (Feldpflege) goes through the field covered most: one field per player

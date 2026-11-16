@@ -115,7 +115,7 @@ fields:
   # Die 3 Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
-  tillStroke: 1.0          # s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
+  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
                            # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
@@ -136,13 +136,13 @@ fruit:
   cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
 
 plants:
-  blue: { interval: 1 }                 # 1 Frucht alle x s
-  asp:  { interval: 2, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 1, unlockAt: 0, amount: 4 }   # 3x Ertrag
-  cab:  { interval: 3, unlockAt: 0 }
-  lemon: { interval: 2, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 0.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 0,5 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 4, amount: 1, minLevel: 5, dropRadius: [0.6, 1.8], magnet: false }
+  blue: { interval: 2 }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  asp:  { interval: 4, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  cran: { interval: 2, unlockAt: 0, amount: 4 }   # 3x Ertrag
+  cab:  { interval: 6, unlockAt: 0 }
+  lemon: { interval: 4, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
+  chili: { interval: 1, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 1 s, wie das Zitronenbäumchen erst ab Level 10
+  nut:  { interval: 8, amount: 1, minLevel: 5, dropRadius: [0.6, 1.8], magnet: false }
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 4 s, fällt aus der Krone 0,6-1,8 m um den Stamm.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 

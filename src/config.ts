@@ -62,7 +62,7 @@ export interface Balancing {
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };
       carousel: { duration: number; every: number; trails: number; count: number; spacing: number };
       rain: { count: number; interval: number; warn: number; radius: number } } } & Record<EnemyType, EnemyCfg>;
-  weaponSlots?: { max: number; resumeDelay: number; equipShots: number; equipShotGap: number };
+  weaponSlots?: { max: number };
   transitions?: { slow: number; uiFade: number };
   hud: {
     hat: { colors: [number, string][]; crownShare: number; blinkBelow: number; pulseBelow: number; vignetteBelow: number; vignetteStrength: number };

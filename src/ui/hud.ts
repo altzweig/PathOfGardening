@@ -73,18 +73,13 @@ export class Hud {
     // weapons
     const active = WEAPONS[pr.ac];
     for (const w of WEAPONS) this.btn[w].classList.toggle('active', w === active);
-    // only the slotted weapons are shown; while a new weapon waits for a slot, the inactive ones appear greyed out
+    // learned weapons fill the positions around the rake in the order they were learned
     const slots = (pr.sl || []).map(i => SKILLS[i]);
-    const swapping = s.ph === 'lvl' && (pr.sn >= 0 || !!pr.sh);
-    const inactive = SKILLS.filter((id, i) => pr.ln[i] && !slots.includes(id));
-    $('#hud').classList.toggle('swapping', s.ph === 'lvl' && pr.sn >= 0);
-    ($('#swapKeep')).hidden = !(s.ph === 'lvl' && pr.sn >= 0);
     SKILLS.forEach((id, i) => {
       const b = this.btn[id]; const slot = slots.indexOf(id);
-      const pos = slot >= 0 ? slot : swapping && pr.ln[i] ? slots.length + inactive.indexOf(id) : -1;
+      const pos = pr.ln[i] ? slot : -1;
       b.hidden = pos < 0; if (pos < 0) { this.wasReady[id] = false; return; }
       if (b.dataset.pos !== String(pos)) b.dataset.pos = String(pos);
-      b.classList.toggle('off', slot < 0); b.classList.toggle('new', pr.sn === i);
       const ready = slot >= 0 && pr.am[i] >= pr.nd[i], usable = slot >= 0 && pr.am[i] >= pr.co[i] && (ready || active === id);
       b.classList.toggle('grey', !usable); b.classList.toggle('ready', ready);
       if (ready && !this.wasReady[id] && s.ph === 'play') { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); sfx('ui.weaponReady'); setTimeout(() => b.classList.remove('pulse'), 1500); }
@@ -94,51 +89,6 @@ export class Hud {
     });
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
   }
-}
-
-/** swap phase: drag a greyed-out weapon (mouse or touch) onto an active one */
-export class SwapDrag {
-  onSwap: (inW: SkillId, outW: SkillId) => void = () => {};
-  private d: { id: number; w: SkillId; src: HTMLElement; g: HTMLElement; ox: number; oy: number; size: number; tgt: HTMLElement | null } | null = null;
-  constructor() {
-    $('#btns').addEventListener('pointerdown', e => {
-      if (this.d || !$('#hud').classList.contains('swapping')) return;
-      const b = (e.target as HTMLElement).closest('.skill.off') as HTMLElement | null; if (!b) return;
-      e.preventDefault(); e.stopPropagation();
-      const r = b.getBoundingClientRect(), g = document.createElement('div');
-      g.className = 'skill swapGhost'; g.dataset.skill = b.dataset.skill; g.innerHTML = `<div class="face">${skillIcon(b.dataset.skill!)}</div>`;
-      g.style.width = g.style.height = r.width + 'px';
-      document.body.appendChild(g);
-      this.d = { id: e.pointerId, w: b.dataset.skill as SkillId, src: b, g, ox: r.left + r.width / 2, oy: r.top + r.height / 2, size: r.width, tgt: null };
-      this.place(e.clientX, e.clientY); b.classList.add('lifted'); sfx('ui.hover');
-    });
-    addEventListener('pointermove', e => { if (this.d && e.pointerId === this.d.id) { e.preventDefault(); this.place(e.clientX, e.clientY); } }, { passive: false });
-    const end = (e: PointerEvent) => { if (this.d && e.pointerId === this.d.id) this.drop(); };
-    addEventListener('pointerup', end); addEventListener('pointercancel', end);
-  }
-  private place(x: number, y: number) {
-    const d = this.d!; d.g.style.transform = `translate(${x - d.size / 2}px,${y - d.size / 2}px) scale(1.1)`;
-    let best: HTMLElement | null = null, bd = 1e9;
-    document.querySelectorAll<HTMLElement>('#btns .skill:not(.off):not([hidden]):not([data-skill=rake])').forEach(el => {
-      const r = el.getBoundingClientRect(), dist = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
-      if (dist < r.width * .5 + 34 && dist < bd) { bd = dist; best = el; }
-    });
-    if (best !== d.tgt) { d.tgt?.classList.remove('target'); d.tgt = best; (best as HTMLElement | null)?.classList.add('target'); }
-  }
-  private drop() {
-    const d = this.d!; this.d = null; d.tgt?.classList.remove('target');
-    const fly = (x: number, y: number, done: () => void) => {
-      d.g.classList.add('flying'); d.g.style.transform = `translate(${x - d.size / 2}px,${y - d.size / 2}px) scale(1)`;
-      setTimeout(() => { d.g.remove(); done(); }, 220);
-    };
-    if (d.tgt) {
-      const r = d.tgt.getBoundingClientRect(), out = d.tgt.dataset.skill as SkillId;
-      sfx('ui.weaponSwap'); d.g.classList.add('landing');
-      fly(r.left + r.width / 2, r.top + r.height / 2, () => d.src.classList.remove('lifted'));
-      this.onSwap(d.w, out);
-    } else fly(d.ox, d.oy, () => d.src.classList.remove('lifted'));
-  }
-  cancel() { if (!this.d) return; this.d.g.remove(); this.d.src.classList.remove('lifted'); this.d.tgt?.classList.remove('target'); this.d = null; }
 }
 
 export function cardEl(o: Offer) {

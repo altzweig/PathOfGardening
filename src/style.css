@@ -58,35 +58,12 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-skill=cab]{--glow:#b8f070}
 .skill[data-skill=lemon]{--glow:#ffe44a}
 .skill[data-skill=chili]{--glow:#ff6a2a}
-/* weapon slots (besides the rake): 0,1 active; 2,3 inactive ones shown while swapping */
+/* weapon positions around the rake, in the order the weapons were learned */
 .skill[data-pos="0"]{right:155px;bottom:37px}
 .skill[data-pos="1"]{right:120px;bottom:120px}
 .skill[data-pos="2"]{right:37px;bottom:155px}
 .skill[data-pos="3"]{right:172px;bottom:170px}
-.skill.off .face{filter:grayscale(1) brightness(.45);border-style:dashed}
-.skill.off .charge,.skill.off .ammo{opacity:.35}
-#hud.swapping .skill.off{pointer-events:auto;cursor:grab;opacity:1}
-#hud.swapping .skill.new .face{filter:none;border-style:solid;border-color:var(--glow);box-shadow:0 0 18px 4px var(--glow)}
-#hud.swapping .skill.new{animation:nudge 1.1s ease-in-out infinite}
-#hud.swapping .skill:not(.off):not([data-skill=rake])::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px dashed #ffffff55;animation:spin 6s linear infinite;pointer-events:none}
-#hud.swapping .skill.target{transform:scale(1.18)}
-#hud.swapping .skill.target::after{border-color:var(--gold);border-style:solid;box-shadow:0 0 18px var(--gold)}
-#hud.swapping .skill.lifted{opacity:.25;animation:none}
-.swapGhost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;--cd:0}
-.swapGhost .face{box-shadow:0 0 22px 6px var(--glow);border-color:var(--glow)}
-.swapGhost.flying{transition:transform .2s ease-out,opacity .2s}
-.swapGhost.landing{opacity:0}
-@keyframes nudge{0%,100%{transform:translate(0,0)}50%{transform:translate(-6px,7px) scale(1.06)}}
-@keyframes spin{to{transform:rotate(360deg)}}
-.swapKeep{position:absolute;pointer-events:auto;right:calc(env(safe-area-inset-right,0px) + 260px);bottom:calc(env(safe-area-inset-bottom,0px) + 40px);width:56px;height:56px;border-radius:50%;border:2px solid var(--gold-dim);background:radial-gradient(circle at 40% 30%,#3a434c,#12181e 75%);display:grid;place-items:center;cursor:pointer;touch-action:none;padding:0}
-.swapKeep svg{width:56%;height:56%}
-/* the new weapon pops up above the player after a swap */
-.equipPop{position:absolute;left:0;top:0;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,#2a333cdd,#0c1014cc 70%);border:2px solid var(--glow,#e3b964);box-shadow:0 0 22px 4px var(--glow,#e3b964);pointer-events:none}
-.equipPop svg{width:66%;height:66%;animation:equipIn 1.6s ease-out forwards}
-.equipPop{animation:equipFade 1.6s ease-out forwards}
-.equipPop[data-skill=asp]{--glow:#8fe36a}.equipPop[data-skill=cran]{--glow:#ff4d5e}.equipPop[data-skill=cab]{--glow:#b8f070}.equipPop[data-skill=lemon]{--glow:#ffe44a}.equipPop[data-skill=chili]{--glow:#ff6a2a}
-@keyframes equipIn{0%{transform:scale(.2)}18%{transform:scale(1.25)}30%,100%{transform:scale(1)}}
-@keyframes equipFade{0%{opacity:0}12%,75%{opacity:1}100%{opacity:0}}
+.skill[data-pos="4"]{right:240px;bottom:100px}
 /* PC: buttons only show state, the active weapon is marked */
 body[data-input=pc] .skill{pointer-events:none}
 body[data-input=pc] .skill.active{transform:scale(1.12)}

@@ -44,7 +44,7 @@ export interface Player {
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null;
-  slots: SkillId[]; swapNew: SkillId | null; swapHold: number; // active weapons besides the rake; weapon waiting for a free slot; s until the game resumes after a swap
+  slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; arc: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
   xbT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
@@ -123,7 +123,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], swapNew: null, swapHold: 0, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, arc: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, arc: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0,
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -262,7 +262,6 @@ export class Sim {
     p.taken[key] = (p.taken[key] || 0) + 1;
     this.applyOffer(p, key);
     if (p.placing) return; // field card: player now chooses where to build (see place())
-    if (p.swapNew) return;  // weapon card with all slots taken: player drags it onto an active weapon (see swap())
     p.picked = true;
     this.checkAllPicked();
   }
@@ -307,27 +306,12 @@ export class Sim {
     return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range + U.rakeRange.step * p.rakeLv.rng, arc: R.arc + (U.rakeArc?.step ?? 0) * (p.rakeLv.arc || 0), kb: R.knockback, cd: R.cooldown * Math.pow(1 - (U.rakeSpeed?.step ?? 0), p.rakeLv.cd || 0) };
   }
   /** can fire whenever there is ammo for one shot ("ready" is only the HUD/weapon-cycle threshold) */
-  get maxSlots() { return this.cfg.weaponSlots?.max ?? 2; }
-  equipped(p: Player, id: SkillId) { return p.skills[id].learned && p.slots.includes(id); }
-  /** newly learned weapon: into a free slot, otherwise the player decides on a swap */
-  private learn(p: Player, id: SkillId) {
-    p.skills[id].learned = true;
-    if (p.slots.includes(id)) return;
-    if (p.slots.length < this.maxSlots) p.slots.push(id); else p.swapNew = id;
-  }
-  /** swap phase: weapon `inW` (inactive) replaces active `outW`; inW null = keep the current weapons */
-  swap(id: number, inW: SkillId | null, outW: SkillId | null) {
-    const p = this.player(id); if (!p || this.phase !== 'lvl' || !p.swapNew || p.swapHold > 0) return;
-    if ((inW && !SKILLS.includes(inW)) || (outW && !SKILLS.includes(outW))) return;
-    if (inW && outW) {
-      const i = p.slots.indexOf(outW);
-      if (i < 0 || !p.skills[inW].learned || p.slots.includes(inW)) return;
-      p.slots[i] = inW; if (p.active === outW) p.active = 'rake';
-      p.skills[outW].firing = false;
-      this.emit({ k: 'equip', p: p.id, w: inW, o: outW });
-      p.swapNew = null; p.swapHold = this.cfg.weaponSlots?.resumeDelay ?? 1;
-    } else { p.swapNew = null; p.picked = true; this.checkAllPicked(); }
-  }
+  /** at most weaponSlots.max weapons besides the rake; once reached, no other weapons, their fields or upgrades are offered */
+  get maxWeapons() { return this.cfg.weaponSlots?.max ?? 3; }
+  equipped(p: Player, id: SkillId) { return p.skills[id].learned; }
+  private learn(p: Player, id: SkillId) { p.skills[id].learned = true; if (!p.slots.includes(id)) p.slots.push(id); }
+  /** fruit type whose weapon this player can no longer take (weapon limit reached) */
+  private closedType(p: Player, t: FruitType) { return t !== 'blue' && !p.skills[t as SkillId].learned && SKILLS.filter(id => p.skills[id].learned).length >= this.maxWeapons; }
   canFire(p: Player, id: SkillId) {
     const s = p.skills[id]; if (!this.equipped(p, id)) return false;
     return p.ammo[id] >= this.stats(id, s).cost;
@@ -1059,8 +1043,6 @@ export class Sim {
 
   // ---------- main update ----------
   update(rdt: number) {
-    // swap done: hold the pause a moment so the new weapon can be seen, then continue
-    if (this.phase === 'lvl') for (const p of this.players) if (p.swapHold > 0) { p.swapHold -= rdt; if (p.swapHold <= 0) { p.swapHold = 0; p.picked = true; this.checkAllPicked(); } }
     // pauses are eased: the game slows to a stop / speeds up again instead of jumping
     const want = this.phase === 'play' && !this.paused ? 1 : 0, T = Math.max(.01, this.cfg.transitions?.slow ?? .5);
     this.ramp = want ? Math.min(1, this.ramp + rdt / T) : Math.max(0, this.ramp - rdt / T);
@@ -1191,7 +1173,7 @@ export class Sim {
     const nf = (n: number, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
     for (const id of SKILLS) {
       const s = p.skills[id];
-      if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
+      if (this.fieldOf(id) && !s.learned && !this.closedType(p, id) && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
         // weapon unlock card: every stat as an icon chip, special effect named briefly
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
@@ -1203,6 +1185,7 @@ export class Sim {
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
     const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
+      if (this.closedType(p, id)) continue;
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];
       if (id !== 'blue' && !p.skills[id as SkillId].learned) lines.push(`Unlock: ${N.skills[id]}`);
       const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };
@@ -1253,7 +1236,7 @@ export class Sim {
       nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', RL.cd, U.rakeSpeed.maxLevel, `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
     // field care: tilling heals the tilled field
     if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; fieldPool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
-    for (const f of FRUITS) if (this.fieldOf(f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
+    for (const f of FRUITS) if (this.fieldOf(f) && !this.closedType(p, f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
       const lv = this.yieldLv[f], st = U.doubleHarvest.step;
       fieldPool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
     }
@@ -1331,7 +1314,7 @@ export class Sim {
       me[p.id] = {
         am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
-        ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), sn: p.swapNew ? SKILLS.indexOf(p.swapNew) : -1, sh: p.swapHold > 0 ? 1 : 0, rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
+        ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1,
       };
     }

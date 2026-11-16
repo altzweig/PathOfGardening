@@ -386,12 +386,9 @@ waves:
     sheep:   { from: 21, weight: 0.4 }
 
 weaponSlots:               # Waffen neben der Harke
-  max: 2                   # so viele Waffen sind gleichzeitig aktiv; weitere sind inaktiv (unsichtbar, aber weiter skillbar)
-  resumeDelay: 1.0         # s nach dem Tausch, bis das Spiel weiterläuft
-  equipShots: 3            # so oft "feuert" die neue Waffe beim Spieler ohne Wirkung
-  equipShotGap: 0.09       # s zwischen diesen Schüssen
+  max: 3                   # höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
 
-transitions:               # Pausieren / Weiterspielen (Level-up, Menü, Tausch …)
+transitions:               # Pausieren / Weiterspielen (Level-up, Menü …)
   slow: 0.5                # s, in denen das Spiel bis zum Stillstand langsamer bzw. wieder schneller wird
   uiFade: 0.25             # s Ein-/Ausblenden der Pause-Oberfläche
 

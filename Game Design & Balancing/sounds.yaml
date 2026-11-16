@@ -105,7 +105,6 @@ ui:
   gameOver:    { files: [game_over], vol: 0.6 }
   pauseIn:     { synth: pauseIn }                                               # Spiel wird langsamer bis zur Pause (Level-up, Menü)
   pauseOut:    { synth: pauseOut }                                              # Spiel läuft wieder an
-  weaponSwap:  { synth: swap }                                                  # neue Waffe auf aktive Waffe gezogen
 
 collect:
   xp:    { files: [collect_xp_1, collect_xp_2, collect_xp_3, collect_xp_4], vol: 0.14, pitch: [0.68, 0.68], rising: true, lp: 1600 }    # Blaubeeren

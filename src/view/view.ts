@@ -77,8 +77,6 @@ export class GameView {
   private aggro: THREE.Mesh;
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
-  /** weapon swap: the new weapon appears at the player and fires a few dry shots */
-  private equips: { p: number; w: SkillId; t: number; n: number; el: HTMLElement; life: number }[] = [];
   private shake = 0;
   private bits: Bit[] = [];
   hurtT = 0;
@@ -184,7 +182,6 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
-    for (const q of this.equips) q.el.remove(); this.equips.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
     stopAllLoops(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
@@ -407,12 +404,6 @@ export class GameView {
   private event(e: Ev) {
     switch (e.k) {
       case 'snd': play(e.n); break;
-      case 'equip': {
-        const el = document.createElement('div'); el.className = 'equipPop'; el.dataset.skill = e.w; el.innerHTML = skillIcon(e.w);
-        this.dmgLayer.appendChild(el);
-        this.equips.push({ p: e.p, w: e.w, t: .3, n: this.cfg.weaponSlots?.equipShots ?? 3, el, life: 0 });
-        break;
-      }
       case 'sfx': sfx(e.s, e.x, e.z); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
@@ -528,7 +519,6 @@ export class GameView {
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
-    this.updateEquips(dt);
     this.updateOverlay();
     this.updateAim();
     updateEyes(dt); updateFog(dt); updateTorches(dt);
@@ -732,21 +722,6 @@ export class GameView {
     torch.position.set(tx, 3, tz + .6); setListener(tx, tz);
     this.aggro.position.set(tx, .03, tz); this.aggro.visible = !!(me && me.s.al);
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
-  }
-  private updateEquips(dt: number) {
-    for (let i = this.equips.length - 1; i >= 0; i--) {
-      const q = this.equips[i], v = this.players.get(q.p); q.life += dt;
-      if (!v || q.life > 1.6) { q.el.remove(); this.equips.splice(i, 1); continue; }
-      const sp = V(v.x, 1.9, v.z).project(camera);
-      q.el.style.transform = `translate(${(sp.x * .5 + .5) * innerWidth}px,${(-sp.y * .5 + .5) * innerHeight}px) translate(-50%,-100%)`;
-      q.t -= dt;
-      if (q.n > 0 && q.t <= 0) { // dry shot: muzzle flash + recoil + sound, no projectile
-        q.n--; q.t = this.cfg.weaponSlots?.equipShotGap ?? .09;
-        const a = v.rot, x = v.x + Math.sin(a) * .35, z = v.z + Math.cos(a) * .35;
-        this.event({ k: 'shot', p: q.p, w: q.w, x, z, a });
-        if (q.w === 'asp') play('asp'); else if (q.w === 'cran') play('shot'); else if (q.w === 'cab') play('throw'); else if (q.w === 'chili') sfx('weapons.chiliStart', v.x, v.z); else sfx('weapons.lemon', v.x, v.z);
-      }
-    }
   }
   /** screen position (px) of a point above the local player's head, or null */
   playerScreen(): { x: number; y: number } | null {

@@ -1,11 +1,11 @@
 import './style.css';
-import { Balancing, FRUITS, SkillId, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
+import { Balancing, FRUITS, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
 import { Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
 import { applyQuality, gfx, isTouch } from './view/core';
 import { Input } from './input/input';
-import { Hud, PLAYER_CSS, SwapDrag, cardEl } from './ui/hud';
+import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { mini, pic } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
@@ -28,7 +28,6 @@ class Game {
   view = new GameView();
   input: Input;
   hud = new Hud();
-  swapDrag = new SwapDrag();
   private frozen = false; // pause / level-up state, for the slow-down + speed-up sounds
   me = 0;
   private netAcc = 0; private inAcc = 0; private netEvents: Ev[] = [];
@@ -111,14 +110,8 @@ class Game {
       if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
       sfx('ui.confirm');
     });
-    // weapon swap: drag a greyed weapon onto an active one, or keep the current ones
-    this.swapDrag.onSwap = (a, b) => this.sendSwap(a, b);
-    $('#swapKeep').addEventListener('click', () => { sfx('ui.click'); this.swapDrag.cancel(); this.sendSwap(null, null); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
-  }
-  private sendSwap(a: SkillId | null, b: SkillId | null) {
-    if (this.mode === 'client') this.client?.send({ t: 'swap', a, b }); else this.sim?.swap(this.me, a, b);
   }
   private updateOptLabels() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
@@ -153,7 +146,6 @@ class Game {
     h.onIntent = (id, it) => this.sim?.setIntent(id, it);
     h.onPick = (id, key) => this.sim?.pick(id, key);
     h.onPlace = (id, slot) => this.sim?.place(id, slot);
-    h.onSwap = (id, a, b) => this.sim?.swap(id, a as SkillId | null, b as SkillId | null);
     h.onJoin = p => { if (this.mode === 'host' && this.sim) this.sim.addPlayer(p.id, p.color); };
     h.onLeave = id => { if (this.mode === 'host' && this.sim) this.sim.removePlayer(id); };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');
@@ -270,9 +262,6 @@ class Game {
       return;
     }
     this.placeShown = null;
-    // weapon card with all slots taken: cards go away, the weapon bar shows every weapon for drag and drop
-    if (s.ph === 'lvl' && pr && (pr.sn >= 0 || pr.sh)) { show('#levelup', false); return; }
-    if (s.ph !== 'lvl') this.swapDrag.cancel();
     if (s.ph === 'lvl' && pr?.of) {
       if (!pr.pk && $('#levelup').hidden && this.luShownFor) this.luShownFor = ''; // came back from build mode with another level pending
       const key = s.lr + ':' + pr.of.map(o => o.key).join(',');

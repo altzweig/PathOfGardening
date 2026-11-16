@@ -95,7 +95,7 @@ plants:
   blue: { interval: 1 }                 # 1 Frucht alle x s
   asp:  { interval: 4, unlockAt: 15, amount: 3 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
   cran: { interval: 1, unlockAt: 60, amount: 3 }   # 3x Ertrag
-  cab:  { interval: 8, unlockAt: 8 }
+  cab:  { interval: 3.2, unlockAt: 8 }   # Produktion x2,5 (vorher interval 8)
   lemon: { interval: 3, unlockAt: 10, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
 
 rake:

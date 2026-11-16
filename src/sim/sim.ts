@@ -57,7 +57,7 @@ export interface Player {
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
-  fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; arc: number; cd: number };
+  fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; wid: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
   xbT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
   /** collected nuts (nut trees in the forest) */
@@ -139,7 +139,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, arc: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, wid: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -352,7 +352,7 @@ export class Sim {
   /** rake stats per player (rake upgrades) */
   rakeStats(p: Player) {
     const R = this.cfg.rake, U = this.cfg.upgrades;
-    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range + U.rakeRange.step * p.rakeLv.rng, arc: R.arc + (U.rakeArc?.step ?? 0) * (p.rakeLv.arc || 0), kb: R.knockback, cd: R.cooldown * Math.pow(1 - (U.rakeSpeed?.step ?? 0), p.rakeLv.cd || 0) };
+    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range + U.rakeRange.step * p.rakeLv.rng, width: R.width + (U.rakeWidth?.step ?? 0) * (p.rakeLv.wid || 0), kb: R.knockback, cd: R.cooldown * Math.pow(1 - (U.rakeSpeed?.step ?? 0), p.rakeLv.cd || 0) };
   }
   /** can fire whenever there is ammo for one shot ("ready" is only the HUD/weapon-cycle threshold) */
   /** at most weaponSlots.max weapons besides the rake; once reached, no other weapons, their fields or upgrades are offered */
@@ -458,26 +458,48 @@ export class Sim {
     if (n) { const dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; }
     return [p.aimX, p.aimZ];
   }
-  private inRakeCone(p: Player, e: Enemy, dx: number, dz: number) {
-    const RS = this.rakeStats(p), arc = RS.arc * Math.PI / 180, range = RS.range;
-    const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez);
-    if (d > range + e.r * .5) return false;
-    const da = Math.acos(clamp((ex * dx + ez * dz) / (d || 1), -1, 1));
-    return d < e.r + .2 || da <= arc / 2 + Math.atan2(e.r, Math.max(d, .01)) * .5;
+  /** the rake is laid down `range` m ahead and pulled back to the feet: it sweeps a rectangle (length range, width width) */
+  private inRakeRect(p: Player, e: Enemy, dx: number, dz: number) {
+    const RS = this.rakeStats(p), ex = e.x - p.x, ez = e.z - p.z;
+    const u = ex * dx + ez * dz, v = ex * dz - ez * dx; // along / across the pull
+    return u >= -e.r && u <= RS.range + e.r * .5 && Math.abs(v) <= RS.width / 2 + e.r * .5;
+  }
+  /** rake rectangle in world space (counter-clockwise): near edge at the player, far edge `range` ahead */
+  rakeRect(p: Player, dx: number, dz: number): [number, number][] {
+    const RS = this.rakeStats(p), L = RS.range, w = RS.width / 2, nx = -dz, nz = dx;
+    return [[p.x + nx * w, p.z + nz * w], [p.x - nx * w, p.z - nz * w], [p.x - nx * w + dx * L, p.z - nz * w + dz * L], [p.x + nx * w + dx * L, p.z + nz * w + dz * L]];
+  }
+  /** area of the rake rectangle lying on a hex field (hex clipped by the 4 rectangle edges, Sutherland-Hodgman + shoelace) */
+  rakeOverlap(f: Field, p: Player, dx: number, dz: number) {
+    const RS = this.rakeStats(p), H = hexR(this.cfg);
+    if (Math.hypot(f.x - p.x, f.z - p.z) > RS.range + RS.width + H) return 0;
+    // hex corners in rake space: u along the pull (0..range), v across (-w/2..w/2)
+    let poly: [number, number][] = [];
+    for (let k = 0; k < 6; k++) { const a = cornerAngle(k), x = f.x + Math.cos(a) * H - p.x, z = f.z + Math.sin(a) * H - p.z; poly.push([x * dx + z * dz, x * dz - z * dx]); }
+    const clip = (pl: [number, number][], ax: 0 | 1, lim: number, keepBelow: boolean) => {
+      const out: [number, number][] = [], inside = (q: [number, number]) => keepBelow ? q[ax] <= lim : q[ax] >= lim;
+      for (let i = 0; i < pl.length; i++) {
+        const a = pl[i], b = pl[(i + 1) % pl.length], ia = inside(a), ib = inside(b);
+        if (ia) out.push(a);
+        if (ia !== ib) { const t = (lim - a[ax]) / (b[ax] - a[ax]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+      }
+      return out;
+    };
+    poly = clip(poly, 0, 0, false); poly = clip(poly, 0, RS.range, true); poly = clip(poly, 1, -RS.width / 2, false); poly = clip(poly, 1, RS.width / 2, true);
+    let A = 0; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; A += a[0] * b[1] - b[0] * a[1]; }
+    return Math.abs(A) / 2;
   }
   rakeAttack(p: Player, dx: number, dz: number) {
     const R = this.cfg.rake;
     p.rakeCd = this.rakeStats(p).cd; p.aimX = dx; p.aimZ = dz; p.face = Math.atan2(dx, dz);
-    // no enemy in the cone but standing on a field: till the field under the player instead of swinging
-    const targets = this.enemies.filter(e => !e.dead && this.inRakeCone(p, e, dx, dz));
-    if (!targets.length) {
-      const f = this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z));
-      if (f && f.alive) { this.till(p, f); return; }
-    }
+    // one stroke = lay the rake down `range` m ahead and pull it back: hits every enemy in the rectangle
+    // and tills every field it covers (in proportion to the covered area)
+    const targets = this.enemies.filter(e => !e.dead && this.inRakeRect(p, e, dx, dz));
     p.swing = R.swingTime; p.swingDir = p.face;
     this.snd('rake');
     const RS = this.rakeStats(p);
-    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id, r: r2(RS.range), c: r2(RS.arc) });
+    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id, r: r2(RS.range), w: r2(RS.width) });
+    this.till(p, dx, dz);
     let hits = 0;
     for (const e of targets) if (this.hurtEnemy(e, RS.dmg, { color: 'r', punch: true })) {
       hits++;
@@ -485,19 +507,29 @@ export class Sim {
     }
     if (hits) this.emit({ k: 'punches', n: hits, x: r2(p.x), z: r2(p.z) });
   }
-  /** tilling: the field produces faster for a moment; each player tills only one field at a time */
-  till(p: Player, f: Field) {
-    const F = this.cfg.fields;
-    for (const o of this.fields) if (o !== f && o.tilledBy === p.id) { o.tilledT = 0; o.tilledBy = -1; }
-    f.tilledT = F.tillDuration; f.tilledBy = p.id; f.shake = Math.max(f.shake, .2);
-    // every stroke advances the harvest by tillStroke s: raking alone harvests every (interval x rake cooldown),
-    // so a faster rake also means more yield. A harvest completed by a stroke falls out of the bushes.
-    f.t -= F.tillStroke * this.prodMult(f);
-    while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, true); }
-    p.tillT = this.cfg.rake.swingTime * 1.6;
-    this.sfx('player.till', f.x, f.z);
-    this.emit({ k: 'till', s: f.slot, x: r2(p.x), z: r2(p.z) }); // view: field flash, plant combed, fruit + leaves fall, rustle
-    this.burst(p.x, .1, p.z, 0x8a6a3a, 8, 1.2, .14, .4, { g: 4 });
+  /** tilling: every field under the rake rectangle advances its harvest by tillStroke s x (covered area / area of the
+   *  base rake). Raking a field with the base rake: harvest every (interval x rake cooldown); wider/longer rake and
+   *  faster cooldown = more yield. A harvest completed by a stroke falls out of the bushes. */
+  till(p: Player, dx: number, dz: number) {
+    const F = this.cfg.fields, R = this.cfg.rake, A0 = R.range * R.width;
+    let best: Field | null = null, bestA = 0, any = false;
+    for (const f of this.fields) {
+      if (!f.alive) continue;
+      const A = this.rakeOverlap(f, p, dx, dz); if (A < .01) continue;
+      any = true;
+      if (A > bestA) { bestA = A; best = f; }
+      f.tilledT = F.tillDuration; f.shake = Math.max(f.shake, .2);
+      f.t -= F.tillStroke * (A / A0) * this.prodMult(f);
+      while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, true); }
+      this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)) }); // view: field flash, plant combed, leaves whirl, rustle
+    }
+    if (!any) return;
+    // healing (Feldpflege) goes through the field covered most: one field per player
+    for (const o of this.fields) if (o !== best && o.tilledBy === p.id) o.tilledBy = -1;
+    if (best) best.tilledBy = p.id;
+    const RS = this.rakeStats(p);
+    this.sfx('player.till', p.x + dx * RS.range * .5, p.z + dz * RS.range * .5);
+    this.burst(p.x + dx * RS.range * .4, .1, p.z + dz * RS.range * .4, 0x8a6a3a, 10, 1.2, .14, .4, { g: 4 });
   }
   /** while a field is being tilled it heals, and so do the tilling player and team mates standing on it */
   tillHeal(f: Field, dt: number) {
@@ -606,7 +638,7 @@ export class Sim {
     const p = this.player(id); if (!p) return [];
     const N = this.cfg.names, rows: [string, string, string, number][] = [];
     rows.push(['level', 'Spieler', 'Stufe', this.level], ['hp', 'Spieler', 'Leben (− = 10 Schaden, + = voll)', Math.ceil(p.hp)]);
-    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.arc', N.skills.rake, 'Kegel', p.rakeLv.arc], ['rake.cd', N.skills.rake, 'Tempo', p.rakeLv.cd]);
+    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.wid', N.skills.rake, 'Breite', p.rakeLv.wid], ['rake.cd', N.skills.rake, 'Tempo', p.rakeLv.cd]);
     for (const sid of SKILLS) {
       const s = p.skills[sid], g = N.skills[sid];
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
@@ -1345,7 +1377,7 @@ export class Sim {
     // starting weapon (rake) upgrades: always available until maxed
     { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, lv: number, max: number | undefined, line: string) => { if (lv < (max || 10)) pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] }); };
       const nx = { ...p, rakeLv: { ...RL } } as Player;
-      nx.rakeLv = { ...RL, arc: RL.arc + 1 }; if (U.rakeArc) mkR('rake_arc', RL.arc, U.rakeArc.maxLevel, `{arc} ${nf(RS.arc)}° → ${nf(this.rakeStats(nx).arc)}°`);
+      nx.rakeLv = { ...RL, wid: RL.wid + 1 }; if (U.rakeWidth) mkR('rake_wid', RL.wid, U.rakeWidth.maxLevel, `{arc} ${nf(RS.width * 100)} → ${nf(this.rakeStats(nx).width * 100)} cm`);
       nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', RL.rng, U.rakeRange.maxLevel, `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
       nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', RL.dmg, U.rakeDamage.maxLevel, `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
       nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', RL.cd, U.rakeSpeed.maxLevel, `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
@@ -1398,7 +1430,7 @@ export class Sim {
     if (a === 'field') { p.placing = b as FruitType; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
-    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'arc') p.rakeLv.arc++; else if (b === 'cd') p.rakeLv.cd++; return; }
+    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'wid') p.rakeLv.wid++; else if (b === 'cd') p.rakeLv.cd++; return; }
     if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
@@ -1438,7 +1470,7 @@ export class Sim {
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
-        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),
+        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: p.xbT > 0 || p.active === 'asp' ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') ? 1 : 0,
       })),

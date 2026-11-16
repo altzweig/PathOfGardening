@@ -174,6 +174,21 @@ export function decal(x: number, z: number, color: number, r: number, life: numb
   m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 7); m.position.set(x, .03 + Math.random() * .008, z); m.scale.setScalar(r); scene.add(m);
   fx.push({ m, t: 0, life, r0: r, r1: o.grow ?? r, op: o.op ?? .75, own: false });
 }
+/** flat rectangle in the XZ plane: width along X, length along +Z from the origin (rotate with rotation.y = aim angle) */
+export function rectGeo(w: number, l: number) { const g = new THREE.PlaneGeometry(w, l); g.rotateX(-Math.PI / 2); g.translate(0, 0, l / 2); return g; }
+/** rake stroke: exactly the hit rectangle (laid down `len` ahead, pulled back to the player) + tine scratches in the ground */
+export function rakeSweep(x: number, z: number, angle: number, len: number, w: number, color = 0xffe3a0) {
+  const add = (g: THREE.BufferGeometry, c: number, op: number, life: number, y: number, blend = true) => {
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: blend ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, side: THREE.DoubleSide }));
+    m.rotation.y = angle; m.position.set(x, y, z); scene.add(m); fx.push({ m, t: 0, life, r0: 1, r1: 1, op, own: true });
+  };
+  add(rectGeo(w, len), color, .32, .3, .06);
+  // bright far edge where the rake was laid down
+  const e = rectGeo(w, .08); e.translate(0, 0, len - .08); add(e, 0xfff2c0, .8, .2, .07);
+  // scratch marks of the tines
+  const n = Math.max(4, Math.round(w / .14));
+  for (let i = 0; i < n; i++) { const g = rectGeo(.025, len * .92); g.translate(-w / 2 + w * (i + .5) / n, 0, len * .04); add(g, 0x24170d, .45, 1.1, .05, false); }
+}
 /** rake swipe: exactly the hit cone (radius = range, arc) */
 export function swipe(x: number, z: number, angle: number, radius: number, arc: number, color = 0xffe3a0) {
   const m = new THREE.Mesh(sectorGeo(radius, arc), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));

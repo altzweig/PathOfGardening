@@ -52,8 +52,8 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Kegel | +20° Kegelbreite (Karte zeigt Grad) | 10 | `upgrades.rakeArc` |
-| Reichweite | +20 cm Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
+| Breite | +20 cm breitere Harke (Karte zeigt cm) | 10 | `upgrades.rakeWidth` |
+| Reichweite | +20 cm weiter vor sich harken (Länge des Rechtecks, Karte zeigt cm) | 10 | `upgrades.rakeRange` |
 | Schaden | +20 % Grundschaden | 10 | `upgrades.rakeDamage` |
 | Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | 5 | `upgrades.rakeSpeed` |
 
@@ -118,5 +118,5 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 10 Schaden, 90° Kegel, 1,8 m, 0,5 s. Auf dem Feld unter dem Spieler: beackern statt schlagen (wenn kein Gegner im Kegel) | `rake.*`, `fields.till*` |
+| Harke | 5 Schaden, Rechteck 1,2 m lang × 0,9 m breit vor dem Spieler, 0,5 s. Jeder Zug trifft Gegner und beackert alle Felder im Rechteck anteilig zur Fläche | `rake.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

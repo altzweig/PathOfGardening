@@ -29,7 +29,7 @@ import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flam
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
+  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -228,18 +228,17 @@ export class GameView {
     }
   }
 
-  private rakeArcDeg = 0;
+  private rakeW = 0;
   setConfig(cfg: Balancing) {
-    this.rakeArcDeg = cfg.rake.arc;
+    this.rakeW = cfg.rake.width;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
     setForestClearings(this.slots.filter(sl => sl.forest).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
-    const arc = cfg.rake.arc * Math.PI / 180;
     this.aimInd = {
-      rake: new THREE.Mesh(sectorGeo(1, arc), addMat(0xffe3a0, .12)),
+      rake: new THREE.Mesh(rectGeo(1, 1), addMat(0xffe3a0, .12)),
       cran: new THREE.Mesh(sectorGeo(1, cfg.skills.cran.cone * Math.PI / 180), addMat(0xff8090, .12)),
       asp: new THREE.Mesh(GEO.plane, addMat(0x9cff70, .2)),
       cab: new THREE.Mesh(GEO.circle, addMat(0xb8f070, .14)),
@@ -434,15 +433,15 @@ export class GameView {
     });
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
-  private rakeStroke(slot: number) {
+  private rakeStroke(slot: number, a: number) {
     const v = this.fields.get(slot); if (!v || !v.alive) return;
-    v.hit = 1; v.comb = 1;
+    v.hit = Math.max(v.hit, .45 + .55 * a); v.comb = Math.max(v.comb, .5 + .5 * a);
     play('rustle');
     decal(v.x, v.z, 0xfff0c0, hexR(this.cfg) * .3, .35, { ring: true, add: true, grow: hexR(this.cfg) * .95, op: .6 });
     const lm = leafMat(v.mats.leaf.color), clumps = v.plant.children;
     // (the real harvest shaken loose by the stroke falls out of the bushes as normal fruit, see sim produce)
     // leaves whirl up out of the clumps and flutter down
-    const n = 6 + Math.floor(rand(0, 4));
+    const n = Math.round((6 + rand(0, 4)) * (.35 + .65 * a));
     for (let i = 0; i < n; i++) {
       const c = clumps[i % clumps.length], p = c ? c.getWorldPosition(V()) : V(v.x, 0, v.z);
       const m = new THREE.Mesh(LEAF_GEO, lm); m.position.set(p.x + rand(-.25, .25), rand(.3, .6), p.z + rand(-.25, .25)); m.rotation.set(rand(0, 7), rand(0, 7), rand(0, 7)); this.dyn.add(m);
@@ -505,7 +504,7 @@ export class GameView {
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
       case 'impact': punchStar(e.x, e.z, .45); break;
       case 'swipe': {
-        const arc = (e.c || this.cfg.rake.arc) * Math.PI / 180; swipe(e.x, e.z, e.a, e.r || this.cfg.rake.range, arc);
+        rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.width);
         break;
       }
       case 'shot': {
@@ -557,7 +556,7 @@ export class GameView {
         if (!miss) for (const sg of sgs) { burst(V(sg[2], .42, sg[3]), 0xc8d8ff, 5, 1.6, .06, .18); decal(sg[2], sg[3], 0x9fb8ff, .12, .25, { ring: true, add: true, grow: .45, op: .3 }); }
         this.shake = Math.min(.2, this.shake + .02); break;
       }
-      case 'till': this.rakeStroke(e.s); break;
+      case 'till': this.rakeStroke(e.s, e.a ?? 1); break;
       case 'rustleTree': { // squirrel appears in the crown of a nut tree: leaves fall, the crown shakes
         for (const v of this.fields.values()) if (Math.hypot(v.x - e.x, v.z - e.z) < .5) { v.comb = Math.max(v.comb, .6); v.shake = Math.max(v.shake, .3); }
         for (let i = 0; i < 10; i++) { const a = rand(0, 7), r = rand(.3, 1.1); PART.spawn(V(e.x + Math.cos(a) * r, rand(2, 2.8), e.z + Math.sin(a) * r), V(rand(-.4, .4), rand(-.2, .3), rand(-.4, .4)), Math.random() < .5 ? 0x5a8a3a : 0x8aa840, rand(.06, .1), rand(.8, 1.4), { g: 1.5 }); }
@@ -644,12 +643,19 @@ export class GameView {
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
-    const arc = (s.ra || this.cfg.rake.arc) * Math.PI / 180, L = (s.rr || this.cfg.rake.range) - .12;
-    v.rake.scale.z = (s.rr || this.cfg.rake.range) / this.cfg.rake.range; // longer rake with range upgrades
+    // rake model: handle from the hands (pivot .62 m up) to the head; head distance d and height y set length + tilt
+    const R = this.cfg.rake, reach = s.rr || R.range, L0 = R.range - .12, HY = .62;
+    v.rake.scale.x = (s.ra || R.width) / R.width; // wider head with width upgrades
     v.rake.position.z = 0;
-    if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(1.1, L * .55); v.rake.position.z = .15 - Math.sin(s.ti * Math.PI) * .75; v.body.rotation.x = Math.sin(s.ti * Math.PI) * .18; } // till: scrape the bed underfoot, pulling the rake back
-    else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
-    else { v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2); }
+    const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
+    if (swinging) { // human raking: reach out and lay the rake down `reach` ahead, then pull it back to the feet
+      const k = s.sw; v.rake.rotation.y = 0;
+      if (k < .3) { const t = k / .3; aimRake(lerp(.55, reach, t), .3 * (1 - t * t) + .02); v.body.rotation.x = .2 * t; }
+      else { const t = (k - .3) / .7, e = t * t * (3 - 2 * t); aimRake(lerp(reach, .4, e), .02); v.body.rotation.x = .2 * (1 - e) - .06 * Math.sin(e * Math.PI); }
+    } else {
+      v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2);
+      const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
+    }
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.hatHp(v, s.hp / s.mhp);
@@ -805,7 +811,7 @@ export class GameView {
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
     if (w === 'rake' || w === 'cran') {
       const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
-      if (w === 'rake' && me.s.ra && me.s.ra !== this.rakeArcDeg) { this.rakeArcDeg = me.s.ra; m.geometry.dispose(); m.geometry = sectorGeo(1, me.s.ra * Math.PI / 180); } // cone upgrades
+      if (w === 'rake') { this.rakeW = me.s.ra || this.cfg.rake.width; m.visible = true; m.scale.set(this.rakeW, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang; return; } // rectangle: width x reach
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp' || w === 'lemon') {
       const m = this.aimInd.asp, r = rng(w);

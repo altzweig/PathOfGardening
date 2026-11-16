@@ -19,7 +19,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Das Spiel ist insgesamt dunkel. Am Rand ist es komplett schwarz, nur Silhouetten von Büschen und Bäumen.
 - Auf den Büschen am Rand sitzen kleine Augenpaare (2–3 pro Busch, alle gleich groß ±10 %, dunkelblau bis lila). Sie leuchten selbst, beleuchten aber nichts und haben keinen Bloom. Beim Blinzeln klappen Lider schnell runter und hoch. Kurz vor einem Stoß füllen sich die Büsche in dieser Richtung mit Augen (`waves.warnTime`).
 - Früchte am Busch leuchten nicht, nur Früchte, die herumliegen. Geschosse leuchten deutlich stärker.
-- Harken-Animation und Trefferkegel sind identisch (Reichweite + Winkel aus `rake`).
+- Harken-Animation und Trefferfläche sind identisch: ein Rechteck vor dem Spieler (Länge `rake.range`, Breite `rake.width`).
 - Jeder Harkentreffer: Comic-Punch-Stern pro getroffenem Gegner + Punch-Sound pro Ziel (leicht versetzt), damit man hört und sieht, wie viele getroffen wurden.
 
 ## Gegner
@@ -72,10 +72,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Mausrad: zoomen (PC).
 
 ## Beackern und Feldrand (15.11.2026)
-- Harke benutzen, wenn kein Gegner im Kegel ist und der Spieler auf einem Feld steht: statt eines Schlags harkt er das Feld **direkt unter sich** (16.11.2026, vorher 1 m voraus). Gegner im Kegel haben Vorrang, damit Kämpfen am Feld nicht ins Leere geht. Kegel/Reichweite-Upgrades wirken nur auf den Kampf.
-- Ertrag durch Harken: Jeder Harkenzug schiebt die Ernte um `fields.tillStroke` s (1 s) vor. Wer nur harkt, erntet also alle (Erntezeit × Harken-Abklingzeit) s, z. B. Erntezeit 2 s × 0,5 s → jede Sekunde. Die normale Produktion läuft parallel weiter. Eine durchs Harken fertige Ernte fällt aus den Büschen (statt an der Randecke). Schnellere Harke (`upgrades.rakeSpeed`) = mehr Ertrag. Ersetzt das alte „x2 Produktion solange beackert“.
+- Harken wie ein Mensch (16.11.2026, ersetzt Kegel und „Feld unter sich“): Der Spieler legt die Harke `rake.range` m vor sich ab und zieht sie bis zu sich zurück. Die Fläche ist ein Rechteck (Länge `rake.range`, Breite `rake.width`). Jeder Zug trifft alle Gegner im Rechteck (Schaden wie bisher) und beackert gleichzeitig alle Felder, die das Rechteck überdeckt. Upgrades: Breite (`upgrades.rakeWidth`, +20 cm, ersetzt Kegel) und Reichweite (`upgrades.rakeRange`, +20 cm Länge).
+- Ertrag durch Harken: Jedes Feld unter dem Rechteck schiebt seine Ernte um `fields.tillStroke` s × (überdeckte Fläche / Fläche der Grundharke) vor. Grundharke ganz auf einem Feld → Ernte alle (Erntezeit × Harken-Abklingzeit) s. Breitere/längere Harke und mehr Tempo = mehr Ertrag; ein Zug über zwei Felder teilt sich anteilig auf. Die Fläche wird exakt berechnet (Sechseck am Rechteck abgeschnitten, ca. 6 µs pro Zug für alle Felder). Ertrag fällt aus den Büschen, die normale Produktion am Rand läuft parallel.
 - Feedback pro Harkenzug: Feld leuchtet kurz hell auf, die Büsche werden durchgekämmt (rütteln, wippen), Blätter wirbeln hoch. Dazu prozedurales Gebüsch-Rascheln.
-- Ein beackertes Feld produziert doppelt so schnell, wackelt leicht und sein Rand leuchtet heller. Die Wirkung hält 1 s nach jedem Stoß (`fields.tillDuration`), man muss also dranbleiben. Jeder Spieler kann nur ein Feld gleichzeitig beackern (im Koop also mehrere Felder von verschiedenen Spielern).
+- Ein beackertes Feld wackelt leicht und sein Rand leuchtet heller, 1 s nach jedem Zug (`fields.tillDuration`). Die Spieler-Heilung beim Beackern läuft nur über das Feld, das der Zug am meisten überdeckt hat.
 - Der Feldrand ist ein Ladebalken: Ein dezent leuchtender Impuls läuft im Uhrzeigersinn um das Feld, jede der 6 Kanten ist eine Ernte. Kommt der Impuls an einer Ecke an, fällt dort der Ertrag (`fruit.cornerScatter`). Die Geschwindigkeit folgt der Produktionszeit inklusive Seltenheit, Nachbarbonus und Beackern.
 
 ## Waffen und Gegner (15.11.2026, Runde 2)

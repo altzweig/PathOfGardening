@@ -43,6 +43,7 @@ names:
     cab_rng: Radius
     cd: Abklingzeit
     arc: Kegelbreite
+    wid: Breite
     pierce: Durchbohren
     pb: Durchbohr-Schaden
     size: Bolzenbreite
@@ -112,9 +113,10 @@ fields:
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
   # Die 3 Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
-  # Beackern: Harke benutzen, wenn kein Gegner im Kegel ist und der Spieler auf einem Feld steht (Feld unter sich)
-  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; nur 1 Feld pro Spieler)
-  tillStroke: 1.0          # s Produktionszeit pro Harkenzug -> nur Harken: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
+  # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
+  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
+  tillStroke: 1.0          # s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
+                           # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
   rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
@@ -146,10 +148,10 @@ plants:
 
 rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
-  range: 1.2               # m (Prototyp: 1.0 -> +50 %)
-  arc: 50                  # Grad, Breite des Kegels
+  range: 1.2               # m, so weit vor sich legt man die Harke an und zieht sie bis zu sich zurück (Länge des Rechtecks)
+  width: 0.9               # m, Breite des geharkten Rechtecks (Treffer + Beackern)
   cooldown: 0.5            # s
-  swingTime: 0.15          # s, Animation
+  swingTime: 0.3           # s, Animation: Harke vorstrecken, ablegen, zurückziehen
   knockback: 0             # m Rückstoß pro Treffer (kein Upgrade mehr, 16.11.2026)
 
 skills:
@@ -226,8 +228,8 @@ upgrades:
   aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
   aspPierceBonus: { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Durchbohr-Schaden (50 -> 100 %)
   aspSize:        { step: 0.30, maxLevel: 5 }  # Spargel-Geschoss +30 % größer (Breite)
-  rakeArc:        { step: 20,   maxLevel: 10 } # Harke +20 Grad Kegelbreite
-  rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm Reichweite (absolut, in m)
+  rakeWidth:      { step: 0.20, maxLevel: 10 } # Harke +20 cm breiter
+  rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm weiter (Länge des Rechtecks, absolut, in m)
   rakeDamage:     { step: 0.20, maxLevel: 10 } # Harke +20 % Grundschaden (additiv)
   rakeSpeed:      { step: 0.10, maxLevel: 5 }  # Harke Abklingzeit x 0.9 je Stufe (multiplikativ) -> schneller schlagen UND mehr Ertrag beim Harken
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2

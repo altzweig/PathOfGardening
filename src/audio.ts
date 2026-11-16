@@ -235,3 +235,72 @@ export function tickAmbient(dt: number) {
   const a = Math.random() * Math.PI * 2; sfx('ambient.calls', lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });
+
+// ---------------- harvest music: every harvest is a soft, tuned note on the shared beat (sounds.yaml harvestNotes) ----------------
+// Organic, hand-played instruments built from sines + noise (kalimba, marimba, wooden drum, bell, shaker), all
+// taken from one chord per bar so overlapping fields always sound consonant. A small generated reverb gives room.
+let noteBus: GainNode | null = null;
+function bus() {
+  if (noteBus || !AC) return noteBus;
+  const A = AC, H = SC?.harvestNotes || {};
+  noteBus = A.createGain(); noteBus.connect(master);
+  const len = Math.floor(A.sampleRate * (H.reverbTime ?? 1.8)), ir = A.createBuffer(2, len, A.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  const cv = A.createConvolver(); cv.buffer = ir; const wet = A.createGain(); wet.gain.value = H.reverb ?? .3;
+  const lp = A.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
+  noteBus.connect(lp); lp.connect(cv); cv.connect(wet); wet.connect(master);
+  return noteBus;
+}
+/** one decaying partial */
+function partial(out: AudioNode, f: number, vol: number, decay: number, n = AC!.currentTime + .005, type: OscillatorType = 'sine', bend = 1) {
+  const A = AC!, o = A.createOscillator(); o.type = type; o.frequency.setValueAtTime(f * bend, n); if (bend !== 1) o.frequency.exponentialRampToValueAtTime(f, n + .04);
+  const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(vol, n + .004); g.gain.exponentialRampToValueAtTime(.0001, n + decay);
+  o.connect(g); g.connect(out); o.start(n); o.stop(n + decay + .05);
+}
+const INSTR: Record<string, (out: AudioNode, f: number, v: number, n: number) => void> = {
+  /** kalimba: warm fundamental, quick metallic tine ping above it */
+  kalimba(out, f, v, n) { partial(out, f, v, 1.1, n); partial(out, f * 2, v * .18, .35, n, 'triangle'); partial(out, f * 5.4, v * .12, .08, n); },
+  /** marimba / wood bar: round tone with a quickly fading 4th partial and a soft mallet click */
+  marimba(out, f, v, n) { partial(out, f, v, .7, n); partial(out, f * 4, v * .22, .1, n); partial(out, f * 9.9, v * .05, .03, n); },
+  /** wooden frame drum: low pitched thump that drops into its note, plus skin noise */
+  drum(out, f, v, n) {
+    partial(out, f, v * 1.2, .45, n, 'sine', 1.6);
+    const A = AC!, s = A.createBufferSource(); s.buffer = noiseBuf; const bq = A.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = 700;
+    const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(v * .5, n + .003); g.gain.exponentialRampToValueAtTime(.0001, n + .09);
+    s.connect(bq); bq.connect(g); g.connect(out); s.start(n, rand(0, .5)); s.stop(n + .12);
+  },
+  /** small bell / singing bowl: inharmonic partials with a long shimmer */
+  bell(out, f, v, n) { partial(out, f, v, 1.8, n); partial(out, f * 2.76, v * .35, .9, n); partial(out, f * 5.4, v * .15, .4, n); partial(out, f * 1.004, v * .5, 1.6, n); },
+  /** seed-pod shaker: short band-passed noise, no pitch */
+  shaker(out, _f, v, n) {
+    const A = AC!, s = A.createBufferSource(); s.buffer = noiseBuf; s.playbackRate.value = rand(.9, 1.1);
+    const bq = A.createBiquadFilter(); bq.type = 'bandpass'; bq.frequency.value = rand(5200, 7000); bq.Q.value = 1.2;
+    const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(v, n + .012); g.gain.exponentialRampToValueAtTime(.0001, n + .07);
+    s.connect(bq); bq.connect(g); g.connect(out); s.start(n, rand(0, .5)); s.stop(n + .1);
+  },
+};
+const NOTE_DEF: Record<string, { instr: string; oct: number; vol: number; pick: (ch: number[], beat: number, i: number) => number }> = {
+  blue:  { instr: 'kalimba', oct: 1, vol: .16, pick: (ch, b, i) => [ch[0], ch[1], ch[2], ch[0] + 12][(b + i) % 4] },   // arpeggio through the chord
+  cran:  { instr: 'kalimba', oct: 2, vol: .08, pick: (ch, b, i) => ch[(b + i + 1) % 3] },
+  asp:   { instr: 'marimba', oct: 0, vol: .2,  pick: (ch, b, i) => (b + i) % 4 < 2 ? ch[0] : ch[2] - 12 },            // root / fifth, the bass line
+  cab:   { instr: 'drum',    oct: -1, vol: .22, pick: ch => ch[0] },
+  lemon: { instr: 'bell',    oct: 2, vol: .06, pick: (ch, _b, i) => ch[(1 + i) % 3] },
+  chili: { instr: 'shaker',  oct: 0, vol: .05, pick: () => 0 },
+};
+/** harvest note: type = field fruit, bt = beat position on the shared clock, i = index among same-type fields, off = raked (off the beat) */
+export function harvestNote(type: string, bt: number, i: number, off: boolean, x: number, z: number) {
+  if (!AC || !audio.on || !SC) return;
+  const H = SC.harvestNotes; if (!H || H.on === false) return;
+  const D = NOTE_DEF[type]; if (!D) return;
+  const T = H.types?.[type] || {}; if (T.on === false) return;
+  const S = SC.distance || { full: 5, silent: 26 }, d = Math.hypot(x - lx, z - lz);
+  let att = d <= S.full ? 1 : d >= S.silent ? 0 : 1 - (d - S.full) / (S.silent - S.full); att *= att; if (att <= .01) return;
+  const bpb = H.beatsPerBar ?? 4, prog: number[][] = H.progression || [[0, 4, 7], [5, 9, 12], [9, 12, 16], [7, 11, 14]];
+  const beat = Math.floor(bt + .08), ch = prog[Math.floor(beat / bpb) % prog.length], b = ((beat % bpb) + bpb) % bpb;
+  const semi = D.pick(ch, b, i), f = (H.root ?? 146.83) * Math.pow(2, D.oct + semi / 12);
+  const out = AC.createGain(); out.gain.value = (H.vol ?? 1) * (T.vol ?? 1) * (SC.master ?? 1) * att * (off ? .6 : 1) * (b === 0 ? 1.15 : 1);
+  let node: AudioNode = out;
+  if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = Math.max(-1, Math.min(1, (x - lx) / 12)) * .75; out.connect(sp); node = sp; }
+  node.connect(bus()!);
+  INSTR[D.instr](out, f, D.vol, AC.currentTime + .005);
+}

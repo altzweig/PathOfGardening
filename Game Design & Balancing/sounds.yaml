@@ -71,6 +71,24 @@ player:
   spawn:  { synth: respawn, gap: 0.5 }
   till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Feld beackern (Harke im Boden)
 
+# Ernte-Musik: jede Ernte spielt zusätzlich einen gestimmten Ton auf der gemeinsamen Takt-Uhr (balancing.yaml rhythm).
+# Alle Töne kommen aus dem Akkord des aktuellen Takts, deshalb klingt es nie schief. Instrumente im Code erzeugt:
+# Blaubeere Kalimba (Arpeggio), Preiselbeere hohe Kalimba, Spargel Marimba (Bass), Kohl Holztrommel, Zitrone Glocke, Chili Shaker.
+harvestNotes:
+  on: true
+  vol: 1.0
+  root: 146.83                 # Hz, Grundton (D3)
+  progression: [[0, 4, 7], [5, 9, 12], [9, 12, 16], [7, 11, 14]]   # Akkorde in Halbtönen, 1 pro Takt: I – IV – vi – V
+  reverb: 0.3                  # Hallanteil
+  reverbTime: 1.8              # s
+  types:                       # vol: Lautstärke je Feldtyp, on: false schaltet ihn stumm
+    blue:  { vol: 1.0 }
+    cran:  { vol: 1.0 }
+    asp:   { vol: 1.0 }
+    cab:   { vol: 1.0 }
+    lemon: { vol: 1.0 }
+    chili: { vol: 1.0 }
+
 plants:
   produce:
     blue: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [0.9, 1.15], gap: 0.12 }

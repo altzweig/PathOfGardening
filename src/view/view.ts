@@ -24,7 +24,7 @@ const lavaTex = (() => {
   }
   return new THREE.CanvasTexture(cv);
 })();
-import { loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
+import { harvestNote, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FlameFx, makeFlame, updateFlame } from './flame';
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
@@ -95,6 +95,8 @@ export class GameView {
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
   private shake = 0;
+  /** shared beat clock (s), follows the sim time between snapshots */
+  private clk = 0;
   private bits: Bit[] = [];
   hurtT = 0;
   zoom = 1;
@@ -223,6 +225,7 @@ export class GameView {
   // ---------------- state ----------------
   apply(s: Snap) {
     this.snap = s; const id = ++this.frameId;
+    if (Math.abs(this.clk - s.t) > .15) this.clk = s.t;
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -250,7 +253,7 @@ export class GameView {
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
       v.prog = f[6]; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
+      v.shake = f[4]; if (!v.alive) v.plant.scale.y = .55;
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.map(f => slots[f[0]]), hexR(this.cfg)); }
@@ -379,9 +382,12 @@ export class GameView {
       m.color.setRGB(1, .16 + v.lv * .22, .02);
       if (v.alive && Math.random() < dt * v.lv * 10) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * hexR(this.cfg) * .8; PART.spawn(V(v.x + Math.cos(a) * r, .05, v.z + Math.sin(a) * r), V(rand(-.1, .1), rand(.4, .9), rand(-.1, .1)), Math.random() < .5 ? 0xff6a10 : 0xffb030, rand(.05, .1), rand(.6, 1.1)); }
     }
-    // shake on hits/harvest, gentle wiggle while tilled
-    v.plant.rotation.z = Math.sin(now * 50) * v.shake * .25 + Math.sin(now * 11) * .06 * v.glow;
-    v.plant.rotation.x = Math.sin(now * 9 + 1) * .04 * v.glow;
+    // rhythm: the plant slowly breathes in towards its harvest and lets go on the beat; all beds sway together in a slow
+    // two-beat breeze (a wave across the garden). Shake on hits/harvest, gentle wiggle while tilled.
+    const bt = this.clk * (this.cfg.rhythm ? this.cfg.rhythm.bpm / 60 : 1), sway = Math.sin(bt * Math.PI - v.x * .25) * .035 * (v.alive ? 1 : 0);
+    if (v.alive) v.plant.scale.y = (1 + v.rarity * .08) * (1 + v.shake * .4) * (1 + .07 * v.ep * v.ep);
+    v.plant.rotation.z = Math.sin(now * 50) * v.shake * .25 + Math.sin(now * 11) * .06 * v.glow + sway;
+    v.plant.rotation.x = Math.sin(now * 9 + 1) * .04 * v.glow + Math.cos(bt * Math.PI - v.z * .25) * .02 * (v.alive ? 1 : 0);
     // combed through: every clump is yanked and rattles out with a decaying wobble
     v.comb = Math.max(0, v.comb - dt * 2.2);
     const cb = v.comb * v.comb;
@@ -452,6 +458,7 @@ export class GameView {
     switch (e.k) {
       case 'snd': play(e.n); break;
       case 'sfx': sfx(e.s, e.x, e.z); break;
+      case 'note': harvestNote(FRUITS[e.ty], e.bt, e.i, !!e.o, e.x, e.z); break;
       case 'deathGift': burst(V(e.x, .6, e.z), 0x7a90ff, 36, 2.4, .14, .9, { g: 2 }); decal(e.x, e.z, 0x8fa4ff, hexR(this.cfg) * .3, .5, { ring: true, add: true, grow: hexR(this.cfg), op: .7 }); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
@@ -565,6 +572,7 @@ export class GameView {
         if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
       }
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
+      this.clk += dt * (s.ts ?? 1);
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
     this.animVanish(dt);

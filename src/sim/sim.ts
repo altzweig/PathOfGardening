@@ -49,7 +49,7 @@ export interface Player {
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
   xbT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean; goneT?: number }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean; goneT?: number; per: number; carry: number; synced: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
@@ -158,7 +158,7 @@ export class Sim {
       return f;
     }
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
-    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false };
+    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false, per: 1, carry: 0, synced: false };
     this.fields.push(f);
     this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
@@ -169,6 +169,28 @@ export class Sim {
     let nb = 0;
     for (const o of this.fields) if (o !== f && o.alive && hexDist(me, this.slots[o.slot]) === 1) nb += o.rarity;
     return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
+  }
+  // ---------- rhythm: all fields play to one shared beat ----------
+  beat() { const R = this.cfg.rhythm; return R ? 60 / R.bpm : 1; }
+  /** harvest period in s: blueberries always on the beat, other fields snapped to the nearest note value */
+  period(f: Field) {
+    const R = this.cfg.rhythm, real = this.cfg.plants[f.type].interval / this.prodMult(f);
+    if (!R) return real;
+    const b = this.beat(); if (f.type === 'blue') return b;
+    let best = R.notes[0];
+    for (const n of R.notes) if (Math.abs(Math.log(n * b / real)) < Math.abs(Math.log(best * b / real))) best = n;
+    return best * b;
+  }
+  /** phase offset in s: blueberry fields split the beat (2 = eighths, 3 = triplets, 4 = sixteenths), other fields of one type spread evenly */
+  phaseOff(f: Field, per: number) {
+    const same = this.fields.filter(o => o.alive && o.type === f.type).sort((a, b) => a.slot - b.slot), k = Math.max(0, same.indexOf(f)), n = same.length;
+    if (f.type === 'blue') { const sub = n <= 4 ? n : n % 3 === 0 ? 3 : 4; return (k % sub) / sub * per; }
+    return n > 1 ? k * per / n : 0;
+  }
+  /** signed distance (s) of the field's next harvest to its rhythm grid: > 0 = late */
+  gridErr(f: Field, per: number) {
+    const off = this.phaseOff(f, per), T = this.time + f.t, m = Math.round((T - off) / per);
+    return T - (off + m * per);
   }
   /** types that were ever on the board (a dead field disappears, but its type still counts as owned) */
   lost = new Set<FruitType>();
@@ -217,7 +239,10 @@ export class Sim {
   /** harvest of a field; fromBush = shaken loose by the rake: falls out of one of the bushes instead of at the rim corner */
   produce(f: Field, fromBush = false) {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
-    let n = (this.cfg.plants[f.type].amount || 1) * (Math.random() < dbl ? 2 : 1);
+    // the period is snapped to a note value: the yield per harvest is scaled so the long-run rate stays exactly as balanced
+    const P = this.cfg.plants[f.type], y = (P.amount || 1) * f.per / (P.interval / this.prodMult(f)) + f.carry;
+    const whole = Math.floor(y + 1e-6); f.carry = Math.max(0, y - whole);
+    let n = whole * (Math.random() < dbl ? 2 : 1);
     if (f.type === 'lemon') this.emit({ k: 'lemonZap', s: f.slot }); // lightning jumps between the lemons
     if (f.type === 'chili') this.emit({ k: 'chiliGlow', s: f.slot }); // the bed glows up like lava (breathing)
     if (f.type === 'blue') { // coop: more blueberries
@@ -241,6 +266,9 @@ export class Sim {
       }
     }
     f.shake = .18; this.sfx('plants.produce.' + f.type, f.x, f.z);
+    // musical note on the shared clock: bt = beat position, i = index among same-type fields, o = off the grid (raked)
+    const same = this.fields.filter(o => o.alive && o.type === f.type).sort((a, b) => a.slot - b.slot);
+    this.emit({ k: 'note', ty: FRUITS.indexOf(f.type), x: r2(f.x), z: r2(f.z), bt: r2(this.time / this.beat()), i: Math.max(0, same.indexOf(f)), o: fromBush ? 1 : 0 });
   }
   collectFruit(fr: Fruit, p: Player) {
     const v = fr.val;
@@ -424,8 +452,10 @@ export class Sim {
     f.tilledT = F.tillDuration; f.tilledBy = p.id; f.shake = Math.max(f.shake, .2);
     // every stroke advances the harvest by tillStroke s: raking alone harvests every (interval x rake cooldown),
     // so a faster rake also means more yield. A harvest completed by a stroke falls out of the bushes.
-    f.t -= F.tillStroke * this.prodMult(f);
-    while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, true); }
+    // f.t counts real seconds to the next harvest; a stroke pushes the field ahead and out of the beat
+    f.per = this.period(f);
+    f.t -= F.tillStroke * f.per / (this.cfg.plants[f.type].interval / this.prodMult(f));
+    while (f.t <= 0) { f.t += f.per; this.produce(f, true); }
     p.tillT = this.cfg.rake.swingTime * 1.6;
     this.sfx('player.till', f.x, f.z);
     this.emit({ k: 'till', s: f.slot, x: r2(p.x), z: r2(p.z) }); // view: field flash, plant combed, fruit + leaves fall, rustle
@@ -1070,7 +1100,15 @@ export class Sim {
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
       if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
-      if (f.alive) { f.t -= dt * this.prodMult(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
+      if (f.alive) {
+        const per = this.period(f);
+        if (per !== f.per) { f.t *= per / f.per; f.per = per; } // rarity / neighbours changed the note value
+        if (!f.synced) { f.synced = true; const off = this.phaseOff(f, per); f.t = off + Math.ceil((this.time - off) / per + 1e-6) * per - this.time; } // new field: start right on its grid
+        // drifting back into the beat: run slightly faster / slower until the next harvest sits on the grid again
+        const R = this.cfg.rhythm, err = R ? this.gridErr(f, per) : 0, rate = R ? 1 + clamp(err / R.settle, -R.pull, R.pull) : 1;
+        f.t -= dt * rate;
+        if (f.t <= 0) { f.t += per; this.produce(f); }
+      }
       f.shake = Math.max(0, f.shake - dt);
     }
     // dead fields vanish (their type stays known for offers)
@@ -1359,7 +1397,7 @@ export class Sim {
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : 1)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z), r2(clamp(1 - m.t / this.cfg.skills.cran.splashDelay, 0, 1))]),
-      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0]),
+      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / f.per, 0, 1)), f.tilledT > 0 ? 1 : 0]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),
       bs: (() => { const b = this.enemies.find(e => e.boss); return b ? r2(b.hp / b.maxHp) : -1; })(),

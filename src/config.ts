@@ -38,6 +38,8 @@ export interface Balancing {
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; deathXpShare?: number; deathRemoveDelay?: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number }>;
+  /** shared beat for all fields (see balancing.yaml rhythm) */
+  rhythm?: { bpm: number; notes: number[]; settle: number; pull: number; beatsPerBar: number };
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;

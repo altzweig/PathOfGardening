@@ -110,7 +110,10 @@ effects:
 
 weapons:
   lemon: { files: [shield_zap], vol: 0.3, pitch: [1.3, 1.6], gap: 0.05, lp: 5000 }   # Citrateaser-Kettenblitz
-  chili: { synth: flame, gap: 0.11 }                                                  # Flammenwerfer: Fauchen je Flammenstoß
+  # Flammenwerfer: Zünd-Stoß beim Losfeuern, durchgehendes Fauchen als Schleife, Ausklingen beim Loslassen
+  chiliStart: { files: [flame_start_1, flame_start_2, flame_start_3, flame_start_4], vol: 0.45, pitch: [0.9, 1.1], gap: 0.15 }
+  chiliLoop:  { file: flame_loop, vol: 0.32, pitch: [0.95, 1.05], fade: 0.15 }
+  chiliEnd:   { files: [flame_end_1, flame_end_2], vol: 0.35, pitch: [0.95, 1.1], gap: 0.15 }
 
 boss:
   spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben

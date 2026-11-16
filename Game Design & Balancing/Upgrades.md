@@ -41,7 +41,7 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 | Spargelgewehr | Durchbohrender Schuss: 15 Schaden, 7,5 m, **0,25 s**, 30 cm breit, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
 | Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 6,75 m, 0,5 s, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
-| Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer gibt 1 Brand-Stapel (max. 6); alle 0,5 s Schaden = Stapel × 1 % der max. HP (Elite 0,6 %, Boss 0,2 %), danach 1 Stapel weniger | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
+| Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer: 1 Sofortschaden + 1 Brand-Stapel (max. 6). Brennen: alle 0,5 s Stapel × 0,5 Schaden, erlischt 3 s nach dem letzten Treffer. Flächenbrand: stirbt ein brennender Gegner, springen die Hälfte seiner Stapel (mind. 1) auf Gegner im Umkreis von 1,5 m über | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
 | Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
 **Giftlache der Kohlbombe:** bleibt 3 s liegen (Radius = Explosionsradius), tickt 2× pro Sekunde mit je 10 % des Kohlschadens, also insgesamt 60 %. Gegner darin sind 35 % langsamer. Parameter: `skills.cab.poolDuration`, `poolTicksPerSecond`, `poolTickDamage`, `poolSlow`. Keine Betäubung mehr.
@@ -86,12 +86,12 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | Weiterleitung | +10 % (50 → 60 %, 2. Glied 25 → 36 %) | 4 | `upgrades.lemonTransfer` |
 
 ### Flammenwerfer
-Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf die Brand-Prozente (1,0 → 1,2 %), Reichweite wie üblich.
+Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf Sofort- und Brandschaden (1 → 1,2 und 0,5 → 0,6), Reichweite wie üblich.
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
 | Zirkel | +30° Schwenk und +5° Flamme, ein Schwenk dauert weiter 1,5 s (also schneller). Ab 360° dreht die Flamme im Kreis, +50 % Tempo. Danach je Stufe +10° Flamme und +10 % Tempo (additiv) | bis die Flamme 360° breit ist (11 + 28 Stufen) | `upgrades.chiliSweep` |
-| Brand-Tick | Brand-Tick × 0,8 (0,5 → 0,4 → 0,32 s …) | bis 0,1 s (8 Stufen) | `upgrades.chiliTick` |
+| Brand-Tick | Brand-Tick × 0,8 (0,5 → 0,4 → 0,32 s …), also mehr Brandschaden pro Sekunde | bis 0,1 s (8 Stufen) | `upgrades.chiliTick` |
 
 ### Kohlbombe
 | Karte | Effekt | Max. | Parameter |

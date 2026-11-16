@@ -181,6 +181,34 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   if (e.lp) { const bq = AC.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = e.lp; bq.Q.value = .5; src.connect(bq); bq.connect(g); } else src.connect(g);
   node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
 }
+/** looping sounds (e.g. the flamethrower roar), one per id: fades in/out, follows its world position */
+const loops = new Map<string, { src: AudioBufferSourceNode; g: GainNode; pan: StereoPannerNode | null; vol: number }>();
+export function loopSfx(id: string, key: string, on: boolean, x = lx, z = lz) {
+  const L = loops.get(id);
+  if (!AC || !SC || !audio.on) { if (L) stopLoop(id); return; }
+  const e = entry(key) as any; if (!e) return;
+  const fade = e.fade ?? .12;
+  if (!on) { if (L) stopLoop(id, fade); return; }
+  const D = SC.distance || { full: 5, silent: 26 }, d = Math.hypot(x - lx, z - lz);
+  let att = d <= D.full ? 1 : d >= D.silent ? 0 : 1 - (d - D.full) / (D.silent - D.full); att *= att;
+  const vol = (e.vol ?? .4) * (SC.master ?? 1) * att, pan = Math.max(-1, Math.min(1, (x - lx) / 12)) * .75, now = AC.currentTime;
+  if (L) { L.g.gain.setTargetAtTime(vol, now, .05); if (L.pan) L.pan.pan.setTargetAtTime(pan, now, .05); return; }
+  const name = e.file || (e.files || [])[0]; if (!name || !bufs.has(name)) return;
+  const src = AC.createBufferSource(); src.buffer = bufs.get(name)!; src.loop = true;
+  const [p0, p1] = e.pitch || [1, 1]; src.playbackRate.value = p0 + Math.random() * (p1 - p0);
+  const g = AC.createGain(); g.gain.setValueAtTime(.0001, now); g.gain.linearRampToValueAtTime(vol, now + fade);
+  let node: AudioNode = g, sp: StereoPannerNode | null = null;
+  if (AC.createStereoPanner) { sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
+  src.connect(g); node.connect(master); src.start(now, Math.random() * src.buffer.duration);
+  loops.set(id, { src, g, pan: sp, vol });
+}
+function stopLoop(id: string, fade = .12) {
+  const L = loops.get(id); if (!L) return; loops.delete(id);
+  if (!AC) return; const now = AC.currentTime;
+  L.g.gain.cancelScheduledValues(now); L.g.gain.setValueAtTime(L.g.gain.value, now); L.g.gain.linearRampToValueAtTime(.0001, now + fade);
+  try { L.src.stop(now + fade + .05); } catch { /* ignore */ }
+}
+export function stopAllLoops() { for (const id of [...loops.keys()]) stopLoop(id, .05); }
 let ambWanted = false;
 function startAmbient() {
   if (!AC || ambOn || !SC?.ambient) return;

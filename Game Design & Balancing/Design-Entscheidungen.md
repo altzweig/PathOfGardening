@@ -148,3 +148,11 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Zirkel-Upgrade: +30° Schwenk, +5° Flamme, Dauer pro Schwenk bleibt 1,5 s. Ab 360° (11. Stufe) dreht die Flamme im Kreis mit +50 % Tempo (2 Umdrehungen/s), danach +10° Flamme und +10 % Tempo pro Stufe, Schluss bei 360° Flamme. Die Karte zeigt Grad bzw. Umdrehungen pro Sekunde (U/s).
 - Brand-Tick-Upgrade: Tick × 0,8 bis minimal 0,1 s (8 Stufen). Da jeder Tick einen Stapel verbraucht, brennt der Stapel schneller ab: mehr Schaden pro Sekunde, gleicher Gesamtschaden je Stapel.
 - Alle Werte unter `skills.chili`, `upgrades.chiliSweep`, `upgrades.chiliTick`, Feld unter `plants.chili`.
+
+## Feuer-Mechanik, Flammen-Shader, Fauch-Sounds (16.11.2026)
+- Brand nicht mehr an Gegner-HP gekoppelt, sondern an die Waffe (Ersatz für die Prozent-Regel oben): Jeder Flammenstoß, der trifft, macht 1 Sofortschaden und gibt 1 Brand-Stapel (max. 6). Brennen tickt alle 0,5 s mit Stapel × 0,5 Schaden und erlischt 3 s nach dem letzten Treffer (jeder Treffer frischt auf). Wer in der Flamme bleibt, brennt also immer heißer.
+- Flächenbrand: Stirbt ein brennender Gegner, springt die Hälfte seiner Stapel (mind. 1) auf alle Gegner im Umkreis von 1,5 m über, mit Feuerring. Gegnerhaufen brennen dadurch in Ketten ab.
+- Schaden-Karte: +20 % auf Sofort- und Brandschaden. Brand-Tick-Karte bleibt (× 0,8 bis 0,1 s).
+- Werte: `skills.chili.damage`, `burnDamage`, `burnStacks`, `burnDuration`, `burnTick`, `spreadRadius`, `spreadShare`.
+- Flamme als Shader: Rausch-Turbulenz, die nach vorn züngelt, Farbverlauf von Blau-Weiß an der Düse über Gelb und Orange zu Dunkelrot, Zungen reißen zur Spitze hin ab. Drei Schichten übereinander für Tiefe, dazu ein flackerndes orangefarbenes Licht auf Boden und Gegnern und aufsteigende Funken. Beim Zünden schießt die Flamme heraus, beim Loslassen zieht sie sich zurück.
+- Sounds aus Freesound (zugeschnitten): Zünd-Stoß beim Losfeuern (4 Varianten), durchgehendes Fauchen als Schleife, Ausklingen beim Loslassen (2 Varianten). Quellen in `CREDITS.md`, Lautstärken in sounds.yaml unter `weapons.chiliStart`, `chiliLoop`, `chiliEnd`.

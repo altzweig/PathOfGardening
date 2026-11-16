@@ -32,7 +32,7 @@ export interface Balancing {
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number; width: number };
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pelletStep: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
-    chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; damageElite: number; damageBoss: number; cone: number; sweep: number; sweepPeriod: number; burnStacks: number; burnTick: number };
+    chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {

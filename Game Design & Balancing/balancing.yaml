@@ -146,13 +146,16 @@ skills:
     cone: 30               # Grad, Breite der Flamme
     sweep: 40              # Grad, so weit schwenkt die Flamme (Mitte = Zielrichtung)
     sweepPeriod: 1.5       # s für einmal links -> rechts -> zurück
-    # Brand: jeder Treffer (jeder Flammenstoß, der den Gegner erwischt) gibt 1 Stapel, max. burnStacks.
-    # Pro Tick: Schaden = Stapel x Prozent der max. HP, danach 1 Stapel weniger.
-    damage: 1.0            # % max. HP je Stapel und Tick (normale Gegner)
-    damageElite: 0.6       # % bei Elite-Gegnern
-    damageBoss: 0.2        # % beim Boss
+    # Jeder Flammenstoß, der einen Gegner erwischt: Sofortschaden + 1 Brand-Stapel (max. burnStacks).
+    # Brennen: pro Tick Stapel x burnDamage. Jeder neue Treffer frischt die Brenndauer auf; ohne Treffer erlischt es nach burnDuration.
+    # Flächenbrand: stirbt ein brennender Gegner, springt das Feuer auf Gegner in spreadRadius über (Anteil spreadShare seiner Stapel, mind. 1).
+    damage: 1              # Sofortschaden je Treffer (8 Flammenstöße pro Sekunde)
+    burnDamage: 0.5        # Brandschaden je Stapel und Tick
     burnStacks: 6
+    burnDuration: 3        # s Brenndauer nach dem letzten Treffer
     burnTick: 0.5          # s pro Brand-Tick
+    spreadRadius: 1.5      # m
+    spreadShare: 0.5
   cab:
     damage: 5
     radius: 1.5            # m, Explosionsradius

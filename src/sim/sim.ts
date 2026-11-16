@@ -62,7 +62,7 @@ interface Enemy {
   stun: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
-  burn: number; burnT: number; burnTick: number; burnMul: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
+  burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -348,6 +348,7 @@ export class Sim {
     return true;
   }
   killEnemy(e: Enemy) {
+    if (e.burn > 0) { if (e.burnSum > 0) { this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; } this.spreadFire(e); }
     e.dead = true; this.kills++; this.sfx(e.type + '.die', e.x, e.z);
     this.burst(e.x, .4, e.z, 0xffe0b0, 22, 2.6, .18, .6, { g: 4 });
     this.burst(e.x, .4, e.z, 0x404040, 10, 1.2, .5, .9, { a: .4 });
@@ -480,29 +481,38 @@ export class Sim {
       if (dd > st.range + e.r * .5) continue;
       if (!all && dd > e.r + .2 && segDist(Math.atan2(ex, ez)) > cone2 + Math.atan2(e.r, Math.max(dd, .01)) * .5) continue;
       this.ignite(e, st);
+      e.burnSum += st.dmg; this.hurtEnemy(e, st.dmg, { silent: true, dot: true }); // direct hit, shown together with the burn numbers
     }
-    this.sfx('weapons.chili', p.x, p.z);
+    // sound: start burst / roar loop / tail are played by the view from the player snapshot (fo)
   }
-  ignite(e: Enemy, st: SkillStats) {
+  ignite(e: Enemy, st: { tick: number; dmgPct: number }, stacks = 1) {
     const C = this.cfg.skills.chili;
+    if (e.dead) return;
     if (e.burn <= 0) e.burnT = st.tick;
-    e.burn = Math.min(C.burnStacks, e.burn + 1); e.burnTick = st.tick; e.burnMul = st.dmgPct;
+    e.burn = Math.min(C.burnStacks, e.burn + stacks); e.burnTick = st.tick; e.burnDmg = C.burnDamage * st.dmgPct; e.burnLeft = C.burnDuration;
   }
-  /** fire ticks: stacks x % of max HP (elite / boss lower), then one stack less */
+  /** wildfire: a burning enemy that dies passes part of its fire to enemies close by */
+  private spreadFire(e: Enemy) {
+    const C = this.cfg.skills.chili, n = Math.max(1, Math.round(e.burn * C.spreadShare));
+    let any = false;
+    for (const o of this.enemies) if (o !== e && !o.dead && Math.hypot(o.x - e.x, o.z - e.z) < C.spreadRadius + o.r) { this.ignite(o, { tick: e.burnTick, dmgPct: e.burnDmg / C.burnDamage }, n); any = true; }
+    this.emit({ k: 'wildfire', x: r2(e.x), z: r2(e.z), r: C.spreadRadius, a: any ? 1 : 0 });
+  }
+  /** fire ticks: stacks x burn damage of the weapon; goes out burnDuration s after the last hit */
   private tickBurn(e: Enemy, dt: number) {
     e.burnNum -= dt;
     // fire damage is shown as one summed number per second (and when the fire goes out / the enemy dies)
     const flush = () => { if (e.burnSum > 0) this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; e.burnNum = 1; };
     if (e.burn <= 0) { if (e.burnSum > 0 && e.burnNum <= 0) flush(); return; }
-    e.burnT -= dt;
-    const C = this.cfg.skills.chili;
+    e.burnT -= dt; e.burnLeft -= dt;
     while (e.burnT <= 0 && e.burn > 0 && !e.dead) {
       e.burnT += e.burnTick;
-      const pct = e.boss ? C.damageBoss : e.elite ? C.damageElite : C.damage, dmg = e.burn * pct / 100 * e.maxHp * e.burnMul;
-      e.burnSum += dmg; e.burn--;
+      const dmg = e.burn * e.burnDmg;
+      e.burnSum += dmg;
       if (e.hp - dmg <= 0) flush();
       this.hurtEnemy(e, dmg, { color: 'o', silent: true, dot: true });
     }
+    if (e.burnLeft <= 0) e.burn = 0;
     if (!e.dead && e.burnNum <= 0) flush();
   }
   // ---------- test mode: cheat menu ----------
@@ -615,7 +625,7 @@ export class Sim {
       stun: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1, wv: this.wave,
-      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnMul: 1, burnSum: 0, burnNum: 0,
+      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0,
     };
     this.enemies.push(e); this.waveSpawned++;
   }
@@ -1101,8 +1111,9 @@ export class Sim {
       const s = p.skills[id];
       if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
         const st = this.stats(id, s);
-        const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : id === 'chili' ? `{fire} ${this.cfg.skills.chili.burnStacks} × ${nf(st.dmg, 1)} % · {range} ${nf(st.range, 1)} m` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
-        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {sweep} ${nf(st.sweep)}°` : `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`;
+        const C = this.cfg.skills.chili;
+        const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : id === 'chili' ? `{dmg} ${nf(st.dmg, 1)} · {fire} ${nf(C.burnDamage * st.dmgPct, 1)} ×${C.burnStacks}` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
+        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {range} ${nf(st.range, 1)} m` : `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`;
         prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, l2] });
       }
     }
@@ -1121,7 +1132,7 @@ export class Sim {
         const s2 = { ...s }; mut(s2); const b = this.stats(id, s2);
         pool.push({ key, cat: 'skill', w: 1, pic: 'skill_' + id, title: N.skills[id], lines: [line(b)] });
       };
-      mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{fire} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} %` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
+      mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} · {fire} ${nf(this.cfg.skills.chili.burnDamage * a.dmgPct, 1)} → ${nf(this.cfg.skills.chili.burnDamage * b.dmgPct, 1)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
       mk(id + '_rng', x => x.lvRange++, b => id === 'cab' ? `{radius} ${nf(a.range * 100)} → ${nf(b.range * 100)} cm` : `{range} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
       if (id !== 'chili') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s
       if (id === 'chili') {

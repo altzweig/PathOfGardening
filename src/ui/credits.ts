@@ -1,25 +1,31 @@
 // Credits page (main menu > Optionen > Credits). Keep in sync with CREDITS.md.
-export interface Credit { author: string; authorUrl: string; assets: { name: string; url: string }[]; license: string; licenseUrl: string }
+interface Link { name: string; url: string }
+interface Group { title: string; author: Link; items: Link[]; license?: Link }
 
-export const CREDITS: Credit[] = [
+const CC_BY = { name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' };
+
+export const CREDITS: Group[] = [
   {
-    author: 'juliovii', authorUrl: 'https://juliovii.itch.io/',
-    assets: [
+    title: 'Texturen', author: { name: 'juliovii', url: 'https://juliovii.itch.io/' }, license: CC_BY,
+    items: [
+      { name: 'FTP Dirt Ground', url: 'https://juliovii.itch.io/ftp-dirt-ground' },
       { name: 'FTP Grass & Dirt', url: 'https://juliovii.itch.io/ftpgrass-dirt' },
       { name: 'FTP Stylized Mix Stones 01', url: 'https://juliovii.itch.io/ftp-stylized-mix-stones-01' },
-      { name: 'FTP Dirt Ground', url: 'https://juliovii.itch.io/ftp-dirt-ground' },
     ],
-    license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   },
+  { title: 'Sounds', author: { name: 'aslakhostaker', url: 'https://freesound.org/people/aslakhostaker/' }, items: [{ name: 'Flamethrower short and medium length bursts', url: 'https://freesound.org/s/395038/' }] },
+  { title: 'Sounds', author: { name: '1bob', url: 'https://freesound.org/people/1bob/' }, items: [{ name: 'Flamethrower', url: 'https://freesound.org/s/831929/' }] },
+  { title: 'Sounds', author: { name: 'raphavpires', url: 'https://freesound.org/people/raphavpires/' }, items: [{ name: 'Flamethrower loop', url: 'https://freesound.org/s/867029/' }] },
 ];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-const a = (href: string, t: string) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(t)}</a>`;
+const a = (l: Link) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`;
 
 export function creditsHtml() {
-  return CREDITS.map(c => `<section class="credit">
-    <h3>Texturen</h3>
-    <ul>${c.assets.map(x => `<li>${a(x.url, x.name)}</li>`).join('')}</ul>
-    <p>von ${a(c.authorUrl, c.author)} · ${a(c.licenseUrl, c.license)}</p>
-  </section>`).join('');
+  let html = '', last = '';
+  for (const g of CREDITS) {
+    if (g.title !== last) { html += `<h3>${esc(g.title)}</h3>`; last = g.title; }
+    html += `<section class="credit"><ul>${g.items.map(x => `<li>${a(x)}</li>`).join('')}</ul><p>von ${a(g.author)}${g.license ? ' · ' + a(g.license) : ''}</p></section>`;
+  }
+  return html;
 }

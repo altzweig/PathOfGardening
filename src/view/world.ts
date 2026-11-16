@@ -2,33 +2,35 @@
 // and blinking eye pairs behind them (more of them where the next wave comes from).
 import * as THREE from 'three';
 import { GEO, LANT, M, V, part, rand, scene, windU } from './core';
+import { groundMaterial, rockMaterial } from './textures';
 
 const ARENA = 15;
 
-function groundTexture() {
-  const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
-  g.fillStyle = '#18221a'; g.fillRect(0, 0, S, S);
+/** control map for the ground shader: r = bare dirt (garden + trodden paths), g = worn patches, b = brightness (falls to black at the rim) */
+function groundControl() {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
   const W = 64; const toPx = (x: number) => (x / W + .5) * S;
-  for (let i = 0; i < 9000; i++) {
-    const x = Math.random() * S, y = Math.random() * S, r = rand(2, 14);
-    const c = Math.random(); g.fillStyle = c < .5 ? `rgba(${36 + rand(0, 18)},${52 + rand(0, 22)},${28 + rand(0, 10)},.35)` : c < .8 ? 'rgba(16,24,15,.35)' : `rgba(${62 + rand(0, 18)},52,32,.25)`;
-    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-  }
-  g.strokeStyle = 'rgba(64,50,34,.32)'; g.lineCap = 'round';
+  g.fillStyle = 'rgb(0,0,0)'; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'lighter';
+  // worn patches (green channel)
+  for (let i = 0; i < 260; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(4, 16); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,120,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  // trodden paths from the dark into the garden (red channel)
+  g.strokeStyle = 'rgba(150,0,0,1)'; g.lineCap = 'round'; g.filter = 'blur(3px)';
   for (let k = 0; k < 7; k++) {
-    const a = k / 7 * Math.PI * 2 + rand(-.2, .2); g.lineWidth = rand(18, 34); g.beginPath();
+    const a = k / 7 * Math.PI * 2 + rand(-.2, .2); g.lineWidth = rand(7, 12); g.beginPath();
     g.moveTo(toPx(Math.cos(a) * 26), toPx(Math.sin(a) * 26));
     g.quadraticCurveTo(toPx(Math.cos(a + .3) * 12), toPx(Math.sin(a + .3) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
   }
-  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 9.8 / W);
-  grd.addColorStop(0, 'rgba(58,42,28,.95)'); grd.addColorStop(.75, 'rgba(52,38,26,.85)'); grd.addColorStop(1, 'rgba(52,38,26,0)');
-  g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 9.8 / W, 0, 7); g.fill();
-  for (let i = 0; i < 1500; i++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * S * 9.2 / W; g.fillStyle = `rgba(${rand(20, 90)},${rand(18, 60)},${rand(10, 40)},.4)`; g.fillRect(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, rand(1, 4), rand(1, 4)); }
-  // the edge falls off into total darkness
-  const dark = g.createRadialGradient(S / 2, S / 2, S * 14 / W, S / 2, S / 2, S * 18.5 / W);
-  dark.addColorStop(0, 'rgba(0,0,0,0)'); dark.addColorStop(1, 'rgba(0,0,0,1)');
-  g.fillStyle = dark; g.fillRect(0, 0, S, S);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  g.filter = 'none';
+  // the garden itself: bare earth (red channel)
+  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 10.2 / W);
+  grd.addColorStop(0, 'rgba(255,0,0,1)'); grd.addColorStop(.85, 'rgba(255,0,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 10.2 / W, 0, 7); g.fill();
+  // brightness (blue channel): lit garden, dimmer lawn, total darkness at the edge
+  const b = g.createRadialGradient(S / 2, S / 2, S * 9 / W, S / 2, S / 2, S * 18.5 / W);
+  b.addColorStop(0, 'rgba(0,0,255,1)'); b.addColorStop(.55, 'rgba(0,0,150,1)'); b.addColorStop(1, 'rgba(0,0,0,1)');
+  g.fillStyle = b; g.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
 }
 
 function windify(mat: THREE.Material, amp = .09) {
@@ -60,7 +62,7 @@ function silhouetteMat(rim = 0x26344a, pow = 2.6) {
 }
 
 export function buildWorld() {
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), groundMaterial(groundControl()));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   buildFog();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
@@ -97,7 +99,7 @@ export function buildWorld() {
     scene.add(bushes);
   }
   { // rocks along the garden border, glowing mushrooms inside
-    const rocks = new THREE.InstancedMesh(GEO.lo, M(0x3c4046, { r: .95 }), 30);
+    const rocks = new THREE.InstancedMesh(GEO.lo, rockMaterial(0x8a8e96), 30);
     for (let i = 0; i < 30; i++) {
       const s = rand(.14, .25), ang = i / 30 * Math.PI * 2, r = rand(10, 10.4);
       m4.compose(V(Math.cos(ang) * r, s * .3, Math.sin(ang) * r), q.setFromEuler(new THREE.Euler(rand(0, 3), rand(0, 3), 0)), V(s, s * .7, s)); rocks.setMatrixAt(i, m4);

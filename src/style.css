@@ -191,3 +191,9 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 /* boss health */
 #bossbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 92px);transform:translateX(-50%);width:min(420px,60vw);height:12px;border-radius:6px;background:#100a1ccc;border:1px solid #8a4cff88;overflow:hidden;box-shadow:0 0 14px #6a3cff55}
 #bossfill{position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#b090ff,#6a3cff 60%,#3a1a9a);transition:width .15s}
+#credView{width:min(560px,92vw);max-height:66vh;overflow:auto;text-align:center;color:var(--parch);font-family:var(--f-body)}
+#credView h3{font-family:var(--f-display);color:var(--gold);margin:6px 0;font-size:20px}
+#credView ul{list-style:none;padding:0;margin:0 0 8px;line-height:1.8;font-size:18px}
+#credView p{margin:0;font-size:16px;color:#a59a86}
+#credView a{color:var(--parch);text-underline-offset:3px}
+#credView a:hover{color:var(--gold)}

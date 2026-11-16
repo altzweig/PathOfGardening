@@ -39,3 +39,7 @@ Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die 
 - Zuordnung zu Spielereignissen: `Game Design & Balancing/sounds.yaml`
 - Neu schneiden: `npm run dev`, dann in der Browser-Konsole
   `const T = await import('/tools/sfx-tool.js'); await T.load(); await T.cut('name', 'datei.wav', start, ende)`
+
+## Credits
+
+Fremde Assets (Autor, Links, Lizenz) stehen in [`CREDITS.md`](CREDITS.md) und im Spiel unter *Optionen → Credits*.

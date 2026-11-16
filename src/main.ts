@@ -8,12 +8,13 @@ import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { mini, pic } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
+import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#controls', '#levelup', '#pause', '#over', '#cheat'];
+const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); }
 
 type Mode = 'idle' | 'solo' | 'host' | 'client';
@@ -86,6 +87,8 @@ class Game {
     click('#ctrlBtn', () => this.openControls('#options'));
     click('#pCtrlBtn', () => this.openControls('#pause'));
     click('#ctrlBack', () => only(this.backTo));
+    click('#credBtn', () => { $('#credView').innerHTML = creditsHtml(); only('#credits'); });
+    click('#credBack', () => only('#options'));
     for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOptLabels(); });
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); this.updateOptLabels(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
@@ -232,7 +235,7 @@ class Game {
     if (this.mode === 'idle' || !$('#levelup').hidden || !$('#over').hidden) return;
     const p = $('#pause');
     if (p.hidden && !$('#controls').hidden) { only(null); }
-    if (p.hidden && $('#options').hidden && $('#controls').hidden) {
+    if (p.hidden && $('#options').hidden && $('#controls').hidden && $('#credits').hidden) {
       this.input.releaseAll(); only('#pause'); this.backTo = '#pause'; this.updateOptLabels();
       show('#restartBtn', this.mode !== 'client');
       if (this.mode === 'solo' && this.sim) this.sim.paused = true;
@@ -242,7 +245,7 @@ class Game {
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
-    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#options').hidden || !$('#cheat').hidden;
+    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl';
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());

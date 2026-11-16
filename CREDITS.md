@@ -1,5 +1,21 @@
 # Credits
 
+Alle Credits stehen auch im Spiel unter *Optionen → Credits* (`src/ui/credits.ts`). Bitte beides gemeinsam pflegen.
+
+## Texturen
+
+Von **juliovii** – https://juliovii.itch.io/
+Lizenz: [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) (laut den itch.io-Seiten).
+Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu als JPEG komprimiert, liegen in `public/textures/`.
+
+| Asset-Paket | Link | Verwendete Texturen | Datei im Spiel | Verwendet für |
+|---|---|---|---|---|
+| FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03, GroundDirt_06 | `grass`, `grassdirt`, `dry` | Rasen rund um den Garten |
+| | | GroundDirt_05, GroundDirt_01 | `dirt`, `pebble` | Gartenboden in der Mitte |
+| | | GroundMud_01 | `mud` | Beete (Felder) |
+| FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | Steine am Gartenrand |
+| FTP Stylized Mix Stones 01 | https://juliovii.itch.io/ftp-stylized-mix-stones-01 | Stylized_LavaRock_02 (+ Emissive) | `lava` | Chili-Beet |
+
 ## Sounds (Freesound)
 
 Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).

@@ -1,7 +1,7 @@
 // Static garden + the dark rim: black bush/tree silhouettes with a faint cold edge,
 // and blinking eye pairs behind them (more of them where the next wave comes from).
 import * as THREE from 'three';
-import { GEO, LANT, M, V, part, rand, scene, windU } from './core';
+import { GEO, LANT, M, V, envU, part, rand, scene, windU } from './core';
 import { groundMaterial, rockMaterial } from './textures';
 
 const ARENA = 15;
@@ -45,19 +45,25 @@ function windify(mat: THREE.Material, amp = .09) {
   return mat;
 }
 
-/** pure black with a thin moonlit rim -> reads as a silhouette against the dark */
+/** night: pure black with a thin moonlit rim -> reads as a silhouette against the dark;
+ *  day: dark foliage green lit by the sun, fading into the haze */
 function silhouetteMat(rim = 0x26344a, pow = 2.6) {
   return new THREE.ShaderMaterial({
-    uniforms: { uRim: { value: new THREE.Color(rim) }, uPow: { value: pow } },
-    vertexShader: `varying vec3 vN; varying vec3 vV;
+    uniforms: { uRim: { value: new THREE.Color(rim) }, uPow: { value: pow }, uLeaf: { value: new THREE.Color(0x355a2c) }, ...envU },
+    vertexShader: `varying vec3 vN; varying vec3 vV; varying float vD;
       void main(){ vec4 lp=vec4(position,1.); vec3 n=normal;
         #ifdef USE_INSTANCING
           lp=instanceMatrix*lp; n=mat3(instanceMatrix)*n;
         #endif
-        vec4 wp=modelMatrix*lp; vN=normalize(mat3(modelMatrix)*n); vV=normalize(cameraPosition-wp.xyz);
+        vec4 wp=modelMatrix*lp; vN=normalize(mat3(modelMatrix)*n); vV=normalize(cameraPosition-wp.xyz); vD=length(cameraPosition-wp.xyz);
         gl_Position=projectionMatrix*viewMatrix*wp; }`,
-    fragmentShader: `uniform vec3 uRim; uniform float uPow; varying vec3 vN; varying vec3 vV;
-      void main(){ float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),uPow); gl_FragColor=vec4(uRim*f,1.); }`,
+    fragmentShader: `uniform vec3 uRim; uniform float uPow; uniform vec3 uLeaf; uniform float uDay; uniform vec3 uSun; uniform vec3 uFogCol; uniform float uFogD;
+      varying vec3 vN; varying vec3 vV; varying float vD;
+      void main(){ vec3 n=normalize(vN); float f=pow(1.-abs(dot(n,normalize(vV))),uPow);
+        vec3 lit=uLeaf*(.35+.75*max(dot(n,uSun),0.)) + uRim*f*.4;
+        vec3 c=mix(uRim*f, lit, uDay);
+        float fg=1.-exp(-uFogD*uFogD*vD*vD); c=mix(c, uFogCol, fg*uDay); // only by day: at night the silhouettes stay black
+        gl_FragColor=vec4(c,1.); }`,
   });
 }
 
@@ -150,8 +156,11 @@ const nearestBushes = (angle: number, count: number) => BUSHES.map((B, i) => ({ 
 export function warnEyes(dirs: number[], _types: number[][], warnTime: number) {
   for (const a of dirs) for (const b of nearestBushes(a + rand(-.1, .1), 3)) activateBush(b, warnTime + rand(1, 2));
 }
+let eyeCount = BASE_BUSHES;
+/** night share 0..1: idle eyes in the bushes mostly at night */
+export function setEyeNight(n: number) { eyeCount = Math.round(BASE_BUSHES * (.2 + .8 * n)); }
 export function updateEyes(dt: number) {
-  if (BUSHES.length && eyeBushes.length < BASE_BUSHES) activateBush(Math.floor(Math.random() * BUSHES.length), rand(7, 16));
+  if (BUSHES.length && eyeBushes.length < eyeCount) activateBush(Math.floor(Math.random() * BUSHES.length), rand(7, 16));
   for (let i = eyeBushes.length - 1; i >= 0; i--) {
     const E = eyeBushes[i]; E.t += dt;
     if (E.t >= E.life) { for (const p of E.pairs) { scene.remove(p.g); p.mat.dispose(); } eyeBushes.splice(i, 1); continue; }
@@ -189,12 +198,15 @@ function buildFog() {
     scene.add(s); wisps.push(w);
   }
 }
+const fogLook = { col: new THREE.Color(0x8aa0c8), mul: 1 };
+/** colour + strength of the drifting fog (day-night) */
+export function setFogLook(col: THREE.Color, mul: number) { fogLook.col.copy(col); fogLook.mul = mul; }
 export function updateFog(dt: number) {
   for (const w of wisps) {
     w.a += w.da * dt; w.ph += dt * .25;
     const r = w.r + Math.sin(w.ph) * .8;
     w.s.position.set(Math.cos(w.a) * r, w.y + Math.sin(w.ph * 1.7) * .15, Math.sin(w.a) * r);
-    (w.s.material as THREE.SpriteMaterial).opacity = w.op * (.55 + .45 * Math.sin(w.ph * 1.3));
+    const m = w.s.material as THREE.SpriteMaterial; m.opacity = Math.min(1, w.op * fogLook.mul * (.55 + .45 * Math.sin(w.ph * 1.3))); m.color.copy(fogLook.col);
   }
 }
 
@@ -227,12 +239,15 @@ export function syncTorches(fields: { x: number; z: number }[], H: number) {
     torchGroup.add(g); torches.push({ g, flame, glow, ph: rand(0, 7) });
   }
 }
+let torchLevel = 1;
+/** 1 = full night flame, lower by day (small flame, no ground glow) */
+export function setTorchLevel(l: number) { torchLevel = l; }
 export function updateTorches(dt: number) {
   for (const t of torches) {
     t.ph += dt * rand(6, 11);
-    const f = .85 + Math.sin(t.ph) * .08 + Math.sin(t.ph * 2.3) * .06;
-    t.flame.scale.set(.3 * f, .44 * (2 - f), 1);
-    (t.glow.material as THREE.MeshBasicMaterial).opacity = .2 * f;
+    const f = .85 + Math.sin(t.ph) * .08 + Math.sin(t.ph * 2.3) * .06, k = .55 + .45 * torchLevel;
+    t.flame.scale.set(.3 * f * k, .44 * (2 - f) * k, 1);
+    (t.glow.material as THREE.MeshBasicMaterial).opacity = .2 * f * torchLevel;
   }
 }
 export { ARENA };

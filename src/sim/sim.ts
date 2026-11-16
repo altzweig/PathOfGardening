@@ -644,13 +644,13 @@ export class Sim {
 
   // ---------- enemies ----------
   spawnEnemy(type: EnemyType, angle: number, elite = false) {
-    const EL = this.cfg.enemies.elite, D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, hpF = this.f(this.cfg.coop.enemyHpExponent) * (elite ? EL.hp : 1);
+    const EL = this.cfg.enemies.elite, D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, N = this.nightMul(), hpF = this.f(this.cfg.coop.enemyHpExponent) * (elite ? EL.hp : 1) * N.hp;
     const e: Enemy = {
       id: this.nid++, type, x: Math.cos(angle) * R, z: Math.sin(angle) * R, hp: D.hp * hpF, maxHp: D.hp * hpF,
       shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
       stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
-      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1, wv: this.wave,
+      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, puff: rand(0, D.puffEvery || 2),
     };
     this.enemies.push(e); this.waveSpawned++;
@@ -826,7 +826,7 @@ export class Sim {
     const B = this.cfg.enemies.boss, a = rand(0, Math.PI * 2);
     this.spawnEnemy('raccoon', a);
     const e = this.enemies[this.enemies.length - 1];
-    const firstBoss = B.every, hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * (1 + B.hpGrowthPerWave * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
+    const firstBoss = this.bossEvery(), hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * (1 + B.hpGrowthPerWave * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
     e.hp = e.maxHp = hp; e.r = this.cfg.enemies.raccoon.radius * B.scale; e.speed = B.speed; e.dmgMul = B.meleeDamage / this.cfg.enemies.meleeDamage;
     e.boss = { st: 'collect', t: B.collectTime, berries: 0, atk: 0, spawned: 0, next: 0, hx: 0, hz: 0, hdx: 0, hdz: 1 };
     this.emit({ k: 'boss', id: e.id }); this.sfx('raccoon.laugh', e.x, e.z);
@@ -930,11 +930,23 @@ export class Sim {
     }
     return { dirs, groups };
   }
+  // ---------- day / night ----------
+  // A day-night cycle = dayWaves day waves + nightWaves night waves (16 + 8 like 16 h / 8 h). The boss comes in the
+  // last night wave; after it the next day starts. Night waves are bigger and stronger (dayNight.night).
+  private waveT0 = 0; private waveDur = 1; private pauseLen = 1; private dayEnd = .75;
+  cycleLen() { const D = this.cfg.dayNight; return D ? D.dayWaves + D.nightWaves : 0; }
+  isNight(w = this.wave) { const D = this.cfg.dayNight; return !!D && w >= 1 && (w - 1) % this.cycleLen() >= D.dayWaves; }
+  bossEvery() { return this.cycleLen() || this.cfg.enemies.boss.every || 0; }
+  nightMul(w = this.wave) { const N = this.cfg.dayNight?.night; return this.isNight(w) && N ? N : { size: 1, hp: 1, damage: 1 }; }
+  /** share of the current wave "hour" that has passed (0..1): fighting covers the first 75 %, the pause the rest */
+  private dayFrac() { return this.wavePause ? this.dayEnd + (1 - this.dayEnd) * (1 - Math.max(0, this.waveT) / Math.max(.1, this.pauseLen)) : .75 * Math.min(1, (this.time - this.waveT0) / Math.max(1, this.waveDur)); }
+  /** hour of the cycle: 0 .. cycleLen (one hour per wave); 0 = morning of day 1 */
+  dayHour() { if (this.wave < 1 || !this.cycleLen()) return 0; return (this.wave - 1) % this.cycleLen() + this.dayFrac(); }
   /** start wave w now: builds the group schedule */
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
     this.wave = w; this.wavePause = false; this.waveGroups = []; this.waveSpawned = 0;
-    const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf;
+    const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf * this.nightMul(w).size;
     const gap = Math.max(W.gapMin, W.gapStart - W.gapPerWave * (w - 1));
     const round = (v: number) => Math.max(1, Math.floor(v) + (Math.random() < v % 1 ? 1 : 0));
     let t = 0;
@@ -946,9 +958,9 @@ export class Sim {
       this.waveGroups = gs.slice(gs.length - n);
       this.waveGroups.forEach((g, i) => { g.size = i === n - 1 ? left : 1; left -= g.size; });
     }
-    this.waveT = 0;
+    this.waveT = 0; this.waveT0 = this.time; this.waveDur = D + 4;
     this.emit({ k: 'waveStart', w });
-    if (this.cfg.enemies.boss.every > 0 && w % this.cfg.enemies.boss.every === 0) this.spawnBoss(); // boss wave
+    const be = this.bossEvery(); if (be > 0 && w % be === 0) this.spawnBoss(); // boss wave: last wave of every night
   }
   /** test mode: jump to wave w */
   jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
@@ -975,7 +987,7 @@ export class Sim {
       }
       const alive = this.enemies.reduce((n, e) => n + (e.wv === this.wave && !e.dead ? 1 : 0), 0);
       if (!this.waveGroups.length && !this.spawnQueue.length && alive <= this.waveSpawned * (1 - (W.endKilled ?? 0))) { // all groups out and enough of them gone: pause begins
-        this.wavePause = true; this.waveT = W.pauseStart + W.pausePerWave * (this.wave - 1);
+        this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
       }
     }
@@ -1337,7 +1349,7 @@ export class Sim {
     }
     const sw = this.cfg.rake.swingTime;
     return {
-      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),

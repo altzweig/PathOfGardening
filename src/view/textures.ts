@@ -2,7 +2,7 @@
 // Ground: several textures mixed by world-space masks + noise, each sampled with a
 // "no tile" lookup (two randomly offset samples blended by a noise index), so no repeat is visible.
 import * as THREE from 'three';
-import { renderer } from './core';
+import { envU, renderer } from './core';
 
 const loader = new THREE.TextureLoader();
 const BASE = import.meta.env.BASE_URL + 'textures/';
@@ -39,10 +39,12 @@ export function groundMaterial(control: THREE.Texture) {
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, {
       tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
+      uDay: envU.uDay,
       tDry: { value: T.dry.c }, nDry: { value: T.dry.n }, tDirt: { value: T.dirt.c }, nDirt: { value: T.dirt.n }, tPeb: { value: T.pebble.c }, nPeb: { value: T.pebble.n },
     });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vWP;
+uniform float uDay;
 uniform sampler2D tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
 vec3 gNor = vec3(0.);
 ${NOISE}
@@ -67,7 +69,7 @@ ${NOISE}
   if (wDry>.002) noTile(tDry, nDry, p/4.4, k, gc, gNor, wDry);
   if (wDirt>.002) noTile(tDirt, nDirt, p/3.9, k, gc, gNor, wDirt);
   if (wPeb>.002) noTile(tPeb, nPeb, p/3.3, k, gc, gNor, wPeb);
-  gc *= (.82 + .36*tFbm(p*.07+2.)) * ctl.b * .42;     // large-scale light/dark variation + darkness to the rim
+  gc *= (.82 + .36*tFbm(p*.07+2.)) * mix(ctl.b, .45 + .55*ctl.b, uDay) * mix(.42, .78, uDay);     // large-scale light/dark variation + darkness to the rim (softer by day)
   diffuseColor.rgb *= gc;`)
       .replace('#include <normal_fragment_maps>', /* glsl */`
   { vec3 tn = normalize(vec3(gNor.xy*.9, max(gNor.z, .2)));

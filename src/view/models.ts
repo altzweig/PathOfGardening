@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
-import { GEO, M, part, rand, windU } from './core';
+import { GEO, M, envU, part, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
 export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070', lemon: '#ffe44a', chili: '#ff3a1a' };
@@ -240,14 +241,34 @@ export function makeHatMaterial() {
   return { mat, uHp, uCol, uPulse, uCrown };
 }
 
-/** red glowing rim for elite enemies (fresnel shell around the body) */
-export function eliteRim(color = 0xff2a1a) {
-  const mat = new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(color) }, uTime: windU },
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: `varying vec3 vN; varying vec3 vV; void main(){ vec4 wp=modelMatrix*vec4(position,1.); vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-wp.xyz); gl_Position=projectionMatrix*viewMatrix*wp; }`,
-    fragmentShader: `uniform vec3 uColor; uniform float uTime; varying vec3 vN; varying vec3 vV;
-      void main(){ float f=pow(1.-abs(dot(normalize(vN),vV)),2.6); float a=f*(.75+.25*sin(uTime*4.)); gl_FragColor=vec4(uColor*a*1.3,a); }`,
-  });
-  const m = new THREE.Mesh(GEO.sph, mat); m.scale.set(.42, .36, .52); m.position.y = .36; return m;
+/** elite colour per animal (its eye colour; the sheep gets warm gold) */
+export const ELITE_COL: Record<EnemyType, number> = { ...EYE_COL, sheep: 0xffd860 };
+// Glowing outline: inverted hull of every lit body part, pushed out along smoothed normals by a fixed
+// world width, drawn back-faces only (shows only around the silhouette), HDR colour -> slight bloom.
+const outlineGeo = new Map<string, THREE.BufferGeometry>();
+function smoothGeo(g: THREE.BufferGeometry) {
+  let o = outlineGeo.get(g.uuid);
+  if (!o) { const p = new THREE.BufferGeometry(); p.setAttribute('position', g.getAttribute('position')); if (g.index) p.setIndex(g.index); o = mergeVertices(p, 1e-4); o.computeVertexNormals(); outlineGeo.set(g.uuid, o); }
+  return o;
+}
+const outlineMats = new Map<string, THREE.ShaderMaterial>();
+function outlineMat(color: number, width: number) {
+  const key = color + ':' + width; let m = outlineMats.get(key);
+  if (!m) {
+    m = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(color) }, uW: { value: width }, uTime: windU, uDay: envU.uDay },
+      side: THREE.BackSide, toneMapped: false, fog: false,
+      vertexShader: `uniform float uW; uniform float uDay; void main(){ vec4 wp=modelMatrix*vec4(position,1.); vec3 n=normalize(mat3(modelMatrix)*normal);
+        wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; }`,
+      fragmentShader: `uniform vec3 uColor; uniform float uTime; uniform float uDay; void main(){ gl_FragColor=vec4(uColor*(1.9+.35*sin(uTime*3.)+uDay*.8),1.); }`,
+    });
+    outlineMats.set(key, m);
+  }
+  return m;
+}
+/** add a glowing outline in the given colour around all lit parts below root (eyes, shield, stars stay without) */
+export function addOutline(root: THREE.Object3D, color: number, width = .03) {
+  const mat = outlineMat(color, width), list: THREE.Mesh[] = [];
+  root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && (m.material as THREE.Material).type === 'MeshStandardMaterial') list.push(m); });
+  for (const m of list) { const h = new THREE.Mesh(smoothGeo(m.geometry), mat); h.castShadow = false; h.renderOrder = -1; m.add(h); }
 }

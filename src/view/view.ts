@@ -31,9 +31,10 @@ import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
+import { dayNow, updateDayNight } from './daynight';
 import { bedMaterial, lavaBedMaterial } from './textures';
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
@@ -270,8 +271,8 @@ export class GameView {
       let v = this.enemies.get(e[0]);
       if (!v) {
         const type = ENEMIES[e[1]], b = buildEnemy(type); this.dyn.add(b.g);
-        if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); b.P.body.add(eliteRim()); } // elite: bigger, red glowing rim
-        if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); b.P.body.add(eliteRim(0x8a4cff)); } // boss: huge, violet rim
+        if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); addOutline(b.P.body, ELITE_COL[type]); } // elite: bigger, outline glowing in its colour
+        if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); addOutline(b.P.body, 0x8a4cff, .04); } // boss: huge, violet outline
         v = { g: b.g, P: b.P, type, bar: makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }
@@ -576,10 +577,13 @@ export class GameView {
     this.animVanish(dt);
     this.updateOverlay();
     this.updateAim();
+    updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
     updateEyes(dt); updateFog(dt); updateTorches(dt);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
-    if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
+    const night = 1 - dayNow().day;
+    if (Math.random() < dt * 5 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
+    else if (Math.random() < dt * 2.5 * (1 - night)) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(Math.cos(a) * r, rand(.4, 2), Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); } // pollen drifting in the sun
     PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);

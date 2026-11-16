@@ -109,7 +109,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Treffer-Aufblitzen der Gegner halbiert, damit Bloom nicht mehr überstrahlt.
 
 ## Wellen (16.11.2026)
-- Gegner kommen in 50 Wellen (`waves.total`), nach Welle 50 ist die Ernte gerettet (Sieg).
+- Gegner kommen in 48 Wellen (`waves.total`, = 2 Tag-Nacht-Zyklen), nach Welle 48 ist die Ernte gerettet (Sieg). (Bis 16.11.2026: 50 Wellen.)
 - Eine Welle besteht aus Gruppen (Stößen) aus mehreren Richtungen. Innerhalb der Welle werden die Gruppen größer (50 % → 150 % der Grundgröße), am Ende kommt eine große Schlussgruppe (250 %).
 - Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist. Die Pause beginnt sofort, auch wenn noch Gegner leben.
 - Welle 1: genau 5 Waschbären. Danach wächst jede Welle: länger (+2,5 s), Gruppen größer (+0,8 je Welle), Gruppen dichter; die Pause wird nur minimal länger (+0,1 s).
@@ -118,12 +118,14 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Testmodus: Im Cheat-Menü (E) kann man jede Welle 1–100 direkt starten.
 
 ## Elite-Gegner und XP-Drops (16.11.2026)
-- Ab Welle 3 können Gegner als Elite kommen (4 %, +1 % je Welle, max. 25 %): 1,35× so groß, roter Leuchtrand, 3× Leben, 2× Angriffsstärke (Kröten-Gift doppelt).
+- Elite sind selten: ab Welle 4 (1 %, +0,2 % je Welle, max. 5 %), 1,5× so groß, 3× Leben, 2× Angriffsstärke (Kröten-Gift doppelt).
+- Elite-Optik: statt rotem Leuchtrand eine leuchtende Outline in der Farbe des Tiers (Augenfarbe: Waschbär blau, Panda orange, Kröte grün, Igel gelb, Schaf gold) mit leichtem Bloom. Tagsüber etwas breiter und heller, damit sie im Hellen lesbar bleibt.
 - Jeder besiegte Gegner lässt 1 Blaubeere (XP) fallen, Elite 5. Werte unter `enemies.xpDrop` und `enemies.elite`.
 
 ## Waschbär-Boss (16.11.2026)
-- Vorerst der einzige Boss. Kommt alle 5 Wellen zu Beginn der Welle (zusätzlich zu den normalen Gruppen). 2,4× so groß, violetter Leuchtrand, eigene Lebensleiste oben in der Mitte.
-- Leben ≈ 20 normale Waschbären, +6 % je Welle ab Welle 5 (und Koop-Faktor).
+- Vorerst der einzige Boss. Kommt nur in der letzten Nachtwelle (Welle 24, 48) zu Beginn der Welle; danach wird es Tag. (Bis 16.11.2026: alle 5 Wellen.)
+- Ursprünglich: alle 5 Wellen zu Beginn der Welle (zusätzlich zu den normalen Gruppen). 2,4× so groß, violetter Leuchtrand, eigene Lebensleiste oben in der Mitte.
+- Leben ≈ 20 normale Waschbären, +6 % je Welle ab dem ersten Boss (Welle 24) (und Koop-Faktor).
 - Ablauf in Schleife: 5 s herumliegende Blaubeeren einsammeln (er klaut damit XP) → 2 s aufladen (zittert, leuchtet violett) → Spezialattacke. Jede gesammelte Blaubeere = +3 % mehr Bomben.
 - Attacke 1 „Spur“: ein Spur-Kopf verfolgt den nächsten Spieler, schnell wenn der weit weg ist, aber träge bei Richtungswechseln; hinter ihm landen Blaubeer-Bomben (14 Grundzahl).
 - Attacke 2 „Karussell“: er dreht sich und spuckt 6 s lang jede Sekunde 3 Spuren in zufällige Richtungen.
@@ -189,3 +191,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Die Flamme besteht jetzt aus Sprite-Partikeln aus Kenneys Particle Pack (CC0): Flammenzungen wachsen, drehen sich und zerfallen; Farbe über die Lebenszeit von Weißgelb über Orange zu einem Magenta-Roten Rand; dunkler Rauch steigt am Ende der Flamme auf. Darunter bleibt eine schwache Shader-Flamme als Grundglühen. Brennende Gegner tragen kleine Flammen.
 - Boden: Wo die Flamme hinfasst, glüht der Boden mit Lava-Rissen auf (Weißgelb), kühlt über Orange und Rot in ein paar Sekunden ab (`uCool` 1,8 s Halbwertszeit) und hinterlässt einen dunklen Brandfleck, der nach etwa 12 s verschwindet. Die Risse liegen im Weltmaßstab, überlappende Flecken bilden ein durchgehendes Rissmuster.
 
+
+## Tag-Nacht-Zyklus (16.11.2026)
+- Jede Welle (Kampf + Pause danach) ist eine Stunde. 16 Tag-Wellen, dann 8 Nacht-Wellen (16 h / 8 h), danach wieder Tag. Werte unter `dayNight`.
+- Die Sonne wandert über die Tag-Wellen von Ost nach West (tief → hoch → tief, Schatten drehen mit), nachts der Mond auf derselben Bahn. Übergänge: Abenddämmerung am Ende von Welle 16, Morgendämmerung während der letzten Nachtwelle (Boss) und der Pause danach. Die Zeit läuft weich nach, springt nie.
+- Nachtwellen sind größer und stärker: 1,4× Gegner pro Gruppe, 1,3× Leben, 1,25× Angriff (`dayNight.night`).
+- Das ganze Spiel ist heller. Tag: warmes Sonnenlicht, hellerer Boden, Bäume grün im Dunst, schwache Vignette, sanfter Bloom. Nacht: düsterer als der Tag (kühler, leicht entsättigt, stärkere Vignette, Gartenlicht, Laterne und Fackeln), aber heller als die alte Dauernacht.
+- Nebelschwaden: nachts dicht und bläulich, bei Sonnenaufgang Morgennebel, tagsüber nur dünner Dunst. Glühwürmchen nur nachts, tagsüber treibende Pollen. Augen in den Büschen hauptsächlich nachts (Warn-Augen vor einer Gruppe immer).
+- Geräusche: tagsüber Vogelgezwitscher und ab und zu Krähen, nachts Grillen, Fackelknistern und Eule; überblendet mit der Tageszeit (`sounds.yaml`: `ambient`, `calls`).
+- Testen: `?h=20` an die URL hängen zeigt fest diese Stunde (0–24).

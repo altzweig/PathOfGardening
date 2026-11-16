@@ -11,6 +11,8 @@ export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 export function lerpAngle(a: number, b: number, t: number) { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; }
 export const windU = { value: 0 };
+/** shared environment uniforms (day-night): uDay 0 = night .. 1 = day, uSun = direction to the main light */
+export const envU = { uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uFogCol: { value: new THREE.Color(0) }, uFogD: { value: .03 } };
 export const isTouch =matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 
 // ---------------- renderer ----------------
@@ -34,10 +36,10 @@ Object.assign(moon.shadow.camera, { left: -19, right: 19, top: 19, bottom: -19, 
 moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.03;
 scene.add(moon); scene.add(moon.target);
 export const LANT = new THREE.Vector3(Math.cos(Math.PI / 6) * 10.8, 0, Math.sin(Math.PI / 6) * 10.8);
-const lantern = new THREE.PointLight(0xffa04a, 22, 14, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
+export const lantern = new THREE.PointLight(0xffa04a, 22, 14, 1.6); lantern.position.set(LANT.x, 2.3, LANT.z); scene.add(lantern);
 export const torch = new THREE.PointLight(0xffc27a, 3.5, 7.5, 1.6); scene.add(torch);
 // soft light over the garden so the fields read a bit brighter than the rest of the night
-const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
+export const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
 
 export type Quality = 'hoch' | 'mittel' | 'niedrig';
 const QUAL: Record<Quality, { pr: number; shadow: number; bloom: boolean }> = {
@@ -49,21 +51,24 @@ export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: tr
 
 export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
+export const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
 composer.addPass(bloom);
 // lightning overlay: drawn after bloom (keeps scene depth) so bolts stay crisp
 export const fxTop = new THREE.Scene();
 const boltU = { uRes: { value: new THREE.Vector2(1, 1) } };
 const topPass = new RenderPass(fxTop, camera); topPass.clear = false;
 export const gradePass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 }, uLow: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 }, uLow: { value: 0 }, uDay: envU.uDay },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; uniform float uLow; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; uniform float uLow; uniform float uDay; varying vec2 vUv;
     void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 d=vUv-.5; d.x*=1.2; float r=length(d);
       float l=dot(c.rgb,vec3(.299,.587,.114));
-      c.rgb=mix(c.rgb*vec3(.8,.95,1.15), c.rgb*vec3(1.06,1.,.9), smoothstep(.05,.6,l));
+      vec3 night=mix(c.rgb*vec3(.8,.95,1.15), c.rgb*vec3(1.06,1.,.9), smoothstep(.05,.6,l));
+      night=mix(vec3(l)*vec3(.82,.95,1.2), night, .78);                 // night: cooler, a little desaturated = gloomier
+      vec3 day=mix(c.rgb*vec3(.96,1.,1.04), c.rgb*vec3(1.04,1.01,.95), smoothstep(.1,.7,l)); // day: warm lights, slightly cool shade
+      c.rgb=mix(night, day, uDay);
       c.rgb=mix(c.rgb, vec3(.6,.02,.02), uHurt*smoothstep(.25,.75,r));
-      float vig=smoothstep(.8,.2,r); c.rgb*=vig;
+      float vig=mix(smoothstep(.85,.18,r), mix(1.,smoothstep(1.,.25,r),.6), uDay); c.rgb*=vig;
       c.rgb+=vec3(.42,.0,.03)*uLow*smoothstep(.42,.8,r); // low-HP: soft red glow on the screen edges, centre stays clear
       gl_FragColor=c; }`,
 });

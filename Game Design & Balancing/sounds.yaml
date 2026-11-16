@@ -18,10 +18,14 @@
 master: 0.9
 distance: { full: 5, silent: 26 }   # m vom eigenen Spieler: bis "full" volle Lautstärke, ab "silent" stumm
 
-ambient:
-  night: { file: amb_night, vol: 0.18 }               # Grillen-Teppich (Loop)
-  fire:  { file: amb_fire, vol: 0.10 }                # leises Feuerknistern der Fackeln (Loop)
-  calls: { files: [crow_1, crow_2, crow_3, owl_1], vol: 0.16, pitch: [0.9, 1.05], every: [12, 28] }  # Rufe aus dem Wald
+ambient:                                              # Loops, über die Tageszeit überblendet (at: day / night / ohne = immer)
+  day:   { file: amb_day, vol: 0.13, at: day }        # Vogelgezwitscher tagsüber (Loop)
+  night: { file: amb_night, vol: 0.18, at: night }    # Grillen-Teppich nachts (Loop)
+  fire:  { file: amb_fire, vol: 0.10, at: night }     # leises Feuerknistern der Fackeln, nur nachts (Loop)
+
+calls:                                                # einzelne Rufe aus dem Wald
+  day:   { files: [crow_1, crow_2, crow_3], vol: 0.11, pitch: [0.95, 1.1], every: [20, 45] }   # tagsüber ab und zu Krähen
+  night: { files: [owl_1, owl_1, crow_2], vol: 0.16, pitch: [0.9, 1.05], every: [12, 28] }   # nachts Eule (und mal eine Krähe)
 
 raccoon:
   # kurze Einzel-Laute, weich gefiltert

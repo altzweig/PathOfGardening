@@ -46,7 +46,8 @@ export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32,
 export type Ev = { k: string; [key: string]: any };
 
 export interface Snap {
-  t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; wp: 0 | 1; won: 0 | 1;
+  t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
+  wp: 0 | 1; won: 0 | 1;
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]

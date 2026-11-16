@@ -62,6 +62,8 @@ export interface Balancing {
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };
       carousel: { duration: number; every: number; trails: number; count: number; spacing: number };
       rain: { count: number; interval: number; warn: number; radius: number } } } & Record<EnemyType, EnemyCfg>;
+  /** day-night cycle: dayWaves day waves, then nightWaves night waves (boss in the last one); night waves bigger/stronger */
+  dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
   weaponSlots?: { max: number };
   transitions?: { slow: number; uiFade: number };
   hud: {

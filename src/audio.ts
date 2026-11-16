@@ -124,6 +124,7 @@ const lastPick = new Map<string, string>();
 const lastAt = new Map<string, number>();
 let lx = 0, lz = 0;
 let ambOn = false; const ambNodes: AudioBufferSourceNode[] = []; let callT = 8;
+const ambGains: { g: GainNode; vol: number; at: string }[] = []; let dayShare = 1;
 export function setListener(x: number, z: number) { lx = x; lz = z; }
 
 /** soundCfg = parsed sounds.yaml; buffers are fetched once the AudioContext exists */
@@ -213,11 +214,11 @@ export function stopAllLoops() { for (const id of [...loops.keys()]) stopLoop(id
 let ambWanted = false;
 function startAmbient() {
   if (!AC || ambOn || !SC?.ambient) return;
-  for (const k of ['night', 'fire']) {
+  for (const k in SC.ambient) { // loops: at = day | night | (always)
     const e = SC.ambient[k]; if (!e?.file || !bufs.has(e.file)) continue;
     const src = AC.createBufferSource(); src.buffer = bufs.get(e.file)!; src.loop = true;
-    const g = AC.createGain(); g.gain.value = (e.vol ?? .2) * (SC.master ?? 1);
-    src.connect(g); g.connect(master); src.start(); ambNodes.push(src);
+    const g = AC.createGain(), vol = (e.vol ?? .2) * (SC.master ?? 1); g.gain.value = vol * ambShare(e.at);
+    src.connect(g); g.connect(master); src.start(0, Math.random() * src.buffer.duration); ambNodes.push(src); ambGains.push({ g, vol, at: e.at || '' });
   }
   ambOn = ambNodes.length > 0;
 }
@@ -225,13 +226,22 @@ export function ambient(on: boolean) {
   if (on && !audio.on) return;
   ambWanted = on;
   if (on) { if (bufs.size) startAmbient(); else void loadSamples(); }
-  else { ambNodes.forEach(n => { try { n.stop(); } catch { /* ignore */ } }); ambNodes.length = 0; ambOn = false; }
+  else { ambNodes.forEach(n => { try { n.stop(); } catch { /* ignore */ } }); ambNodes.length = 0; ambGains.length = 0; ambOn = false; }
 }
-/** random distant calls (crows, owl) from the forest */
+const ambShare = (at?: string) => at === 'day' ? dayShare : at === 'night' ? 1 - dayShare : 1;
+/** day share 0 (night) .. 1 (day): crossfades the day / night ambience */
+export function setDayNight(day: number) {
+  if (Math.abs(day - dayShare) < .01 && day !== 0 && day !== 1) return;
+  dayShare = day; if (!AC) return;
+  for (const a of ambGains) a.g.gain.setTargetAtTime(a.vol * ambShare(a.at), AC.currentTime, .4);
+}
+/** random distant calls from the forest: owl + crows at night, crows now and then by day */
 export function tickAmbient(dt: number) {
-  if (!ambOn || !SC?.ambient?.calls || !audio.on) return;
+  if (!ambOn || !SC?.calls || !audio.on) return;
   callT -= dt; if (callT > 0) return;
-  const c = SC.ambient.calls; callT = c.every ? c.every[0] + Math.random() * (c.every[1] - c.every[0]) : 20;
-  const a = Math.random() * Math.PI * 2; sfx('ambient.calls', lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
+  const key = Math.random() < dayShare ? 'day' : 'night', c = SC.calls[key];
+  callT = c?.every ? c.every[0] + Math.random() * (c.every[1] - c.every[0]) : 20;
+  if (!c) return;
+  const a = Math.random() * Math.PI * 2; sfx('calls.' + key, lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });

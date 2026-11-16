@@ -361,14 +361,14 @@ export class GameView {
       case 'bossEat': burst(V(e.x, .5, e.z), 0x5a74ff, 6, 1.5, .12, .3); break;
       case 'bossDead': burst(V(e.x, .8, e.z), 0x8a4cff, 80, 5, .3, 1.2); burst(V(e.x, .8, e.z), 0xffe0b0, 40, 4, .2, .8); this.shake = .35; break;
       case 'zap': { // Citrateaser chain: one bolt per link, thinner further down the chain
-        for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xcfe8ff, 6, 1.6, .1, .25); }
+        for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xeaf6ff, 12, 2.2, .14, .3); decal(sg[2], sg[3], d ? 0x9fd8ff : 0xfff080, .2, .3, { ring: true, add: true, grow: .9, op: .9 }); }
         this.shake = Math.min(.2, this.shake + .03); break;
       }
       case 'lemonZap': { // harvest: lightning jumps between the lemons of the tree
         const v = this.fields.get(e.s); if (!v) break;
         const ps = v.fruits.filter(m => m.visible).sort(() => Math.random() - .5).slice(0, 4).map(m => m.getWorldPosition(V()));
-        if (ps.length > 1) bolt(ps, 0xfff6a0, .025, .22, .05);
-        BUSH_MAT.lemon.emissiveIntensity = 1.6; break;
+        if (ps.length > 1) bolt(ps, 0xfff6a0, .03, .25, .05);
+        BUSH_MAT.lemon.emissiveIntensity = 2.6; break;
       }
       case 'rarity': { const sl = this.slots[e.s]; if (sl) { burst(V(sl.x, .3, sl.z), RARITY_COL[e.r] ?? 0xffffff, 60, 3.5, .25, 1.1); decal(sl.x, sl.z, RARITY_COL[e.r] ?? 0xffffff, .3, .7, { ring: true, add: true, grow: hexR(this.cfg) * 1.2, op: .9 }); } break; }
       case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); sfx('collect.merge', e.x, e.z); break;

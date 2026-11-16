@@ -25,6 +25,7 @@ names:
     cab: Kohl
     lemon: Zitronenbäumchen
     chili: Chilipflanze
+    nut: Nussbaum
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     asp: Spargelfeld
@@ -32,6 +33,7 @@ names:
     cab: Kohlfeld
     lemon: Zitronenbäumchen
     chili: Chilifeld
+    nut: Nussbaum
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
   # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
@@ -98,6 +100,12 @@ arena:
   fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
   startFields: 3           # Blaubeerfelder zu Beginn
 
+forest:                    # Waldplätze außerhalb des Gartens (hinter dem Steinkreis, vor den Büschen). Nur hier wachsen Nussbäume.
+  slots: 6                 # so viele Baumplätze, gleichmäßig rund um den Garten
+  radius: 12.6             # m vom Gartenmittelpunkt (Garten endet bei ca. 10 m, die Büsche beginnen bei 13 m)
+  angleOffset: 30          # Grad, Drehung des ersten Platzes
+  types: [nut]             # Feldtypen, die nur im Wald (und nicht im Garten) gebaut werden
+
 fields:
   hp: 100
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
@@ -132,6 +140,9 @@ plants:
   cab:  { interval: 3, unlockAt: 0 }
   lemon: { interval: 2, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 0.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 0,5 s, wie das Zitronenbäumchen erst ab Level 10
+  nut:  { interval: 4, amount: 1, minLevel: 5, dropRadius: [0.6, 1.8], magnet: false }
+  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 4 s, fällt aus der Krone 0,6-1,8 m um den Stamm.
+  # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 
 rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
@@ -355,6 +366,22 @@ enemies:
     puffDamage: 2          # Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
     puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
     resist: [blue, cran]
+  squirrel:                # Eichhörnchen: erscheint in der Krone eines Nussbaums, klettert heraus, wartet kurz, springt runter und klaut Nüsse
+    hp: 4
+    speed: 4.2             # m/s, flink
+    wanderSpeed: 2.6       # m/s, flitzt um seinen Baum, solange keine Nuss liegt
+    radius: 0.22
+    peaceful: true         # greift nie an
+    steals: [nut]          # nur Nüsse
+    carryMax: 3            # mit 3 Nüssen haut es ab (oder sobald keine Nuss mehr liegt)
+    fleeSpeed: 5.5
+    fleeBelow: 0.5         # unter 50 % Leben flieht es (auch direkt aus der Krone)
+    climbTime: 0.8         # s klettert aus der Krone heraus (nicht treffbar)
+    perchTime: 1.5         # s wartet am Kronenrand (treffbar, Harke reicht von unten)
+    jumpTime: 0.5          # s Sprung runter (in der Luft nicht treffbar)
+    jumpDistance: 1.4      # m, so weit springt es vom Kronenrand Richtung Garten
+    patience: 10           # s wartet es unten auf Nüsse, dann verschwindet es
+    resist: [cab, chili]   # springt aus Explosionen, Giftlachen und Flammen
 
 waves:
   # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
@@ -392,6 +419,7 @@ waves:
     toad:    { from: 7,  weight: 1.2 }
     hedgehog: { from: 11, weight: 0.4, group: [3, 4] }  # group: kommt immer als Gruppe aus 3-4 Tieren
     sheep:   { from: 21, weight: 0.4 }
+    squirrel: { from: 3, weight: 1.2, needs: nut }   # needs: kommt nur, wenn ein Nussbaum steht (aus dessen Krone)
 
 dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) = 1 Stunde, die Sonne wandert mit
   dayWaves: 16             # so viele Tag-Wellen (16 h Tag) ...

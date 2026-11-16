@@ -2,7 +2,7 @@
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon } from '../config';
-import { Slot, cornerAngle, hexR, slotAt, slotPositions } from '../sim/sim';
+import { Slot, cornerAngle, hexR, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -146,10 +146,11 @@ export class GameView {
     if (!type || !this.cfg) return;
     const H = hexR(this.cfg);
     for (const s of this.slots) {
-      const g = new THREE.Group(); g.position.set(s.x, .06, s.z);
+      const g = new THREE.Group(); g.position.set(s.x, .06, s.z); g.visible = slotFits(this.cfg, s, type); // nut trees only in the forest, everything else only in the garden
       const fill = new THREE.Mesh(new THREE.CircleGeometry(H * .93, 6, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .06, depthWrite: false }));
       const line = new THREE.Mesh(new THREE.RingGeometry(H * .86, H * .95, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false }));
       fill.rotation.x = line.rotation.x = -Math.PI / 2;
+      if (s.forest) for (const m of [fill, line]) (m.material as THREE.MeshBasicMaterial).depthTest = false; // forest slots sit between the bushes: draw them on top
       // big fruit badge in the middle: what grows here (top-down: instantly visible what would be overbuilt)
       const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex('blue'), transparent: true, depthTest: false, depthWrite: false, toneMapped: false, fog: false }));
       badge.position.set(0, .4, -H * .1); badge.scale.setScalar(H * BADGE); badge.renderOrder = 20; badge.visible = false;
@@ -172,7 +173,8 @@ export class GameView {
     const nx = cx / innerWidth * 2 - 1, ny = -(cy / innerHeight) * 2 + 1;
     const o = camera.position, d = V(nx, ny, .5).unproject(camera).sub(o).normalize(); if (d.y >= 0) return -1;
     const t = -o.y / d.y;
-    return slotAt(this.cfg, this.slots, o.x + d.x * t, o.z + d.z * t);
+    const i = slotAt(this.cfg, this.slots, o.x + d.x * t, o.z + d.z * t);
+    return i >= 0 && this.placing && !slotFits(this.cfg, this.slots[i], this.placing) ? -1 : i;
   }
   private updateOverlay() {
     if (!this.placing) return;
@@ -181,6 +183,7 @@ export class GameView {
     const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera);
     const px = Math.abs(pb.x - pa.x) * innerWidth / 2; // pixels per H
     this.slotOverlay.children.forEach((g, i) => {
+      if (!g.visible) { this.fieldInfo(i, null, false, false, px); return; }
       const [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
       const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
       const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
@@ -285,10 +288,10 @@ export class GameView {
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
       v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
+      v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
-    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.map(f => slots[f[0]]), hexR(this.cfg)); }
+    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.filter(f => !slots[f[0]]?.forest).map(f => slots[f[0]]), hexR(this.cfg)); }
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
       const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
@@ -365,9 +368,10 @@ export class GameView {
     bed.receiveShadow = true; g.add(bed);
     const rim = new THREE.Mesh(new THREE.RingGeometry(H * .9, H * .97, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: RARITY_COL[0], transparent: true, opacity: .55, depthWrite: false }));
     rim.rotation.x = -Math.PI / 2; rim.position.y = .045; g.add(rim);
-    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : 0x9ad870) };
+    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
-    for (let i = 0; i < 3; i++) { // three low clumps per bed
+    if (type === 'nut') { const b = buildPlant(type, mats); b.g.rotation.y = rand(0, 7); plant.add(b.g); fruits.push(...b.fruits); } // one big tree in the middle
+    else for (let i = 0; i < 3; i++) { // three low clumps per bed
       const a = i / 3 * Math.PI * 2 + .5, b = buildPlant(type, mats);
       b.g.position.set(Math.cos(a) * H * .42, 0, Math.sin(a) * H * .42); b.g.scale.set(.72, .62, .72); b.g.rotation.y = rand(0, 7);
       plant.add(b.g); fruits.push(...b.fruits);
@@ -425,7 +429,7 @@ export class GameView {
     v.plant.children.forEach((c, i) => {
       c.rotation.x = Math.sin(now * 31 + i * 2.1) * .28 * cb;
       c.rotation.z = Math.cos(now * 27 + i * 1.3) * .28 * cb;
-      c.scale.y = .62 * (1 - .18 * cb + Math.sin(now * 38 + i) * .08 * cb);
+      c.scale.y = (v.ftype === 'nut' ? 1 : .62) * (1 - (v.ftype === 'nut' ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
     });
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
@@ -553,6 +557,11 @@ export class GameView {
         this.shake = Math.min(.2, this.shake + .02); break;
       }
       case 'till': this.rakeStroke(e.s); break;
+      case 'rustleTree': { // squirrel appears in the crown of a nut tree: leaves fall, the crown shakes
+        for (const v of this.fields.values()) if (Math.hypot(v.x - e.x, v.z - e.z) < .5) { v.comb = Math.max(v.comb, .6); v.shake = Math.max(v.shake, .3); }
+        for (let i = 0; i < 10; i++) { const a = rand(0, 7), r = rand(.3, 1.1); PART.spawn(V(e.x + Math.cos(a) * r, rand(2, 2.8), e.z + Math.sin(a) * r), V(rand(-.4, .4), rand(-.2, .3), rand(-.4, .4)), Math.random() < .5 ? 0x5a8a3a : 0x8aa840, rand(.06, .1), rand(.8, 1.4), { g: 1.5 }); }
+        break;
+      }
       case 'lemonZap': { // harvest: lightning jumps between the lemons of the tree
         const v = this.fields.get(e.s); if (!v) break;
         const ps = v.fruits.filter(m => m.visible).sort(() => Math.random() - .5).slice(0, 4).map(m => m.getWorldPosition(V()));
@@ -724,8 +733,13 @@ export class GameView {
   private animEnemy(v: EView, dt: number, k: number, now: number) {
     const e = v.s, fl = e[7];
     v.x = lerp(v.x, e[2], k); v.z = lerp(v.z, e[3], k);
-    v.g.position.set(v.x, 0, v.z);
+    const sq = v.type === 'squirrel', hy = sq ? (this.smooth ? lerp(v.g.position.y, e[10], k) : e[10]) : 0;
+    v.g.position.set(v.x, hy, v.z);
     v.g.rotation.y = lerpAngle(v.g.rotation.y, e[4], .2);
+    if (sq && v.P.tail) { // tail flicks nervously while it waits on the crown, stretches out in the jump
+      const st = e[9]; v.P.tail.rotation.x = st === 2 ? Math.sin(now * 14 + e[0]) * .25 : st === 3 ? -.6 : Math.sin(now * 6 + e[0]) * .1;
+      v.P.body.rotation.x = st === 3 ? .5 : st === 2 ? -.25 : 0;
+    }
     const stun = fl & EF.stun;
     v.P.stars.visible = !!stun; if (stun) { v.P.stars.rotation.y += dt * 6; v.P.body.rotation.z = Math.sin(now * 18) * .08; } else v.P.body.rotation.z = 0;
     if (v.type === 'toad') {
@@ -770,7 +784,7 @@ export class GameView {
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
-    v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
+    v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
   }
   private updateNums(dt: number) {
@@ -818,7 +832,7 @@ export class GameView {
     // build mode: blend to a top-down view of the whole garden
     this.placeT = clamp(this.placeT + (this.placing ? dt : -dt) * 3, 0, 1);
     const k = this.placeT * this.placeT * (3 - 2 * this.placeT);
-    const ext = this.slots.reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
+    const ext = this.slots.filter(s => !s.forest || (this.placing && slotFits(this.cfg, s, this.placing))).reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
     const topH = ext / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
     camera.position.set(lerp(this.camX + off.x + sx, 0, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, .01, k));
     camera.lookAt(lerp(this.camX + sx, 0, k), 0, lerp(this.camZ + sz, 0, k));

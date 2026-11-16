@@ -8,6 +8,7 @@ const FRUIT = {
   cab: `<circle cx="20" cy="21" r="13" fill="#8fd16a"/><path d="M20 8 q-6 13 0 26 M20 8 q6 13 0 26 M8 18 q12 4 24 0" stroke="#4f8a2a" stroke-width="2" fill="none"/>`,
   lemon: `<ellipse cx="20" cy="22" rx="13" ry="10" fill="#f0d030"/><path d="M7 22 l-3 0 M33 22 l3 0" stroke="#c8a020" stroke-width="3" stroke-linecap="round"/><path d="M20 12 q5 -6 11 -5 q-4 5 -11 5z" fill="#5f9a35"/>`,
   chili: `<path d="M9 13 q3 -3 7 -1 q14 5 17 20 q-12 -3 -21 -12 q-4 -4 -3 -7z" fill="#e02a12"/><path d="M14 15 q10 4 15 13" stroke="#ff8a60" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M9 13 q-1 -4 -5 -6 M7 11 q3 -3 6 0" stroke="#4f8a2a" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
+  nut: `<path d="M20 9 C29 9 33 18 31 25 C29 33 24 36 20 36 C16 36 11 33 9 25 C7 18 11 9 20 9z" fill="#a8743a"/><path d="M20 13 C25 15 27 22 25 29" stroke="#d8a868" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M9 14 q3 -9 11 -9 q8 0 11 9 q-5 -3 -11 -2 q-6 -1 -11 2z" fill="#6a8a3a"/><path d="M20 5 v-3" stroke="#5a3a1a" stroke-width="2.4" stroke-linecap="round"/>`,
 };
 const RAKE = `<path d="M8 34 L28 10" stroke="#c8935a" stroke-width="3.5" stroke-linecap="round"/><path d="M20 4 L36 18" stroke="#c9d0d6" stroke-width="3.5" stroke-linecap="round"/><path d="M22 6l-4 4M26 9.5l-4 4M30 13l-4 4M34 16.5l-4 4" stroke="#c9d0d6" stroke-width="2.2" stroke-linecap="round"/>`;
 const SKILL = {
@@ -27,6 +28,7 @@ const PLANT = {
   cab: `<circle cx="13" cy="22" r="6" fill="#9ad870"/><circle cx="27" cy="22" r="6" fill="#9ad870"/><circle cx="20" cy="16" r="6.5" fill="#a8e27e"/><path d="M8 26 q5 3 10 0 M22 26 q5 3 10 0" stroke="#4f8a2a" stroke-width="2" fill="none"/>`,
   lemon: `<rect x="18" y="20" width="4" height="12" fill="#5a4026"/><circle cx="20" cy="15" r="10" fill="#3d6a2a"/><ellipse cx="14" cy="14" rx="2.6" ry="2" fill="#f0d030"/><ellipse cx="24" cy="11" rx="2.6" ry="2" fill="#f0d030"/><ellipse cx="23" cy="19" rx="2.6" ry="2" fill="#f0d030"/><path d="M14 14 L19 12 L17 16 L23 19" stroke="#fff6a0" stroke-width="1.2" fill="none"/>`,
   chili: `<path d="M20 30 V14 M20 22 q-6 -3 -8 -9 M20 20 q6 -3 9 -8" stroke="#3f7a2a" stroke-width="2.2" fill="none" stroke-linecap="round"/><ellipse cx="13" cy="12" rx="6" ry="3.5" fill="#2c6328"/><ellipse cx="27" cy="11" rx="6" ry="3.5" fill="#2c6328"/><ellipse cx="20" cy="13" rx="5" ry="3.5" fill="#357a30"/><path d="M12 15 q-1 7 2 10 q1 -6 0 -10z M18 16 q-1 7 2 11 q1 -7 0 -11z M24 15 q0 7 3 9 q0 -6 -1 -9z M29 14 q1 6 3 8 q0 -5 -1 -8z" fill="#ff3a1a"/>`,
+  nut: `<path d="M18 34 q1 -9 0 -16 h4 q-1 7 0 16z" fill="#5a3a1e"/><circle cx="20" cy="14" r="11" fill="#3d6a2a"/><circle cx="12" cy="18" r="6" fill="#457a30"/><circle cx="28" cy="17" r="6.5" fill="#457a30"/><circle cx="14" cy="14" r="2.2" fill="#a8743a"/><circle cx="25" cy="10" r="2.2" fill="#a8743a"/><circle cx="27" cy="19" r="2.2" fill="#a8743a"/><circle cx="19" cy="19" r="2.2" fill="#a8743a"/>`,
 };
 const MINI: Record<string, string> = {
   ...FRUIT,

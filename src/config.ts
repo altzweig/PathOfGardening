@@ -2,12 +2,14 @@ import YAML from 'yaml';
 
 export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 export type Weapon = 'rake' | SkillId;
-export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
-export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog';
+export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut';
+export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
-export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili'];
-export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog'];
+export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
+/** fruit that is ammo for a weapon (nut and blueberry are not) */
+export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
+export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog', 'squirrel'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
 export interface EnemyCfg {
@@ -28,6 +30,8 @@ export interface EnemyCfg {
   resist?: FruitType[];
   /** hedgehog: puffs up every puffEvery s (puffUp s fast, then contracts for the rest), puffScale bigger, hurting everything within puffRadius */
   puffEvery?: number; puffUp?: number; puffScale?: number; puffDamage?: number; puffRadius?: number;
+  /** squirrel: s climbing out of the crown (untouchable), s waiting on the crown, s for the jump down (untouchable), s it waits for nuts before leaving */
+  climbTime?: number; perchTime?: number; jumpTime?: number; patience?: number; jumpDistance?: number;
 }
 export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>> };
@@ -35,9 +39,11 @@ export interface Balancing {
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
+  /** forest slots outside the garden (only nut trees grow there) */
+  forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; deathXpShare?: number; deathRemoveDelay?: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number }>;
+  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean }>;
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;
@@ -79,7 +85,7 @@ export interface Balancing {
     sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
     directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;
     staggerMin: number; staggerMax: number; warnTime: number;
-    types: Record<EnemyType, { from: number; weight: number; early?: number; group?: [number, number] }>;
+    types: Record<EnemyType, { from: number; weight: number; early?: number; group?: [number, number]; needs?: FruitType }>;
   };
 }
 

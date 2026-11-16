@@ -209,6 +209,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Über jedem Feld eine Reihe aus 5 Rauten = Seltenheitsstufen; erreichte Stufen leuchten in ihrer Farbe (grau, grün, blau, lila, orange). Der Rand des Frucht-Icons hat die Farbe der aktuellen Stufe.
 - Unter dem Icon die Produktion als Chip: Frucht-Icon + Früchte pro Sekunde (Durchschnitt inkl. Seltenheit, Nachbarbonus, Doppelernte, Koop-Blaubeeren; ohne Beackern).
 - Nur auf Feldern der Frucht, die gerade gebaut wird: Stufen-Leiste zur nächsten Seltenheit, ein Segment pro nötigem Feld, gefüllte Segmente in der Farbe der nächsten Stufe, am Ende eine Raute dieser Farbe. Keine Zahlen. Beim Zeigen blinkt das Segment, das der Bau füllen würde, und, wenn er die Stufe abschließt, auch die nächste Raute.
+
 ## Mystische Umgebung mit dem Stylized Nature MegaKit (16.11.2026)
 
 - Alle Umgebungsmodelle stammen jetzt aus Quaternius' Stylized Nature MegaKit (CC0). Die alten Kegel-Bäume, Kugel-Büsche, Felsbrocken, Pilze und Grasbüschel sind ersetzt. Felder, Pflanzen, Tiere, Waffen, Fackeln und Laterne bleiben wie sie sind.
@@ -217,3 +218,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Nacht: alles ab dem Buschring versinkt im Dunkeln mit kühlem Randlicht (wie vorher die Silhouetten), Pilze und Blumen leuchten, Irrlichter (türkis/violett) schweben zwischen Garten und Wald. Tagsüber leuchten sie nur schwach.
 - Im Garten liegt Deko (Kiesel, Gras, einzelne Blüten und Pilze) nur außerhalb der 20 Feldplätze, damit Beete nie Deko durchstoßen.
 - Leistung: jedes Modell wird instanziert (eine Zeichnung pro Modell und Material), Dichte je Grafikstufe (hoch 100 %, mittel 70 %, niedrig 45 %). Laubkarten bekommen keine Eigenschatten (sonst flimmern sie).
+
+
+## Nussbaum und Eichhörnchen (16.11.2026)
+- Neue Ressource Nuss. Der Nussbaum ist ein neuer Feldtyp (ab Level 5 unter den neuen Feldtypen) und wächst nur auf Waldplätzen außerhalb des Gartens: 6 Plätze rund um den Garten, hinter dem Steinkreis vor den Büschen (`forest`). Im Baumodus werden für den Nussbaum nur die Waldplätze angezeigt, für alle anderen Felder nur die Gartenplätze; die Draufsicht zoomt dafür weiter heraus.
+- Nüsse fallen aus der Krone und landen 0,6–1,8 m um den Stamm. Sie rollen nicht zum Spieler (kein Magnet): man muss hinlaufen und sie aufheben. Harken am Baum schüttelt Nüsse heraus, wie Beackern bei den Feldern. Liegen gelassene Nüsse verschmelzen wie alle Früchte zu großen Nüssen.
+- Gegner greifen Nussbäume nicht gezielt an (sie wollen in den Garten). Nussbäume zählen nicht fürs Spielende und halten die Startfelder nicht unverwundbar.
+- Nüsse werden pro Spieler gezählt und oben bei den Ressourcen angezeigt. Wofür sie verwendet werden, ist noch offen (Vorschlag: Munition einer Nuss-Schleuder als neue Waffe).
+- Eichhörnchen (neuer Gegner, ab Welle 3, nur wenn ein Nussbaum steht): erscheint in der Krone eines Nussbaums (die Krone raschelt, Blätter fallen), klettert 0,8 s heraus (nicht treffbar), wartet 1,5 s am Kronenrand und keckert (treffbar, auch mit der Harke von unten), springt dann Richtung Garten herunter (in der Luft nicht treffbar). Unten schnappt es sich Nüsse (bis 3) und flieht damit in den Wald. Liegt keine Nuss, flitzt es bis zu 10 s um seinen Baum und verschwindet dann (mit Beute sofort). Greift nie an. Unter 50 % Leben flieht es, auch direkt aus der Krone.
+- Werte: 4 Leben, sehr flink (4,2 m/s, Flucht 5,5 m/s), Resistenz gegen Kohl und Chili (springt aus Explosionen, Giftlachen und Flammen). Laute: hohe, schnelle Waschbär-Laute.

@@ -228,3 +228,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Nüsse werden pro Spieler gezählt und oben bei den Ressourcen angezeigt. Wofür sie verwendet werden, ist noch offen (Vorschlag: Munition einer Nuss-Schleuder als neue Waffe).
 - Eichhörnchen (neuer Gegner, ab Welle 3, nur wenn ein Nussbaum steht): erscheint in der Krone eines Nussbaums (die Krone raschelt, Blätter fallen), klettert 0,8 s heraus (nicht treffbar), wartet 1,5 s am Kronenrand und keckert (treffbar, auch mit der Harke von unten), springt dann Richtung Garten herunter (in der Luft nicht treffbar). Unten schnappt es sich Nüsse (bis 3) und flieht damit in den Wald. Liegt keine Nuss, flitzt es bis zu 10 s um seinen Baum und verschwindet dann (mit Beute sofort). Greift nie an. Unter 50 % Leben flieht es, auch direkt aus der Krone.
 - Werte: 4 Leben, sehr flink (4,2 m/s, Flucht 5,5 m/s), Resistenz gegen Kohl und Chili (springt aus Explosionen, Giftlachen und Flammen). Laute: hohe, schnelle Waschbär-Laute.
+
+## Feldoptik (16.11.2026, abends)
+- Beete gehen weich in die Landschaft über: Umriss nur angedeutet sechseckig (zur Rundung hin, leicht ausgefranst), der Rand blendet in den Boden aus. Keine farbige Randlinie mehr. Seltenheit sieht man im Baumodus (Rauten) und an der Pflanzengröße. Der dezente Ernte-Impuls am Rand bleibt.
+- Kein Aufleuchten des Feldes beim Harken. Stattdessen leuchten die Früchte der geharkten Pflanzen auf, je stärker, desto mehr Fläche ihres Dreiecks der Zug überdeckt hat.

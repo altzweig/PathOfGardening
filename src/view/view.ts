@@ -63,11 +63,33 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; combs: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
+interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
 const leafMats = new Map<number, THREE.MeshLambertMaterial>();
+/** bed outline: a hexagon rounded towards a circle with a ragged, noisy edge; inner part opaque, outer fringe fades out
+ *  (vertex alpha) so the bed blends into the ground. Flat in XZ, facing up. */
+function softBedGeo(H: number, seed: number) {
+  const N = 72, pos: number[] = [], col: number[] = [], uv: number[] = [], idx: number[] = [];
+  const hexR = (a: number) => { const t = ((a + Math.PI / 2) % (Math.PI / 3) + Math.PI / 3) % (Math.PI / 3) - Math.PI / 6; return Math.cos(Math.PI / 6) / Math.cos(t); };
+  const nz = (a: number, f: number) => Math.sin(a * f + seed) * .5 + Math.sin(a * (f * 2.3) + seed * 1.7) * .3 + Math.sin(a * (f * 5.1) + seed * .3) * .2;
+  const v = (x: number, z: number, al: number) => { pos.push(x, 0, z); col.push(1, 1, 1, al); uv.push(x / (2 * H) + .5, z / (2 * H) + .5); return pos.length / 3 - 1; };
+  const c = v(0, 0, 1), ring: number[][] = [[], [], []];
+  for (let i = 0; i < N; i++) {
+    const a = i / N * Math.PI * 2, r = H * (hexR(a) * .55 + .45 * .93) * (1 + nz(a, 7) * .05), ca = Math.cos(a), sa = Math.sin(a);
+    ring[0].push(v(ca * r * .8, sa * r * .8, 1));
+    ring[1].push(v(ca * r * (.98 + nz(a, 11) * .04), sa * r * (.98 + nz(a, 11) * .04), .8));
+    const ro = r * (1.1 + Math.max(0, nz(a, 13)) * .08); ring[2].push(v(ca * ro, sa * ro, 0));
+  }
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N; idx.push(c, ring[0][j], ring[0][i]);
+    for (let k = 0; k < 2; k++) { const a0 = ring[k][i], a1 = ring[k][j], b0 = ring[k + 1][i], b1 = ring[k + 1][j]; idx.push(a0, a1, b1, a0, b1, b0); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
+}
 function leafMat(c: THREE.Color) { const k = c.getHex(); let m = leafMats.get(k); if (!m) { m = new THREE.MeshLambertMaterial({ color: c.clone().multiplyScalar(1.5), side: THREE.DoubleSide }); leafMats.set(k, m); } return m; }
 // common, uncommon, rare, epic, legendary
 export const RARITY_COL = [0x9a9488, 0x5fd35f, 0x4a8cff, 0xb05cff, 0xffa020];
@@ -364,10 +386,12 @@ export class GameView {
     const H = hexR(this.cfg);
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
     // flat bed, flush with the ground: walkable, no collider
-    const bed = new THREE.Mesh(new THREE.CylinderGeometry(H * .97, H * .97, .02, 6), type === 'chili' ? lavaBedMaterial() : bedMaterial()); bed.position.y = .01; // top at y=.02, decals sit above at .03+
+    // soft bed: hexagon only hinted (rounded, ragged outline) and fading out into the surrounding ground
+    const bm = type === 'chili' ? lavaBedMaterial() : bedMaterial(); bm.vertexColors = true; bm.transparent = true; bm.depthWrite = false;
+    const bed = new THREE.Mesh(softBedGeo(H, rand(0, 99)), bm); bed.position.y = .015; bed.renderOrder = -1; // decals sit above at .03+
     bed.receiveShadow = true; g.add(bed);
-    const rim = new THREE.Mesh(new THREE.RingGeometry(H * .9, H * .97, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: RARITY_COL[0], transparent: true, opacity: .55, depthWrite: false }));
-    rim.rotation.x = -Math.PI / 2; rim.position.y = .045; g.add(rim);
+    // rim kept only as data holder for the rarity colour (no visible UI line any more)
+    const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     if (type === 'nut') { const b = buildPlant(type, mats); b.g.rotation.y = rand(0, 7); plant.add(b.g); fruits.push(...b.fruits); } // one big tree in the middle
@@ -376,17 +400,20 @@ export class GameView {
       b.g.position.set(px, 0, pz); b.g.scale.set(.56, .5, .56); b.g.userData.sy = .5; b.g.rotation.y = rand(0, 7);
       plant.add(b.g); fruits.push(...b.fruits);
     }
+    // own fruit material per plant, so the berries of a raked plant can light up on their own
+    const bmats = plant.children.map(c => {
+      const m = BUSH_MAT[type].clone(); if (type !== 'lemon') m.emissive.set(FRUIT_HEX[type]); m.emissiveIntensity = 0;
+      c.traverse(o => { const me = o as THREE.Mesh; if (me.isMesh && me.material === BUSH_MAT[type]) me.material = m; });
+      return m;
+    });
     const pulse: THREE.Sprite[] = [];
     for (let i = 0; i < 6; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pulseTex, color: new THREE.Color(FRUIT_HEX[type]).lerp(new THREE.Color(0xffffff), .45), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); sp.renderOrder = 3; this.dyn.add(sp); pulse.push(sp); }
-    // rake flash: the whole bed lights up for a moment on every stroke
-    const flash = new THREE.Mesh(new THREE.CylinderGeometry(H * .95, H * .95, .002, 6), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-    flash.position.y = .035; flash.visible = false; flash.renderOrder = 2; g.add(flash);
     let lava: THREE.Mesh | undefined;
     if (type === 'chili') { // the bed glows like lava at every harvest, as if it was breathing
-      lava = new THREE.Mesh(new THREE.CylinderGeometry(H * .9, H * .9, .002, 6), new THREE.MeshBasicMaterial({ map: lavaTex, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+      lava = new THREE.Mesh(softBedGeo(H * .92, rand(0, 99)), new THREE.MeshBasicMaterial({ map: lavaTex, vertexColors: true, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
@@ -404,14 +431,13 @@ export class GameView {
     v.pulse.forEach((s, i) => {
       s.visible = v.alive; if (!v.alive) return;
       const [x, z] = at(v.pos - i * .05); s.position.set(x, .12, z);
-      const head = 1 - i / v.pulse.length, sz = (.34 + v.glow * .22) * head;
-      s.scale.set(sz, sz, 1); (s.material as THREE.SpriteMaterial).opacity = (.45 + v.glow * .5) * head;
+      const head = 1 - i / v.pulse.length, sz = .3 * head;
+      s.scale.set(sz, sz, 1); (s.material as THREE.SpriteMaterial).opacity = .35 * head;
     });
-    const rm = v.rim.material as THREE.MeshBasicMaterial;
-    rm.opacity = Math.min(1, .5 + v.glow * (.4 + .1 * Math.sin(now * 8)) + v.hit * .5);
-    rm.color.set(RARITY_COL[v.rarity] ?? RARITY_COL[0]).lerp(new THREE.Color(0xfff0c0), Math.min(1, v.glow * .55 + v.hit * .6));
-    // rake stroke: bed flashes up, then fades
-    v.hit = Math.max(0, v.hit - dt * 3.2); v.flash.visible = v.hit > 0; (v.flash.material as THREE.MeshBasicMaterial).opacity = v.hit * v.hit * .55;
+    // raked plants: their fruit lights up with the strength of the stroke there, then fades
+    const oneB = v.bmats.length === 1, base = v.ftype === 'lemon' ? BUSH_MAT.lemon.emissiveIntensity : 0;
+    for (let k = 0; k < 6; k++) v.bglow[k] = Math.max(0, v.bglow[k] - dt * 1.6);
+    v.bmats.forEach((m, i) => { const gl = oneB ? Math.max(...v.bglow) : v.bglow[i]; m.emissiveIntensity = base + gl * gl * 2.4; });
     if (v.lava) { // lava breath: swells up quickly after a harvest, then sinks back slowly
       v.lavaT += dt; const t = v.lavaT, want = !v.alive ? 0 : t < .25 ? Math.sin(t / .25 * Math.PI / 2) : Math.exp(-(t - .25) * 2.2);
       v.lv = lerp(v.lv, want, Math.min(1, dt * 5));
@@ -435,13 +461,11 @@ export class GameView {
     });
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
-  private rakeStroke(slot: number, a: number, mask: number) {
+  private rakeStroke(slot: number, a: number, mask: number, w?: number[]) {
     const v = this.fields.get(slot); if (!v || !v.alive) return;
-    v.hit = Math.max(v.hit, .45 + .55 * a);
-    const hitK: number[] = []; for (let k = 0; k < 6; k++) if (mask & (1 << k)) { v.combs[k] = 1; hitK.push(k); }
+    const hitK: number[] = []; for (let k = 0; k < 6; k++) if (mask & (1 << k)) { v.combs[k] = 1; hitK.push(k); v.bglow[k] = Math.max(v.bglow[k], .35 + .65 * (w?.[k] ?? a)); }
     if (!hitK.length) return;
     play('rustle');
-    decal(v.x, v.z, 0xfff0c0, hexR(this.cfg) * .3, .35, { ring: true, add: true, grow: hexR(this.cfg) * .95, op: .6 });
     const lm = leafMat(v.mats.leaf.color), clumps = v.plant.children;
     // (the real harvest shaken loose by the stroke falls out of the raked plants as normal fruit, see sim produce)
     // leaves whirl up out of the raked plants only and flutter down
@@ -560,7 +584,7 @@ export class GameView {
         if (!miss) for (const sg of sgs) { burst(V(sg[2], .42, sg[3]), 0xc8d8ff, 5, 1.6, .06, .18); decal(sg[2], sg[3], 0x9fb8ff, .12, .25, { ring: true, add: true, grow: .45, op: .3 }); }
         this.shake = Math.min(.2, this.shake + .02); break;
       }
-      case 'till': this.rakeStroke(e.s, e.a ?? 1, e.m ?? 63); break;
+      case 'till': this.rakeStroke(e.s, e.a ?? 1, e.m ?? 63, e.w); break;
       case 'rustleTree': { // squirrel appears in the crown of a nut tree: leaves fall, the crown shakes
         for (const v of this.fields.values()) if (Math.hypot(v.x - e.x, v.z - e.z) < .5) { v.comb = Math.max(v.comb, .6); v.shake = Math.max(v.shake, .3); }
         for (let i = 0; i < 10; i++) { const a = rand(0, 7), r = rand(.3, 1.1); PART.spawn(V(e.x + Math.cos(a) * r, rand(2, 2.8), e.z + Math.sin(a) * r), V(rand(-.4, .4), rand(-.2, .3), rand(-.4, .4)), Math.random() < .5 ? 0x5a8a3a : 0x8aa840, rand(.06, .1), rand(.8, 1.4), { g: 1.5 }); }

@@ -538,7 +538,9 @@ export class Sim {
       while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, tri); }
       // view: field flash; only the plants of the raked triangles wobble and shed leaves (bit mask m), rustle
       let m = 0; tri.forEach((x, k) => { if (x > .01) m |= 1 << k; });
-      this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)), m });
+      // w: raked share of each triangle (0..1) -> the berries of that plant light up accordingly
+      const TA = Math.sqrt(3) / 4 * hexR(this.cfg) ** 2;
+      this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)), m, w: tri.map(x => r2(Math.min(1, x / TA))) });
     }
     if (!any) return;
     // healing (Feldpflege) goes through the field covered most: one field per player

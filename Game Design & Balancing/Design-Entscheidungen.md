@@ -10,7 +10,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 
 ## Steuerung
 - **PC:** WASD laufen, Maus zielen, linke Maustaste = aktive Waffe (halten = Dauerfeuer), Leertaste = nächste verfügbare Waffe, Esc = Pause.
-  - Reihenfolge Harke → Spargelgewehr → Schrotflinte → Kohlbombe. Leertaste springt nur auf Waffen, die gerade *bereit* sind.
+  - Reihenfolge Harke → Spargel-Armbrust → Schrotflinte → Kohlbombe. Leertaste springt nur auf Waffen, die gerade *bereit* sind.
   - Wird die aktive Waffe leer, wechselt das Spiel automatisch zur nächsten bereiten Nicht-Harke-Waffe, sonst zur Harke.
   - Die aktive Waffe ist unten rechts hervorgehoben.
 - **Mobil:** linker Daumen irgendwo links = laufen. Rechts wischen = Harke zielen. Jede Waffe ist ein eigener Joystick: tippen = automatisch zielen, halten + ziehen = zielen und feuern.
@@ -158,3 +158,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **Igel (neu):** kommen statt der Schafe ab Welle 11, immer als Gruppe aus 3–4 Tieren aus einer Richtung. Stachelig, langsamer (1,8 m/s). Alle 2 s plustern sie sich ruckartig um 30 % auf (Stacheln funkeln einmal, Ring zeigt die Reichweite) und ziehen sich in 1,8 s wieder zusammen. Nur beim Aufplustern machen sie Schaden: Spieler in Stachel-Reichweite und das Feld, auf dem sie stehen. Sie fressen bevorzugt alle Beeren (Blaubeeren und Preiselbeeren), gefressene Beeren sind weg.
 - **Resistenzen:** 30 % weniger Schaden (`enemies.resistance`): Panda durch Chilis und Preiselbeeren (auch Blutung), Schaf durch Spargel, Frosch durch Kohl (Bombe und Lache) und Zitronen, Igel durch Blaubeeren und Preiselbeeren. Waschbär ohne Resistenz. Annahme: „Blaubeeren“ zählt erst, sobald es eine Blaubeer-Waffe gibt; die Harke zählt zu keiner Frucht.
 - Annahmen: „10 Level später“ = 10 Wellen später (Schaf ab Welle 21). Igel-Schaden 2 je Aufplustern, Igel-Leben 6.
+
+## Spargel-Armbrust und Beerenshotgun (16.11.2026)
+- **Spargel-Armbrust** statt Spargelgewehr: Der Spieler hält beim Schießen eine Armbrust (Holzschaft, Bogen aus zwei Spargelstangen, Sehne, aufgelegter Spargel-Bolzen), die Spargel als Bolzen verschießt. Neuer Sehnen-Sound.
+- Sie feuert nicht mehr gleichmäßig, sondern in **Salven aus 3 Bolzen** (0,1 s Abstand), dann Pause. Salve alle 0,75 s, also Ø 4 Bolzen/s wie vorher: gleicher Durchschnitts-DPS. Jeder Bolzen kostet 1 Spargel und zielt neu. Eine angefangene Salve läuft zu Ende, solange Spargel da ist. Das Abklingzeit-Upgrade verkürzt Salve und Pause gleichermaßen. „Bereit“ zählt mit 3 Spargel pro Salve. Werte `skills.asp.cooldown/burstShots/burstGap`.
+- **Beerenshotgun:** Streuung zufällig statt gleichmäßigem Fächer, normalverteilt um die Zielrichtung (σ 20°), hart begrenzt auf 80° (±40°). Dadurch landen grob 2/3 (gemessen etwa 70 %) der Beeren in den inneren 40°. Feuerrate −20 % (0,5 → 0,625 s). Das +1-Projektil-Upgrade macht den Kegel nicht mehr breiter. Werte `skills.cran.pellets/cone/spreadSigma`.
+- **Liegende Beeren:** Jede Beere, die nichts trifft, bleibt 2 s liegen (schwillt an, pulsiert schneller) und platzt dann zu einem roten Fleck: 50 % des Beerenschadens an allen Gegnern im Radius 0,6 m (ohne Blutung, keine fliegenden Kröten). Ersetzt die alten Beeren-Minen. Werte `skills.cran.splashDelay/splashDamage/splashRadius`.
+- Annahme: Die bisherige Minen-Karte wird zur Karte **Platzschaden** (+10 Prozentpunkte je Stufe, 50 → 100 %, `upgrades.cranSplash`), weil jetzt ohnehin alle verfehlten Beeren liegen bleiben.

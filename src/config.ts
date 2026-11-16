@@ -41,15 +41,15 @@ export interface Balancing {
   rake: { damage: number; range: number; arc: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;
-    asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number; width: number };
-    cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pelletStep: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
+    asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number };
+    cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; splashDelay: number; splashDamage: number; splashRadius: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; damageElite: number; damageBoss: number; cone: number; sweep: number; sweepPeriod: number; burnStacks: number; burnTick: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
-    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
+    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranSplash: Lim; cabMini: Lim; doubleHarvest: Lim;
     rakeArc: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
     chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };

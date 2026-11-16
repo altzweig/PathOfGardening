@@ -84,7 +84,10 @@ export const SND: Record<string, (arg?: any) => void> = {
   rake() { if (can('rake', .08)) noise({ t: .16, vol: .18, type: 'bandpass', f: 2600, f2: 500, q: 1.2 }); },
   /** n = number of enemies hit by one swing: one punch per target, slightly staggered */
   punches(n: number) { if (!can('punch', .06)) return; const k = Math.min(5, n); for (let i = 0; i < k; i++) comicPunch(i * .045, n); },
-  asp() { if (can('asp', .05)) { tone({ type: 'triangle', f: 1100, f2: 260, t: .11, vol: .16 }); noise({ t: .05, vol: .08, type: 'highpass', f: 3000 }); } },
+  /** crossbow: string twang + wooden clack */
+  asp() { if (can('asp', .05)) { tone({ type: 'triangle', f: 420, f2: 180, t: .13, vol: .16 }); tone({ type: 'sine', f: 900, f2: 700, t: .07, vol: .05 }); noise({ t: .04, vol: .1, type: 'bandpass', f: 1600, q: 2 }); } },
+  /** lying cranberry pops: soft wet splat */
+  berryPop() { if (can('berryPop', .06)) { noise({ t: .12, vol: .09, type: 'lowpass', f: 1400, f2: 300 }); tone({ f: 260, f2: 90, t: .1, vol: .07 }); } },
   shot() { if (can('shot', .05)) { noise({ t: .22, vol: .28, f: 4000, f2: 300 }); tone({ f: 140, f2: 45, t: .16, vol: .25 }); } },
   throw() { if (can('throw', .05)) noise({ t: .25, vol: .1, type: 'bandpass', f: 600, f2: 1600, q: 2 }); },
   boom() { if (can('boom', .04)) { noise({ t: .55, vol: .32, f: 900, f2: 90 }); tone({ f: 85, f2: 30, t: .45, vol: .32 }); } },

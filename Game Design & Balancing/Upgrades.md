@@ -14,7 +14,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 | Karte | Effekt | Parameter |
 |---|---|---|
 | Blaubeerfeld | 1 Blaubeere (XP) alle 1 s | `plants.blue.interval` |
-| Spargelfeld | 3 Spargel alle 4 s (an einer Feldecke). Schaltet das Spargelgewehr frei | `plants.asp.interval`, `plants.asp.amount` |
+| Spargelfeld | 3 Spargel alle 4 s (an einer Feldecke). Schaltet die Spargel-Armbrust frei | `plants.asp.interval`, `plants.asp.amount` |
 | Preiselbeerfeld | 3 Preiselbeeren alle 1 s. Schaltet die Schrotflinte frei | `plants.cran.interval`, `plants.cran.amount` |
 | Kohlfeld | 1 Kohlkopf alle 3,2 s. Schaltet die Kohlbombe frei | `plants.cab.interval` |
 | Zitronenbäumchen | 1 Zitrone alle 3 s, bei jeder Ernte zuckt ein Blitz zwischen den Früchten. **Erst ab Level 10** als neuer Feldtyp. Schaltet den Citrateaser frei | `plants.lemon.*` |
@@ -38,8 +38,8 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 
 | Karte | Effekt | Bedingung | Parameter |
 |---|---|---|---|
-| Spargelgewehr | Durchbohrender Schuss: 15 Schaden, 7,5 m, **0,25 s**, 30 cm breit, 1 Spargel pro Schuss | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
-| Preiselbeer-Schrotflinte | **50°-Fächer, alle 10° eine Beere (6 Beeren)**, je 5 Schaden + Blutung 1/s für 3 s, 6,75 m, 0,5 s, 6 Beeren pro Schuss | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
+| Spargel-Armbrust | Salve aus 3 durchbohrenden Spargel-Bolzen (0,1 s Abstand), dann Pause: 15 Schaden, 7,5 m, **0,75 s pro Salve** (Ø 4 Bolzen/s), 30 cm breit, 1 Spargel pro Bolzen | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
+| Preiselbeer-Schrotflinte | **6 Beeren, zufällig gestreut (normalverteilt, max. 80°-Kegel, ca. 2/3 in den inneren 40°)**, je 5 Schaden + Blutung 1/s für 3 s, 7 m, **0,625 s**, 6 Beeren pro Schuss. Verfehlte Beeren bleiben 2 s liegen und platzen zu einem roten Fleck (50 % Schaden, 0,6 m Radius) | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
 | Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer gibt 1 Brand-Stapel (max. 6); alle 0,5 s Schaden = Stapel × 1 % der max. HP (Elite 0,6 %, Boss 0,2 %), danach 1 Stapel weniger | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
 | Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
@@ -64,9 +64,9 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 |---|---|---|---|
 | Schaden | +10 % Grundschaden (additiv) | – | `upgrades.damagePerLevel` |
 | Reichweite / Radius | +10 % Reichweite (Kohlbombe: Explosions- und Lachenradius) | – | `upgrades.rangePerLevel` |
-| Abklingzeit | Abklingzeit × 0,9 (multiplikativ) | – | `upgrades.cooldownPerLevel` |
+| Abklingzeit | Abklingzeit × 0,9 (multiplikativ; Armbrust: ganze Salve inkl. Bolzen-Abstand) | – | `upgrades.cooldownPerLevel` |
 
-### Spargelgewehr
+### Spargel-Armbrust
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
 | Durchbohren | +1 durchbohrtes Ziel | 4 Ziele gesamt | `upgrades.aspPierce` |
@@ -76,8 +76,8 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 ### Preiselbeer-Schrotflinte
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| +1 Projektil | 1 Beere mehr pro Schuss, Fächer 10° breiter | 3 Stufen | `upgrades.cranPellets` |
-| Beeren-Minen | +20 % Chance, dass eine Beere als Mine liegen bleibt (15 s) | 5 Stufen | `upgrades.cranMine` |
+| +1 Projektil | 1 Beere mehr pro Schuss (Streuung bleibt gleich) | 3 Stufen | `upgrades.cranPellets` |
+| Platzschaden | +10 Prozentpunkte Schaden liegender Beeren (50 → 100 %) | 5 Stufen | `upgrades.cranSplash` |
 
 ### Citrateaser
 | Karte | Effekt | Max. | Parameter |

@@ -13,7 +13,7 @@
 names:
   skills:
     rake: Harke
-    asp: Spargelgewehr
+    asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
     cab: Kohlbombe
     lemon: Citrateaser
@@ -114,8 +114,10 @@ skills:
   asp:
     damage: 15
     range: 7.5             # m (vorher 5 -> +50 %)
-    cooldown: 0.25         # doppelte Feuerrate (vorher 0.5)
-    ammoPerShot: 1
+    cooldown: 0.75         # s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
+    burstShots: 3          # Armbrust schießt Salven aus 3 Spargel-Bolzen, dann Pause
+    burstGap: 0.1          # s zwischen den Bolzen einer Salve (skaliert mit dem Abklingzeit-Upgrade) -> Pause 0,55 s
+    ammoPerShot: 1         # je Bolzen (3 pro Salve)
     speed: 15              # m/s
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
@@ -123,13 +125,16 @@ skills:
   cran:
     damage: 5              # je Projektil
     range: 7.00            # m (4,5 -> +50 %)
-    cooldown: 0.5          # +50 % Feuerrate (vorher 0.75)
+    cooldown: 0.625        # -20 % Feuerrate (vorher 0.5)
     ammoPerShot: 6
-    pelletStep: 10         # Grad zwischen zwei Beeren: 50 Grad Fächer -> 6 Beeren
-    spread: 50             # Grad, Fächer (gleichmäßig verteilt)
+    pellets: 6             # Beeren pro Schuss
+    cone: 80               # Grad, maximaler Streukegel (±40 Grad), nichts fliegt weiter raus
+    spreadSigma: 20        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 40 Grad
     bleedDuration: 3       # s
     bleedDps: 1
-    mineLifetime: 3        # s
+    splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
+    splashDamage: 0.5      # Platzschaden = Anteil des Beerenschadens (ohne Blutung)
+    splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
   lemon:                   # Citrateaser: Kettenblitz, trifft immer genau 1 Ziel direkt
     damage: 20             # Grundschaden am ersten Ziel
     cooldown: 1.0          # 1 Angriff pro Sekunde
@@ -192,7 +197,7 @@ upgrades:
     maxCone: 360             # Schluss, sobald die Flamme 360 Grad breit ist
   chiliTick:      { factor: 0.8, min: 0.1 }              # Brand-Tick x 0,8 je Stufe (0,5 -> 0,4 -> 0,32 s ...), bis 0,1 s
   cranPellets:    { step: 1,    maxLevel: 3 }
-  cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
+  cranSplash:     { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Platzschaden liegender Beeren (50 -> 100 %)
   cabMini:        { step: 1,    maxLevel: 5 }
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
   # Kartenregeln pro Level-up (3 Karten):

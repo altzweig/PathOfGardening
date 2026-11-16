@@ -4,6 +4,7 @@ import { Balancing, coopF, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillI
 import { emptyIntent, EF, ESnap, Ev, Intent, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
+const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()); // standard normal (Box-Muller)
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -35,7 +36,7 @@ export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
 export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean }
+interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -46,7 +47,7 @@ export interface Player {
   slots: SkillId[]; swapNew: SkillId | null; swapHold: number; // active weapons besides the rake; weapon waiting for a free slot; s until the game resumes after a swap
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number; arc: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
-  flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
+  xbT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
@@ -68,11 +69,11 @@ interface Enemy {
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
-interface Mine { id: number; x: number; z: number; dmg: number; t: number }
+interface Mine { id: number; x: number; z: number; dmg: number; t: number } // missed cranberry lying on the ground until it pops
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; pierce: number; pf: number; pellets: number; mine: number; minis: number; throwDist: number; width: number; size: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export class Sim {
@@ -117,12 +118,12 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false });
+    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], swapNew: null, swapHold: 0, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0, arc: 0, cd: 0 }, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], swapNew: null, swapHold: 0, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0, arc: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0,
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -278,15 +279,16 @@ export class Sim {
     const B = S[id] as any;
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
     const range = (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: range to the first target
+    const shots = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1; // crossbow: cd = one whole salvo
     const size = 1 + U.aspSize.step * s.sizeLv;
     const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
       ...fl, tick,
       dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
-      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot,
+      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown,
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
-      // shotgun: one pellet every pelletStep degrees across the spread, +1 pellet (+1 step wider) per upgrade
-      pellets: Math.floor(S.cran.spread / S.cran.pelletStep + 1e-9) + 1 + U.cranPellets.step * s.extraPel, mine: U.cranMine.step * s.mineLv,
+      // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
+      pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
       minis: s.minis, throwDist: S.cab.throwDistance, width: S.asp.width * size, size,
     };
   }
@@ -533,7 +535,7 @@ export class Sim {
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
         [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
       if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv]);
-      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Minen', s.mineLv]);
+      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
       if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
@@ -584,15 +586,16 @@ export class Sim {
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
     if (id !== 'chili') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot
     if (id === 'asp') {
-      this.snd('asp');
-      this.projs.push({ id: this.nid++, kind: 'asp', x: fx, y: fy, z: fz, dx, dz, speed: S.asp.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
+      this.aspBolt(p, dx, dz, st, false);
+      s.burst = st.shots - 1; s.burstT = st.gap; // rest of the salvo follows in the player update
     } else if (id === 'cran') {
       this.snd('shot');
       this.burst(fx, fy, fz, 0xff4060, 8, 2.5, .15, .25);
-      const step = S.cran.pelletStep * Math.PI / 180, a0 = Math.atan2(dx, dz) - step * (st.pellets - 1) / 2;
+      const half = S.cran.cone / 2, sig = S.cran.spreadSigma, base = Math.atan2(dx, dz);
       for (let i = 0; i < st.pellets; i++) {
-        const a = a0 + step * i; // evenly spaced fan
-        this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.92, 1), total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 0, mine: st.mine, w: .1, hit: new Set() });
+        let g = 0; for (let k = 0; k < 8; k++) { g = gauss() * sig; if (Math.abs(g) <= half) break; g = clamp(g, -half, half); } // normal, cut at the cone edge
+        const a = base + g * Math.PI / 180;
+        this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 0, mine: st.splash, w: .1, hit: new Set() });
       }
     } else if (id === 'lemon') {
       this.lemonZap(p, dx, dz, st, s);
@@ -603,6 +606,14 @@ export class Sim {
       const t = this.clampArena(p.x + dx * st.throwDist, p.z + dz * st.throwDist);
       this.spawnBomb(fx, fy, fz, t[0], t[1], st.range, st.dmg, st.minis, false);
     }
+  }
+  /** one asparagus bolt from the crossbow; follow = later bolt of a salvo (pays its own ammo, own muzzle event) */
+  aspBolt(p: Player, dx: number, dz: number, st: SkillStats, follow: boolean) {
+    if (follow) { p.ammo.asp -= st.cost; p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; }
+    const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
+    if (follow) this.emit({ k: 'shot', p: p.id, w: 'asp', x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) });
+    this.snd('asp'); p.xbT = .9;
+    this.projs.push({ id: this.nid++, kind: 'asp', x: fx, y: fy, z: fz, dx, dz, speed: this.cfg.skills.asp.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
   }
   spawnBomb(fx: number, fy: number, fz: number, tx: number, tz: number, radius: number, dmg: number, minis: number, mini: boolean) {
     this.bombs.push({ id: this.nid++, fx, fy, fz, tx, tz, x: fx, y: fy, z: fz, t: 0, flight: mini ? .35 : .6, fuse: mini ? .45 : this.cfg.skills.cab.fuse, radius, dmg, minis, mini });
@@ -994,6 +1005,15 @@ export class Sim {
     if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
 
     p.rakeCd -= dt * sf; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt * sf);
+    p.xbT = Math.max(0, p.xbT - dt);
+    const xa = p.skills.asp; // crossbow salvo: remaining bolts follow at burstGap, re-aimed each time
+    if (xa.burst > 0) {
+      xa.burstT -= dt * sf;
+      if (xa.burstT <= 0) {
+        if (!p.alive || !this.canFire(p, 'asp')) xa.burst = 0;
+        else { const st = this.stats('asp', xa), d = this.aimDir(p, st.range); this.aspBolt(p, d[0], d[1], st, true); xa.burst--; xa.burstT += st.gap; }
+      }
+    }
     if (p.flOn > 0) { // flame keeps sweeping while it burns
       p.flOn -= dt; const fs = this.stats('chili', p.skills.chili);
       p.flPh = (p.flPh + dt / this.cfg.skills.chili.sweepPeriod) % 1; p.flSpin += fs.spin * Math.PI / 180 * dt;
@@ -1124,8 +1144,7 @@ export class Sim {
       if (!done && pr.left <= 1e-4) {
         done = true;
         if (pr.kind === 'cran') {
-          this.emit({ k: 'splat', x: r2(pr.x), z: r2(pr.z) });
-          if (Math.random() < pr.mine) this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg, t: this.cfg.skills.cran.mineLifetime });
+          this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg * pr.mine, t: this.cfg.skills.cran.splashDelay }); // missed: lies, then pops
         }
       }
       if (done) this.projs.splice(i, 1);
@@ -1137,14 +1156,12 @@ export class Sim {
     }
     for (let i = this.mines.length - 1; i >= 0; i--) {
       const mn = this.mines[i]; mn.t -= dt;
-      const trig = mn.t <= 0 ? null : this.enemies.find(e => !e.dead && !this.airborne(e) && dist(e, mn) < .2 + e.r);
-      if (trig) {
-        for (const e of [...this.enemies]) if (!e.dead && dist(e, mn) < .2 + e.r) this.hurtEnemy(e, mn.dmg, { color: 'p', src: 'cran' });
-        this.burst(mn.x, .15, mn.z, 0xff3050, 14, 2, .14, .35);
-        this.emit({ k: 'decal', x: r2(mn.x), z: r2(mn.z), c: 0xff3050, r: .05, l: .3, ring: 1, add: 1, grow: .3 });
-        this.snd('boomS');
-      }
-      if (trig || mn.t <= 0) this.mines.splice(i, 1);
+      if (mn.t > 0) continue;
+      const C = this.cfg.skills.cran;
+      for (const e of [...this.enemies]) if (!e.dead && !this.airborne(e) && dist(e, mn) < C.splashRadius + e.r * .5) this.hurtEnemy(e, mn.dmg, { color: 'p', src: 'cran' });
+      this.emit({ k: 'berryPop', x: r2(mn.x), z: r2(mn.z), r: C.splashRadius });
+      this.snd('berryPop');
+      this.mines.splice(i, 1);
     }
   }
   gameOver() { if (this.phase === 'over') return; this.phase = 'over'; this.emit({ k: 'over' }); }
@@ -1161,7 +1178,7 @@ export class Sim {
       if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
         const st = this.stats(id, s);
         const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : id === 'chili' ? `{fire} ${this.cfg.skills.chili.burnStacks} × ${nf(st.dmg, 1)} % · {range} ${nf(st.range, 1)} m` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
-        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {sweep} ${nf(st.sweep)}°` : `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`;
+        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {sweep} ${nf(st.sweep)}°` : `${st.cost * st.shots} {${id}} / {cd} ${nf(st.cd, 2)} s`;
         prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, l2] });
       }
     }
@@ -1200,7 +1217,7 @@ export class Sim {
       }
       if (id === 'cran') {
         if (s.extraPel < (U.cranPellets.maxLevel || 3)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} → ${b.pellets}`);
-        if (s.mineLv < (U.cranMine.maxLevel || 5)) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.mine * 100)} → ${nf(b.mine * 100)} %`);
+        if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} → ${nf(b.splash * 100)} %`);
       }
       if (id === 'lemon') {
         const tierName = ['Hauptziel', '2. Glied', '3. Glied'];
@@ -1296,7 +1313,7 @@ export class Sim {
       const st = SKILLS.map(id => this.stats(id, p.skills[id]));
       me[p.id] = {
         am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
-        nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
+        nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), sn: p.swapNew ? SKILLS.indexOf(p.swapNew) : -1, sh: p.swapHold > 0 ? 1 : 0, rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1,
       };
@@ -1307,7 +1324,7 @@ export class Sim {
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),
-        ...(() => { const fs = this.stats('chili', p.skills.chili); return { fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
+        ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: p.xbT > 0 || p.active === 'asp' ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') ? 1 : 0,
       })),
       en: this.enemies.map(e => {
@@ -1324,7 +1341,7 @@ export class Sim {
       fr: this.fruits.filter(f => f.state !== 'carried').map(f => [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : 1)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
-      mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z)]),
+      mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z), r2(clamp(1 - m.t / this.cfg.skills.cran.splashDelay, 0, 1))]),
       fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),

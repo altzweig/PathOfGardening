@@ -16,6 +16,11 @@ Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu 
 | FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | Steine am Gartenrand |
 | FTP Stylized Mix Stones 01 | https://juliovii.itch.io/ftp-stylized-mix-stones-01 | Stylized_LavaRock_02 (+ Emissive) | `lava` | Chili-Beet |
 
+## Effekte
+
+Von **Kenney** – https://kenney.nl/assets/particle-pack (Particle Pack 1.1), Lizenz CC0.
+`public/textures/fx_fire.png`: Atlas (4×2, Graustufen, je 256 px) aus flame_01–04, fire_01, fire_02, smoke_02, smoke_05 für das Feuer des Flammenwerfers.
+
 ## Sounds (Freesound)
 
 Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).

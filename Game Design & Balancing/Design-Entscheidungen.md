@@ -184,3 +184,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **Überbauen** eines Feldes mit anderer Frucht braucht eine Bestätigung: Dialog unten mittig, altes Feld (rot durchgestrichen) → neues Feld, darunter ✗ und ✓. Ohne Text. PC: Maus, Enter = ✓, Esc = ✗. Gleiche Frucht (Seltenheit steigern) und freie Plätze bauen ohne Nachfrage.
 - **Abgestorbenes Feld:** Es fällt sofort ein XP-Geschenk von 1/3 der XP, die insgesamt zum nächsten Level nötig sind, als Blaubeeren auf das Beet (größte Stufen zuerst, verschmelzen nicht). Die tote Pflanze sinkt nach 1,2 s in den Boden und verschwindet, der Platz ist danach frei (kein Überbauen nötig). Werte `fields.deathXpShare/deathRemoveDelay`.
 - Annahme: Der Fruchttyp eines verschwundenen Feldes gilt für Kartenangebote weiter als „vorhanden“ (wie vorher mit dem toten Feld), z. B. für Waffen-Freischaltung und Doppelernte. Stirbt das letzte Feld, ist das Spiel vorbei (kein Geschenk).
+
+## Flammenwerfer: Sprite-Feuer und glühender Boden (16.11.2026)
+- Die Flamme besteht jetzt aus Sprite-Partikeln aus Kenneys Particle Pack (CC0): Flammenzungen wachsen, drehen sich und zerfallen; Farbe über die Lebenszeit von Weißgelb über Orange zu einem Magenta-Roten Rand; dunkler Rauch steigt am Ende der Flamme auf. Darunter bleibt eine schwache Shader-Flamme als Grundglühen. Brennende Gegner tragen kleine Flammen.
+- Boden: Wo die Flamme hinfasst, glüht der Boden mit Lava-Rissen auf (Weißgelb), kühlt über Orange und Rot in ein paar Sekunden ab (`uCool` 1,8 s Halbwertszeit) und hinterlässt einen dunklen Brandfleck, der nach etwa 12 s verschwindet. Die Risse liegen im Weltmaßstab, überlappende Flecken bilden ein durchgehendes Rissmuster.
+

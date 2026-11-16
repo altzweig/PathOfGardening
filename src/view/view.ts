@@ -25,11 +25,11 @@ const lavaTex = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 import { loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
-import { FlameFx, makeFlame, updateFlame } from './flame';
+import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flame';
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
+  part, punchStar, dustCloud, pxScale, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -38,7 +38,7 @@ import { bedMaterial, lavaBedMaterial } from './textures';
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -96,6 +96,7 @@ export class GameView {
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
   private shake = 0;
+  private heat!: GroundHeat; private fire!: FireSprites;
   private bits: Bit[] = [];
   hurtT = 0;
   zoom = 1;
@@ -128,6 +129,7 @@ export class GameView {
 
   constructor() {
     buildWorld();
+    this.heat = new GroundHeat(scene); this.fire = new FireSprites(scene);
     scene.add(this.dyn);
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
@@ -218,7 +220,7 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
-    stopAllLoops(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
@@ -554,6 +556,7 @@ export class GameView {
   // ---------------- per frame ----------------
   frame(dt: number) {
     windU.value += dt;
+    this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
     if (s) {
       for (const v of this.players.values()) this.animPlayer(v, dt, k);
@@ -659,12 +662,21 @@ export class GameView {
     }
     loopSfx('flame' + s.id, 'weapons.chiliLoop', on, v.x, v.z);
     F.ang = this.smooth ? lerpAngle(F.ang, s.fa, Math.min(1, dt * 20)) : s.fa;
-    const a = F.ang, dx = Math.sin(a), dz = Math.cos(a), r = s.fr || 3.5;
+    const a = F.ang, dx = Math.sin(a), dz = Math.cos(a), r = s.fr || 3.5, half0 = Math.min(Math.PI, (s.fc || 30) * Math.PI / 360);
     F.gun.visible = !!s.al && (on || F.fx.power > .05);
     F.gun.position.set(v.x + dx * .32, .72, v.z + dz * .32); F.gun.rotation.set(0, a, 0);
     F.fx.g.position.set(v.x + dx * .4, 0, v.z + dz * .4); F.fx.g.rotation.y = a;
     updateFlame(F.fx, dt, s.fc || 30, r, on, performance.now() / 1000);
     if (!on) return;
+    // the ground under the flame starts to glow (and cools down slowly, see GroundHeat)
+    v.heatT = (v.heatT || 0) - dt;
+    while (v.heatT <= 0) {
+      v.heatT += .045;
+      const b = a + rand(-half0, half0) * .9, d = rand(.35, 1) * r * F.fx.power;
+      const hx = v.x + dx * .4 + Math.sin(b) * d, hz = v.z + dz * .4 + Math.cos(b) * d;
+      if (Math.hypot(hx, hz) < (this.cfg.arena.radius + 1)) this.heat.add(hx, hz, rand(.3, .5) + d * .08);
+    }
+    this.fire.emit(dt, v.x + dx * .45, v.z + dz * .45, a, half0, r, F.fx.power);
     // a few embers drift out of the flame and rise
     const half = Math.min(Math.PI, (s.fc || 30) * Math.PI / 360);
     if (Math.random() < dt * 40) {
@@ -719,7 +731,8 @@ export class GameView {
     // toad: glows brighter and shimmers while sitting, the glow goes out when it jumps off
     const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - .5) * 12) : 0;
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
-    if (burning && Math.random() < dt * 28) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
+    if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
+    if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
   }

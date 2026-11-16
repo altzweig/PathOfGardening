@@ -96,14 +96,14 @@ xp:
   gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1). Abgestorbenes Feld gibt weiter deathXpShare
 
 arena:
-  radius: 15               # m, begehbarer Bereich
+  radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
   fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
   fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
   startFields: 3           # Blaubeerfelder zu Beginn
 
-forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Buschring am Waldrand. Nur hier wachsen Nussbäume.
+forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
-  radius: 13.2             # m vom Gartenmittelpunkt (Garten endet bei ca. 10 m, Buschring 13-15 m, begehbar bis 15 m)
+  radius: 15.6             # m vom Gartenmittelpunkt: im Wald direkt hinter dem Buschring (Garten bis ca. 10 m, Büsche 13-15 m, begehbar bis 18 m)
   angleOffset: 30          # Grad, Drehung des ersten Platzes
   types: [nut]             # Feldtypen, die nur im Wald (und nicht im Garten) gebaut werden
 
@@ -142,8 +142,8 @@ plants:
   cab:  { interval: 6, unlockAt: 0 }
   lemon: { interval: 4, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 1, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 1 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 8, amount: 1, minLevel: 5, dropRadius: [0.6, 1.8], magnet: false }
-  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 4 s, fällt aus der Krone 0,6-1,8 m um den Stamm.
+  nut:  { interval: 8, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false }
+  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 8 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 
 rake:
@@ -369,21 +369,23 @@ enemies:
     puffDamage: 2          # Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
     puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
     resist: [blue, cran]
-  squirrel:                # Eichhörnchen: erscheint in der Krone eines Nussbaums, klettert heraus, wartet kurz, springt runter und klaut Nüsse
+  squirrel:                # Eichhörnchen: kommt von der gegenüberliegenden Seite, hüpft im Zickzack zu seinem Nussbaum, klaut Nüsse und verschwindet damit im Baum
     hp: 4
-    speed: 4.2             # m/s, flink
+    speed: 4.2             # m/s, flink (Zickzack: der Weg ist länger)
     wanderSpeed: 2.6       # m/s, flitzt um seinen Baum, solange keine Nuss liegt
     radius: 0.22
-    peaceful: true         # greift nie an
+    spawnArc: 90           # Grad: Startpunkt zufällig in diesem Bereich auf der Gegenseite des Gartens (vom Nussbaum aus gesehen)
+    aggroRadius: 2.5       # m: kommt ein Spieler so nah, greift es ihn an (Nahkampf wie alle, enemies.meleeDamage)
     steals: [nut]          # nur Nüsse
-    carryMax: 3            # mit 3 Nüssen haut es ab (oder sobald keine Nuss mehr liegt)
-    fleeSpeed: 5.5
-    fleeBelow: 0.5         # unter 50 % Leben flieht es (auch direkt aus der Krone)
-    climbTime: 0.8         # s klettert aus der Krone heraus (nicht treffbar)
-    perchTime: 1.5         # s wartet am Kronenrand (treffbar, Harke reicht von unten)
-    jumpTime: 0.5          # s Sprung runter (in der Luft nicht treffbar)
-    jumpDistance: 1.4      # m, so weit springt es vom Kronenrand Richtung Garten
-    patience: 10           # s wartet es unten auf Nüsse, dann verschwindet es
+    carryMax: 3            # mit 3 Nüssen läuft es in den Baum (oder sobald keine Nuss mehr liegt)
+    fleeSpeed: 5.5         # m/s mit voller Beute / auf der Flucht
+    fleeBelow: 0.5         # unter 50 % Leben flieht es in den Baum
+    hopPeriod: 0.32        # s pro Hüpfer
+    hopHeight: 0.22        # m
+    zigzag: 40             # Grad: jeder Hüpfer schwenkt so weit zur anderen Seite der direkten Linie
+    climbTime: 0.8         # s den Stamm hoch in die Krone, dann ist es mit den Nüssen weg (bis dahin treffbar)
+    crownHeight: 2.4       # m, Höhe der Krone (hier verschwindet es, hier fallen die Nüsse heraus)
+    patience: 10           # s wartet es am Baum auf Nüsse, dann verschwindet es im Baum
     resist: [cab, chili]   # springt aus Explosionen, Giftlachen und Flammen
 
 waves:
@@ -392,7 +394,7 @@ waves:
   # besiegt (oder geflohen) sind. Dann folgt eine feste Pause, danach startet die nächste Welle.
   total: 48                # Wellen bis zum Sieg (= 2 volle Tag-Nacht-Zyklen, endet mit dem 2. Boss)
   firstWave: 4             # s bis zur ersten Welle
-  spawnRadius: 15.5        # m vom Zentrum: Gegner kommen aus den Büschen
+  spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 2.5     # s länger je Welle

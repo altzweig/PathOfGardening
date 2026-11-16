@@ -101,14 +101,6 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
       part(pod, GEO.cyl, CHILI_STEM, .018, .06, .018, 0, .06, 0, false);
     }
     g.scale.setScalar(1.25);
-  } else if (type === 'nut') { // nut tree: crooked trunk, a few branches, wide crown (the squirrel climbs out of it)
-    const bark = mats.head;
-    const trunk = part(g, GEO.cyl, bark, .16, 1.8, .16, 0, .9, 0); trunk.rotation.z = rand(-.05, .05);
-    part(g, GEO.cyl, bark, .24, .18, .24, 0, .09, 0); // root flare
-    for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + rand(-.3, .3), br = part(g, GEO.cyl, bark, .06, .8, .06, Math.cos(a) * .25, 1.75, Math.sin(a) * .25); br.rotation.set(Math.sin(a) * .7, 0, -Math.cos(a) * .7); }
-    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + rand(-.2, .2), r = i % 2 ? .62 : .5; part(g, GEO.ico, mats.leaf, rand(.48, .6), rand(.4, .5), rand(.48, .6), Math.cos(a) * r, 2.3 + rand(-.12, .18), Math.sin(a) * r); }
-    part(g, GEO.ico, mats.leaf, .7, .55, .7, 0, 2.65, 0);
-    for (let i = 0; i < 14; i++) { const a = rand(0, 7), y = rand(1.95, 2.6), r = 1.02 - Math.abs(y - 2.3) * .5; fruits.push(part(g, GEO.sph, BUSH_MAT.nut, .06, .055, .06, Math.cos(a) * r, y, Math.sin(a) * r, false)); }
   } else if (type === 'cab') {
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * Math.PI * 2, r = .42, x = Math.cos(a) * r, z = Math.sin(a) * r;

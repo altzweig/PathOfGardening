@@ -78,12 +78,12 @@ type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { k
 interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
   stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
-  walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest' | 'climb' | 'perch' | 'jump'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
+  walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest' | 'climb'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
   puff: number; // hedgehog: s into the current puff cycle
-  /** squirrel: home tree, crown spot, landing spot, height above the ground */
-  hx: number; hz: number; cx: number; cz: number; lx: number; lz: number; y: number;
+  /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
+  hx: number; hz: number; cx: number; cz: number; y: number;
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -261,7 +261,8 @@ export class Sim {
       for (let i = 0; i < n; i++) {
         const a = rand(0, Math.PI * 2), d = rand(r0, r1);
         const [tx, tz] = this.clampArena(f.x + Math.cos(a) * d, f.z + Math.sin(a) * d); // never out of reach behind the forest edge
-        this.spawnFruit(f.type, 0, f.x + Math.cos(a) * d * .5, 2.2, f.z + Math.sin(a) * d * .5, tx, tz, f.slot);
+        const ch = this.cfg.enemies.squirrel?.crownHeight ?? 2.4;
+        this.spawnFruit(f.type, 0, f.x + Math.cos(a) * Math.min(d * .5, 1.1), ch, f.z + Math.sin(a) * Math.min(d * .5, 1.1), tx, tz, f.slot);
       }
     } else if (fromBush) { // same plant layout as the view: one plant at the centroid of each triangle
       const tot = fromBush.reduce((s, x) => s + x, 0);
@@ -386,40 +387,79 @@ export class Sim {
   }
   /** resistance: enemies take less damage from some weapon fruits */
   resistF(e: Enemy, src?: FruitType) { const R = this.cfg.enemies[e.type].resist; return src && R && R.includes(src) ? 1 - (this.cfg.enemies.resistance ?? .3) : 1; }
-  airborne(e: Enemy) { return (e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5) || e.state === 'climb' || e.state === 'jump'; }
-  /** squirrel still up in the tree (climbing out, waiting, jumping down) */
-  inTree(e: Enemy) { return e.state === 'climb' || e.state === 'perch' || e.state === 'jump'; }
-  /** squirrel spawn: it appears inside the crown of a nut tree (preferably one with nuts lying under it) */
+  airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5; }
+  /** squirrel climbing into its tree (gone soon) */
+  inTree(e: Enemy) { return e.state === 'climb'; }
+  /** squirrel spawn: a random spot on the far side of the garden (~90 deg opposite its nut tree); it hops in zigzag towards the tree */
   private squirrelStart(e: Enemy) {
     const trees = this.fields.filter(f => f.alive && f.type === 'nut' && this.isForest(f)); if (!trees.length) return false;
-    const nutsAt = (f: Field) => this.fruits.filter(fr => fr.type === 'nut' && fr.state === 'ground' && dist(fr, f) < 3).length;
+    const nutsAt = (f: Field) => this.fruits.filter(fr => fr.type === 'nut' && fr.state === 'ground' && dist(fr, f) < 4).length;
     const withNuts = trees.filter(f => nutsAt(f) > 0), pool = withNuts.length ? withNuts : trees, t = pool[Math.floor(Math.random() * pool.length)];
-    const D = this.cfg.enemies.squirrel, l = Math.hypot(t.x, t.z) || 1, dx = -t.x / l, dz = -t.z / l, side = rand(-.6, .6); // towards the garden, a bit to the side
-    const ox = dx * Math.cos(side) - dz * Math.sin(side), oz = dz * Math.cos(side) + dx * Math.sin(side);
-    e.hx = t.x; e.hz = t.z; e.x = t.x + ox * .15; e.z = t.z + oz * .15; e.y = 2.2;
-    e.cx = t.x + ox * .95; e.cz = t.z + oz * .95;
-    const jd = D.jumpDistance ?? 1.4; e.lx = e.cx + ox * jd; e.lz = e.cz + oz * jd;
-    e.state = 'climb'; e.st = D.climbTime ?? .8; e.face = Math.atan2(ox, oz);
-    this.emit({ k: 'rustleTree', x: r2(t.x), z: r2(t.z) }); this.sfx('squirrel.wave', t.x, t.z);
+    const D = this.cfg.enemies.squirrel, half = (D.spawnArc ?? 90) * Math.PI / 360, a = Math.atan2(t.z, t.x) + Math.PI + rand(-half, half), R = this.cfg.waves.spawnRadius;
+    e.hx = t.x; e.hz = t.z; e.x = Math.cos(a) * R; e.z = Math.sin(a) * R; e.y = 0;
+    e.st = D.patience ?? 10; e.face = a + Math.PI;
     return true;
   }
-  /** squirrel in the tree: climbs out of the crown, waits on its edge (can be hit), jumps down */
-  private squirrelTree(e: Enemy, dt: number) {
-    const D = this.cfg.enemies.squirrel; e.st -= dt;
-    if (e.state === 'climb') {
-      const T = D.climbTime ?? .8, k = clamp(1 - e.st / T, 0, 1), sx = e.hx + (e.cx - e.hx) * .15, sz = e.hz + (e.cz - e.hz) * .15;
-      e.x = sx + (e.cx - sx) * k; e.z = sz + (e.cz - sz) * k; e.y = 2.2 + .45 * Math.sin(k * Math.PI / 2); e.walk += dt * 14;
-      if (e.st <= 0) { e.state = 'perch'; e.st = D.perchTime ?? 1.5; this.sfx('squirrel.attack', e.x, e.z); }
-    } else if (e.state === 'perch') {
-      e.x = e.cx; e.z = e.cz; e.y = 2.65;
-      if (e.fleeing) { const l = Math.hypot(e.cx, e.cz) || 1; e.lx = e.cx + e.cx / l * 1.4; e.lz = e.cz + e.cz / l * 1.4; e.st = 0; } // hit hard up there: jumps off to the outside
-      e.face = Math.atan2(e.lx - e.cx, e.lz - e.cz);
-      if (e.st <= 0) { e.state = 'jump'; e.st = D.jumpTime ?? .5; }
-    } else {
-      const T = D.jumpTime ?? .5, k = clamp(1 - e.st / T, 0, 1);
-      e.x = e.cx + (e.lx - e.cx) * k; e.z = e.cz + (e.lz - e.cz) * k; e.y = 2.65 * (1 - k) + Math.sin(k * Math.PI) * .6;
-      if (e.st <= 0) { e.state = 'approach'; e.y = 0; e.st = D.patience ?? 10; e.target = null; e.think = 0; this.emit({ k: 'dust', x: r2(e.x), z: r2(e.z) }); }
+  /** squirrel: hops in zigzag to its nut tree, grabs nuts lying around (up to carryMax) and vanishes into the crown with them.
+   *  Players coming too close get attacked. Hurt badly (fleeBelow) it also escapes into the tree. */
+  private squirrelAI(e: Enemy, dt: number) {
+    const D = this.cfg.enemies.squirrel, E = this.cfg.enemies;
+    if (e.state === 'climb') { // up the trunk into the crown, then gone (with the nuts)
+      e.st -= dt; const T = D.climbTime ?? .8, k = clamp(1 - e.st / T, 0, 1);
+      e.x = e.cx + (e.hx - e.cx) * k; e.z = e.cz + (e.hz - e.cz) * k; e.y = (D.crownHeight ?? 2.4) * k * k;
+      if (e.st <= 0) {
+        for (const fr of e.carry) { const i = this.fruits.indexOf(fr); if (i >= 0) this.fruits.splice(i, 1); }
+        e.carry = []; this.emit({ k: 'rustleTree', x: r2(e.hx), z: r2(e.hz) }); this.removeEnemy(e);
+      }
+      return;
     }
+    // home tree gone: take the nearest other nut tree, or run off into the forest
+    if (!this.fields.some(f => f.alive && f.type === 'nut' && Math.abs(f.x - e.hx) + Math.abs(f.z - e.hz) < .1)) {
+      let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.type === 'nut') { const d = dist(e, f); if (d < bd) { bd = d; best = f; } }
+      if (best) { e.hx = best.x; e.hz = best.z; }
+      else {
+        const a = Math.atan2(e.z, e.x); this.steer(e, Math.cos(a) * 40, Math.sin(a) * 40, D.fleeSpeed!, dt);
+        if (Math.hypot(e.x, e.z) > this.cfg.arena.radius + 3) { for (const fr of e.carry) { const i = this.fruits.indexOf(fr); if (i >= 0) this.fruits.splice(i, 1); } e.carry = []; this.removeEnemy(e); }
+        return;
+      }
+    }
+    const home = { x: e.hx, z: e.hz }, full = e.carry.length >= (D.carryMax || 3);
+    e.think -= dt;
+    if (e.think <= 0 || !e.target || (e.target.kind === 'fruit' && e.target.fr.state !== 'ground') || (e.target.kind === 'player' && !e.target.p.alive)) {
+      e.think = .3; let t: Target = null;
+      if (e.fleeing || full) t = { kind: 'wander', x: home.x, z: home.z };
+      if (!t) { let bp: Player | null = null, bd = D.aggroRadius ?? 2.5; for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } } if (bp) t = { kind: 'player', p: bp }; }
+      if (!t) { let best: Fruit | null = null, bd = 1e9; for (const fr of this.fruits) if (fr.state === 'ground' && fr.type === 'nut') { const d = dist(e, fr); if (d < bd) { bd = d; best = fr; } } if (best) t = { kind: 'fruit', fr: best }; }
+      if (!t) { // nothing lying around: back into the tree with the loot, or wait under it (scurrying around) until patience runs out
+        const near = dist(e, home) < 2.6;
+        if (e.carry.length || (near && e.st <= 0)) t = { kind: 'wander', x: home.x, z: home.z };
+        else if (near) { const w = e.target; t = w && w.kind === 'wander' && Math.hypot(w.x - e.x, w.z - e.z) > .4 && Math.hypot(w.x - home.x, w.z - home.z) > .3 ? w : (() => { const a = rand(0, 7), r = rand(.8, 2.2); return { kind: 'wander' as const, x: home.x + Math.cos(a) * r, z: home.z + Math.sin(a) * r }; })(); }
+        else t = { kind: 'wander', x: home.x, z: home.z };
+      }
+      e.target = t;
+    }
+    const t = e.target!, tp = this.targetPos(t)!, goHome = t.kind === 'wander' && Math.abs(t.x - home.x) + Math.abs(t.z - home.z) < .01;
+    if (goHome || (t.kind === 'wander' && dist(e, home) < 2.6)) e.st -= dt; // patience only runs out at the tree
+    // hopping in zigzag: every hop swings to the other side of the straight line
+    e.hop += dt / (D.hopPeriod ?? .32);
+    const ph = e.hop % 1; e.y = Math.sin(ph * Math.PI) * (D.hopHeight ?? .22);
+    const dx = tp.x - e.x, dz = tp.z - e.z, d = Math.hypot(dx, dz);
+    const zig = d > 1.2 ? (Math.floor(e.hop) % 2 ? 1 : -1) * (D.zigzag ?? 40) * Math.PI / 180 : 0;
+    const base = Math.atan2(dx, dz) + zig, sp = (e.fleeing || full ? D.fleeSpeed! : t.kind === 'wander' && !goHome ? D.wanderSpeed || e.speed : e.speed) * this.slowF(e);
+    const stop = t.kind === 'player' ? e.r + .45 : goHome ? .35 : t.kind === 'fruit' ? 0 : .1;
+    if (d > stop) { const st = Math.min(sp * dt, d - stop); e.x += Math.sin(base) * st; e.z += Math.cos(base) * st; e.walk += dt * sp * 4; }
+    e.face = base;
+    if (t.kind === 'fruit' && d < .35 + e.r) {
+      const fr = t.fr; fr.state = 'carried'; e.carry.push(fr); e.target = null; e.think = 0; this.sfx('squirrel.steal', e.x, e.z);
+      if (e.carry.length >= (D.carryMax || 3)) { e.laughT = rand(.3, .8); this.sfx('squirrel.flee', e.x, e.z); }
+    } else if (t.kind === 'player' && d <= e.r + .55) {
+      e.atkT -= dt;
+      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; this.sfx('squirrel.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); }
+    } else e.atkT = Math.min(e.atkT, .5);
+    if (goHome && dist(e, home) < .45 && (e.carry.length || e.fleeing || full || e.st <= 0)) { // at the trunk: up it goes
+      e.state = 'climb'; e.st = D.climbTime ?? .8; e.cx = e.x; e.cz = e.z; this.sfx('squirrel.flee', e.x, e.z);
+    }
+    if (e.carry.length) { e.laughT -= dt; if (e.laughT <= 0) { e.laughT = rand(2.5, 4); this.sfx('squirrel.laugh', e.x, e.z); } }
   }
   hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean; silent?: boolean; dot?: boolean; src?: FruitType } = {}) {
     if (e.dead) return false;
@@ -771,7 +811,7 @@ export class Sim {
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, puff: rand(0, D.puffEvery || 2),
-      hx: 0, hz: 0, cx: 0, cz: 0, lx: 0, lz: 0, y: 0,
+      hx: 0, hz: 0, cx: 0, cz: 0, y: 0,
     };
     if (type === 'squirrel' && !this.squirrelStart(e)) return; // no nut tree (any more): nobody comes
     this.enemies.push(e); this.waveSpawned++;
@@ -791,13 +831,6 @@ export class Sim {
       const near = (types: FruitType[]) => { let best: Fruit | null = null, b2 = 1e9; for (const fr of this.fruits) if (fr.state === 'ground' && types.includes(fr.type)) { const d = dist(e, fr); if (d < b2) { b2 = d; best = fr; } } return best; };
       const best = (D.prefers && near(D.prefers)) || near(want);
       if (best) return { kind: 'fruit', fr: best };
-    }
-    if (D.patience !== undefined) { // squirrel: no nuts lying around -> off with the loot (or out of patience), else it scurries around its tree
-      if (e.carry.length || e.st <= 0) { e.fleeing = true; if (e.carry.length) { e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); } return { kind: 'flee' }; }
-      const t = e.target;
-      if (t && t.kind === 'wander' && Math.hypot(t.x - e.x, t.z - e.z) > .4) return t;
-      const a = rand(0, Math.PI * 2), r = rand(.7, 2.2);
-      return { kind: 'wander', x: e.hx + Math.cos(a) * r, z: e.hz + Math.sin(a) * r };
     }
     if (D.peaceful) { // strolls around the garden until it finds something
       const t = e.target;
@@ -854,7 +887,7 @@ export class Sim {
       const sf = this.stunF(e); e.stun = Math.max(0, e.stun - dt); dt *= sf; if (dt <= 0) return;
     }
     if (e.boss) return this.bossAI(e, dt);
-    if (e.type === 'squirrel') { if (this.inTree(e)) return this.squirrelTree(e, dt); e.st -= dt; }
+    if (e.type === 'squirrel') return this.squirrelAI(e, dt);
     e.think -= dt;
     const t0 = e.target;
     if (e.think <= 0 || !t0 || (t0.kind === 'fruit' && t0.fr.state !== 'ground') || (t0.kind === 'field' && !t0.f.alive) || (t0.kind === 'player' && (!t0.p.alive || !this.players.includes(t0.p)))) {
@@ -1503,7 +1536,7 @@ export class Sim {
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }
         if (e.type === 'hedgehog') aux = r2(e.puff / (this.cfg.enemies.hedgehog.puffEvery || 2));
-        if (e.type === 'squirrel') { aux = e.state === 'climb' ? 1 : e.state === 'perch' ? 2 : e.state === 'jump' ? 3 : 0; aux2 = r2(e.y); }
+        if (e.type === 'squirrel') { aux = e.state === 'climb' ? 1 : 0; aux2 = r2(e.y); }
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }
         return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => FRUITS.indexOf(f.type)).join(''), aux, aux2] as ESnap;
       }),

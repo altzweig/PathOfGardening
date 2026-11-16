@@ -164,3 +164,11 @@ export function instance(parent: THREE.Object3D, name: string, list: Inst[], o: 
   }
   return out;
 }
+
+/** a single copy of a model (e.g. the tree standing on a field), tinted like the forest; null until the models are loaded */
+export function natureMesh(name: string, scale: number, col?: THREE.Color) {
+  if (!models.has(name)) return null;
+  const g = new THREE.Group();
+  instance(g, name, [{ x: 0, z: 0, s: scale, ry: 0, col, shade: 1 }], { shadow: true, scale });
+  return g;
+}

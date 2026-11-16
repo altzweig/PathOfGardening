@@ -221,13 +221,15 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Leistung: jedes Modell wird instanziert (eine Zeichnung pro Modell und Material), Dichte je Grafikstufe (hoch 100 %, mittel 70 %, niedrig 45 %). Laubkarten bekommen keine Eigenschatten (sonst flimmern sie).
 
 
-## Nussbaum und Eichhörnchen (16.11.2026)
-- Neue Ressource Nuss. Der Nussbaum ist ein neuer Feldtyp (ab Level 5 unter den neuen Feldtypen) und wächst nur auf Waldplätzen außerhalb des Gartens: 6 Lichtungen im Buschring am Waldrand rund um den Garten, 13,2 m von der Mitte (`forest`); dort wachsen keine Büsche, Steine oder Farne. Im Baumodus werden für den Nussbaum nur die Waldplätze angezeigt, für alle anderen Felder nur die Gartenplätze; die Draufsicht zoomt dafür weiter heraus.
-- Nüsse fallen aus der Krone und landen 0,6–1,8 m um den Stamm. Sie rollen nicht zum Spieler (kein Magnet): man muss hinlaufen und sie aufheben. Harken am Baum schüttelt Nüsse heraus, wie Beackern bei den Feldern. Liegen gelassene Nüsse verschmelzen wie alle Früchte zu großen Nüssen.
-- Gegner greifen Nussbäume nicht gezielt an (sie wollen in den Garten). Nussbäume zählen nicht fürs Spielende und halten die Startfelder nicht unverwundbar.
+## Nussbaum und Eichhörnchen (16.11.2026, überarbeitet)
+- Begehbarer Bereich vergrößert: Radius 15 → 18 m, man läuft durch den Buschring bis in den Waldrand. Gegner starten dafür bei 18,5 m im Wald.
+- Neue Ressource Nuss. Der Nussbaum ist ein neuer Feldtyp (ab Level 5 unter den neuen Feldtypen) und wächst nur auf 6 Lichtungen im Wald direkt hinter dem Buschring, 15,6 m von der Mitte (`forest`); dort stehen keine Bäume, Büsche, Steine oder Farne. Im Baumodus werden für den Nussbaum nur die Waldplätze angezeigt, für alle anderen Felder nur die Gartenplätze.
+- Modell: Laubbaum aus dem Stylized Nature MegaKit (CommonTree_1 oder _5, ca. 3,5 m hoch), grün getönt, mit Nüssen in der Krone.
+- Nüsse fallen aus der Krone und rollen 1,2–3,5 m vom Stamm weg (nie aus dem begehbaren Bereich). Sie rollen nicht zum Spieler (kein Magnet): man muss hinlaufen und sie aufheben. Harken am Baum schüttelt Nüsse heraus.
+- Gegner greifen Nussbäume nicht gezielt an. Nussbäume zählen nicht fürs Spielende und halten die Startfelder nicht unverwundbar.
 - Nüsse werden pro Spieler gezählt und oben bei den Ressourcen angezeigt. Wofür sie verwendet werden, ist noch offen (Vorschlag: Munition einer Nuss-Schleuder als neue Waffe).
-- Eichhörnchen (neuer Gegner, ab Welle 3, nur wenn ein Nussbaum steht): erscheint in der Krone eines Nussbaums (die Krone raschelt, Blätter fallen), klettert 0,8 s heraus (nicht treffbar), wartet 1,5 s am Kronenrand und keckert (treffbar, auch mit der Harke von unten), springt dann Richtung Garten herunter (in der Luft nicht treffbar). Unten schnappt es sich Nüsse (bis 3) und flieht damit in den Wald. Liegt keine Nuss, flitzt es bis zu 10 s um seinen Baum und verschwindet dann (mit Beute sofort). Greift nie an. Unter 50 % Leben flieht es, auch direkt aus der Krone.
-- Werte: 4 Leben, sehr flink (4,2 m/s, Flucht 5,5 m/s), Resistenz gegen Kohl und Chili (springt aus Explosionen, Giftlachen und Flammen). Laute: hohe, schnelle Waschbär-Laute.
+- Eichhörnchen (ab Welle 3, nur wenn ein Nussbaum steht): startet an einem zufälligen Punkt im 90°-Bereich auf der gegenüberliegenden Seite des Gartens (vom Nussbaum aus) und hüpft im Zickzack zu seinem Baum (jeder Hüpfer schwenkt 40° zur anderen Seite). Kommt ein Spieler näher als 2,5 m, greift es ihn an (normaler Nahkampfschaden). Sonst sammelt es liegende Nüsse (bis 3) und verschwindet damit den Stamm hinauf in der Krone (0,8 s, bis dahin treffbar; die Nüsse sind dann weg). Liegt keine Nuss, flitzt es bis zu 10 s um den Baum und verschwindet dann im Baum. Unter 50 % Leben flüchtet es in den Baum. Ist sein Baum weg, nimmt es den nächsten Nussbaum, sonst flieht es in den Wald.
+- Werte: 4 Leben, flink (4,2 m/s, mit Beute 5,5 m/s), Resistenz gegen Kohl und Chili. Laute: hohe, schnelle Waschbär-Laute.
 
 ## Feldoptik (16.11.2026, abends)
 - Beete gehen weich in die Landschaft über: Umriss nur angedeutet sechseckig (zur Rundung hin, leicht ausgefranst), der Rand blendet in den Boden aus. Keine farbige Randlinie mehr. Seltenheit sieht man im Baumodus (Rauten) und an der Pflanzengröße. Der dezente Ernte-Impuls am Rand bleibt.

@@ -32,6 +32,7 @@ import {
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { loadNature, natureMesh } from './nature';
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
@@ -45,6 +46,8 @@ interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; 
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
+/** nature-pack broadleaf tree (about 7 units tall) scaled to a ~3.5 m nut tree */
+const NUT_TREE_SCALE = .5;
 const BADGE = 1.0; // badge diameter in hex radii
 const BADGES: Record<string, THREE.CanvasTexture> = {};
 function badgeTex(t: FruitType, rarity = 0) {
@@ -403,7 +406,13 @@ export class GameView {
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
-    if (type === 'nut') { const b = buildPlant(type, mats); b.g.rotation.y = rand(0, 7); plant.add(b.g); fruits.push(...b.fruits); } // one big tree in the middle
+    if (type === 'nut') { // one broadleaf tree from the nature pack in the middle (loaded async), nuts hanging in its crown
+      const tree = new THREE.Group(); tree.rotation.y = rand(0, 7); plant.add(tree);
+      const ch = this.cfg.enemies.squirrel?.crownHeight ?? 2.4;
+      for (let i = 0; i < 16; i++) { const a = rand(0, 7), y = ch + rand(-.45, .45), r = rand(.75, 1.05) - Math.abs(y - ch) * .3; fruits.push(part(tree, GEO.sph, BUSH_MAT.nut, .06, .055, .06, Math.cos(a) * r, y, Math.sin(a) * r, false)); }
+      const name = Math.random() < .5 ? 'CommonTree_1' : 'CommonTree_5';
+      loadNature().then(() => { const m = natureMesh(name, NUT_TREE_SCALE * (ch / 2.4), new THREE.Color().setHSL(rand(.25, .32), .5, .3)); if (m) tree.add(m); }).catch(() => {});
+    }
     else for (let k = 0; k < 6; k++) { // one low plant per triangle of the hex (the rake works per triangle)
       const b = buildPlant(type, mats), [px, pz] = triPlant(0, 0, H, k);
       b.g.position.set(px, 0, pz); b.g.scale.set(.56, .5, .56); b.g.userData.sy = .5; b.g.rotation.y = rand(0, 7);
@@ -782,9 +791,10 @@ export class GameView {
     const sq = v.type === 'squirrel', hy = sq ? (this.smooth ? lerp(v.g.position.y, e[10], k) : e[10]) : 0;
     v.g.position.set(v.x, hy, v.z);
     v.g.rotation.y = lerpAngle(v.g.rotation.y, e[4], .2);
-    if (sq && v.P.tail) { // tail flicks nervously while it waits on the crown, stretches out in the jump
-      const st = e[9]; v.P.tail.rotation.x = st === 2 ? Math.sin(now * 14 + e[0]) * .25 : st === 3 ? -.6 : Math.sin(now * 6 + e[0]) * .1;
-      v.P.body.rotation.x = st === 3 ? .5 : st === 2 ? -.25 : 0;
+    if (sq && v.P.tail) { // hopping: body pitches up on take-off and down on landing, tail streams behind; climbing: upright on the trunk
+      const climb = e[9] === 1, h = e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22);
+      v.P.body.rotation.x = climb ? -1.3 : -.35 * h + .15;
+      v.P.tail.rotation.x = climb ? .4 : -.5 * h + Math.sin(now * 6 + e[0]) * .08;
     }
     const stun = fl & EF.stun;
     v.P.stars.visible = !!stun; if (stun) { v.P.stars.rotation.y += dt * 6; v.P.body.rotation.z = Math.sin(now * 18) * .08; } else v.P.body.rotation.z = 0;

@@ -30,8 +30,9 @@ export interface EnemyCfg {
   resist?: FruitType[];
   /** hedgehog: puffs up every puffEvery s (puffUp s fast, then contracts for the rest), puffScale bigger, hurting everything within puffRadius */
   puffEvery?: number; puffUp?: number; puffScale?: number; puffDamage?: number; puffRadius?: number;
-  /** squirrel: s climbing out of the crown (untouchable), s waiting on the crown, s for the jump down (untouchable), s it waits for nuts before leaving */
-  climbTime?: number; perchTime?: number; jumpTime?: number; patience?: number; jumpDistance?: number;
+  /** squirrel: spawn arc opposite its tree (deg), s climbing into the crown, crown height (m), s it waits for nuts at the tree,
+   *  own aggro radius, hop height (m), zigzag angle (deg) */
+  spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>> };

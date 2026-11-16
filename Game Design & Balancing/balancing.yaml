@@ -88,8 +88,9 @@ coop:
 xp:
   # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
   base: 40
-  growth: 1.05             # flachere Kurve (vorher 1.1)
-  linear: 5
+  growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
+  linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
+  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1). Abgestorbenes Feld gibt weiter deathXpShare
 
 arena:
   radius: 15               # m, begehbarer Bereich
@@ -133,7 +134,7 @@ plants:
   chili: { interval: 0.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 0,5 s, wie das Zitronenbäumchen erst ab Level 10
 
 rake:
-  damage: 10
+  damage: 5                # 16.11.2026 halbiert (vorher 10)
   range: 1.2               # m (Prototyp: 1.0 -> +50 %)
   arc: 50                  # Grad, Breite des Kegels
   cooldown: 0.5            # s

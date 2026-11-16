@@ -196,7 +196,7 @@ export class Sim {
   deathGift(f: Field) {
     const F = this.cfg.fields, tv = this.cfg.fruit.tierValue;
     f.goneT = F.deathRemoveDelay ?? 1.2;
-    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / this.f(this.cfg.coop.xpValueExponent));
+    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / ((this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent)));
     const H = hexR(this.cfg) * .6;
     for (let tier = tv.length - 1; tier >= 0 && v > 0; tier--) while (v >= tv[tier] || (tier === 0 && v > 0)) {
       v -= tv[tier]; const a = rand(0, 7), d = Math.sqrt(Math.random()) * H;
@@ -244,7 +244,7 @@ export class Sim {
   }
   collectFruit(fr: Fruit, p: Player) {
     const v = fr.val;
-    if (fr.type === 'blue') { const xv = v * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v; this.addXP(xv); }
+    if (fr.type === 'blue') { const xv = v * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v; this.addXP(xv); }
     else { p.ammo[fr.type] += v; p.collected[fr.type] += v; }
     this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: fr.tier, x: r2(p.x), z: r2(p.z) });
   }

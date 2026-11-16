@@ -39,7 +39,8 @@ export type MSnap = [number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]
 // pool: [id, x, z, radius, lifeFrac]
 export type PuSnap = [number, number, number, number, number];
-export type FiSnap = [number, number, number, number, number, number, number, number, number, number];
+/** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
+export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number];
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096 } as const;
 

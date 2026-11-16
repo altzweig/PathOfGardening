@@ -125,7 +125,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Waschbär-Boss (16.11.2026)
 - Vorerst der einzige Boss. Kommt nur in der letzten Nachtwelle (Welle 24, 48) zu Beginn der Welle; danach wird es Tag. (Bis 16.11.2026: alle 5 Wellen.)
 - Ursprünglich: alle 5 Wellen zu Beginn der Welle (zusätzlich zu den normalen Gruppen). 2,4× so groß, violetter Leuchtrand, eigene Lebensleiste oben in der Mitte.
-- Leben ≈ 20 normale Waschbären, +6 % je Welle ab dem ersten Boss (Welle 24) (und Koop-Faktor).
+- Leben ≈ 20 normale Waschbären × Wellen-Skalierung (`enemies.scaling`, und Koop-Faktor); seit 16.11.2026 kein extra +6 % je Welle mehr.
 - Ablauf in Schleife: 5 s herumliegende Blaubeeren einsammeln (er klaut damit XP) → 2 s aufladen (zittert, leuchtet violett) → Spezialattacke. Jede gesammelte Blaubeere = +3 % mehr Bomben.
 - Attacke 1 „Spur“: ein Spur-Kopf verfolgt den nächsten Spieler, schnell wenn der weit weg ist, aber träge bei Richtungswechseln; hinter ihm landen Blaubeer-Bomben (14 Grundzahl).
 - Attacke 2 „Karussell“: er dreht sich und spuckt 6 s lang jede Sekunde 3 Spuren in zufällige Richtungen.
@@ -201,6 +201,14 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Geräusche: tagsüber Vogelgezwitscher und ab und zu Krähen, nachts Grillen, Fackelknistern und Eule; überblendet mit der Tageszeit (`sounds.yaml`: `ambient`, `calls`).
 - Testen: `?h=20` an die URL hängen zeigt fest diese Stunde (0–24).
 
+## Gegner-Skalierung über die Wellen (16.11.2026)
+- Leben und Angriff aller Gegner (auch Elite, Boss und Boss-Bomben) wachsen über die Wellen mit derselben Kurvenform wie der XP-Bedarf: Faktor = growth^(w−1) + linear·(w−1), Welle 1 = 1.
+- Leben: Welle 10 ≈ 1,6×, Welle 24 ≈ 2,7×, Welle 48 ≈ 5,4×. Angriff: Welle 10 ≈ 1,3×, Welle 24 ≈ 1,9×, Welle 48 ≈ 3,3×. Nachts kommt der Nachtfaktor obendrauf. Werte unter `enemies.scaling`.
+
+## Feld-Stufen im Baumodus (16.11.2026)
+- Über jedem Feld eine Reihe aus 5 Rauten = Seltenheitsstufen; erreichte Stufen leuchten in ihrer Farbe (grau, grün, blau, lila, orange). Der Rand des Frucht-Icons hat die Farbe der aktuellen Stufe.
+- Unter dem Icon die Produktion als Chip: Frucht-Icon + Früchte pro Sekunde (Durchschnitt inkl. Seltenheit, Nachbarbonus, Doppelernte, Koop-Blaubeeren; ohne Beackern).
+- Nur auf Feldern der Frucht, die gerade gebaut wird: Stufen-Leiste zur nächsten Seltenheit, ein Segment pro nötigem Feld, gefüllte Segmente in der Farbe der nächsten Stufe, am Ende eine Raute dieser Farbe. Keine Zahlen. Beim Zeigen blinkt das Segment, das der Bau füllen würde, und, wenn er die Stufe abschließt, auch die nächste Raute.
 ## Mystische Umgebung mit dem Stylized Nature MegaKit (16.11.2026)
 
 - Alle Umgebungsmodelle stammen jetzt aus Quaternius' Stylized Nature MegaKit (CC0). Die alten Kegel-Bäume, Kugel-Büsche, Felsbrocken, Pilze und Grasbüschel sind ersetzt. Felder, Pflanzen, Tiere, Waffen, Fackeln und Laterne bleiben wie sie sind.

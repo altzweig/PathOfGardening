@@ -170,6 +170,14 @@ export class Sim {
     for (const o of this.fields) if (o !== f && o.alive && hexDist(me, this.slots[o.slot]) === 1) nb += o.rarity;
     return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
   }
+  /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries; without tilling) */
+  rate(f: Field) {
+    if (!f.alive) return 0;
+    const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
+    let n = (this.cfg.plants[f.type].amount || 1) * (1 + dbl);
+    if (f.type === 'blue') n += this.f(this.cfg.coop.xpYieldExponent) - 1;
+    return n * this.prodMult(f) / this.cfg.plants[f.type].interval;
+  }
   /** types that were ever on the board (a dead field disappears, but its type still counts as owned) */
   lost = new Set<FruitType>();
   fieldOf(type: FruitType) { return !!(this.fields.find(f => f.type === type) || this.lost.has(type)); }
@@ -196,7 +204,7 @@ export class Sim {
   deathGift(f: Field) {
     const F = this.cfg.fields, tv = this.cfg.fruit.tierValue;
     f.goneT = F.deathRemoveDelay ?? 1.2;
-    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / this.f(this.cfg.coop.xpValueExponent));
+    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / ((this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent)));
     const H = hexR(this.cfg) * .6;
     for (let tier = tv.length - 1; tier >= 0 && v > 0; tier--) while (v >= tv[tier] || (tier === 0 && v > 0)) {
       v -= tv[tier]; const a = rand(0, 7), d = Math.sqrt(Math.random()) * H;
@@ -244,7 +252,7 @@ export class Sim {
   }
   collectFruit(fr: Fruit, p: Player) {
     const v = fr.val;
-    if (fr.type === 'blue') { const xv = v * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v; this.addXP(xv); }
+    if (fr.type === 'blue') { const xv = v * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v; this.addXP(xv); }
     else { p.ammo[fr.type] += v; p.collected[fr.type] += v; }
     this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: fr.tier, x: r2(p.x), z: r2(p.z) });
   }
@@ -644,13 +652,13 @@ export class Sim {
 
   // ---------- enemies ----------
   spawnEnemy(type: EnemyType, angle: number, elite = false) {
-    const EL = this.cfg.enemies.elite, D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, N = this.nightMul(), hpF = this.f(this.cfg.coop.enemyHpExponent) * (elite ? EL.hp : 1) * N.hp;
+    const EL = this.cfg.enemies.elite, D = this.cfg.enemies[type], R = this.cfg.waves.spawnRadius, N = this.nightMul(), G = this.waveScale(), hpF = this.f(this.cfg.coop.enemyHpExponent) * (elite ? EL.hp : 1) * N.hp * G.hp;
     const e: Enemy = {
       id: this.nid++, type, x: Math.cos(angle) * R, z: Math.sin(angle) * R, hp: D.hp * hpF, maxHp: D.hp * hpF,
       shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
       stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
-      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage, wv: this.wave,
+      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, puff: rand(0, D.puffEvery || 2),
     };
     this.enemies.push(e); this.waveSpawned++;
@@ -826,14 +834,14 @@ export class Sim {
     const B = this.cfg.enemies.boss, a = rand(0, Math.PI * 2);
     this.spawnEnemy('raccoon', a);
     const e = this.enemies[this.enemies.length - 1];
-    const firstBoss = this.bossEvery(), hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * (1 + B.hpGrowthPerWave * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
-    e.hp = e.maxHp = hp; e.r = this.cfg.enemies.raccoon.radius * B.scale; e.speed = B.speed; e.dmgMul = B.meleeDamage / this.cfg.enemies.meleeDamage;
+    const firstBoss = this.bossEvery(), G = this.waveScale(), hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * G.hp * (1 + (B.hpGrowthPerWave ?? 0) * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
+    e.hp = e.maxHp = hp; e.r = this.cfg.enemies.raccoon.radius * B.scale; e.speed = B.speed; e.dmgMul = B.meleeDamage / this.cfg.enemies.meleeDamage * G.damage;
     e.boss = { st: 'collect', t: B.collectTime, berries: 0, atk: 0, spawned: 0, next: 0, hx: 0, hz: 0, hdx: 0, hdz: 1 };
     this.emit({ k: 'boss', id: e.id }); this.sfx('raccoon.laugh', e.x, e.z);
   }
   private spitBomb(e: Enemy, x: number, z: number, rain = false) {
     const B = this.cfg.enemies.boss; [x, z] = this.clampArena(x, z);
-    this.berryBombs.push({ id: this.nid++, fx: e.x, fz: e.z, x, z, flight: rain ? 0 : .35, t: 0, fuse: rain ? B.rain.warn : B.bombFuse, rain, dmg: B.bombDamage, r: B.bombRadius });
+    this.berryBombs.push({ id: this.nid++, fx: e.x, fz: e.z, x, z, flight: rain ? 0 : .35, t: 0, fuse: rain ? B.rain.warn : B.bombFuse, rain, dmg: B.bombDamage * this.waveScale().damage, r: B.bombRadius });
   }
   private bossAI(e: Enemy, dt: number) {
     const B = this.cfg.enemies.boss, S = e.boss!; S.t -= dt;
@@ -937,6 +945,12 @@ export class Sim {
   cycleLen() { const D = this.cfg.dayNight; return D ? D.dayWaves + D.nightWaves : 0; }
   isNight(w = this.wave) { const D = this.cfg.dayNight; return !!D && w >= 1 && (w - 1) % this.cycleLen() >= D.dayWaves; }
   bossEvery() { return this.cycleLen() || this.cfg.enemies.boss.every || 0; }
+  /** enemies get stronger over the waves, same curve shape as the XP need: growth^(w-1) + linear*(w-1) (wave 1 = 1) */
+  waveScale(w = this.wave) {
+    const S = this.cfg.enemies.scaling, k = Math.max(0, w - 1);
+    const c = (x?: { growth: number; linear: number }) => x ? Math.pow(x.growth, k) + x.linear * k : 1;
+    return { hp: c(S?.hp), damage: c(S?.damage) };
+  }
   nightMul(w = this.wave) { const N = this.cfg.dayNight?.night; return this.isNight(w) && N ? N : { size: 1, hp: 1, damage: 1 }; }
   /** share of the current wave "hour" that has passed (0..1): fighting covers the first 75 %, the pause the rest */
   private dayFrac() { return this.wavePause ? this.dayEnd + (1 - this.dayEnd) * (1 - Math.max(0, this.waveT) / Math.max(.1, this.pauseLen)) : .75 * Math.min(1, (this.time - this.waveT0) / Math.max(1, this.waveDur)); }
@@ -1371,7 +1385,7 @@ export class Sim {
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : 1)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z), r2(clamp(1 - m.t / this.cfg.skills.cran.splashDelay, 0, 1))]),
-      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0]),
+      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),
       bs: (() => { const b = this.enemies.find(e => e.boss); return b ? r2(b.hp / b.maxHp) : -1; })(),

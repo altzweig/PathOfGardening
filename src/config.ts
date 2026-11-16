@@ -33,7 +33,7 @@ export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
-  xp: { base: number; growth: number; linear: number };
+  xp: { base: number; growth: number; linear: number; gain?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; deathXpShare?: number; deathRemoveDelay?: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
@@ -57,6 +57,8 @@ export interface Balancing {
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number; resistance: number;
+    /** per-wave growth of enemy HP / attack: growth^(w-1) + linear*(w-1) */
+    scaling?: { hp: { growth: number; linear: number }; damage: { growth: number; linear: number } };
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
     boss: { every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };

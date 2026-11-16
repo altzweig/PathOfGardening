@@ -198,3 +198,25 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #credView a{color:var(--parch);text-underline-offset:3px}
 #credView a:hover{color:var(--gold)}
 #credView .credit{margin-bottom:12px}
+/* build mode: field info over each hex (sizes in --u = 1/60 hex radius on screen) */
+#fieldInfo{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fInfo{position:absolute;left:0;top:0;width:calc(var(--u)*120);height:calc(var(--u)*116);display:flex;flex-direction:column;align-items:center;justify-content:space-between;--u:1px}
+.fInfo[hidden]{display:none}
+.fLv{display:flex;gap:calc(var(--u)*3);margin-top:calc(var(--u)*2)}
+.fLv i{width:calc(var(--u)*10.5);height:calc(var(--u)*10.5);transform:rotate(45deg);border-radius:calc(var(--u)*1.5);background:#0c1014cc;border:calc(var(--u)*1.4) solid #ffffff40}
+.fLv i.on{background:var(--c);border-color:#fffc;box-shadow:0 0 calc(var(--u)*6) var(--c)}
+.fLv i.nx{animation:fBlink .5s ease-in-out infinite alternate;border-color:var(--c)}
+.fBot{display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*3)}
+.fRate{display:flex;align-items:center;gap:calc(var(--u)*2);padding:calc(var(--u)*1) calc(var(--u)*6) calc(var(--u)*1) calc(var(--u)*2);border-radius:999px;background:#0b1016d9;border:1px solid #ffffff2a;font:700 calc(var(--u)*15) var(--f-body);color:var(--parch);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fRate svg{width:calc(var(--u)*19);height:calc(var(--u)*19)}
+.fBar{display:flex;align-items:center;gap:calc(var(--u)*2);padding:calc(var(--u)*2.5);border-radius:calc(var(--u)*5);background:#0b1016e0;border:calc(var(--u)*1.3) solid var(--c0)}
+.fBar[hidden]{display:none}
+.fBar i{width:calc(var(--u)*18);height:calc(var(--u)*10);border-radius:calc(var(--u)*2);background:#2a3138}
+.fBar i.on{background:var(--c);box-shadow:0 0 calc(var(--u)*5) var(--c)}
+.fBar i.nx{animation:fBlink .5s ease-in-out infinite alternate}
+.fBar b{width:calc(var(--u)*10);height:calc(var(--u)*10);margin-left:calc(var(--u)*2);transform:rotate(45deg);border-radius:calc(var(--u)*1.5);background:var(--c);box-shadow:0 0 calc(var(--u)*5) var(--c)}
+.fInfo.hov .fRate{border-color:var(--gold)}
+@keyframes fBlink{from{background:#2a3138}to{background:#fff}}
+.fLv i.nx{animation-name:fBlinkC}
+@keyframes fBlinkC{from{background:#0c1014cc}to{background:var(--c)}}
+@media (prefers-reduced-motion:reduce){.fBar i.nx,.fLv i.nx{animation:none;background:#fff}}

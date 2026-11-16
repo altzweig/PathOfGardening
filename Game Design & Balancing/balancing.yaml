@@ -88,8 +88,9 @@ coop:
 xp:
   # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
   base: 40
-  growth: 1.05             # flachere Kurve (vorher 1.1)
-  linear: 5
+  growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
+  linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
+  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1). Abgestorbenes Feld gibt weiter deathXpShare
 
 arena:
   radius: 15               # m, begehbarer Bereich
@@ -133,7 +134,7 @@ plants:
   chili: { interval: 0.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 0,5 s, wie das Zitronenbäumchen erst ab Level 10
 
 rake:
-  damage: 10
+  damage: 5                # 16.11.2026 halbiert (vorher 10)
   range: 1.2               # m (Prototyp: 1.0 -> +50 %)
   arc: 50                  # Grad, Breite des Kegels
   cooldown: 0.5            # s
@@ -249,6 +250,10 @@ enemies:
   meleeDamage: 1
   meleeInterval: 1         # s
   xpDrop: 1                # jeder besiegte Gegner lässt so viele Blaubeeren (XP) fallen
+  scaling:                 # Gegner werden über die Wellen stärker, gleiche Kurvenform wie XP:  Faktor = growth^(w-1) + linear*(w-1)
+    hp:     { growth: 1.03, linear: 0.03 }    # Leben:  Welle 10 ≈ 1,6x · Welle 24 ≈ 2,7x · Welle 48 ≈ 5,4x
+    damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
+    # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), zusätzlich zum Nachtfaktor (dayNight.night)
   elite:                   # Elite-Gegner: selten, größer, leuchtende Outline in ihrer Farbe (mit leichtem Bloom)
     fromWave: 4            # ab dieser Welle möglich
     chanceStart: 0.01      # Anteil Elite in dieser Welle
@@ -262,7 +267,7 @@ enemies:
     every: 24              # nur ohne dayNight: alle N Wellen. Mit dayNight kommt der Boss in der letzten Nachtwelle (zu Beginn der Welle)
     scale: 2.4
     hpEnemies: 20          # Leben = so viel wie 20 normale Waschbären ...
-    hpGrowthPerWave: 0.06  # ... +6 % je Welle ab der ersten Boss-Welle
+    hpGrowthPerWave: 0     # ... zusätzlich +x je Welle ab der ersten Boss-Welle (0: Boss wächst nur über enemies.scaling)
     speed: 2.2
     meleeDamage: 3
     xpDrop: 30

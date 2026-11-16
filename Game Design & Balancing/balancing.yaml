@@ -41,7 +41,6 @@ names:
     cab_rng: Radius
     cd: Abklingzeit
     arc: Kegelbreite
-    kb: Rückstoß
     pierce: Durchbohren
     pb: Durchbohr-Schaden
     size: Bolzenbreite
@@ -136,7 +135,7 @@ rake:
   arc: 50                  # Grad, Breite des Kegels
   cooldown: 0.5            # s
   swingTime: 0.15          # s, Animation
-  knockback: 0             # m Rückstoß pro Treffer (Upgrade +10 cm)
+  knockback: 0             # m Rückstoß pro Treffer (kein Upgrade mehr, 16.11.2026)
 
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
@@ -212,7 +211,6 @@ upgrades:
   rakeArc:        { step: 20,   maxLevel: 10 } # Harke +20 Grad Kegelbreite
   rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm Reichweite (absolut, in m)
   rakeDamage:     { step: 0.20, maxLevel: 10 } # Harke +20 % Grundschaden (additiv)
-  rakeKnockback:  { step: 0.10, maxLevel: 10 } # Harke +10 cm Rückstoß
   rakeSpeed:      { step: 0.10, maxLevel: 5 }  # Harke Abklingzeit x 0.9 je Stufe (multiplikativ) -> schneller schlagen UND mehr Ertrag beim Harken
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel

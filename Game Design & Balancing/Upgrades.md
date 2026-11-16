@@ -55,7 +55,6 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | Kegel | +20° Kegelbreite (Karte zeigt Grad) | 10 | `upgrades.rakeArc` |
 | Reichweite | +20 cm Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
 | Schaden | +20 % Grundschaden | 10 | `upgrades.rakeDamage` |
-| Rückstoß | +10 cm Rückstoß je Treffer | 10 | `upgrades.rakeKnockback`, `rake.knockback` |
 | Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | 5 | `upgrades.rakeSpeed` |
 
 ## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)

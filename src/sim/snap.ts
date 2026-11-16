@@ -16,6 +16,7 @@ export interface PSnap {
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
   sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
+  lw: 0 | 1; // lemon wand equipped
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {

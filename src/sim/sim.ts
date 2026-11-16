@@ -472,7 +472,7 @@ export class Sim {
       }
       frontier = next; if (!frontier.length) break;
     }
-    this.emit({ k: 'zap', s: segs });
+    this.emit({ k: 'zap', s: segs, p: p.id, a: r2(Math.atan2(dx, dz)) });
     this.sfx('weapons.lemon', p.x, p.z);
   }
   /** flamethrower burst: everything the cone swept over since the last burst catches fire (+1 stack) */
@@ -1308,6 +1308,7 @@ export class Sim {
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
+        lw: this.equipped(p, 'lemon') ? 1 : 0,
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;

@@ -109,9 +109,24 @@ export function buildPlayer(color: number, rakeLen: number) {
   const h = part(rake, GEO.cyl, wood, .025, L, .025, 0, 0, L / 2); h.rotation.x = Math.PI / 2;
   part(rake, GEO.box, steel, .42, .04, .05, 0, 0, L);
   for (let i = 0; i < 6; i++) part(rake, GEO.cyl, steel, .012, .12, .012, -.18 + i * .072, -.06, L + .02);
+  // lemon wand (Citrateaser): second arm + slim wooden wand with a lemon on the tip, only while equipped
+  const wand = new THREE.Group(); wand.visible = false; body.add(wand);
+  const arm2 = part(wand, GEO.cyl, coat, .055, .38, .055, -.26, .78, .08); arm2.rotation.x = -1.0;
+  const stick = new THREE.Group(); stick.position.set(-.25, .67, .22); stick.rotation.set(-.42, .2, 0, 'YXZ'); wand.add(stick); // in the hand, tilted up, pointing slightly inward
+  const wandWood = M(0x4a2e1a, { r: .6 }), brass = M(0xc89a3a, { m: .7, r: .35 });
+  const shaftG = new THREE.CylinderGeometry(.011, .019, .46, 7); shaftG.rotateX(Math.PI / 2); shaftG.translate(0, 0, .17);
+  const shaft = new THREE.Mesh(shaftG, wandWood); shaft.castShadow = true; stick.add(shaft);
+  part(stick, GEO.sph, wandWood, .024, .024, .03, 0, 0, -.07); // pommel
+  for (const z of [.02, .36]) { const r = part(stick, GEO.cyl, brass, .02, .018, .02, 0, 0, z, false); r.rotation.x = Math.PI / 2; } // grip + tip ferrule
+  const lemonMat = new THREE.MeshStandardMaterial({ color: 0xf0cf2a, roughness: .42, emissive: 0xffe46a, emissiveIntensity: 0 });
+  part(stick, GEO.sph, lemonMat, .052, .052, .07, 0, 0, .46); // lemon: elongated along the wand
+  const nub = part(stick, GEO.cone, lemonMat, .022, .04, .022, 0, 0, .535, false); nub.rotation.x = Math.PI / 2;
+  part(stick, GEO.cyl, M(0x3d6a2a), .012, .02, .012, 0, 0, .385, false).rotation.x = Math.PI / 2; // stem
+  const leaf = part(stick, GEO.sph, M(0x3f7a2c), .035, .006, .016, .03, .02, .39, false); leaf.rotation.y = .6;
+  const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .56); stick.add(wandTip);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
-  return { g, body, rake, stars, coat, L, hat };
+  return { g, body, rake, stars, coat, L, hat, wand, wandTip, lemonMat };
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green

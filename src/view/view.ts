@@ -668,7 +668,7 @@ export class GameView {
     this.animFlame(v, dt);
     this.animXbow(v);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible);
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible));
     const other = s.id !== this.me;
     v.bar.visible = other && !!s.al; v.bar.position.set(v.x, 1.6, v.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, s.hp / s.mhp);
   }

@@ -37,9 +37,9 @@ export interface Balancing {
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
     aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
-    rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
+    rakeArc: Lim; rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
-    fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
+    fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number;
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
@@ -53,7 +53,7 @@ export interface Balancing {
   };
   waves: {
     total: number; firstWave: number; spawnRadius: number; firstWaveEnemies: number;
-    durationStart: number; durationPerWave: number; pauseStart: number; pausePerWave: number;
+    durationStart: number; durationPerWave: number; pauseStart: number; pausePerWave: number; endKilled?: number;
     gapStart: number; gapPerWave: number; gapMin: number; gapJitter: number;
     sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
     directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;

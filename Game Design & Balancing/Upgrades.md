@@ -5,6 +5,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 **Ziehung pro Stufe:** 3 Karten (`upgrades.offersPerLevel`). Freischalt-Karten haben Vorrang, der Rest wird gewichtet zufällig gezogen (Grundgewicht 1, Feld-Karten `upgrades.newFieldWeight`).
 - **Wiederholung:** Jede Karte, die man schon genommen hat, kommt etwas häufiger: Gewicht × (1 + 0,25 × Anzahl genommen) (`upgrades.repeatWeight`).
 - **Aufteilung:** pro Level-up 1 Feld-Karte (vorhandener Typ, Doppelernte oder Feldpflege) + höchstens 2 Waffen-Karten. Alle 5 Level stattdessen 2 neue Feldtypen zur Wahl (`upgrades.fieldCardsPerLevel`, `weaponCardsMax`, `newFieldTypeEvery`, `newFieldTypeChoices`).
+- **Feste Start-Upgrades:** 1. Level-up = 2 neue Feldtypen zur Wahl, alternativ ein weiteres Blaubeerfeld. 2. Level-up = die Waffe zum neuen Feld (ohne Sammel-Bedingung) bzw. Harken-Verbesserungen (`upgrades.firstUpgradeNewField`, `secondUpgradeWeapon`).
 - Wenn nichts mehr übrig ist, gibt es Kräutertee.
 - Im Koop wählt jeder Spieler eigene Karten. Felder und Doppelernte gelten für alle.
 
@@ -15,7 +16,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 | Blaubeerfeld | 1 Blaubeere (XP) alle 1 s | `plants.blue.interval` |
 | Spargelfeld | 3 Spargel alle 4 s (an einer Feldecke). Schaltet das Spargelgewehr frei | `plants.asp.interval`, `plants.asp.amount` |
 | Preiselbeerfeld | 3 Preiselbeeren alle 1 s. Schaltet die Schrotflinte frei | `plants.cran.interval`, `plants.cran.amount` |
-| Kohlfeld | 1 Kohlkopf alle 8 s. Schaltet die Kohlbombe frei | `plants.cab.interval` |
+| Kohlfeld | 1 Kohlkopf alle 3,2 s. Schaltet die Kohlbombe frei | `plants.cab.interval` |
 | Zitronenbäumchen | 1 Zitrone alle 3 s, bei jeder Ernte zuckt ein Blitz zwischen den Früchten. **Erst ab Level 10** als neuer Feldtyp. Schaltet den Citrateaser frei | `plants.lemon.*` |
 
 Feld-Karten gibt es für alle Typen, beliebig oft. Nach der Wahl öffnet sich die **Bauansicht von oben**, dort setzt man das Feld:
@@ -49,8 +50,9 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Reichweite | +8 % Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
-| Schaden | +10 % Schaden | 10 | `upgrades.rakeDamage` |
+| Kegel | +20° Kegelbreite (Karte zeigt Grad) | 10 | `upgrades.rakeArc` |
+| Reichweite | +20 cm Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
+| Schaden | +20 % Grundschaden | 10 | `upgrades.rakeDamage` |
 | Rückstoß | +10 cm Rückstoß je Treffer | 10 | `upgrades.rakeKnockback`, `rake.knockback` |
 
 ## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)

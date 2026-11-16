@@ -133,7 +133,9 @@ export class GameView {
     });
   }
 
+  private rakeArcDeg = 0;
   setConfig(cfg: Balancing) {
+    this.rakeArcDeg = cfg.rake.arc;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
@@ -328,7 +330,7 @@ export class GameView {
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
       case 'impact': punchStar(e.x, e.z, .45); break;
       case 'swipe': {
-        const arc = this.cfg.rake.arc * Math.PI / 180; swipe(e.x, e.z, e.a, e.r || this.cfg.rake.range, arc);
+        const arc = (e.c || this.cfg.rake.arc) * Math.PI / 180; swipe(e.x, e.z, e.a, e.r || this.cfg.rake.range, arc);
         break;
       }
       case 'shot': {
@@ -432,7 +434,7 @@ export class GameView {
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
-    const arc = this.cfg.rake.arc * Math.PI / 180, L = (s.rr || this.cfg.rake.range) - .12;
+    const arc = (s.ra || this.cfg.rake.arc) * Math.PI / 180, L = (s.rr || this.cfg.rake.range) - .12;
     v.rake.scale.z = (s.rr || this.cfg.rake.range) / this.cfg.rake.range; // longer rake with range upgrades
     v.rake.position.z = 0;
     if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(.6, L); v.rake.position.z = Math.sin(s.ti * Math.PI) * .45; } // till: forward push
@@ -498,6 +500,7 @@ export class GameView {
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
     if (w === 'rake' || w === 'cran') {
       const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
+      if (w === 'rake' && me.s.ra && me.s.ra !== this.rakeArcDeg) { this.rakeArcDeg = me.s.ra; m.geometry.dispose(); m.geometry = sectorGeo(1, me.s.ra * Math.PI / 180); } // cone upgrades
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp' || w === 'lemon') {
       const m = this.aimInd.asp, r = rng(w);

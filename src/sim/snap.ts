@@ -14,7 +14,7 @@ export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: fal
 export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
-  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number;
+  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {

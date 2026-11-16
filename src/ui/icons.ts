@@ -28,6 +28,7 @@ const MINI: Record<string, string> = {
   ...FRUIT,
   rake: RAKE,
   dmg: `<path d="M20 3 l4 10 l11 -3 l-7 9 l8 8 l-11 0 l-2 11 l-5 -10 l-10 5 l4 -10 l-9 -6 l11 -2 z" fill="#ffcf33" stroke="#7a4a00" stroke-width="1.4"/>`,
+  arc: `<path d="M20 34 L6 12 A17 17 0 0 1 34 12 Z" fill="#ffe3a0" fill-opacity=".35" stroke="#e3d9c3" stroke-width="2.4" stroke-linejoin="round"/>`,
   range: `<path d="M4 20 H36" stroke="#e3d9c3" stroke-width="3"/><path d="M4 20 l7 -6 v12 z M36 20 l-7 -6 v12 z" fill="#e3d9c3"/>`,
   radius: `<circle cx="20" cy="20" r="14" fill="none" stroke="#c8ff80" stroke-width="3" stroke-dasharray="5 3"/><path d="M20 20 H33" stroke="#e3d9c3" stroke-width="2.6"/><circle cx="20" cy="20" r="3" fill="#e3d9c3"/>`,
   cd: `<path d="M11 5 h18 M11 35 h18 M13 5 q0 10 7 15 q-7 5 -7 15 M27 5 q0 10 -7 15 q7 5 7 15" stroke="#e3d9c3" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M16 31 q4 -5 8 0 z" fill="#e3b964"/>`,

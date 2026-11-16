@@ -41,7 +41,7 @@ export interface Player {
   stun: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number; tillT: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
-  offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number };
+  offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number; arc: number };
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
@@ -57,7 +57,7 @@ interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
   stun: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
-  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState;
+  tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -112,7 +112,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0 },
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0, arc: 0 },
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -269,7 +269,7 @@ export class Sim {
   /** rake stats per player (rake upgrades) */
   rakeStats(p: Player) {
     const R = this.cfg.rake, U = this.cfg.upgrades;
-    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range * (1 + U.rakeRange.step * p.rakeLv.rng), kb: R.knockback + U.rakeKnockback.step * p.rakeLv.kb };
+    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range + U.rakeRange.step * p.rakeLv.rng, arc: R.arc + (U.rakeArc?.step ?? 0) * (p.rakeLv.arc || 0), kb: R.knockback + U.rakeKnockback.step * p.rakeLv.kb };
   }
   /** can fire whenever there is ammo for one shot ("ready" is only the HUD/weapon-cycle threshold) */
   canFire(p: Player, id: SkillId) {
@@ -321,7 +321,7 @@ export class Sim {
     return [p.aimX, p.aimZ];
   }
   private inRakeCone(p: Player, e: Enemy, dx: number, dz: number) {
-    const R = this.cfg.rake, arc = R.arc * Math.PI / 180, range = this.rakeStats(p).range;
+    const RS = this.rakeStats(p), arc = RS.arc * Math.PI / 180, range = RS.range;
     const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez);
     if (d > range + e.r * .5) return false;
     const da = Math.acos(clamp((ex * dx + ez * dz) / (d || 1), -1, 1));
@@ -340,7 +340,7 @@ export class Sim {
     p.swing = R.swingTime; p.swingDir = p.face;
     this.snd('rake');
     const RS = this.rakeStats(p);
-    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id, r: r2(RS.range) });
+    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id, r: r2(RS.range), c: r2(RS.arc) });
     let hits = 0;
     for (const e of targets) if (this.hurtEnemy(e, RS.dmg, { color: 'r', punch: true })) {
       hits++;
@@ -409,7 +409,7 @@ export class Sim {
     const p = this.player(id); if (!p) return [];
     const N = this.cfg.names, rows: [string, string, string, number][] = [];
     rows.push(['level', 'Spieler', 'Stufe', this.level], ['hp', 'Spieler', 'Leben (− = 10 Schaden, + = voll)', Math.ceil(p.hp)]);
-    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.kb', N.skills.rake, 'Rückstoß', p.rakeLv.kb]);
+    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.arc', N.skills.rake, 'Kegel', p.rakeLv.arc], ['rake.kb', N.skills.rake, 'Rückstoß', p.rakeLv.kb]);
     for (const sid of SKILLS) {
       const s = p.skills[sid], g = N.skills[sid];
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
@@ -509,9 +509,9 @@ export class Sim {
       shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
       stun: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
-      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1,
+      tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1, wv: this.wave,
     };
-    this.enemies.push(e);
+    this.enemies.push(e); this.waveSpawned++;
   }
   nearestField(x: number, z: number) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive) { const d = Math.hypot(x - f.x, z - f.z); if (d < bd) { bd = d; best = f; } } return best; }
   chooseTarget(e: Enemy): Target {
@@ -717,10 +717,10 @@ export class Sim {
   }
 
   // ---------- waves ----------
-  // A wave is a schedule of groups (bursts). It ends when its last group has started; the pause
-  // starts right away even if enemies are still alive. Groups grow during a wave and the wave
+  // A wave is a schedule of groups (bursts). It ends when its last group has started and at least
+  // waves.endKilled of its enemies are gone (killed or fled); then a fixed pause follows. Groups grow during a wave and the wave
   // closes with one big group.
-  wave = 0; wavePause = true; won = false;
+  wave = 0; wavePause = true; won = false; private waveSpawned = 0;
   private waveGroups: { at: number; size: number; planned?: PlannedWave }[] = [];
   private pickType(): EnemyType {
     const W = this.cfg.waves, w = this.wave, table: [EnemyType, number][] = [];
@@ -747,7 +747,7 @@ export class Sim {
   /** start wave w now: builds the group schedule */
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
-    this.wave = w; this.wavePause = false; this.waveGroups = [];
+    this.wave = w; this.wavePause = false; this.waveGroups = []; this.waveSpawned = 0;
     const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf;
     const gap = Math.max(W.gapMin, W.gapStart - W.gapPerWave * (w - 1));
     const round = (v: number) => Math.max(1, Math.floor(v) + (Math.random() < v % 1 ? 1 : 0));
@@ -787,7 +787,8 @@ export class Sim {
           for (const type of g.planned!.groups[i]) { this.spawnQueue.push({ at, type, angle: a + rand(-spread, spread) }); at += rand(W.staggerMin, W.staggerMax); }
         });
       }
-      if (!this.waveGroups.length) { // last group started: pause begins
+      const alive = this.enemies.reduce((n, e) => n + (e.wv === this.wave && !e.dead ? 1 : 0), 0);
+      if (!this.waveGroups.length && !this.spawnQueue.length && alive <= this.waveSpawned * (1 - (W.endKilled ?? 0))) { // all groups out and enough of them gone: pause begins
         this.wavePause = true; this.waveT = W.pauseStart + W.pausePerWave * (this.wave - 1);
         this.emit({ k: 'waveEnd', w: this.wave });
       }
@@ -974,10 +975,12 @@ export class Sim {
   offers(p: Player): Offer[] {
     const N = this.cfg.names, U = this.cfg.upgrades, PL = this.cfg.plants;
     const pool: (Offer & { w: number })[] = [], prio: Offer[] = [];
+    // guaranteed openers: 1st level-up = new field, 2nd level-up = its weapon (or rake upgrades)
+    const first = !!U.firstUpgradeNewField && this.lvRound === 1, second = !!U.secondUpgradeWeapon && this.lvRound === 2;
     const nf = (n: number, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
     for (const id of SKILLS) {
       const s = p.skills[id];
-      if (this.fieldOf(id) && !s.learned && p.collected[id] >= (PL[id].unlockAt || 0)) {
+      if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
         const st = this.stats(id, s);
         const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
         prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`] });
@@ -986,7 +989,7 @@ export class Sim {
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
     const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
-      const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval)} s`];
+      const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];
       if (id !== 'blue' && !p.skills[id as SkillId].learned) lines.push(`Unlock: ${N.skills[id]}`);
       const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };
       if (owned.has(id)) fieldPool.push(card); else if (this.level - this.pendingLv + 1 >= (PL[id].minLevel || 0)) newTypes.push(card); // lemon tree only from level 10
@@ -1020,6 +1023,7 @@ export class Sim {
     // starting weapon (rake) upgrades: always available until maxed
     { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, lv: number, max: number | undefined, line: string) => { if (lv < (max || 10)) pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] }); };
       const nx = { ...p, rakeLv: { ...RL } } as Player;
+      nx.rakeLv = { ...RL, arc: RL.arc + 1 }; if (U.rakeArc) mkR('rake_arc', RL.arc, U.rakeArc.maxLevel, `{arc} ${nf(RS.arc)}° → ${nf(this.rakeStats(nx).arc)}°`);
       nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', RL.rng, U.rakeRange.maxLevel, `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
       nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', RL.dmg, U.rakeDamage.maxLevel, `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
       nx.rakeLv = { ...RL, kb: RL.kb + 1 }; mkR('rake_kb', RL.kb, U.rakeKnockback.maxLevel, `{knock} ${nf(RS.kb * 100)} → ${nf(this.rakeStats(nx).kb * 100)} cm`); }
@@ -1037,6 +1041,17 @@ export class Sim {
       for (; k < from.length; k++) { r -= from[k].w; if (r <= 0) break; }
       const { w, ...o } = from.splice(Math.min(k, from.length - 1), 1)[0]; void w; return o;
     };
+    if (first && newTypes.length) { // 2 new field types + another blueberry field as alternative
+      const nt = newTypes.map(o => ({ ...o, w: 1 })), out: Offer[] = [];
+      while (out.length < U.newFieldTypeChoices && nt.length) out.push(draw(nt)!);
+      const bl = fieldPool.find(o => o.key === 'field_blue'); if (bl) { const { w, ...o } = bl; void w; out.push(o); }
+      return out.slice(0, U.offersPerLevel);
+    }
+    if (second) { // weapon of the new field (no collect condition), rest rake upgrades
+      const out: Offer[] = prio.slice(0, U.offersPerLevel), rk = pool.filter(o => o.key.startsWith('rake_'));
+      while (out.length < U.offersPerLevel) { const o = draw(rk); if (!o) break; out.push(o); }
+      if (out.length) return out;
+    }
     // 1) field slot: every newFieldTypeEvery levels a choice of new field types, otherwise 1 field/plant card
     const lvNow = this.level - this.pendingLv + 1, fieldOut: Offer[] = [];
     if (U.newFieldTypeEvery > 0 && lvNow % U.newFieldTypeEvery === 0 && newTypes.length) {
@@ -1061,7 +1076,7 @@ export class Sim {
     if (a === 'field') { p.placing = b as FruitType; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
-    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'kb') p.rakeLv.kb++; return; }
+    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'kb') p.rakeLv.kb++; else if (b === 'arc') p.rakeLv.arc++; return; }
     if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
@@ -1097,7 +1112,7 @@ export class Sim {
       t: r2(this.time), ph: this.phase, wv: this.wave, wn: this.cfg.waves.total, wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
-        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range),
+        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;

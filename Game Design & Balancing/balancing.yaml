@@ -35,8 +35,8 @@ names:
 player:
   hp: 100
   speed: 4.6               # m/s
-  respawnBase: 2           # s bis zur ersten Wiederbelebung
-  respawnPerDeath: 2       # s zusätzlich pro weiterem Tod
+  respawnBase: 1           # s bis zur ersten Wiederbelebung
+  respawnPerDeath: 1       # s zusätzlich pro weiterem Tod (1 s, 2 s, 3 s, ...)
   pickupRadius: 1.0        # m, ab hier wird eine Frucht eingesammelt
   pickupPerTier: 0.12      # m, große Früchte (Stufe 2/3) von etwas weiter
   magnetRadius: 1.8        # m, ab hier rollt eine Frucht zum Spieler
@@ -158,8 +158,9 @@ upgrades:
   aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
   aspPierceBonus: { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Durchbohr-Schaden (50 -> 100 %)
   aspSize:        { step: 0.30, maxLevel: 5 }  # Spargel-Geschoss +30 % größer (Breite)
-  rakeRange:      { step: 0.08, maxLevel: 10 } # Harke +8 % Reichweite
-  rakeDamage:     { step: 0.10, maxLevel: 10 } # Harke +10 % Schaden
+  rakeArc:        { step: 20,   maxLevel: 10 } # Harke +20 Grad Kegelbreite
+  rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm Reichweite (absolut, in m)
+  rakeDamage:     { step: 0.20, maxLevel: 10 } # Harke +20 % Grundschaden (additiv)
   rakeKnockback:  { step: 0.10, maxLevel: 10 } # Harke +10 cm Rückstoß
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
@@ -173,6 +174,8 @@ upgrades:
   weaponCardsMax: 2        # höchstens 2 Waffen-Karten (Freischalten + Upgrades, inkl. Harke)
   newFieldTypeEvery: 5     # alle 5 Level: neue Feldtypen zur Wahl statt der normalen Feld-Karte
   newFieldTypeChoices: 2   # so viele verschiedene neue Typen (wenn noch vorhanden)
+  firstUpgradeNewField: true   # 1. Level-up: 2 neue Feldtypen zur Wahl + alternativ ein weiteres Blaubeerfeld
+  secondUpgradeWeapon: true    # 2. Level-up: Waffe zum neuen Feld (ohne Sammel-Bedingung) + Harken-Verbesserungen
   repeatWeight: 0.25       # jede schon genommene Karte: Ziehgewicht +25 % (z. B. 2x Spargel-Reichweite -> x1,5)
   herbalTea: { playerHeal: 40, fieldHeal: 25 } # Notfall-Karte, wenn nichts anderes übrig ist
 
@@ -253,16 +256,17 @@ enemies:
 
 waves:
   # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
-  # Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist; dann beginnt sofort die Pause
-  # (auch wenn noch Gegner leben). Danach startet die nächste Welle.
+  # Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist UND mindestens endKilled ihrer Gegner
+  # besiegt (oder geflohen) sind. Dann folgt eine feste Pause, danach startet die nächste Welle.
   total: 50                # Wellen bis zum Sieg
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 15.5        # m vom Zentrum: Gegner kommen aus den Büschen
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 2.5     # s länger je Welle
-  pauseStart: 8            # s Pause nach Welle 1
-  pausePerWave: 0.1        # s längere Pause je Welle (nur minimal)
+  endKilled: 0.9           # Anteil der Gegner der Welle, die weg sein müssen, damit die Welle endet
+  pauseStart: 15           # s Pause nach jeder Welle (fest)
+  pausePerWave: 0          # s längere Pause je Welle
   gapStart: 6              # s zwischen zwei Gruppen in Welle 1
   gapPerWave: 0.06         # s kürzer je Welle
   gapMin: 3                # s, kürzester Abstand

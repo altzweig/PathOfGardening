@@ -139,3 +139,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Pause-Übergänge (16.11.2026)
 - Jede Pause (Level-up, Pausemenü, Testmenü, Tausch) und jedes Weiterspielen läuft weich: 0,5 s wird das Spiel langsamer bis zum Stillstand bzw. wieder schneller (`transitions.slow`), die Oberfläche blendet in 0,25 s ein/aus (`transitions.uiFade`).
 - Dazu dezente Sounds: absteigendes Rauschen beim Pausieren, aufsteigendes beim Weiterspielen (`ui.pauseIn` / `ui.pauseOut` in sounds.yaml), ein Klick-Klang beim Tausch (`ui.weaponSwap`).
+
+## Chilifeld und Flammenwerfer (16.11.2026)
+- Chilifeld ab Level 10 als neuer Feldtyp, parallel zum Zitronenbäumchen (beide kommen bei den Neue-Feldtypen-Karten in den Topf). 1 Chili alle 0,5 s. Buschige Pflanze mit vielen roten, leicht leuchtenden Chilis; das Beet hat Lava-Risse, die bei jeder Ernte aufglühen und langsam wieder absinken (Atmen), dabei steigen ein paar Funken auf.
+- Flammenwerfer (Munition Chilis): chili-förmige Düse an der Hand, 30°-Flammenkegel, 3,5 m, schwenkt 40° um die Zielrichtung (links → rechts → zurück in 1,5 s). 8 Chilis pro Sekunde (8 Flammenstöße à 1 Chili). Wird wie der Citrateaser beim nächsten Level-up nach dem Bauen garantiert angeboten.
+- Annahme Brand: Jeder Flammenstoß, der einen Gegner erwischt, gibt 1 Stapel (max. 6). Pro Tick (0,5 s) Schaden = Stapel × 1 % der max. HP (Elite 0,6 %, Boss 0,2 %), danach 1 Stapel weniger. Brennende Gegner glühen orange und qualmen Funken. Brand-Schaden wird als eine orange Zahl pro Sekunde zusammengefasst, damit es nicht flimmert. Brand trifft auch springende Kröten, die Flamme selbst nicht.
+- Annahme Reichweite 3,5 m (war offen). Die Schaden-Karte erhöht die Brand-Prozente um 20 % je Stufe.
+- Zirkel-Upgrade: +30° Schwenk, +5° Flamme, Dauer pro Schwenk bleibt 1,5 s. Ab 360° (11. Stufe) dreht die Flamme im Kreis mit +50 % Tempo (2 Umdrehungen/s), danach +10° Flamme und +10 % Tempo pro Stufe, Schluss bei 360° Flamme. Die Karte zeigt Grad bzw. Umdrehungen pro Sekunde (U/s).
+- Brand-Tick-Upgrade: Tick × 0,8 bis minimal 0,1 s (8 Stufen). Da jeder Tick einen Stapel verbraucht, brennt der Stapel schneller ab: mehr Schaden pro Sekunde, gleicher Gesamtschaden je Stapel.
+- Alle Werte unter `skills.chili`, `upgrades.chiliSweep`, `upgrades.chiliTick`, Feld unter `plants.chili`.

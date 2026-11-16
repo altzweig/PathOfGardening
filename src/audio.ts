@@ -140,6 +140,10 @@ function loadSamples() {
 }
 const SYNTH_EXTRA: Record<string, () => void> = {
   playerDie() { tone({ type: 'triangle', f: 440, f2: 110, t: .7, vol: .14 }); tone({ type: 'sine', f: 220, f2: 55, t: .9, vol: .18, when: .1 }); noise({ t: .5, vol: .08, f: 900, f2: 120, when: .05 }); },
+  /** flamethrower: breathy roar (low noise swell + hiss) */
+  flame() { noise({ t: .22, vol: .1, type: 'lowpass', f: 700, f2: 380, at: .05 }); noise({ t: .14, vol: .035, type: 'bandpass', f: 2600, f2: 1800, q: .7, at: .03 }); },
+  /** lava breathing under the chili field: soft low rumble + tiny crackle */
+  ember() { noise({ t: .5, vol: .03, type: 'lowpass', f: 260, f2: 140, at: .2 }); if (Math.random() < .5) noise({ t: .04, vol: .03, type: 'highpass', f: 3500, when: rand(.05, .3) }); },
   wilt() { tone({ type: 'sine', f: 300, f2: 90, t: .8, vol: .07 }); noise({ t: .6, vol: .06, type: 'bandpass', f: 1400, f2: 300, q: 1.5 }); },
 };
 function entry(key: string): SndEntry | null {

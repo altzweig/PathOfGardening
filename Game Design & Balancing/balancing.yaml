@@ -17,18 +17,21 @@ names:
     cran: Preiselbeer-Schrotflinte
     cab: Kohlbombe
     lemon: Citrateaser
+    chili: Flammenwerfer
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
     asp: Spargel
     cran: Preiselbeeren
     cab: Kohl
     lemon: Zitronenbäumchen
+    chili: Chilipflanze
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     asp: Spargelfeld
     cran: Preiselbeerfeld
     cab: Kohlfeld
     lemon: Zitronenbäumchen
+    chili: Chilifeld
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
 
@@ -96,6 +99,7 @@ plants:
   cran: { interval: 1, unlockAt: 0, amount: 4 }   # 3x Ertrag
   cab:  { interval: 3, unlockAt: 0 }
   lemon: { interval: 2, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
+  chili: { interval: 0.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 0,5 s, wie das Zitronenbäumchen erst ab Level 10
 
 rake:
   damage: 10
@@ -135,6 +139,20 @@ skills:
     transfer: 0.5          # Weiterleitung je Kettenglied (50 % -> 25 %)
     branch: [1, 2, 2]      # Ziele: Hauptziel, je Glied 2 weitere, je davon 2 weitere = max 100 % + 2x50 % + 4x25 % = 300 %
     dropLoot: true         # das erste getroffene Tier lässt seine Beute fallen
+  chili:                   # Flammenwerfer: Flammenkegel, der hin und her schwenkt und Gegner anzündet
+    range: 3.5             # m, Flammenlänge
+    cooldown: 0.125        # s pro Flammenstoß -> 8 Chilis pro Sekunde
+    ammoPerShot: 1
+    cone: 30               # Grad, Breite der Flamme
+    sweep: 40              # Grad, so weit schwenkt die Flamme (Mitte = Zielrichtung)
+    sweepPeriod: 1.5       # s für einmal links -> rechts -> zurück
+    # Brand: jeder Treffer (jeder Flammenstoß, der den Gegner erwischt) gibt 1 Stapel, max. burnStacks.
+    # Pro Tick: Schaden = Stapel x Prozent der max. HP, danach 1 Stapel weniger.
+    damage: 1.0            # % max. HP je Stapel und Tick (normale Gegner)
+    damageElite: 0.6       # % bei Elite-Gegnern
+    damageBoss: 0.2        # % beim Boss
+    burnStacks: 6
+    burnTick: 0.5          # s pro Brand-Tick
   cab:
     damage: 5
     radius: 1.5            # m, Explosionsradius
@@ -165,6 +183,14 @@ upgrades:
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
   lemonTransfer:  { step: 0.10, maxLevel: 4 }            # +10 % Weiterleitung (50 -> 60 %, 2. Glied 36 %)
+  chiliSweep:                # Flammenwerfer "Zirkel": Schwenk und Flamme wachsen gemeinsam
+    sweepStep: 30            # +30 Grad Schwenk je Stufe (Tempo steigt mit: ein Schwenk dauert immer sweepPeriod)
+    coneStep: 5              # +5 Grad Flammenbreite je Stufe
+    circleSpeedBonus: 0.5    # ab 360 Grad Schwenk dreht die Flamme im Kreis, +50 % Tempo
+    circleConeStep: 10       # danach je Stufe +10 Grad Flammenbreite ...
+    circleSpeedStep: 0.10    # ... und +10 % Tempo (additiv)
+    maxCone: 360             # Schluss, sobald die Flamme 360 Grad breit ist
+  chiliTick:      { factor: 0.8, min: 0.1 }              # Brand-Tick x 0,8 je Stufe (0,5 -> 0,4 -> 0,32 s ...), bis 0,1 s
   cranPellets:    { step: 1,    maxLevel: 3 }
   cranMine:       { step: 0.2,  maxLevel: 5 }  # Chance, dass eine Beere als Mine liegen bleibt
   cabMini:        { step: 1,    maxLevel: 5 }

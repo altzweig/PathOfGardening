@@ -3,14 +3,15 @@ import type { EnemyType, FruitType } from '../config';
 import { GEO, M, part, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
-export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070', lemon: '#ffe44a' };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x5a74ff, asp: 0x8fe36a, cran: 0xff4d5e, cab: 0xb8f070, lemon: 0xffe44a };
+export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070', lemon: '#ffe44a', chili: '#ff3a1a' };
+export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x5a74ff, asp: 0x8fe36a, cran: 0xff4d5e, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a };
 export const GROUND_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   blue: new THREE.MeshStandardMaterial({ color: 0x3550e0, emissive: 0x2a44ff, emissiveIntensity: 1.3, roughness: .25 }),
   asp: new THREE.MeshStandardMaterial({ color: 0x7fbf45, emissive: 0x4fa01a, emissiveIntensity: 1.1, roughness: .5 }),
   cran: new THREE.MeshStandardMaterial({ color: 0xd02035, emissive: 0xff1030, emissiveIntensity: 1.2, roughness: .3 }),
   cab: new THREE.MeshStandardMaterial({ color: 0x9ad870, emissive: 0x5aa020, emissiveIntensity: .9, roughness: .6, flatShading: true }),
   lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: 1.1, roughness: .4 }),
+  chili: new THREE.MeshStandardMaterial({ color: 0xe0200c, emissive: 0xff2a08, emissiveIntensity: 1.2, roughness: .3 }),
 };
 export const BUSH_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   blue: new THREE.MeshStandardMaterial({ color: 0x2a3a9a, roughness: .35 }),
@@ -18,7 +19,9 @@ export const BUSH_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   cran: new THREE.MeshStandardMaterial({ color: 0x9a1828, roughness: .35 }),
   cab: new THREE.MeshStandardMaterial({ color: 0x7aa858, roughness: .7, flatShading: true }),
   lemon: new THREE.MeshStandardMaterial({ color: 0xc8b02a, roughness: .45, emissive: 0x8ac0ff, emissiveIntensity: 0 }), // emissive flickers with the harvest lightning
+  chili: new THREE.MeshStandardMaterial({ color: 0xc81a0a, roughness: .3, emissive: 0xff2000, emissiveIntensity: .45 }), // chilis glow slightly red, also on the plant
 };
+export const CHILI_STEM = new THREE.MeshStandardMaterial({ color: 0x3f7a2a, roughness: .6 });
 export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: 1.1 });
 export const ASP_TIP_BUSH = new THREE.MeshStandardMaterial({ color: 0x6a3a88, roughness: .6 });
 // projectiles glow clearly brighter than anything lying around
@@ -35,6 +38,11 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
     const tp = part(g, GEO.cone, proj ? PROJ_ASP_TIP : glow ? ASP_TIP_GROUND : ASP_TIP_BUSH, .045, .1, .045, .22, 0, 0); tp.rotation.z = -Math.PI / 2;
   } else if (type === 'cab') { part(g, GEO.ico, mat, .14, .13, .14, 0, 0, 0); part(g, GEO.lo, mat, .1, .06, .12, .08, .03, 0); part(g, GEO.lo, mat, .1, .06, .12, -.08, .03, .02); }
   else if (type === 'lemon') part(g, GEO.sph, mat, .1, .075, .075, 0, 0, 0);
+  else if (type === 'chili') { // pod lying on its side: body, curved pointed tip, green stem
+    const b = part(g, GEO.capsule, mat, .034, .07, .034, 0, 0, 0); b.rotation.z = Math.PI / 2;
+    const t = part(g, GEO.cone, mat, .032, .09, .032, .11, .012, 0); t.rotation.z = -Math.PI / 2 + .35;
+    const st = part(g, GEO.cyl, CHILI_STEM, .012, .06, .012, -.1, .015, 0); st.rotation.z = Math.PI / 2 - .5;
+  }
   else { const r = type === 'blue' ? .085 : .07; part(g, GEO.sph, mat, r, r, r, 0, 0, 0); }
   g.scale.setScalar(scale); return g;
 }
@@ -57,6 +65,17 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
     part(g, GEO.cyl, mats.head, .06, .7, .06, 0, .35, 0);
     for (let i = 0; i < 5; i++) { const a = i / 5 * 7; part(g, GEO.ico, mats.leaf, rand(.28, .36), rand(.24, .3), rand(.28, .36), Math.cos(a) * .18, .85 + rand(-.05, .1), Math.sin(a) * .18); }
     for (let i = 0; i < 9; i++) { const a = rand(0, 7), y = rand(.7, 1.05), r = .38 - Math.abs(y - .88) * .4; fruits.push(part(g, GEO.sph, BUSH_MAT.lemon, .07, .055, .055, Math.cos(a) * r, y, Math.sin(a) * r, false)); }
+  } else if (type === 'chili') { // bushy chili plant full of red pods hanging down
+    for (let i = 0; i < 4; i++) { const a = i / 4 * 7 + rand(-.3, .3), r = rand(.06, .14), h = rand(.35, .5); const st = part(g, GEO.cyl, mats.head, .025, h, .025, Math.cos(a) * r, h / 2, Math.sin(a) * r); st.rotation.set(rand(-.2, .2), 0, rand(-.2, .2)); }
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 7, r = rand(.08, .26); part(g, GEO.ico, mats.leaf, rand(.14, .19), rand(.08, .11), rand(.14, .19), Math.cos(a) * r, rand(.42, .6), Math.sin(a) * r); }
+    for (let i = 0; i < 15; i++) { // fat pods hang around the outside: rounded body + curved tip, pointing down and outwards
+      const a = i / 15 * Math.PI * 2 + rand(-.15, .15), r = rand(.28, .5), y = rand(.24, .46);
+      const pod = new THREE.Group(); pod.position.set(Math.cos(a) * r, y, Math.sin(a) * r); pod.rotation.set(-Math.sin(a) * .55, 0, Math.cos(a) * .55); g.add(pod);
+      fruits.push(part(pod, GEO.capsule, BUSH_MAT.chili, .05, .07, .05, 0, -.04, 0, false));
+      const tip = part(pod, GEO.cone, BUSH_MAT.chili, .045, .12, .045, .012, -.17, 0, false); tip.rotation.z = Math.PI + .3; fruits.push(tip);
+      part(pod, GEO.cyl, CHILI_STEM, .018, .06, .018, 0, .06, 0, false);
+    }
+    g.scale.setScalar(1.25);
   } else if (type === 'cab') {
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * Math.PI * 2, r = .42, x = Math.cos(a) * r, z = Math.sin(a) * r;

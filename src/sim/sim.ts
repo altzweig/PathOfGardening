@@ -34,7 +34,7 @@ export function slotAt(cfg: Balancing, slots: Slot[], x: number, z: number) {
 export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; cdT: number; firing: boolean }
+interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -44,6 +44,8 @@ export interface Player {
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null;
   slots: SkillId[]; swapNew: SkillId | null; swapHold: number; // active weapons besides the rake; weapon waiting for a free slot; s until the game resumes after a swap
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; kb: number; arc: number; cd: number };
+  /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
+  flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
@@ -60,6 +62,7 @@ interface Enemy {
   stun: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
+  burn: number; burnT: number; burnTick: number; burnMul: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
 }
 interface Proj { id: number; kind: 'asp' | 'cran'; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy> }
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean }
@@ -67,7 +70,8 @@ interface Mine { id: number; x: number; z: number; dmg: number; t: number }
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; pierce: number; pf: number; pellets: number; mine: number; minis: number; throwDist: number; width: number; size: number }
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; pierce: number; pf: number; pellets: number; mine: number; minis: number; throwDist: number; width: number; size: number;
+  cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export class Sim {
   cfg: Balancing;
@@ -78,7 +82,7 @@ export class Sim {
   ramp = 1;
   players: Player[] = [];
   fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = [];
-  yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0 };
+  yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 };
   tillHealLv = 0;
   events: Ev[] = [];
   private nid = 1;
@@ -111,12 +115,12 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, cdT: 0, firing: false });
+    const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
-      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], swapNew: null, swapHold: 0, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0, arc: 0, cd: 0 },
+      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], swapNew: null, swapHold: 0, fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, kb: 0, arc: 0, cd: 0 }, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0,
     };
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
@@ -197,6 +201,7 @@ export class Sim {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
     let n = (this.cfg.plants[f.type].amount || 1) * (Math.random() < dbl ? 2 : 1);
     if (f.type === 'lemon') this.emit({ k: 'lemonZap', s: f.slot }); // lightning jumps between the lemons
+    if (f.type === 'chili') this.emit({ k: 'chiliGlow', s: f.slot }); // the bed glows up like lava (breathing)
     if (f.type === 'blue') { // coop: more blueberries
       const extra = this.f(this.cfg.coop.xpYieldExponent) - 1;
       n += Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);
@@ -272,7 +277,9 @@ export class Sim {
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
     const range = (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: range to the first target
     const size = 1 + U.aspSize.step * s.sizeLv;
+    const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
+      ...fl, tick,
       dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
       need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot,
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
@@ -280,6 +287,15 @@ export class Sim {
       pellets: Math.floor(S.cran.spread / S.cran.pelletStep + 1e-9) + 1 + U.cranPellets.step * s.extraPel, mine: U.cranMine.step * s.mineLv,
       minis: s.minis, throwDist: S.cab.throwDistance, width: S.asp.width * size, size,
     };
+  }
+  /** flamethrower geometry for a sweep level: oscillating sweep (+30 deg / +5 deg cone per level, one sweep always takes sweepPeriod),
+   *  from 360 deg on it spins in a circle (+50 % speed), then +10 deg cone / +10 % speed per level until the cone is 360 deg */
+  chiliGeom(lv: number) {
+    const C = this.cfg.skills.chili, U = this.cfg.upgrades.chiliSweep;
+    const k0 = Math.max(0, Math.ceil((360 - C.sweep) / U.sweepStep - 1e-9)); // level at which the sweep reaches 360 deg
+    if (lv < k0) { const sweep = C.sweep + U.sweepStep * lv; return { cone: C.cone + U.coneStep * lv, sweep, circle: false, spin: 2 * sweep / C.sweepPeriod, sweepMax: false }; }
+    const n = lv - k0, cone = Math.min(U.maxCone, C.cone + U.coneStep * k0 + U.circleConeStep * n);
+    return { cone, sweep: 360, circle: true, spin: 2 * 360 / C.sweepPeriod * (1 + U.circleSpeedBonus + U.circleSpeedStep * n), sweepMax: cone >= U.maxCone };
   }
   /** rake stats per player (rake upgrades) */
   rakeStats(p: Player) {
@@ -317,13 +333,13 @@ export class Sim {
 
   // ---------- combat ----------
   airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5; }
-  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean; silent?: boolean } = {}) {
+  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean; silent?: boolean; dot?: boolean } = {}) {
     if (e.dead) return false;
-    if (this.airborne(e)) { this.emit({ k: 'imm', x: r2(e.x), z: r2(e.z) }); return false; }
+    if (!o.dot && this.airborne(e)) { this.emit({ k: 'imm', x: r2(e.x), z: r2(e.z) }); return false; }
     let left = dmg;
     if (e.shield > 0) { const a = Math.min(e.shield, left); e.shield -= a; left -= a; if (a > 0) this.burst(e.x, .45, e.z, 0x6fd0ff, 4, 1.5, .12, .3); }
-    e.hp -= left; e.flash = .1; e.hurtOnce = true;
-    this.num(e.x, e.z, dmg, o.color || 'w', dmg >= 10);
+    e.hp -= left; e.hurtOnce = true;
+    if (!o.dot) { e.flash = .1; this.num(e.x, e.z, dmg, o.color || 'w', dmg >= 10); } // damage over time: no flash, numbers summed up by the caller
     if (o.punch) this.emit({ k: 'punch', x: r2(e.x), z: r2(e.z), e: e.id });
     else if (!o.silent) this.snd('hit');
     if (o.bleed) e.bleed = this.cfg.skills.cran.bleedDuration;
@@ -443,6 +459,52 @@ export class Sim {
     this.emit({ k: 'zap', s: segs });
     this.sfx('weapons.lemon', p.x, p.z);
   }
+  /** flamethrower burst: everything the cone swept over since the last burst catches fire (+1 stack) */
+  flame(p: Player, dx: number, dz: number, st: SkillStats) {
+    const TAU = Math.PI * 2, wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+    const base = Math.atan2(dx, dz), half = st.sweep * Math.PI / 360;
+    // oscillation: triangle wave -1..1..-1 over one period (left -> right -> back); circle: free spin
+    const tri = 1 - 4 * Math.abs(p.flPh - .5), a1 = st.circle ? p.flSpin : base + half * tri;
+    const was = p.flOn > 0; let a0 = was ? p.flHit : a1, d = st.circle ? (was ? p.flSpin - p.flPrevSpin : 0) : wrap(a1 - a0);
+    if (!st.circle && Math.abs(d) > Math.PI * .75) { a0 = a1; d = 0; } // aim jumped to another target: no sweep across the gap
+    if (st.circle) a0 = a1 - d;
+    p.flHit = p.flAng = a1; p.flBase = base; p.flPrevSpin = p.flSpin; p.flOn = st.cd * 1.6;
+    const all = Math.abs(d) >= TAU - st.cone * Math.PI / 180, cone2 = st.cone * Math.PI / 360;
+    const segDist = (x: number) => { // angular distance of x to the swept arc a0 -> a0 + d
+      let r = ((d >= 0 ? x - a0 : a0 - x) % TAU + TAU) % TAU; const ad = Math.abs(d);
+      return r <= ad ? 0 : Math.min(r - ad, TAU - r);
+    };
+    for (const e of this.enemies) {
+      if (e.dead || this.airborne(e)) continue;
+      const ex = e.x - p.x, ez = e.z - p.z, dd = Math.hypot(ex, ez);
+      if (dd > st.range + e.r * .5) continue;
+      if (!all && dd > e.r + .2 && segDist(Math.atan2(ex, ez)) > cone2 + Math.atan2(e.r, Math.max(dd, .01)) * .5) continue;
+      this.ignite(e, st);
+    }
+    this.sfx('weapons.chili', p.x, p.z);
+  }
+  ignite(e: Enemy, st: SkillStats) {
+    const C = this.cfg.skills.chili;
+    if (e.burn <= 0) e.burnT = st.tick;
+    e.burn = Math.min(C.burnStacks, e.burn + 1); e.burnTick = st.tick; e.burnMul = st.dmgPct;
+  }
+  /** fire ticks: stacks x % of max HP (elite / boss lower), then one stack less */
+  private tickBurn(e: Enemy, dt: number) {
+    e.burnNum -= dt;
+    // fire damage is shown as one summed number per second (and when the fire goes out / the enemy dies)
+    const flush = () => { if (e.burnSum > 0) this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; e.burnNum = 1; };
+    if (e.burn <= 0) { if (e.burnSum > 0 && e.burnNum <= 0) flush(); return; }
+    e.burnT -= dt;
+    const C = this.cfg.skills.chili;
+    while (e.burnT <= 0 && e.burn > 0 && !e.dead) {
+      e.burnT += e.burnTick;
+      const pct = e.boss ? C.damageBoss : e.elite ? C.damageElite : C.damage, dmg = e.burn * pct / 100 * e.maxHp * e.burnMul;
+      e.burnSum += dmg; e.burn--;
+      if (e.hp - dmg <= 0) flush();
+      this.hurtEnemy(e, dmg, { color: 'o', silent: true, dot: true });
+    }
+    if (!e.dead && e.burnNum <= 0) flush();
+  }
   // ---------- test mode: cheat menu ----------
   /** every tweakable value as [key, group, label, value]; +/- may exceed the normal limits */
   cheatRows(id: number): [string, string, string, number][] {
@@ -458,6 +520,7 @@ export class Sim {
       if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Minen', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
+      if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
     }
     for (const f of FRUITS) {
       rows.push([`field.${f}`, 'Felder', `${N.fields[f]} (+ bauen/hochleveln, − entfernen)`, this.fields.filter(x => x.type === f).length]);
@@ -503,7 +566,7 @@ export class Sim {
     const s = p.skills[id], st = this.stats(id, s), S = this.cfg.skills;
     p.ammo[id] -= st.cost; s.cdT = st.cd; p.face = Math.atan2(dx, dz);
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
-    this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) });
+    if (id !== 'chili') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot
     if (id === 'asp') {
       this.snd('asp');
       this.projs.push({ id: this.nid++, kind: 'asp', x: fx, y: fy, z: fz, dx, dz, speed: S.asp.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
@@ -517,6 +580,8 @@ export class Sim {
       }
     } else if (id === 'lemon') {
       this.lemonZap(p, dx, dz, st, s);
+    } else if (id === 'chili') {
+      this.flame(p, dx, dz, st);
     } else {
       this.snd('throw');
       const t = this.clampArena(p.x + dx * st.throwDist, p.z + dz * st.throwDist);
@@ -550,6 +615,7 @@ export class Sim {
       stun: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: elite ? EL.damage : 1, wv: this.wave,
+      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnMul: 1, burnSum: 0, burnNum: 0,
     };
     this.enemies.push(e); this.waveSpawned++;
   }
@@ -606,6 +672,7 @@ export class Sim {
       e.bleed -= dt; e.bleedT -= dt;
       if (e.bleedT <= 0) { e.bleedT = 1; this.snd('bleed'); this.emit({ k: 'bleed', x: r2(e.x), z: r2(e.z) }); this.hurtEnemy(e, this.cfg.skills.cran.bleedDps, { color: 'b' }); if (e.dead) return; }
     } else e.bleedT = 1;
+    this.tickBurn(e, dt); if (e.dead) return;
     if (e.kbLeft > 0) { const s = Math.min(e.kbLeft, 9 * dt); e.x += e.kbx * s; e.z += e.kbz * s; e.kbLeft -= s; } // rake knockback
     if (e.stun > 0) { e.stun -= dt; return; }
     if (e.boss) return this.bossAI(e, dt);
@@ -867,6 +934,11 @@ export class Sim {
     if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
 
     p.rakeCd -= dt; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt);
+    if (p.flOn > 0) { // flame keeps sweeping while it burns
+      p.flOn -= dt; const fs = this.stats('chili', p.skills.chili);
+      p.flPh = (p.flPh + dt / this.cfg.skills.chili.sweepPeriod) % 1; p.flSpin += fs.spin * Math.PI / 180 * dt;
+      p.flAng = fs.circle ? p.flSpin : p.flBase + fs.sweep * Math.PI / 360 * (1 - 4 * Math.abs(p.flPh - .5)); // smooth angle for the view
+    }
     // active weapon: auto-switch when empty, cycle on request
     if (p.active !== 'rake' && this.isEmpty(p, p.active)) p.active = this.nextAvailable(p, p.active, true);
     if (it.cycle !== p.lastCycle) { p.lastCycle = it.cycle; p.active = this.nextAvailable(p, p.active, false); this.emit({ k: 'cycle', p: p.id }); }
@@ -1029,8 +1101,9 @@ export class Sim {
       const s = p.skills[id];
       if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
         const st = this.stats(id, s);
-        const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
-        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`] });
+        const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : id === 'chili' ? `{fire} ${this.cfg.skills.chili.burnStacks} × ${nf(st.dmg, 1)} % · {range} ${nf(st.range, 1)} m` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
+        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {sweep} ${nf(st.sweep)}°` : `${st.cost} {${id}} / {cd} ${nf(st.cd, 1)} s`;
+        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, l2] });
       }
     }
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
@@ -1048,9 +1121,19 @@ export class Sim {
         const s2 = { ...s }; mut(s2); const b = this.stats(id, s2);
         pool.push({ key, cat: 'skill', w: 1, pic: 'skill_' + id, title: N.skills[id], lines: [line(b)] });
       };
-      mk(id + '_dmg', x => x.lvDmg++, b => `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
+      mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{fire} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} %` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
       mk(id + '_rng', x => x.lvRange++, b => id === 'cab' ? `{radius} ${nf(a.range * 100)} → ${nf(b.range * 100)} cm` : `{range} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
-      mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`);
+      if (id !== 'chili') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s
+      if (id === 'chili') {
+        // "circle": sweep + cone grow together; from 360 deg the flame spins (U/s = turns per second)
+        if (!a.sweepMax) {
+          const b = this.chiliGeom(s.sweepLv + 1), card = (l1: string, l2: string) => pool.push({ key: 'chili_sweep', cat: 'skill', w: 1, pic: 'skill_chili', title: N.skills.chili, lines: [l1, l2] });
+          if (!a.circle) card(`{sweep} ${nf(a.sweep)}° → ${nf(b.sweep)}°`, `{arc} ${nf(a.cone)}° → ${nf(b.cone)}°`);
+          else card(`{arc} ${nf(a.cone)}° → ${nf(b.cone)}°`, `{spin} ${nf(a.spin / 360, 1)} → ${nf(b.spin / 360, 1)} U/s`);
+        }
+        const T = this.cfg.upgrades.chiliTick;
+        if (a.tick > T.min + 1e-6) mk('chili_tick', x => x.tickLv++, b => `{fire} {cd} ${nf(a.tick, 2)} → ${nf(b.tick, 2)} s`);
+      }
       if (id === 'asp') {
         if (s.pierce < (U.aspPierce.max || 4)) mk('asp_pierce', x => x.pierce += U.aspPierce.step, b => `{pierce} ${a.pierce} → ${b.pierce}`);
         if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) mk('asp_pb', x => x.pierceBonus++, b => `{pierce} ${nf(a.pf * 100)} → ${nf(b.pf * 100)} %`);
@@ -1133,6 +1216,10 @@ export class Sim {
       case 'asp_cd': case 'cran_cd': case 'cab_cd': case 'lemon_cd': s.lvCd++; break;
       case 'lemon_tgt': s.tgtLv++; break;
       case 'lemon_xfer': s.xferLv++; break;
+      case 'chili_dmg': s.lvDmg++; break;
+      case 'chili_rng': s.lvRange++; break;
+      case 'chili_sweep': s.sweepLv++; break;
+      case 'chili_tick': s.tickLv++; break;
       case 'asp_pierce': s.pierce += U.aspPierce.step; break;
       case 'asp_pb': s.pierceBonus++; break;
       case 'asp_size': s.sizeLv++; break;
@@ -1161,10 +1248,11 @@ export class Sim {
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).arc),
+        ...(() => { const fs = this.stats('chili', p.skills.chili); return { fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
-        if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.flash > 0) fl |= EF.flash;
+        if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
         if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.elite) fl |= EF.elite;
         if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar;

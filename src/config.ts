@@ -1,12 +1,12 @@
 import YAML from 'yaml';
 
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 export type Weapon = 'rake' | SkillId;
-export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon';
+export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon'];
-export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon'];
-export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
+export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
+export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili'];
 export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
@@ -32,6 +32,7 @@ export interface Balancing {
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; pierce: number; pierceFactor: number; width: number };
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pelletStep: number; spread: number; bleedDuration: number; bleedDps: number; mineLifetime: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
+    chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; damageElite: number; damageBoss: number; cone: number; sweep: number; sweepPeriod: number; burnStacks: number; burnTick: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
@@ -39,6 +40,8 @@ export interface Balancing {
     aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; cranPellets: Lim; cranMine: Lim; cabMini: Lim; doubleHarvest: Lim;
     rakeArc: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; rakeKnockback: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
+    chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };
+    chiliTick: { factor: number; min: number };
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number;

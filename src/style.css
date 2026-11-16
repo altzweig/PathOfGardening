@@ -57,6 +57,7 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-skill=cran]{--glow:#ff4d5e}
 .skill[data-skill=cab]{--glow:#b8f070}
 .skill[data-skill=lemon]{--glow:#ffe44a}
+.skill[data-skill=chili]{--glow:#ff6a2a}
 /* weapon slots (besides the rake): 0,1 active; 2,3 inactive ones shown while swapping */
 .skill[data-pos="0"]{right:155px;bottom:37px}
 .skill[data-pos="1"]{right:120px;bottom:120px}
@@ -83,7 +84,7 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .equipPop{position:absolute;left:0;top:0;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,#2a333cdd,#0c1014cc 70%);border:2px solid var(--glow,#e3b964);box-shadow:0 0 22px 4px var(--glow,#e3b964);pointer-events:none}
 .equipPop svg{width:66%;height:66%;animation:equipIn 1.6s ease-out forwards}
 .equipPop{animation:equipFade 1.6s ease-out forwards}
-.equipPop[data-skill=asp]{--glow:#8fe36a}.equipPop[data-skill=cran]{--glow:#ff4d5e}.equipPop[data-skill=cab]{--glow:#b8f070}.equipPop[data-skill=lemon]{--glow:#ffe44a}
+.equipPop[data-skill=asp]{--glow:#8fe36a}.equipPop[data-skill=cran]{--glow:#ff4d5e}.equipPop[data-skill=cab]{--glow:#b8f070}.equipPop[data-skill=lemon]{--glow:#ffe44a}.equipPop[data-skill=chili]{--glow:#ff6a2a}
 @keyframes equipIn{0%{transform:scale(.2)}18%{transform:scale(1.25)}30%,100%{transform:scale(1)}}
 @keyframes equipFade{0%{opacity:0}12%,75%{opacity:1}100%{opacity:0}}
 /* PC: buttons only show state, the active weapon is marked */

@@ -15,6 +15,7 @@ export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
   sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
+  fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
 }
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[] }
 export interface Priv {
@@ -37,7 +38,7 @@ export type MSnap = [number, number, number];
 export type PuSnap = [number, number, number, number, number];
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

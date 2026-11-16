@@ -1,5 +1,5 @@
 import './style.css';
-import { Balancing, FRUITS, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
+import { Balancing, FRUITS, FruitType, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
 import { Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
@@ -105,13 +105,36 @@ class Game {
     canvas.addEventListener('pointermove', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
     canvas.addEventListener('pointerdown', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
     canvas.addEventListener('pointerup', e => {
-      if (!this.view.placing) return;
+      if (!this.view.placing || this.view.confirmSlot >= 0) return;
       const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
-      if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
-      sfx('ui.confirm');
+      // overbuilding another fruit: safety confirmation first
+      const there = this.view.fieldTypeAt(slot);
+      if (there && there !== this.view.placing) { this.askOverbuild(slot, there, this.view.placing); return; }
+      this.doPlace(slot);
     });
+    click('#pcYes', () => this.answerOverbuild(true));
+    click('#pcNo', () => this.answerOverbuild(false));
+    addEventListener('keydown', e => {
+      if (this.view.confirmSlot < 0) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.answerOverbuild(true); }
+      else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.answerOverbuild(false); }
+    }, true);
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
+  }
+  private doPlace(slot: number) {
+    if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
+    sfx('ui.confirm');
+  }
+  private askOverbuild(slot: number, old: FruitType, neu: FruitType) {
+    this.view.confirmSlot = slot; sfx('ui.click');
+    $('#pcOld').innerHTML = pic('field_' + old); $('#pcNew').innerHTML = pic('field_' + neu);
+    show('#placeConfirm', true);
+  }
+  private answerOverbuild(yes: boolean) {
+    const slot = this.view.confirmSlot; if (slot < 0) return;
+    this.view.confirmSlot = -1; show('#placeConfirm', false);
+    if (yes && this.view.placing) this.doPlace(slot);
   }
   private updateOptLabels() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
@@ -256,6 +279,7 @@ class Game {
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
     this.view.setPlacing(placing);
     show('#placeBar', !!placing);
+    if (!placing && this.view.confirmSlot >= 0) { this.view.confirmSlot = -1; show('#placeConfirm', false); }
     if (placing) {
       show('#levelup', false);
       if (this.placeShown !== placing) { this.placeShown = placing; $('#placeBar').innerHTML = `<div class="pic">${pic('field_' + placing)}</div>`; }

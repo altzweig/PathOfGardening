@@ -26,7 +26,7 @@ const lavaTex = (() => {
 })();
 import { loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FlameFx, makeFlame, updateFlame } from './flame';
-import { skillIcon } from '../ui/icons';
+import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
@@ -41,6 +41,23 @@ interface PView { xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: Fl
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
+const BADGES: Partial<Record<FruitType, THREE.CanvasTexture>> = {};
+function badgeTex(t: FruitType) {
+  const have = BADGES[t]; if (have) return have;
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d')!;
+  const plate = () => {
+    x.clearRect(0, 0, S, S);
+    const g = x.createRadialGradient(S * .42, S * .36, S * .05, S / 2, S / 2, S * .47); g.addColorStop(0, '#2c353e'); g.addColorStop(1, '#0c1014');
+    x.beginPath(); x.arc(S / 2, S / 2, S * .44, 0, Math.PI * 2); x.fillStyle = g; x.globalAlpha = .88; x.fill(); x.globalAlpha = 1;
+    x.lineWidth = S * .035; x.strokeStyle = '#e3b964'; x.stroke();
+  };
+  plate();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; BADGES[t] = tex;
+  const img = new Image();
+  img.onload = () => { plate(); x.drawImage(img, S * .14, S * .14, S * .72, S * .72); tex.needsUpdate = true; };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
+  return tex;
+}
 interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
@@ -127,10 +144,18 @@ export class GameView {
       fill.rotation.x = line.rotation.x = -Math.PI / 2;
       const pips = new THREE.Group(); pips.position.y = .02;
       for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.scale.setScalar(.16); pips.add(m); }
-      g.add(fill, line, pips); g.renderOrder = 5; this.slotOverlay.add(g);
+      pips.position.z = H * .66;
+      // big fruit badge in the middle: what grows here (top-down: instantly visible what would be overbuilt)
+      const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex('blue'), transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+      badge.position.y = .4; badge.scale.setScalar(H * 1.3); badge.renderOrder = 20; badge.visible = false;
+      g.add(fill, line, pips, badge); g.renderOrder = 5; this.slotOverlay.add(g);
     }
   }
   setHover(cx: number, cy: number) { this.hoverSlot = this.slotFromScreen(cx, cy); }
+  /** slot kept highlighted while the overbuild confirmation is open */
+  confirmSlot = -1;
+  /** type of the living field on a slot (null = free or dead) */
+  fieldTypeAt(slot: number): FruitType | null { const v = this.fields.get(slot); return v && v.alive ? FRUITS[v.type] : null; }
   slotFromScreen(cx: number, cy: number) {
     const nx = cx / innerWidth * 2 - 1, ny = -(cy / innerHeight) * 2 + 1;
     const o = camera.position, d = V(nx, ny, .5).unproject(camera).sub(o).normalize(); if (d.y >= 0) return -1;
@@ -141,10 +166,17 @@ export class GameView {
     if (!this.placing) return;
     const type = FRUITS.indexOf(this.placing), cost = this.cfg.fields.rarityCost;
     this.slotOverlay.children.forEach((g, i) => {
-      const [fill, line, pips] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Group];
+      const [fill, line, pips, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Group, THREE.Sprite];
       const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
       const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
-      const hov = i === this.hoverSlot;
+      const hov = i === this.hoverSlot || i === this.confirmSlot;
+      const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
+      if (f && f.alive) {
+        const t = badgeTex(FRUITS[f.type]); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
+        const over = !same && hov, now = performance.now() / 1000;
+        badge.scale.setScalar(hexR(this.cfg) * (hov ? 1.42 : 1.3) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
+        bm.color.set(over ? 0xffb0a0 : 0xffffff); bm.opacity = hov ? 1 : .92;
+      }
       (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? .38 : .07;
       (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : .45;
       // rarity progress pips (how many more fields of this type until the next rarity)
@@ -184,6 +216,7 @@ export class GameView {
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
+    this.vanishing.length = 0; this.confirmSlot = -1;
     stopAllLoops(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
@@ -219,7 +252,7 @@ export class GameView {
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
       v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (1 + f[4] * .4);
     }
-    for (const [slot, v] of this.fields) if (!seenF.has(slot)) this.removeField(slot, v);
+    for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.map(f => slots[f[0]]), hexR(this.cfg)); }
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
@@ -390,6 +423,20 @@ export class GameView {
       m.scale.setScalar(b.s0 * (k < .7 ? 1 : 1 - (k - .7) / .3));
     }
   }
+  /** dead plant sinks into the ground and crumbles to dust, then the slot is empty */
+  private vanishing: { g: THREE.Group; pl: THREE.Group; t: number }[] = [];
+  private vanishField(slot: number, v: FieldView) {
+    this.dyn.remove(...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot);
+    burst(V(v.x, .3, v.z), 0x6a5236, 26, 1.6, .22, .9, { g: 3 });
+    this.vanishing.push({ g: v.g, pl: v.plant, t: 0 });
+  }
+  private animVanish(dt: number) {
+    for (let i = this.vanishing.length - 1; i >= 0; i--) {
+      const q = this.vanishing[i]; q.t += dt; const k = Math.min(1, q.t / .6);
+      q.pl.scale.set(1 - k * .6, Math.max(.01, (1 - k) * .55), 1 - k * .6); q.pl.position.y = -k * .15;
+      if (k >= 1) { this.dyn.remove(q.g); this.vanishing.splice(i, 1); }
+    }
+  }
   private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g, ...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot); }
   private killField(v: FieldView) {
     v.mats.leaf.color.set(0x4a3a24); v.mats.head.color.set(0x5a4a2a); v.plant.scale.set(1, .55, 1);
@@ -405,6 +452,7 @@ export class GameView {
     switch (e.k) {
       case 'snd': play(e.n); break;
       case 'sfx': sfx(e.s, e.x, e.z); break;
+      case 'deathGift': burst(V(e.x, .6, e.z), 0x7a90ff, 36, 2.4, .14, .9, { g: 2 }); decal(e.x, e.z, 0x8fa4ff, hexR(this.cfg) * .3, .5, { ring: true, add: true, grow: hexR(this.cfg), op: .7 }); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
       case 'punch': {
@@ -519,6 +567,7 @@ export class GameView {
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
+    this.animVanish(dt);
     this.updateOverlay();
     this.updateAim();
     updateEyes(dt); updateFog(dt); updateTorches(dt);

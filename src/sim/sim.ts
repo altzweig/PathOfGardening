@@ -49,7 +49,7 @@ export interface Player {
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
   xbT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean; goneT?: number }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
@@ -170,7 +170,9 @@ export class Sim {
     for (const o of this.fields) if (o !== f && o.alive && hexDist(me, this.slots[o.slot]) === 1) nb += o.rarity;
     return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
   }
-  fieldOf(type: FruitType) { return this.fields.find(f => f.type === type && f.alive) || this.fields.find(f => f.type === type); }
+  /** types that were ever on the board (a dead field disappears, but its type still counts as owned) */
+  lost = new Set<FruitType>();
+  fieldOf(type: FruitType) { return !!(this.fields.find(f => f.type === type) || this.lost.has(type)); }
   place(id: number, slot: number) {
     const p = this.player(id); if (!p || !p.placing || this.phase !== 'lvl' || !this.slots[slot]) return;
     this.placeField(slot, p.placing); p.placing = null; p.picked = true;
@@ -186,8 +188,21 @@ export class Sim {
       f.hp = 0; f.alive = false;
       this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
       this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
-      if (this.fields.every(x => !x.alive)) this.gameOver();
+      if (this.fields.every(x => !x.alive)) { this.gameOver(); return; }
+      this.deathGift(f);
     }
+  }
+  /** a field died: a share of the XP to the next level drops as blueberries onto the bed; the dead plant vanishes after a moment, the slot is free again */
+  deathGift(f: Field) {
+    const F = this.cfg.fields, tv = this.cfg.fruit.tierValue;
+    f.goneT = F.deathRemoveDelay ?? 1.2;
+    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / this.f(this.cfg.coop.xpValueExponent));
+    const H = hexR(this.cfg) * .6;
+    for (let tier = tv.length - 1; tier >= 0 && v > 0; tier--) while (v >= tv[tier] || (tier === 0 && v > 0)) {
+      v -= tv[tier]; const a = rand(0, 7), d = Math.sqrt(Math.random()) * H;
+      this.spawnFruit('blue', tier, f.x, .7, f.z, f.x + Math.cos(a) * d, f.z + Math.sin(a) * d, -1);
+    }
+    this.emit({ k: 'deathGift', s: f.slot, x: r2(f.x), z: r2(f.z) });
   }
   spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number) {
     const T = .55;
@@ -1058,6 +1073,8 @@ export class Sim {
       if (f.alive) { f.t -= dt * this.prodMult(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
+    // dead fields vanish (their type stays known for offers)
+    for (const f of [...this.fields]) if (!f.alive && f.goneT !== undefined && (f.goneT -= dt) <= 0) { this.lost.add(f.type); this.fields.splice(this.fields.indexOf(f), 1); }
     // fruit
     this.mergeT -= dt; if (this.mergeT <= 0) { this.mergeT = this.cfg.fruit.mergeCheck; this.mergeFruit(); }
     for (let i = this.merges.length - 1; i >= 0; i--) {
@@ -1183,7 +1200,7 @@ export class Sim {
       }
     }
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
-    const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
+    const owned = new Set([...this.fields.map(f => f.type), ...this.lost]), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
       if (this.closedType(p, id)) continue;
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];

@@ -113,6 +113,9 @@ fields:
   rarityProduction: 1.5        # Produktion x1,5 je Seltenheitsstufe (multiplikativ)
   rarityHp: 2                  # max. HP x2 je Seltenheitsstufe (Feld wird beim Aufstieg voll geheilt)
   neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
+  # Abgestorbenes Feld: XP-Geschenk fällt als Blaubeeren auf das Beet, die tote Pflanze verschwindet, der Platz ist wieder frei.
+  deathXpShare: 0.3333         # Anteil der XP, die insgesamt zum nächsten Level nötig sind
+  deathRemoveDelay: 1.2        # s, bis die tote Pflanze verschwunden ist
 
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3

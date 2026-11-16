@@ -28,7 +28,7 @@ import { play, setListener, sfx } from '../audio';
 import { skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, bolt, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
+  part, punchStar, dustCloud, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
 import { BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, eliteRim, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -37,7 +37,7 @@ import { GROUND_MAT } from './models';
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
 interface PView { flame?: { cone: THREE.Mesh; gun: THREE.Group; c: number; ang: number }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
-interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
+interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number }
@@ -447,6 +447,8 @@ export class GameView {
         break;
       }
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
+      case 'poof': dustCloud(e.x, e.z); this.shake = Math.min(.25, this.shake + .07); break; // sheep ram hit: comic dust cloud around the player
+      case 'lick': setTimeout(() => { burst(V(e.x, .3, e.z), 0xff5a80, 8, 1.4, .1, .3); decal(e.x, e.z, 0xff4070, .12, .6, { op: .5 }); }, (e.d || 0) * 1000); break;
       case 'dust': PART.spawn(V(e.x, .1, e.z), V(rand(-.5, .5), .6, rand(-.5, .5)), 0x8a7050, .3, .5, { a: .45 }); break;
       case 'imm': play('imm'); break;
       case 'berryBoom': { burst(V(e.x, .3, e.z), 0x6a5cff, 26, 3, .2, .5); burst(V(e.x, .3, e.z), 0x3550e0, 14, 2, .3, .6, { g: 4 }); decal(e.x, e.z, 0x7a5cff, .2, .45, { ring: true, add: true, grow: e.r, op: .9 }); decal(e.x, e.z, 0x221a50, e.r * .6, 3, { op: .5 }); this.shake = Math.min(.25, this.shake + .04); break; }
@@ -583,6 +585,15 @@ export class GameView {
       const air = !!(fl & EF.air); v.P.body.position.y = air ? Math.sin(e[9] / .5 * Math.PI) * .55 : 0;
       for (const m of v.P.mats) m.opacity = air ? .4 : 1;
       if (fl & EF.tongue) { v.P.tongue!.visible = true; v.P.tongue!.scale.z = Math.max(.01, e[10]); } else v.P.tongue!.visible = false;
+      if (!air && Math.random() < dt * 6) PART.spawn(V(v.x + rand(-.25, .25), rand(.15, .4), v.z + rand(-.25, .25)), V(0, .5, 0), 0xb8ffb0, rand(.06, .1), .5, { a: .8 }); // shimmer while sitting
+    }
+    if (v.type === 'hedgehog') { // jerky puff up, slow contraction; the spines flash once
+      const H = this.cfg.enemies.hedgehog, up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9];
+      const k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up);
+      v.P.puff!.scale.setScalar(1 + (H.puffScale ?? .3) * (ph < up ? k2 : k2 * k2));
+      v.P.spines!.emissiveIntensity = ph < .15 ? (1 - ph / .15) * 1.6 : 0;
+      if (v.ph !== undefined && ph < v.ph - .3) { burst(V(v.x, .35, v.z), 0xfff0c0, 10, 1.6, .07, .25); decal(v.x, v.z, 0xffe0a0, .3, .25, { ring: true, add: true, grow: (H.radius * (1 + (H.puffScale ?? .3)) + (H.puffRadius ?? .5)) * v.g.scale.x, op: .5 }); }
+      v.ph = ph;
     } else if (!(fl & EF.windup)) v.P.body.position.y = Math.abs(Math.sin(now * 9 + e[0])) * .06 * (stun ? 0 : 1);
     v.P.body.position.z = fl & EF.lunge ? .12 : 0;
     if (v.type === 'sheep') {
@@ -607,7 +618,9 @@ export class GameView {
       if (Math.random() < .4) PART.spawn(V(v.x + rand(-.6, .6), rand(.3, 1.2), v.z + rand(-.6, .6)), V(0, .8, 0), 0x8a4cff, .2, .5); return;
     }
     const burning = fl & EF.burn, fire = burning ? .5 + .3 * Math.sin(now * 23 + e[0]) + .15 * Math.sin(now * 37) : 0;
-    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow, 0, bleedGlow * .05); }
+    // toad: glows brighter and shimmers while sitting, the glow goes out when it jumps off
+    const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - .5) * 12) : 0;
+    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 28) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, v.type === 'toad' ? .85 : 1.05, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);

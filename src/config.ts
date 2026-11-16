@@ -3,11 +3,11 @@ import YAML from 'yaml';
 export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 export type Weapon = 'rake' | SkillId;
 export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
-export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep';
+export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili'];
-export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep'];
+export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
 export interface EnemyCfg {
@@ -16,6 +16,18 @@ export interface EnemyCfg {
   hopPeriod?: number; tongueCooldown?: number; tongueRange?: number; poisonTicks?: number; poisonInterval?: number; poisonDamage?: number;
   shield?: number; shieldRegen?: number; chargeRange?: number; windup?: number; chargeSpeed?: number; chargeTime?: number;
   ramDamage?: number; ramStun?: number; knockback?: number; rest?: number; maxAlive?: number;
+  /** steals: fruit it picks up (carries away); prefers: those first; eats: fruit it eats on the spot */
+  prefers?: FruitType[]; eats?: FruitType[];
+  /** never attacks players or fields, wanders around looking for fruit */
+  peaceful?: boolean; wanderSpeed?: number;
+  /** flees (with whatever it carries) once its HP drops below this share */
+  fleeBelow?: number;
+  /** fields it attacks first */
+  prefersFields?: FruitType[];
+  /** damage sources (weapon fruit) it takes enemies.resistance less damage from */
+  resist?: FruitType[];
+  /** hedgehog: puffs up every puffEvery s (puffUp s fast, then contracts for the rest), puffScale bigger, hurting everything within puffRadius */
+  puffEvery?: number; puffUp?: number; puffScale?: number; puffDamage?: number; puffRadius?: number;
 }
 export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string };
@@ -44,7 +56,7 @@ export interface Balancing {
     chiliTick: { factor: number; min: number };
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
-  enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number;
+  enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number; resistance: number;
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
     boss: { every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };
@@ -63,7 +75,7 @@ export interface Balancing {
     sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
     directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;
     staggerMin: number; staggerMax: number; warnTime: number;
-    types: Record<EnemyType, { from: number; weight: number; early?: number }>;
+    types: Record<EnemyType, { from: number; weight: number; early?: number; group?: [number, number] }>;
   };
 }
 

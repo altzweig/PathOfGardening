@@ -252,9 +252,29 @@ enemies:
       interval: 0.1
       warn: 0.5            # s zum Ausweichen
       radius: 10           # m um die Gartenmitte
-  raccoon: { hp: 7, speed: 2.75, radius: 0.32, steals: [blue], carryMax: 5, fleeSpeed: 6.2 }
-  panda:   { hp: 11, speed: 2.2,  radius: 0.34, steals: [cran, asp], carryMax: 5, fleeSpeed: 3.2 }
-  toad:
+  # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
+  # Gilt für Spieler und Gegner gleich.
+  resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
+  raccoon:                 # greift nie an, streunt umher, sammelt 5 XP (Blaubeeren) und haut damit ab
+    hp: 7
+    speed: 2.75
+    wanderSpeed: 2.0       # m/s beim Umherstreunen
+    radius: 0.32
+    peaceful: true
+    steals: [blue]
+    carryMax: 5
+    fleeSpeed: 6.2
+    fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
+  panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
+    hp: 11
+    speed: 2.2
+    radius: 0.34
+    prefers: [cran, chili] # rote Früchte zuerst ...
+    steals: [cran, chili, asp, cab, lemon, blue]   # ... sonst alle anderen
+    carryMax: 5
+    fleeSpeed: 3.2
+    resist: [chili, cran]
+  toad:                    # Frosch: leuchtet am Boden, Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
     hp: 6
     speed: 2.1
     radius: 0.30
@@ -264,6 +284,8 @@ enemies:
     poisonTicks: 3
     poisonInterval: 2
     poisonDamage: 1
+    prefersFields: [cab, lemon]
+    resist: [cab, lemon]
   sheep:
     maxAlive: 5            # höchstens so viele Schafe gleichzeitig
     hp: 3
@@ -271,14 +293,25 @@ enemies:
     radius: 0.44
     shield: 6
     shieldRegen: 3         # s bis Schild wieder voll
-    chargeRange: 4.5       # m, ab hier holt es Anlauf
-    windup: 2
+    chargeRange: 4.5       # m, ab hier holt es Anlauf (Richtung wird zu Beginn festgelegt und nicht mehr nachgeführt)
+    windup: 1              # s Anlauf (vorher 2)
     chargeSpeed: 9
     chargeTime: 0.8
     ramDamage: 4
-    ramStun: 1
-    knockback: 3           # m
+    ramStun: 1             # s Betäubung (kein Rückstoß mehr)
     rest: 2
+    resist: [asp]
+  hedgehog:                # Igel: kommen in Gruppen, plustern sich regelmäßig auf (Stachel-Schaden), fressen Beeren
+    hp: 6
+    speed: 1.8
+    radius: 0.30
+    eats: [blue, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
+    puffEvery: 2           # s pro Aufplustern
+    puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
+    puffScale: 0.3         # +30 % Größe
+    puffDamage: 2          # Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
+    puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
+    resist: [blue, cran]
 
 waves:
   # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
@@ -314,7 +347,8 @@ waves:
     raccoon: { from: 1,  weight: 3 }
     panda:   { from: 4,  weight: 2, early: 1 }   # early: Gewicht schon vor "from", sobald Spargel- oder Preiselbeerfeld steht (ab Welle 2)
     toad:    { from: 7,  weight: 1.2 }
-    sheep:   { from: 11, weight: 0.4 }
+    hedgehog: { from: 11, weight: 0.4, group: [3, 4] }  # group: kommt immer als Gruppe aus 3-4 Tieren
+    sheep:   { from: 21, weight: 0.4 }
 
 weaponSlots:               # Waffen neben der Harke
   max: 2                   # so viele Waffen sind gleichzeitig aktiv; weitere sind inaktiv (unsichtbar, aber weiter skillbar)

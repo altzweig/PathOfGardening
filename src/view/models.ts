@@ -115,7 +115,7 @@ export function buildPlayer(color: number, rakeLen: number) {
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green
-export const EYE_COL: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc };
+export const EYE_COL: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc, hedgehog: 0xffc04a };
 function eyeMat(c: number) { return new THREE.MeshBasicMaterial({ color: c, toneMapped: false }); }
 
 const shieldBase = new THREE.ShaderMaterial({
@@ -127,7 +127,7 @@ const shieldBase = new THREE.ShaderMaterial({
       float a=(f*1.1+band*.06+hx*.08)*uStr; gl_FragColor=vec4(uColor*a*1.4,a); }`,
 });
 
-export interface EnemyParts { body: THREE.Group; stars: THREE.Group; mats: THREE.MeshStandardMaterial[]; tongue?: THREE.Group; shield?: THREE.Mesh; eyes?: THREE.Mesh[]; carry: THREE.Group }
+export interface EnemyParts { body: THREE.Group; stars: THREE.Group; mats: THREE.MeshStandardMaterial[]; tongue?: THREE.Group; spines?: THREE.MeshStandardMaterial; puff?: THREE.Group; shield?: THREE.Mesh; eyes?: THREE.Mesh[]; carry: THREE.Group }
 export function buildEnemy(type: EnemyType) {
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const P: Partial<EnemyParts> = { body };
   if (type === 'raccoon') {
@@ -157,9 +157,30 @@ export function buildEnemy(type: EnemyType) {
     const em = eyeMat(EYE_COL.toad); part(body, GEO.sph, em, .045, .045, .045, -.15, .38, .24, false); part(body, GEO.sph, em, .045, .045, .045, .15, .38, .24, false);
     for (const [x, z] of [[-.25, -.1], [.25, -.1]]) part(body, GEO.sph, sk, .12, .07, .16, x, .08, z);
     const tongue = new THREE.Group(); tongue.position.set(0, .2, .28); body.add(tongue);
-    const tm = part(tongue, GEO.cyl, M(0xff6a8a, { e: 0xff3060, ei: .6 }), .03, 1, .03, 0, 0, .5, false); tm.rotation.x = Math.PI / 2;
+    const tmat = M(0xff6a8a, { e: 0xff3060, ei: .8 });
+    const tm = part(tongue, GEO.cyl, tmat, .045, 1, .045, 0, 0, .5, false); tm.rotation.x = Math.PI / 2;
+    part(tongue, GEO.sph, tmat, .09, .07, .09, 0, 0, 1, false); // sticky tip
     tongue.scale.set(1, 1, .01); tongue.visible = false; P.tongue = tongue;
     P.mats = [sk, bl, wart];
+  } else if (type === 'hedgehog') {
+    // spiky ball on short legs; the spiky part sits in its own group so it can puff up
+    const skin = M(0x8a6a4a), face = M(0xc8a47a), dk = M(0x1a120c), spine = M(0x4a3524, { e: 0xfff0c0, ei: 0 });
+    const puff = new THREE.Group(); puff.position.y = .2; body.add(puff); P.puff = puff;
+    part(puff, GEO.sph, skin, .27, .2, .32, 0, 0, -.02);
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i < 70; i++) { // spines on the back half, pointing outwards
+      const u = rand(0, 1), th = rand(0, Math.PI * 2), ph = Math.acos(1 - u * 1.15);
+      const d = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+      if (d.z > .55) continue; // keep the face free
+      const m = part(puff, GEO.cone, spine, .035, rand(.2, .26), .035, d.x * .26, d.y * .18 + .02, d.z * .3 - .02);
+      m.quaternion.setFromUnitVectors(up, d.clone().add(new THREE.Vector3(0, .25, -.15)).normalize());
+    }
+    const snout = part(body, GEO.cone, face, .1, .2, .1, 0, .17, .34); snout.rotation.x = Math.PI / 2;
+    part(body, GEO.sph, face, .14, .12, .12, 0, .18, .24);
+    part(body, GEO.sph, dk, .03, .03, .03, 0, .17, .45);
+    const em = eyeMat(EYE_COL.hedgehog); part(body, GEO.sph, em, .022, .022, .022, -.065, .23, .33, false); part(body, GEO.sph, em, .022, .022, .022, .065, .23, .33, false);
+    for (const [x, z] of [[-.13, .14], [.13, .14], [-.13, -.14], [.13, -.14]]) part(body, GEO.cyl, dk, .035, .1, .035, x, .05, z);
+    P.spines = spine; P.mats = [skin, face];
   } else {
     const wool = M(0xa29c90), dk = M(0x1e1a18); // greyer wool: no bloom
     for (let i = 0; i < 9; i++) { const a = i / 9 * 7; part(body, GEO.ico, wool, rand(.18, .24), rand(.18, .22), rand(.18, .24), Math.cos(a) * .2, .44 + rand(-.05, .08), Math.sin(a) * .26); }
@@ -170,7 +191,7 @@ export function buildEnemy(type: EnemyType) {
     const sh = new THREE.Mesh(GEO.sph, shieldBase.clone()); (sh.material as THREE.ShaderMaterial).uniforms.uTime = windU; sh.scale.setScalar(.7); sh.position.y = .42; g.add(sh); P.shield = sh;
     P.mats = [wool];
   }
-  const stars = new THREE.Group(); stars.visible = false; stars.position.y = type === 'toad' ? .65 : .9; g.add(stars);
+  const stars = new THREE.Group(); stars.visible = false; stars.position.y = type === 'toad' || type === 'hedgehog' ? .65 : .9; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0x9cff60 }), .045, .045, .045, Math.cos(i * 2.1) * .22, 0, Math.sin(i * 2.1) * .22, false);
   P.stars = stars;
   const carry = new THREE.Group(); body.add(carry); P.carry = carry;

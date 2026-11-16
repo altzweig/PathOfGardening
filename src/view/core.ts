@@ -197,6 +197,24 @@ export function punchStar(x: number, z: number, big = 1) {
   const s = new THREE.Sprite(mat); s.position.set(x + rand(-.08, .08), .55 + rand(0, .15), z + rand(-.08, .08)); s.renderOrder = 1000; scene.add(s);
   fx.push({ m: s as any, t: 0, life: .24, r0: .1, r1: .75 * big, op: 1, own: false, sprite: true });
 }
+// comic dust cloud (sheep ram): round puffs with a dark outline, like a cartoon brawl
+const cloudTex = (() => {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const blobs: [number, number, number][] = [[64, 70, 30], [40, 64, 22], [88, 62, 24], [54, 44, 22], [78, 44, 20], [64, 86, 22]];
+  const draw = (grow: number, col: string) => { g.fillStyle = col; for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x, y, r + grow, 0, Math.PI * 2); g.fill(); } };
+  draw(5, '#2a2016'); draw(0, '#d8cdb4');
+  g.globalAlpha = .7; g.fillStyle = '#fff8e8'; for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x - r * .3, y - r * .3, r * .45, 0, Math.PI * 2); g.fill(); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+export function dustCloud(x: number, z: number) {
+  const n = 8;
+  for (let i = 0; i <= n; i++) {
+    const mat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, rotation: rand(0, 7), toneMapped: false });
+    const s = new THREE.Sprite(mat), a = i / n * Math.PI * 2 + rand(-.2, .2), r = i === n ? 0 : rand(.45, .6);
+    s.position.set(x + Math.cos(a) * r, i === n ? .5 : rand(.15, .55), z + Math.sin(a) * r); s.renderOrder = 999; scene.add(s);
+    fx.push({ m: s as any, t: 0, life: rand(.45, .6), r0: .15, r1: i === n ? .9 : rand(.5, .7), op: 1, own: false, sprite: true });
+  }
+}
 export function updateFx(dt: number) {
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt; const k = f.t / f.life;

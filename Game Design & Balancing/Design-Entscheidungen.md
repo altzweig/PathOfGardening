@@ -113,7 +113,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Eine Welle besteht aus Gruppen (Stößen) aus mehreren Richtungen. Innerhalb der Welle werden die Gruppen größer (50 % → 150 % der Grundgröße), am Ende kommt eine große Schlussgruppe (250 %).
 - Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist. Die Pause beginnt sofort, auch wenn noch Gegner leben.
 - Welle 1: genau 5 Waschbären. Danach wächst jede Welle: länger (+2,5 s), Gruppen größer (+0,8 je Welle), Gruppen dichter; die Pause wird nur minimal länger (+0,1 s).
-- Tiere kommen ab Welle: Waschbär 1, Panda 4 (früher, sobald Spargel/Preiselbeere steht), Kröte 7, Schaf 11.
+- Tiere kommen ab Welle: Waschbär 1, Panda 4 (früher, sobald Spargel/Preiselbeere steht), Kröte 7, Igel 11, Schaf 21 (seit 16.11.2026, vorher Schaf 11).
 - HUD zeigt dezent „Welle / Gesamt“ (grau während der Pause).
 - Testmodus: Im Cheat-Menü (E) kann man jede Welle 1–100 direkt starten.
 
@@ -148,3 +148,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Zirkel-Upgrade: +30° Schwenk, +5° Flamme, Dauer pro Schwenk bleibt 1,5 s. Ab 360° (11. Stufe) dreht die Flamme im Kreis mit +50 % Tempo (2 Umdrehungen/s), danach +10° Flamme und +10 % Tempo pro Stufe, Schluss bei 360° Flamme. Die Karte zeigt Grad bzw. Umdrehungen pro Sekunde (U/s).
 - Brand-Tick-Upgrade: Tick × 0,8 bis minimal 0,1 s (8 Stufen). Da jeder Tick einen Stapel verbraucht, brennt der Stapel schneller ab: mehr Schaden pro Sekunde, gleicher Gesamtschaden je Stapel.
 - Alle Werte unter `skills.chili`, `upgrades.chiliSweep`, `upgrades.chiliTick`, Feld unter `plants.chili`.
+
+## Gegnertypen überarbeitet (16.11.2026)
+- **Betäubt (Stun), neue Definition für Spieler und Gegner:** Tempo für Bewegung und Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal. Beim Spieler laufen auch alle Abklingzeiten im Stun-Tempo, und jede Waffe muss erst einmal abklingen, bevor sie wieder feuert. Kein Rückstoß mehr durch Gegner.
+- **Waschbär:** greift nie an (weder Spieler noch Felder), streunt zwischen den Feldern umher, sammelt 5 XP-Blaubeeren und haut damit ab. Fällt sein Leben unter 50 %, haut er sofort ab, mit allem, was er schon trägt (`fleeBelow`). Der Boss-Waschbär ist davon ausgenommen.
+- **Roter Panda:** greift Spieler in Aggro-Reichweite an, sammelt bevorzugt Preiselbeeren und Chilis, sonst jede andere Frucht (auch XP), bei 5 haut er ab. Ohne Früchte greift er Felder an.
+- **Frosch:** leuchtet und schimmert, solange er sitzt, das Leuchten geht beim Absprung aus. Die Zunge (dicker, mit Spitze, Treffer-Spritzer) schlägt sichtbar zu, bevorzugt auf Kohl- und Zitronenfelder, in Aggro-Reichweite auf Spieler.
+- **Schaf:** Anlauf-Richtung wird beim Start des Anlaufs einmal festgelegt und nicht mehr nachgeführt, Anlauf 1 s statt 2 s. Trifft es den Spieler: comicartige Staubwolke um ihn, 1 s Stun, kein Rückstoß.
+- **Igel (neu):** kommen statt der Schafe ab Welle 11, immer als Gruppe aus 3–4 Tieren aus einer Richtung. Stachelig, langsamer (1,8 m/s). Alle 2 s plustern sie sich ruckartig um 30 % auf (Stacheln funkeln einmal, Ring zeigt die Reichweite) und ziehen sich in 1,8 s wieder zusammen. Nur beim Aufplustern machen sie Schaden: Spieler in Stachel-Reichweite und das Feld, auf dem sie stehen. Sie fressen bevorzugt alle Beeren (Blaubeeren und Preiselbeeren), gefressene Beeren sind weg.
+- **Resistenzen:** 30 % weniger Schaden (`enemies.resistance`): Panda durch Chilis und Preiselbeeren (auch Blutung), Schaf durch Spargel, Frosch durch Kohl (Bombe und Lache) und Zitronen, Igel durch Blaubeeren und Preiselbeeren. Waschbär ohne Resistenz. Annahme: „Blaubeeren“ zählt erst, sobald es eine Blaubeer-Waffe gibt; die Harke zählt zu keiner Frucht.
+- Annahmen: „10 Level später“ = 10 Wellen später (Schaf ab Welle 21). Igel-Schaden 2 je Aufplustern, Igel-Leben 6.

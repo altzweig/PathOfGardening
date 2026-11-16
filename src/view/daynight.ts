@@ -1,7 +1,7 @@
 // Day-night cycle: one wave = one hour. Hours 0..16 are day (sun wanders east -> west), 16..24 night (moon).
 // Drives the main light, sky/haze, fog, exposure, bloom, colour grade, garden lights, torches, bush eyes and ambience.
 import * as THREE from 'three';
-import { bloom, envU, gardenLight, hemi, lantern, moon, renderer, scene, torch } from './core';
+import { bloom, camera, envU, gardenLight, hemi, lantern, moon, renderer, scene, torch } from './core';
 import { setEyeNight, setFogLook, setTorchLevel } from './world';
 import { setDayNight } from '../audio';
 
@@ -60,8 +60,11 @@ function apply(S: DayState) {
   // sky + haze
   const sky = pick(P.sky, day, warm, cSky);
   (scene.background as THREE.Color).copy(sky);
-  const fog = scene.fog as THREE.FogExp2; fog.color.copy(sky); fog.density = .028 * night + .016 * day + warm * .006;
-  envU.uFogCol.value.copy(sky); envU.uFogD.value = fog.density;
+  // light distance fog only: starts behind the player (relative to the camera distance, so zooming out does not fog the view)
+  // and only softens the far forest; never a uniform veil over the garden
+  const fog = scene.fog as THREE.Fog, cd = camera.position.length();
+  fog.color.copy(sky); fog.near = cd + 2; fog.far = cd + (night * 26 + day * 48) * (1 - warm * .15);
+  envU.uFogCol.value.copy(sky); envU.uFogNear.value = fog.near; envU.uFogFar.value = fog.far;
   envU.uDay.value = day;
   renderer.toneMappingExposure = 1.05 * night + 1.22 * day;
   // bloom: strong glow in the dark, gentle in daylight (otherwise sunlit surfaces would bloom)
@@ -72,7 +75,7 @@ function apply(S: DayState) {
   setTorchLevel(dark); setEyeNight(night);
   // drifting fog: thick and blue at night, morning mist at sunrise, thin haze by day
   const dawn = h > curLen - 2 || h < 1.5 ? warm : 0;
-  setFogLook(pick(P.fog, day, warm, cF), night * 1 + day * .25 + dawn * .9, Math.max(night, warm * .5));
+  setFogLook(pick(P.fog, day, warm, cF), night * 1.3 + day * .25 + dawn * .9, Math.max(night, warm * .5));
   setDayNight(day);
 }
 /** current (smoothed) day state, e.g. fireflies at night, pollen by day */

@@ -1,7 +1,7 @@
 // Static garden + the dark rim: black bush/tree silhouettes with a faint cold edge,
 // and blinking eye pairs behind them (more of them where the next wave comes from).
 import * as THREE from 'three';
-import { GEO, LANT, M, gfx, part, rand, scene } from './core';
+import { GEO, LANT, M, gfx, part, rand, scene, windU } from './core';
 import { groundMaterial } from './textures';
 import { Inst, instance, loadNature } from './nature';
 
@@ -229,26 +229,58 @@ export function updateEyes(dt: number) {
 }
 export function clearEyes() { for (const E of eyeBushes) for (const p of E.pairs) scene.remove(p.g); eyeBushes.length = 0; }
 
-// ---------------- fog drifting through the bushes ----------------
-const fogTex = (() => {
-  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
-  for (let i = 0; i < 26; i++) { // soft lumpy blob
-    const x = S / 2 + rand(-30, 30), y = S / 2 + rand(-16, 16), r = rand(16, 40);
-    const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(255,255,255,.22)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = grd; g.fillRect(0, 0, S, S);
-  }
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
-})();
-interface Wisp { s: THREE.Sprite; a: number; r: number; y: number; da: number; ph: number; op: number }
-const wisps: Wisp[] = [];
+// ---------------- fog banks drifting in from the forest ----------------
+// Finely animated mist: flat, ground-hugging strips (one instanced draw call) that are born between the trees,
+// creep slowly towards the garden while their noise texture churns, and dissolve before they reach the beds.
+const MIST = 30;
+const mistU = { uTime: windU, uCol: { value: new THREE.Color(0x8aa0c8) }, uOp: { value: 1 } };
+interface Mist { a: number; r: number; v: number; turn: number; len: number; wid: number; t: number; life: number; y: number }
+const mists: Mist[] = [];
+let mistMesh: THREE.InstancedMesh | null = null, mistFade: THREE.InstancedBufferAttribute, mistSeed: THREE.InstancedBufferAttribute;
+function newMist(m: Partial<Mist> = {}, age = 0): Mist {
+  const life = rand(22, 38);
+  return Object.assign(m, { a: rand(0, Math.PI * 2), r: rand(18, 22), v: rand(.25, .5), turn: rand(-.012, .012), len: rand(5, 9), wid: rand(2.2, 3.6), t: age * life, life, y: rand(.25, .7) }) as Mist;
+}
 function buildFog() {
-  for (let i = 0; i < 22; i++) {
-    const mat = new THREE.SpriteMaterial({ map: fogTex, color: 0x8aa0c8, transparent: true, opacity: 0, depthWrite: false, fog: false });
-    const s = new THREE.Sprite(mat); const sc = rand(5, 9); s.scale.set(sc, sc * .45, 1);
-    // keep the sprite above the ground, otherwise the ground cuts a hard edge into it
-    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(12.5, 16.5), y: sc * .45 * .42 + rand(0, .4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
-    scene.add(s); wisps.push(w);
+  const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: mistU, transparent: true, depthWrite: false, fog: false,
+    vertexShader: `attribute float aFade; attribute float aSeed; varying vec2 vUv; varying float vF; varying float vS; varying vec2 vW;
+      void main(){ vUv=uv; vF=aFade; vS=aSeed; vec4 wp=modelMatrix*instanceMatrix*vec4(position,1.); vW=wp.xz; gl_Position=projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uCol; uniform float uOp; varying vec2 vUv; varying float vF; varying float vS; varying vec2 vW;
+      float h(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+      float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+      void main(){
+        // world-space noise (strips blend seamlessly where they overlap), two layers moving against each other = churning
+        vec2 p=vW*.55+vS*17.;
+        float a=n(p+vec2(uTime*.07,uTime*.03))*.55+n(p*2.1-vec2(uTime*.11,-uTime*.05))*.3+n(p*4.3+vec2(uTime*.17,0.))*.15;
+        float b=n(p*.7-vec2(uTime*.04,uTime*.06));
+        float m=smoothstep(.38,.8,a*.75+b*.4);
+        vec2 e=abs(vUv-.5)*2.; float edge=(1.-smoothstep(.35,1.,e.x))*(1.-smoothstep(.15,1.,e.y)); // soft, elongated strip
+        float al=m*edge*vF*uOp*.65; if(al<.003) discard;
+        gl_FragColor=vec4(uCol,al); }`,
+  });
+  mistMesh = new THREE.InstancedMesh(geo, mat, MIST); mistMesh.frustumCulled = false; mistMesh.renderOrder = 5;
+  mistFade = new THREE.InstancedBufferAttribute(new Float32Array(MIST), 1); mistSeed = new THREE.InstancedBufferAttribute(new Float32Array(MIST), 1);
+  geo.setAttribute('aFade', mistFade); geo.setAttribute('aSeed', mistSeed);
+  for (let i = 0; i < MIST; i++) { mists.push(newMist({}, Math.random())); mistSeed.setX(i, Math.random()); }
+  scene.add(mistMesh);
+}
+const mistM4 = new THREE.Matrix4(), mistQ = new THREE.Quaternion(), mistUp = new THREE.Vector3(0, 1, 0), mistP = new THREE.Vector3(), mistS = new THREE.Vector3();
+function updateMist(dt: number) {
+  if (!mistMesh) return;
+  for (let i = 0; i < MIST; i++) {
+    const m = mists[i]; m.t += dt;
+    if (m.t >= m.life || m.r < 9.5) { newMist(m); mistSeed.setX(i, Math.random()); }
+    m.r -= m.v * dt; m.a += m.turn * dt; // creeps inwards, curving slightly
+    const k = m.t / m.life, inner = Math.min(1, Math.max(0, (m.r - 10) / 3)); // dissolves before the garden
+    mistFade.setX(i, Math.min(1, k / .25, (1 - k) / .25) * inner);
+    const x = Math.cos(m.a) * m.r, z = Math.sin(m.a) * m.r;
+    // long side along the drift direction (towards the garden), stretching a bit while it creeps in
+    mistQ.setFromAxisAngle(mistUp, -m.a); mistP.set(x, m.y, z); mistS.set(m.len * (1 + k * .3), 1, m.wid);
+    mistMesh.setMatrixAt(i, mistM4.compose(mistP, mistQ, mistS));
   }
+  mistMesh.instanceMatrix.needsUpdate = true; mistFade.needsUpdate = true;
 }
 // will-o'-wisps: small cold lights wandering between the trees, mostly at night
 const wispTex = (() => {
@@ -279,12 +311,8 @@ const fogLook = { col: new THREE.Color(0x8aa0c8), mul: 1, night: 1 };
 export function setFogLook(col: THREE.Color, mul: number, night = 1) { fogLook.col.copy(col); fogLook.mul = mul; fogLook.night = night; }
 export function updateFog(dt: number) {
   updateWisps(dt, fogLook.night);
-  for (const w of wisps) {
-    w.a += w.da * dt; w.ph += dt * .25;
-    const r = w.r + Math.sin(w.ph) * .8;
-    w.s.position.set(Math.cos(w.a) * r, w.y + Math.sin(w.ph * 1.7) * .15, Math.sin(w.a) * r);
-    const m = w.s.material as THREE.SpriteMaterial; m.opacity = Math.min(1, w.op * fogLook.mul * (.55 + .45 * Math.sin(w.ph * 1.3))); m.color.copy(fogLook.col);
-  }
+  mistU.uCol.value.copy(fogLook.col); mistU.uOp.value = Math.min(1.4, fogLook.mul);
+  updateMist(dt);
 }
 
 // ---------------- small torches at the field corners ----------------

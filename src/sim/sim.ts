@@ -490,6 +490,7 @@ export class Sim {
     // every enemy drops XP (blueberries), elites more
     const E = this.cfg.enemies, n = e.boss ? E.boss.xpDrop : Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
     if (e.boss) this.emit({ k: 'bossDead', x: r2(e.x), z: r2(e.z) });
+    if (n > 0) this.sfx('plants.produce.blue', e.x, e.z); // blueberries drop: same plop as from the bush
     for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit('blue', 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1); }
     this.removeEnemy(e);
   }

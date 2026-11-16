@@ -100,9 +100,9 @@ arena:
   fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
   startFields: 3           # Blaubeerfelder zu Beginn
 
-forest:                    # Waldplätze außerhalb des Gartens (hinter dem Steinkreis, vor den Büschen). Nur hier wachsen Nussbäume.
-  slots: 6                 # so viele Baumplätze, gleichmäßig rund um den Garten
-  radius: 12.6             # m vom Gartenmittelpunkt (Garten endet bei ca. 10 m, die Büsche beginnen bei 13 m)
+forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Buschring am Waldrand. Nur hier wachsen Nussbäume.
+  slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
+  radius: 13.2             # m vom Gartenmittelpunkt (Garten endet bei ca. 10 m, Buschring 13-15 m, begehbar bis 15 m)
   angleOffset: 30          # Grad, Drehung des ersten Platzes
   types: [nut]             # Feldtypen, die nur im Wald (und nicht im Garten) gebaut werden
 

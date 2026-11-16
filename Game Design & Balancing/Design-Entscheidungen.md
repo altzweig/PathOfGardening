@@ -221,7 +221,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 
 
 ## Nussbaum und Eichhörnchen (16.11.2026)
-- Neue Ressource Nuss. Der Nussbaum ist ein neuer Feldtyp (ab Level 5 unter den neuen Feldtypen) und wächst nur auf Waldplätzen außerhalb des Gartens: 6 Plätze rund um den Garten, hinter dem Steinkreis vor den Büschen (`forest`). Im Baumodus werden für den Nussbaum nur die Waldplätze angezeigt, für alle anderen Felder nur die Gartenplätze; die Draufsicht zoomt dafür weiter heraus.
+- Neue Ressource Nuss. Der Nussbaum ist ein neuer Feldtyp (ab Level 5 unter den neuen Feldtypen) und wächst nur auf Waldplätzen außerhalb des Gartens: 6 Lichtungen im Buschring am Waldrand rund um den Garten, 13,2 m von der Mitte (`forest`); dort wachsen keine Büsche, Steine oder Farne. Im Baumodus werden für den Nussbaum nur die Waldplätze angezeigt, für alle anderen Felder nur die Gartenplätze; die Draufsicht zoomt dafür weiter heraus.
 - Nüsse fallen aus der Krone und landen 0,6–1,8 m um den Stamm. Sie rollen nicht zum Spieler (kein Magnet): man muss hinlaufen und sie aufheben. Harken am Baum schüttelt Nüsse heraus, wie Beackern bei den Feldern. Liegen gelassene Nüsse verschmelzen wie alle Früchte zu großen Nüssen.
 - Gegner greifen Nussbäume nicht gezielt an (sie wollen in den Garten). Nussbäume zählen nicht fürs Spielende und halten die Startfelder nicht unverwundbar.
 - Nüsse werden pro Spieler gezählt und oben bei den Ressourcen angezeigt. Wofür sie verwendet werden, ist noch offen (Vorschlag: Munition einer Nuss-Schleuder als neue Waffe).

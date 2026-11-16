@@ -257,7 +257,8 @@ export class Sim {
       const [r0, r1] = this.cfg.plants[f.type].dropRadius || [.5, 1.6];
       for (let i = 0; i < n; i++) {
         const a = rand(0, Math.PI * 2), d = rand(r0, r1);
-        this.spawnFruit(f.type, 0, f.x + Math.cos(a) * d * .5, 2.2, f.z + Math.sin(a) * d * .5, f.x + Math.cos(a) * d, f.z + Math.sin(a) * d, f.slot);
+        const [tx, tz] = this.clampArena(f.x + Math.cos(a) * d, f.z + Math.sin(a) * d); // never out of reach behind the forest edge
+        this.spawnFruit(f.type, 0, f.x + Math.cos(a) * d * .5, 2.2, f.z + Math.sin(a) * d * .5, tx, tz, f.slot);
       }
     } else if (fromBush) { // same clump layout as the view (3 clumps at 0.42 H)
       for (let i = 0; i < n; i++) {

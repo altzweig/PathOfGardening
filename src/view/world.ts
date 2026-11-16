@@ -89,10 +89,19 @@ function buildGardenDeco() {
 }
 function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
 
+// clearings in the forest belt where nut trees can be planted: no bushes, rocks or undergrowth there
+let clearings: { x: number; z: number; r: number }[] = [], natureGroup: THREE.Group | null = null;
+const inClearing = (x: number, z: number) => clearings.some(c => (c.x - x) ** 2 + (c.z - z) ** 2 < c.r * c.r);
+export function setForestClearings(list: { x: number; z: number; r: number }[]) {
+  const key = (l: typeof list) => l.map(c => `${c.x.toFixed(2)},${c.z.toFixed(2)},${c.r}`).join(';');
+  if (key(list) === key(clearings)) return;
+  clearings = list;
+  if (natureReady && natureGroup) { scene.remove(natureGroup); natureGroup = null; buildNature(); } // models already there: rebuild with the clearings
+}
 function buildNature() {
-  const W = new THREE.Group(); W.name = 'nature'; scene.add(W);
+  const W = natureGroup = new THREE.Group(); W.name = 'nature'; scene.add(W);
   const dens = gfx.quality === 'niedrig' ? .45 : gfx.quality === 'mittel' ? .7 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
-  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list, o);
+  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list.filter(p => !inClearing(p.x, p.z)), o);
 
   // --- forest: twisted giants, dead trees, dark pines, a few broadleaf trees; a dense wall close in, thinner behind
   const taken: { x: number; z: number; d: number }[] = [];
@@ -116,7 +125,7 @@ function buildNature() {
   }
 
   // --- bushes on the rim (the eyes sit in them); some flowering
-  const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6);
+  const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6).filter(p => !inClearing(p.x, p.z));
   BUSHES.length = 0;
   const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.42, .5), rand(.45, .6), rand(.17, .24)) }; });
   const fl = bushList.filter(() => Math.random() < .25);

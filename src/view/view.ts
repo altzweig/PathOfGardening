@@ -32,7 +32,7 @@ import {
   part, punchStar, dustCloud, pxScale, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
-import { buildWorld, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
+import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { bedMaterial, lavaBedMaterial } from './textures';
@@ -234,6 +234,7 @@ export class GameView {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
+    setForestClearings(this.slots.filter(sl => sl.forest).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     const arc = cfg.rake.arc * Math.PI / 180;

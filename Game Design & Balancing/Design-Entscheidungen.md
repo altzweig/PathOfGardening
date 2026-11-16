@@ -234,3 +234,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Kein Aufleuchten des Feldes beim Harken. Stattdessen leuchten die Früchte der geharkten Pflanzen auf, je stärker, desto mehr Fläche ihres Dreiecks der Zug überdeckt hat.
 - Keine Fackeln mehr an den Beeten. Beet-Erde besteht aus mehreren überlagerten Harken-Decals (Furchen in zufälligen Richtungen, ausgefranster, nicht runder Umriss), die grob das Sechseck füllen und organisch darüber hinausgehen. Um jede Pflanze liegt dunkle nasse Erde als eigenes Decal mit unruhigem Übergang zur trockenen Erde. Das Chilibeet bleibt Lavagestein.
 - Beeren (Blaubeere, Preiselbeere) sind echte Beeren statt Kugeln: leicht abgeflacht, mit dunkler, eingesunkener Sternkrone, glänzend. Königsblau bzw. himbeerrot, kein milchiges Leuchten. Herumliegende Blaubeeren leuchten nur noch sanft anschwellend, je näher das nächste Level-up ist (max. ca. 1/10 von vorher). Das Leuchten der Beeren am Busch beim Harken ist ebenfalls deutlich schwächer.
+## VFX-Labor für Skill-Effekte (16.11.2026)
+- Entwickler-Werkzeug unter `vfx.html` (nicht im Spiel verlinkt): Effekte werden dort gestaltet und als JSON exportiert. Erklärtexte sind dort erlaubt, es ist kein Spieler-UI.
+- Effekte sind reine Daten aus Ebenen (Partikel, Bodeneffekt, Blitz, Schockwelle, Kristalle, Licht), System in `src/fx/` (siehe `src/fx/README.md`). Später wandern die Spiel-Effekte auf dieses System.
+- Startpresets: Feuer (Flammenwerfer), Zitronenblitz, Frostnova, Giftwolke, Kohl-Explosion, Heilung, Betäubung, Blätterwirbel.
+- Sprites: Kenney Particle Pack (CC0, schon im Spiel) plus selbst gezeichnete Formen (Leuchten, Funke, Stern, Schneeflocke, Blase, Plus, Blatt, Splitter).

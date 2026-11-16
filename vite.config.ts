@@ -74,5 +74,9 @@ function designFiles(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [designFiles()],
-  build: { target: 'es2020', chunkSizeWarningLimit: 2500 },
+  build: {
+    target: 'es2020', chunkSizeWarningLimit: 2500,
+    // vfx.html = VFX lab (developer tool for skill effects, not linked from the game)
+    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html') } },
+  },
 });

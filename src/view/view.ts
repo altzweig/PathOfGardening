@@ -32,10 +32,11 @@ import {
   part, punchStar, dustCloud, pxScale, rand, scene, sectorGeo, setBar, swipe, torch, updateFx, windU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
-import { buildWorld, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
+import { buildWorld, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { bedMaterial, lavaBedMaterial } from './textures';
+const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
@@ -200,6 +201,7 @@ export class GameView {
     this.rakeArcDeg = cfg.rake.arc;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
+    setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     const arc = cfg.rake.arc * Math.PI / 180;
@@ -777,7 +779,8 @@ export class GameView {
     const portrait = innerHeight > innerWidth;
     const z = this.zoom, off = V(0, (portrait ? 18 : 13.5) * z, (portrait ? 11.6 : 9.3) * z);
     const me = this.players.get(this.me);
-    const tx = me ? me.x : 0, tz = me ? me.z : 0;
+    let tx = me ? me.x : 0, tz = me ? me.z : 0;
+    if (DBG_CAM) { tx = DBG_CAM[0]; tz = DBG_CAM[1]; } // dev only: ?cam=x,z looks at that spot (screenshots)
     this.camX = lerp(this.camX, tx * .92, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
     this.shake = Math.max(0, this.shake - dt * 1.2);
     const sx = this.shake ? rand(-1, 1) * this.shake * .5 : 0, sz = this.shake ? rand(-1, 1) * this.shake * .5 : 0;

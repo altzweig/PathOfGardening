@@ -13,8 +13,15 @@ Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu 
 | FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03, GroundDirt_06 | `grass`, `grassdirt`, `dry` | Rasen rund um den Garten |
 | | | GroundDirt_05, GroundDirt_01 | `dirt`, `pebble` | Gartenboden in der Mitte |
 | | | GroundMud_01 | `mud` | Beete (Felder) |
-| FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | Steine am Gartenrand |
+| FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | (früher Steine am Gartenrand, derzeit nicht verwendet) |
 | FTP Stylized Mix Stones 01 | https://juliovii.itch.io/ftp-stylized-mix-stones-01 | Stylized_LavaRock_02 (+ Emissive) | `lava` | Chili-Beet |
+
+## 3D-Modelle (Umgebung)
+
+Von **Quaternius** – https://quaternius.com/ ([Patreon](https://www.patreon.com/quaternius))
+**Stylized Nature MegaKit** (Standard/Free-Version), Lizenz [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (laut `License_Standard.txt` im Paket).
+Verwendet für Wald (Twisted/Dead/Pine/Common Trees), Büsche, Farne, Pflanzen, Gras, Klee, Blumen, Pilze, Felsen, Kiesel und Trittsteine.
+Für das Spiel in `public/nature/nature.glb` zusammengefasst (Rinde/Pilze/Steine mit weniger Polygonen, Meshopt-komprimiert, gebaut mit `tools/build-nature.mjs`); Texturen auf 512 px (Gras 256 px) verkleinert, liegen ebenfalls in `public/nature/`.
 
 ## Effekte
 

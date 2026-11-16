@@ -1,10 +1,17 @@
 // Static garden + the dark rim: black bush/tree silhouettes with a faint cold edge,
 // and blinking eye pairs behind them (more of them where the next wave comes from).
 import * as THREE from 'three';
-import { GEO, LANT, M, V, envU, part, rand, scene, windU } from './core';
-import { groundMaterial, rockMaterial } from './textures';
+import { GEO, LANT, M, gfx, part, rand, scene } from './core';
+import { groundMaterial } from './textures';
+import { Inst, instance, loadNature } from './nature';
 
 const ARENA = 15;
+/** trodden paths from the forest into the garden: quadratic curves, also carry stepping stones */
+const PATHS = Array.from({ length: 7 }, (_, k) => ({ a: k / 7 * Math.PI * 2 + rand(-.2, .2), w: rand(7, 12) }));
+function pathPoint(a: number, t: number) {
+  const u = 1 - t, p0 = [Math.cos(a) * 26, Math.sin(a) * 26], p1 = [Math.cos(a + .3) * 12, Math.sin(a + .3) * 12], p2 = [Math.cos(a) * 4.5, Math.sin(a) * 4.5];
+  return { x: u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], z: u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1] };
+}
 
 /** control map for the ground shader: r = bare dirt (garden + trodden paths), g = worn patches, b = brightness (falls to black at the rim) */
 function groundControl() {
@@ -16,8 +23,8 @@ function groundControl() {
   for (let i = 0; i < 260; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(4, 16); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,120,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
   // trodden paths from the dark into the garden (red channel)
   g.strokeStyle = 'rgba(150,0,0,1)'; g.lineCap = 'round'; g.filter = 'blur(3px)';
-  for (let k = 0; k < 7; k++) {
-    const a = k / 7 * Math.PI * 2 + rand(-.2, .2); g.lineWidth = rand(7, 12); g.beginPath();
+  for (const P of PATHS) {
+    const a = P.a; g.lineWidth = P.w; g.beginPath();
     g.moveTo(toPx(Math.cos(a) * 26), toPx(Math.sin(a) * 26));
     g.quadraticCurveTo(toPx(Math.cos(a + .3) * 12), toPx(Math.sin(a + .3) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
   }
@@ -33,95 +40,130 @@ function groundControl() {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
 }
 
-function windify(mat: THREE.Material, amp = .09) {
-  mat.onBeforeCompile = sh => {
-    sh.uniforms.uTime = windU;
-    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      vec4 ip = instanceMatrix * vec4(0.,0.,0.,1.);
-      float h = max(position.y,0.);
-      transformed.x += sin(uTime*1.7 + ip.x*.55 + ip.z*.35) * ${amp} * h;
-      transformed.z += cos(uTime*1.25 + ip.x*.3) * ${amp * .6} * h;`);
-  };
-  return mat;
-}
-
-/** night: pure black with a thin moonlit rim -> reads as a silhouette against the dark;
- *  day: dark foliage green lit by the sun, fading into the haze */
-function silhouetteMat(rim = 0x26344a, pow = 2.6) {
-  return new THREE.ShaderMaterial({
-    uniforms: { uRim: { value: new THREE.Color(rim) }, uPow: { value: pow }, uLeaf: { value: new THREE.Color(0x355a2c) }, ...envU },
-    vertexShader: `varying vec3 vN; varying vec3 vV; varying float vD;
-      void main(){ vec4 lp=vec4(position,1.); vec3 n=normal;
-        #ifdef USE_INSTANCING
-          lp=instanceMatrix*lp; n=mat3(instanceMatrix)*n;
-        #endif
-        vec4 wp=modelMatrix*lp; vN=normalize(mat3(modelMatrix)*n); vV=normalize(cameraPosition-wp.xyz); vD=length(cameraPosition-wp.xyz);
-        gl_Position=projectionMatrix*viewMatrix*wp; }`,
-    fragmentShader: `uniform vec3 uRim; uniform float uPow; uniform vec3 uLeaf; uniform float uDay; uniform vec3 uSun; uniform vec3 uFogCol; uniform float uFogD;
-      varying vec3 vN; varying vec3 vV; varying float vD;
-      void main(){ vec3 n=normalize(vN); float f=pow(1.-abs(dot(n,normalize(vV))),uPow);
-        vec3 lit=uLeaf*(.35+.75*max(dot(n,uSun),0.)) + uRim*f*.4;
-        vec3 c=mix(uRim*f, lit, uDay);
-        float fg=1.-exp(-uFogD*uFogD*vD*vD); c=mix(c, uFogCol, fg*uDay); // only by day: at night the silhouettes stay black
-        gl_FragColor=vec4(c,1.); }`,
-  });
-}
-
 export function buildWorld() {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), groundMaterial(groundControl()));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  buildFog();
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
-  { // grass inside the garden only
-    const tuft = new THREE.BufferGeometry(); const pos: number[] = [];
-    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI, cc = Math.cos(a) * .09, s = Math.sin(a) * .09, lean = rand(-.05, .05); pos.push(-cc, 0, -s, cc, 0, s, lean, rand(.3, .45), lean * .5); }
-    tuft.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tuft.computeVertexNormals();
-    const gm = windify(new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: .9 }));
-    const N = 1300, im = new THREE.InstancedMesh(tuft, gm, N); let n = 0;
-    while (n < N) {
-      const a = rand(0, 7), r = Math.sqrt(Math.random()) * 16.5; if (r < 9.8) continue;
-      const s = rand(.7, 1.6) * (r > 12 ? 1.25 : 1);
-      m4.compose(V(Math.cos(a) * r, 0, Math.sin(a) * r), q.setFromAxisAngle(V(0, 1, 0), rand(0, 7)), V(s, s, s)); im.setMatrixAt(n, m4);
-      im.setColorAt(n, c.setHSL(rand(.2, .3), rand(.35, .55), rand(.1, .18) * (r > 13 ? .4 : 1))); n++;
-    }
-    im.receiveShadow = true; scene.add(im);
+  buildFog(); buildWisps();
+  const post = new THREE.Group(); part(post, GEO.cyl, M(0x3a2a1c), .06, 2.2, .06, 0, 1.1, 0); part(post, GEO.box, M(0x2a2a2a, { m: .6, r: .4 }), .22, .3, .22, 0, 2.3, 0);
+  part(post, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffc070 }), .09, .12, .09, 0, 2.3, 0, false);
+  post.position.copy(LANT); scene.add(post);
+  loadNature().then(buildNature).catch(e => console.error('nature models', e));
+}
+
+// ---------------- nature: forest, bushes, undergrowth, stones (Quaternius MegaKit) ----------------
+const white = new THREE.Color(1, 1, 1);
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const hsl = (h: number, s: number, l: number) => new THREE.Color().setHSL(h, s, l);
+/** random point in a ring, optionally rejecting points too close to earlier ones */
+function ringPts(n: number, r0: number, r1: number, minD = 0, taken: { x: number; z: number; d: number }[] = [], avoidLantern = 0) {
+  const out: { x: number; z: number; r: number; a: number }[] = [];
+  for (let tries = 0; out.length < n && tries < n * 40; tries++) {
+    const a = rand(0, Math.PI * 2), r = Math.sqrt(rand(r0 * r0, r1 * r1)), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (minD && taken.some(t => (t.x - x) ** 2 + (t.z - z) ** 2 < (minD + t.d) ** 2 / 4)) continue;
+    if (avoidLantern && (x - LANT.x) ** 2 + (z - LANT.z) ** 2 < avoidLantern ** 2) continue;
+    if (minD) taken.push({ x, z, d: minD });
+    out.push({ x, z, r, a });
   }
-  { // silhouettes: bushes on the rim, trees behind
-    const sil = silhouetteMat();
-    const NT = 80, trunks = new THREE.InstancedMesh(GEO.cyl, sil, NT), crowns = new THREE.InstancedMesh(GEO.cone, sil, NT * 2);
-    for (let i = 0; i < NT; i++) {
-      const a = i / NT * Math.PI * 2 + rand(-.04, .04), r = rand(15.3, 21), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.8, 1.6);
-      m4.compose(V(x, .6 * s, z), q.identity(), V(.18 * s, 1.2 * s, .18 * s)); trunks.setMatrixAt(i, m4);
-      m4.compose(V(x, 2 * s, z), q.setFromAxisAngle(V(0, 1, 0), rand(0, 7)), V(1.3 * s, 2.4 * s, 1.3 * s)); crowns.setMatrixAt(i * 2, m4);
-      m4.compose(V(x, 3.2 * s, z), q, V(.95 * s, 2 * s, .95 * s)); crowns.setMatrixAt(i * 2 + 1, m4);
-    }
-    scene.add(trunks, crowns);
-    const NB = 150, bushes = new THREE.InstancedMesh(GEO.ico, sil, NB);
-    for (let i = 0; i < NB; i++) {
-      const a = rand(0, Math.PI * 2), r = rand(13, 15), s = rand(.5, 1.05); // close to the garden: enemies visibly come out of here
-      m4.compose(V(Math.cos(a) * r, s * .45, Math.sin(a) * r), q.setFromEuler(new THREE.Euler(rand(-.3, .3), rand(0, 7), rand(-.3, .3))), V(s * rand(.9, 1.4), s * rand(.6, .9), s * rand(.9, 1.4)));
-      bushes.setMatrixAt(i, m4); BUSHES.push({ x: Math.cos(a) * r, y: s * .45, z: Math.sin(a) * r, r: s * .85, a });
-    }
-    scene.add(bushes);
+  return out;
+}
+// inside the garden only the band between the field slots and the lawn gets decoration (fields can be built on every slot)
+let freeSpot: ((x: number, z: number) => boolean) | null = null, natureReady = false, gardenDeco: THREE.Group | null = null;
+export function setGardenSlots(free: (x: number, z: number) => boolean) { freeSpot = free; if (natureReady) buildGardenDeco(); }
+function buildGardenDeco() {
+  if (!freeSpot) return;
+  if (gardenDeco) scene.remove(gardenDeco);
+  const G = gardenDeco = new THREE.Group(); scene.add(G);
+  const ok = (x: number, z: number) => [0, 1, 2, 3, 4, 5].every(k => freeSpot!(x + Math.cos(k * 1.047) * .45, z + Math.sin(k * 1.047) * .45)) && freeSpot!(x, z) && (x - LANT.x) ** 2 + (z - LANT.z) ** 2 > 1.2;
+  const pts = (n: number, r0: number, r1: number) => ringPts(n * 3, r0, r1).filter(p => ok(p.x, p.z)).slice(0, n);
+  const pebbles = pts(26, 6, 9.8).map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.6, 1.2), tilt: .3, shade: rand(.85, 1.1) }));
+  for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3', 'Pebble_Round_4', 'Pebble_Round_5'], pebbles)) instance(G, name, list);
+  // a few fallen petals near the lawn
+  for (const [name, list] of group(['Petal_1', 'Petal_2', 'Petal_3', 'Petal_5'], pts(18, 7.2, 10)))
+    instance(G, name, list.map(p => ({ x: p.x, z: p.z, y: .01, s: rand(.25, .4), tilt: .3, col: hsl(rand(.6, .85), .2, .6) })));
+  // grass creeping in from the lawn, and a few glowing mushrooms
+  for (const [name, list] of group(['Grass_Common_Short', 'Clover_1', 'Plant_7'], pts(34, 8.4, 10)))
+    instance(G, name, list.map(p => ({ x: p.x, z: p.z, s: rand(.25, .4), col: hsl(rand(.22, .35), .25, rand(.6, .72)) })));
+  const sh: Inst[] = [];
+  for (const p of pts(5, 7, 9.8)) for (let i = 0, n = 2 + Math.floor(Math.random() * 3); i < n; i++) { const x = p.x + rand(-.25, .25), z = p.z + rand(-.25, .25); if (ok(x, z)) sh.push({ x, z, s: rand(.3, .5), tilt: .3 }); }
+  instance(G, 'Mushroom_Common', sh);
+}
+function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
+
+function buildNature() {
+  const W = new THREE.Group(); W.name = 'nature'; scene.add(W);
+  const dens = gfx.quality === 'niedrig' ? .45 : gfx.quality === 'mittel' ? .7 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
+  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list, o);
+
+  // --- forest: twisted giants, dead trees, dark pines, a few broadleaf trees; a dense wall close in, thinner behind
+  const taken: { x: number; z: number; d: number }[] = [];
+  const trees: { name: string; s: number; col: () => THREE.Color; d: number; n: number; r0: number; r1: number }[] = [
+    { name: 'Twisted', s: .38, n: 11, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .3 ? hsl(rand(.7, .78), rand(.35, .5), rand(.32, .4)) : hsl(rand(.45, .52), rand(.45, .6), rand(.24, .32)) },
+    { name: 'Pine', s: .72, n: 28, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.48, .55), rand(.15, .3), rand(.62, .78)) },
+    { name: 'Dead', s: .42, n: 11, d: 2.6, r0: 15.4, r1: 25, col: () => white },
+    { name: 'Common', s: .62, n: 12, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.33, .42), rand(.4, .55), rand(.2, .28)) },
+  ];
+  const variants: Record<string, string[]> = {
+    Twisted: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), Dead: [1, 2, 3, 4, 5].map(i => 'DeadTree_' + i),
+    Pine: [1, 2, 4, 5].map(i => 'Pine_' + i), Common: [1, 3, 5].map(i => 'CommonTree_' + i),
+  };
+  for (const T of trees) {
+    const pts = ringPts(N(T.n), T.r0, T.r1, T.d, taken, 2.5);
+    for (const [name, list] of group(variants[T.name], pts)) add(name, list.map(p => {
+      const s = T.s * rand(.8, 1.2) * (p.r > 21 ? 1.15 : 1);
+      // giants lean their crowns toward the garden a little
+      return { x: p.x, z: p.z, y: -.1, s, col: T.col(), shade: rand(.75, 1.05), ry: T.name === 'Twisted' ? -p.a + rand(-.8, .8) : undefined };
+    }), { shadow: true, scale: T.s });
   }
-  { // rocks along the garden border, glowing mushrooms inside
-    const rocks = new THREE.InstancedMesh(GEO.lo, rockMaterial(0x8a8e96), 30);
-    for (let i = 0; i < 30; i++) {
-      const s = rand(.14, .25), ang = i / 30 * Math.PI * 2, r = rand(10, 10.4);
-      m4.compose(V(Math.cos(ang) * r, s * .3, Math.sin(ang) * r), q.setFromEuler(new THREE.Euler(rand(0, 3), rand(0, 3), 0)), V(s, s * .7, s)); rocks.setMatrixAt(i, m4);
-    }
-    rocks.castShadow = true; rocks.receiveShadow = true; scene.add(rocks);
-    const stems = new THREE.InstancedMesh(GEO.cyl, M(0x9a948a), 24), caps = new THREE.InstancedMesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0x1a3a40, emissive: 0x3fe0d0, emissiveIntensity: 1.6, roughness: .4 }), 24);
-    for (let i = 0; i < 24; i++) {
-      const a = rand(0, 7), r = rand(10.5, 12.5), x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(.6, 1.3);
-      m4.compose(V(x, .07 * s, z), q.identity(), V(.025 * s, .14 * s, .025 * s)); stems.setMatrixAt(i, m4);
-      m4.compose(V(x, .15 * s, z), q, V(.08 * s, .04 * s, .08 * s)); caps.setMatrixAt(i, m4);
-    }
-    scene.add(stems, caps);
-    const post = new THREE.Group(); part(post, GEO.cyl, M(0x3a2a1c), .06, 2.2, .06, 0, 1.1, 0); part(post, GEO.box, M(0x2a2a2a, { m: .6, r: .4 }), .22, .3, .22, 0, 2.3, 0);
-    part(post, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffc070 }), .09, .12, .09, 0, 2.3, 0, false);
-    post.position.copy(LANT); scene.add(post);
+
+  // --- bushes on the rim (the eyes sit in them); some flowering
+  const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6);
+  BUSHES.length = 0;
+  const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.42, .5), rand(.45, .6), rand(.17, .24)) }; });
+  const fl = bushList.filter(() => Math.random() < .25);
+  add('Bush_Common', bushList.filter(b => !fl.includes(b)), { shadow: true });
+  add('Bush_Common_Flowers', fl.map(b => ({ ...b, col: hsl(rand(.36, .44), .5, .24) })), { shadow: true });
+
+  // --- boulders: rim + forest floor, mossy cool grey
+  add('Rock_Medium_1', ringPts(N(7), 12.6, 22).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.35, .8), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
+  add('Rock_Medium_2', ringPts(N(7), 12.6, 22).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.3, .7), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
+  add('Rock_Medium_3', ringPts(N(6), 14, 24).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .9), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
+
+  // --- undergrowth: ferns and big leaves under the trees, grass + clover on the lawn
+  const fern = (n: number, r0: number, r1: number) => ringPts(N(n), r0, r1).map(p => ({ x: p.x, z: p.z, s: rand(.15, .26), tilt: .25, col: hsl(rand(.4, .5), rand(.2, .35), rand(.62, .75)) }));
+  add('Fern_1', fern(70, 13.4, 23));
+  add('Plant_1_Big', ringPts(N(26), 13.5, 22).map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.42, .52), .3, rand(.6, .72)) })));
+  add('Plant_1', ringPts(N(30), 11.5, 16).map(p => ({ x: p.x, z: p.z, s: rand(.35, .55), col: hsl(rand(.38, .5), .25, rand(.62, .75)) })));
+  for (const [name, list] of group(['Plant_7', 'Plant_7_Big'], ringPts(N(36), 10.6, 15))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.3, .5), .25, rand(.68, .8)) })));
+  const grassCol = () => hsl(rand(.2, .32), rand(.2, .35), rand(.58, .72));
+  for (const [name, list] of group(['Grass_Common_Short', 'Grass_Common_Short', 'Grass_Common_Tall'], ringPts(N(260), 10.3, 17.5)))
+    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.32, .55) * (p.r > 13 ? 1.25 : 1), col: grassCol() })));
+  add('Grass_Wispy_Tall', ringPts(N(40), 14.5, 22).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: grassCol() })));
+  for (const [name, list] of group(['Clover_1', 'Clover_2'], ringPts(N(36), 10.2, 14))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.28, .42), col: hsl(rand(.3, .45), .3, rand(.65, .78)) })));
+
+  // --- flowers that glow faintly at night
+  for (const [name, list] of group(['Flower_3_Group', 'Flower_4_Group', 'Flower_3_Single', 'Flower_4_Single'], ringPts(N(34), 10.8, 15.5)))
+    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.22, .34), col: hsl(rand(.6, .8), .25, .85) })));
+
+  // --- glowing mushrooms: two fairy rings on the lawn, clusters at the tree feet
+  const shrooms: Inst[] = [], bracket: Inst[] = [];
+  for (let k = 0; k < 2; k++) {
+    const a = rand(0, Math.PI * 2), r = rand(11.2, 12.6), cx = Math.cos(a) * r, cz = Math.sin(a) * r, rr = rand(.7, 1), n = 11;
+    for (let i = 0; i < n; i++) { const b = i / n * Math.PI * 2 + rand(-.15, .15); shrooms.push({ x: cx + Math.cos(b) * rr, z: cz + Math.sin(b) * rr, s: rand(.4, .65), tilt: .3 }); }
   }
+  for (const p of ringPts(N(10), 13.5, 20)) for (let i = 0, n = 2 + Math.floor(Math.random() * 4); i < n; i++) shrooms.push({ x: p.x + rand(-.4, .4), z: p.z + rand(-.4, .4), s: rand(.35, .7), tilt: .3 });
+  for (const p of ringPts(N(10), 15, 20)) bracket.push({ x: p.x, z: p.z, s: rand(.5, .8), tilt: .2 });
+  add('Mushroom_Common', shrooms); add('Mushroom_Laetiporus', bracket);
+
+  // --- stepping stones along the trodden paths, pebbles along the garden border
+  const stones: Inst[] = [];
+  for (const P of PATHS) for (let t = 0; t < 1; t += .028) {
+    const q = pathPoint(P.a, t), r = Math.hypot(q.x, q.z); if (r < 10.4 || r > 21 || Math.random() < .25) continue;
+    stones.push({ x: q.x + rand(-.35, .35), z: q.z + rand(-.35, .35), y: -.02, s: rand(.5, .75), shade: rand(.75, 1) });
+  }
+  for (const [name, list] of group(['RockPath_Round_Small_1', 'RockPath_Round_Small_2', 'RockPath_Round_Small_3'], stones)) add(name, list, { receive: true });
+  const pebbles = [...ringPts(N(34), 9.7, 10.8), ...ringPts(N(30), 10.8, 18)].map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.8, 1.5), tilt: .3, shade: rand(.85, 1.1) }));
+  for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3', 'Pebble_Round_4', 'Pebble_Round_5'], pebbles)) add(name, list, { shadow: gfx.quality === 'hoch' });
+  natureReady = true; buildGardenDeco();
 }
 
 // ---------------- eyes on the bushes ----------------
@@ -194,14 +236,40 @@ function buildFog() {
   for (let i = 0; i < 22; i++) {
     const mat = new THREE.SpriteMaterial({ map: fogTex, color: 0x8aa0c8, transparent: true, opacity: 0, depthWrite: false, fog: false });
     const s = new THREE.Sprite(mat); const sc = rand(5, 9); s.scale.set(sc, sc * .45, 1);
-    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(12.5, 16.5), y: rand(.4, 1.4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
+    // keep the sprite above the ground, otherwise the ground cuts a hard edge into it
+    const w: Wisp = { s, a: rand(0, Math.PI * 2), r: rand(12.5, 16.5), y: sc * .45 * .42 + rand(0, .4), da: rand(.008, .025) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), op: rand(.3, .55) };
     scene.add(s); wisps.push(w);
   }
 }
-const fogLook = { col: new THREE.Color(0x8aa0c8), mul: 1 };
+// will-o'-wisps: small cold lights wandering between the trees, mostly at night
+const wispTex = (() => {
+  const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.18, 'rgba(255,255,255,.75)'); grd.addColorStop(.45, 'rgba(255,255,255,.14)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv);
+})();
+interface Spirit { s: THREE.Sprite; a: number; r: number; y: number; da: number; ph: number; sp: number }
+const spirits: Spirit[] = [];
+function buildWisps() {
+  for (let i = 0; i < 16; i++) {
+    const col = new THREE.Color().setHSL(Math.random() < .6 ? rand(.47, .53) : rand(.72, .8), .9, .62);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: wispTex, color: col, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }));
+    s.scale.setScalar(rand(.35, .55)); scene.add(s);
+    spirits.push({ s, a: rand(0, Math.PI * 2), r: rand(10.5, 18), y: rand(.5, 2.2), da: rand(.02, .06) * (Math.random() < .5 ? -1 : 1), ph: rand(0, 7), sp: rand(.6, 1.4) });
+  }
+}
+function updateWisps(dt: number, night: number) {
+  for (const w of spirits) {
+    w.a += w.da * dt; w.ph += dt * w.sp;
+    w.s.position.set(Math.cos(w.a) * (w.r + Math.sin(w.ph * .4) * 1.2), w.y + Math.sin(w.ph) * .35, Math.sin(w.a) * (w.r + Math.sin(w.ph * .4) * 1.2));
+    const flick = .65 + .35 * Math.sin(w.ph * 3.1) * Math.sin(w.ph * 1.7);
+    (w.s.material as THREE.SpriteMaterial).opacity = (.12 + .88 * night) * flick;
+  }
+}
+const fogLook = { col: new THREE.Color(0x8aa0c8), mul: 1, night: 1 };
 /** colour + strength of the drifting fog (day-night) */
-export function setFogLook(col: THREE.Color, mul: number) { fogLook.col.copy(col); fogLook.mul = mul; }
+export function setFogLook(col: THREE.Color, mul: number, night = 1) { fogLook.col.copy(col); fogLook.mul = mul; fogLook.night = night; }
 export function updateFog(dt: number) {
+  updateWisps(dt, fogLook.night);
   for (const w of wisps) {
     w.a += w.da * dt; w.ph += dt * .25;
     const r = w.r + Math.sin(w.ph) * .8;

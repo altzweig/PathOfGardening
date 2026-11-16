@@ -9,11 +9,11 @@ const C = (h: number) => new THREE.Color(h);
 const sm = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // palette: night / warm sunrise-sunset / day
 const P = {
-  sky:    { n: C(0x060910), w: C(0x8a6a74), d: C(0xa9c6d8) },
+  sky:    { n: C(0x060910), w: C(0x8a6a74), d: C(0x9fc2c9) },
   hemiS:  { n: C(0x7b95c8), w: C(0xffc3a0), d: C(0xc4dcff) },
   hemiG:  { n: C(0x140f08), w: C(0x3a2a1a), d: C(0x4d4028) },
   light:  { n: C(0x9db6ff), w: C(0xffa868), d: C(0xffeccb) },
-  fog:    { n: C(0x8aa0c8), w: C(0xf0c8b8), d: C(0xeef3f6) },
+  fog:    { n: C(0x8aa0c8), w: C(0xf0c8b8), d: C(0xdcefee) },
 };
 const tmp = new THREE.Color(), cL = new THREE.Color(), cS = new THREE.Color(), cG = new THREE.Color(), cSky = new THREE.Color(), cF = new THREE.Color();
 function pick(o: { n: THREE.Color; w: THREE.Color; d: THREE.Color }, day: number, warm: number, out = tmp) {
@@ -72,7 +72,7 @@ function apply(S: DayState) {
   setTorchLevel(dark); setEyeNight(night);
   // drifting fog: thick and blue at night, morning mist at sunrise, thin haze by day
   const dawn = h > curLen - 2 || h < 1.5 ? warm : 0;
-  setFogLook(pick(P.fog, day, warm, cF), night * 1 + day * .25 + dawn * .9);
+  setFogLook(pick(P.fog, day, warm, cF), night * 1 + day * .25 + dawn * .9, Math.max(night, warm * .5));
   setDayNight(day);
 }
 /** current (smoothed) day state, e.g. fireflies at night, pollen by day */

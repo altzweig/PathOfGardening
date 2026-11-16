@@ -200,3 +200,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Nebelschwaden: nachts dicht und bläulich, bei Sonnenaufgang Morgennebel, tagsüber nur dünner Dunst. Glühwürmchen nur nachts, tagsüber treibende Pollen. Augen in den Büschen hauptsächlich nachts (Warn-Augen vor einer Gruppe immer).
 - Geräusche: tagsüber Vogelgezwitscher und ab und zu Krähen, nachts Grillen, Fackelknistern und Eule; überblendet mit der Tageszeit (`sounds.yaml`: `ambient`, `calls`).
 - Testen: `?h=20` an die URL hängen zeigt fest diese Stunde (0–24).
+
+## Mystische Umgebung mit dem Stylized Nature MegaKit (16.11.2026)
+
+- Alle Umgebungsmodelle stammen jetzt aus Quaternius' Stylized Nature MegaKit (CC0). Die alten Kegel-Bäume, Kugel-Büsche, Felsbrocken, Pilze und Grasbüschel sind ersetzt. Felder, Pflanzen, Tiere, Waffen, Fackeln und Laterne bleiben wie sie sind.
+- Aufbau von innen nach außen: Garten (Erde) → Rasenring mit Gras, Klee, Blumen, Kieseln und zwei leuchtenden Hexenringen aus Pilzen → Buschring (hier sitzen die Augen) mit Farnen und Felsen → dichter Wald aus knorrigen Riesenbäumen, toten Bäumen, dunklen Kiefern und ein paar Laubbäumen. Auf den ausgetretenen Pfaden liegen Trittsteine.
+- Farben: Laub in Petrol/Blaugrün mit einzelnen violetten Kronen, dunkle Kiefern, graublaue Felsen. Tagsüber leicht türkiser Dunst.
+- Nacht: alles ab dem Buschring versinkt im Dunkeln mit kühlem Randlicht (wie vorher die Silhouetten), Pilze und Blumen leuchten, Irrlichter (türkis/violett) schweben zwischen Garten und Wald. Tagsüber leuchten sie nur schwach.
+- Im Garten liegt Deko (Kiesel, Gras, einzelne Blüten und Pilze) nur außerhalb der 20 Feldplätze, damit Beete nie Deko durchstoßen.
+- Leistung: jedes Modell wird instanziert (eine Zeichnung pro Modell und Material), Dichte je Grafikstufe (hoch 100 %, mittel 70 %, niedrig 45 %). Laubkarten bekommen keine Eigenschatten (sonst flimmern sie).

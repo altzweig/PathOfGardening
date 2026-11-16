@@ -14,6 +14,7 @@ export const CREDITS: Group[] = [
       { name: 'FTP Stylized Mix Stones 01', url: 'https://juliovii.itch.io/ftp-stylized-mix-stones-01' },
     ],
   },
+  { title: '3D-Modelle', author: { name: 'Quaternius', url: 'https://quaternius.com/' }, license: CC0, items: [{ name: 'Stylized Nature MegaKit', url: 'https://quaternius.com/packs/stylizednaturemegakit.html' }] },
   { title: 'Effekte', author: { name: 'Kenney', url: 'https://kenney.nl/' }, license: CC0, items: [{ name: 'Particle Pack', url: 'https://kenney.nl/assets/particle-pack' }] },
   { title: 'Sounds', author: { name: 'aslakhostaker', url: 'https://freesound.org/people/aslakhostaker/' }, license: CC0, items: [{ name: 'Flamethrower short and medium length bursts', url: 'https://freesound.org/s/395038/' }] },
   { title: 'Sounds', author: { name: '1bob', url: 'https://freesound.org/people/1bob/' }, license: CC0, items: [{ name: 'Flamethrower', url: 'https://freesound.org/s/831929/' }] },

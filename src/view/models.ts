@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
-import { GEO, M, envU, part, rand, windU } from './core';
+import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
 export const FRUIT_COL: Record<FruitType, string> = { blue: '#5a74ff', asp: '#8fe36a', cran: '#ff4d5e', cab: '#b8f070', lemon: '#ffe44a', chili: '#ff3a1a', nut: '#c08a4a' };
@@ -104,9 +104,17 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
 
 export const PLAYER_COATS = [0x3c5a3e, 0x34507a, 0x7a3a34, 0x5e3f7a];
 export const PLAYER_RING = [0xffd890, 0x8fc8ff, 0xff9a8a, 0xd0a0ff];
-export function buildPlayer(color: number, rakeLen: number) {
+const RAKE_STEEL = M(0xa8b0b8, { m: .8, r: .35 });
+/** rake head as wide as the raked strip: one tine per scratch, same spacing (wider rake = more tines) */
+export function rakeHead(w: number) {
+  const head = new THREE.Group(), n = rakeTines(w);
+  part(head, GEO.box, RAKE_STEEL, n * TINE_GAP, .04, .05, 0, 0, 0);
+  for (let i = 0; i < n; i++) part(head, GEO.cyl, RAKE_STEEL, .012, .12, .012, -w / 2 + w * (i + .5) / n, -.06, .02);
+  head.userData.w = w; return head;
+}
+export function buildPlayer(color: number, rakeLen: number, rakeW: number) {
   const g = new THREE.Group();
-  const coat = M(PLAYER_COATS[color % 4]), skin = M(0xe0b08a), straw = M(0xc9a35a), dark = M(0x2a2420), wood = M(0x7a5230), steel = M(0xa8b0b8, { m: .8, r: .35 });
+  const coat = M(PLAYER_COATS[color % 4]), skin = M(0xe0b08a), straw = M(0xc9a35a), dark = M(0x2a2420), wood = M(0x7a5230);
   const body = new THREE.Group(); g.add(body);
   part(body, GEO.capsule, coat, .22, .32, .2, 0, .62, 0);
   part(body, GEO.box, M(0x6b4a2a), .46, .08, .4, 0, .52, 0);
@@ -123,8 +131,7 @@ export function buildPlayer(color: number, rakeLen: number) {
   const rake = new THREE.Group(); rake.position.set(0, .62, 0); rake.rotation.order = 'YXZ'; g.add(rake);
   const L = rakeLen - .12;
   const h = part(rake, GEO.cyl, wood, .025, L, .025, 0, 0, L / 2); h.rotation.x = Math.PI / 2;
-  part(rake, GEO.box, steel, .42, .04, .05, 0, 0, L);
-  for (let i = 0; i < 6; i++) part(rake, GEO.cyl, steel, .012, .12, .012, -.18 + i * .072, -.06, L + .02);
+  const head = rakeHead(rakeW); head.position.z = L; rake.add(head);
   // lemon wand (Citrateaser): second arm + slim wooden wand with a lemon on the tip, only while equipped
   const wand = new THREE.Group(); wand.visible = false; body.add(wand);
   const arm2 = part(wand, GEO.cyl, coat, .055, .38, .055, -.26, .78, .08); arm2.rotation.x = -1.0;
@@ -142,7 +149,7 @@ export function buildPlayer(color: number, rakeLen: number) {
   const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .56); stick.add(wandTip);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
-  return { g, body, rake, stars, coat, L, hat, wand, wandTip, lemonMat };
+  return { g, body, rake, head, stars, coat, L, hat, wand, wandTip, lemonMat };
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green

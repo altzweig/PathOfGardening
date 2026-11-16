@@ -174,20 +174,36 @@ export function decal(x: number, z: number, color: number, r: number, life: numb
   m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 7); m.position.set(x, .03 + Math.random() * .008, z); m.scale.setScalar(r); scene.add(m);
   fx.push({ m, t: 0, life, r0: r, r1: o.grow ?? r, op: o.op ?? .75, own: false });
 }
+/** rake tines: fixed spacing, a wider rake gets more tines (and leaves more scratches), nothing is stretched */
+export const TINE_GAP = .075;
+export const rakeTines = (w: number) => Math.max(4, Math.round(w / TINE_GAP));
 /** flat rectangle in the XZ plane: width along X, length along +Z from the origin (rotate with rotation.y = aim angle) */
 export function rectGeo(w: number, l: number) { const g = new THREE.PlaneGeometry(w, l); g.rotateX(-Math.PI / 2); g.translate(0, 0, l / 2); return g; }
-/** rake stroke: exactly the hit rectangle (laid down `len` ahead, pulled back to the player) + tine scratches in the ground */
-export function rakeSweep(x: number, z: number, angle: number, len: number, w: number, color = 0xffe3a0) {
-  const add = (g: THREE.BufferGeometry, c: number, op: number, life: number, y: number, blend = true) => {
-    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: blend ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, side: THREE.DoubleSide }));
-    m.rotation.y = angle; m.position.set(x, y, z); scene.add(m); fx.push({ m, t: 0, life, r0: 1, r1: 1, op, own: true });
+/** rake stroke: scratch marks of the tines in the ground, one per tine (same spacing as the rake head), each slightly
+ *  wavy, tapered and with ragged start/end (random length, short side scratches where the tines bite in and lift off) */
+export function rakeSweep(x: number, z: number, angle: number, len: number, w: number) {
+  const pos: number[] = [], n = rakeTines(w);
+  const strip = (cx: number, z0: number, z1: number, hw: number, wob: number) => {
+    const S = 10, ph = rand(0, 7), pts: [number, number, number][] = [];
+    for (let i = 0; i <= S; i++) {
+      const t = i / S, zz = lerp(z0, z1, t), taper = Math.pow(Math.sin(Math.PI * Math.min(1, .15 + t * .85)), .6);
+      pts.push([cx + Math.sin(ph + t * 5) * wob + rand(-.004, .004), zz, hw * taper * rand(.6, 1.15)]);
+    }
+    for (let i = 0; i < S; i++) {
+      const [ax, az, aw] = pts[i], [bx, bz, bw] = pts[i + 1];
+      pos.push(ax - aw, 0, az, bx - bw, 0, bz, bx + bw, 0, bz, ax - aw, 0, az, bx + bw, 0, bz, ax + aw, 0, az);
+    }
   };
-  add(rectGeo(w, len), color, .32, .3, .06);
-  // bright far edge where the rake was laid down
-  const e = rectGeo(w, .08); e.translate(0, 0, len - .08); add(e, 0xfff2c0, .8, .2, .07);
-  // scratch marks of the tines
-  const n = Math.max(4, Math.round(w / .14));
-  for (let i = 0; i < n; i++) { const g = rectGeo(.025, len * .92); g.translate(-w / 2 + w * (i + .5) / n, 0, len * .04); add(g, 0x24170d, .45, 1.1, .05, false); }
+  for (let i = 0; i < n; i++) {
+    const cx = -w / 2 + w * (i + .5) / n, z0 = len * rand(0, .14), z1 = len * rand(.8, 1);
+    strip(cx, z0, z1, .011, .012);
+    // frayed ends: short skewed scratches where the tine bit in (far end) and lifted off (near end)
+    if (Math.random() < .55) { const s = rand(-.03, .03); strip(cx + s, z1 - rand(.06, .16), z1 + rand(0, .05), .006, .01); }
+    if (Math.random() < .45) { const s = rand(-.03, .03); strip(cx + s, Math.max(0, z0 - rand(0, .04)), z0 + rand(.05, .14), .006, .01); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x24170d, transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide }));
+  m.rotation.y = angle; m.position.set(x, .05, z); scene.add(m); fx.push({ m, t: 0, life: 1.2, r0: 1, r1: 1, op: .5, own: true });
 }
 /** rake swipe: exactly the hit cone (radius = range, arc) */
 export function swipe(x: number, z: number, angle: number, radius: number, arc: number, color = 0xffe3a0) {

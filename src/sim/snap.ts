@@ -14,7 +14,7 @@ export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: fal
 export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
-  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
+  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number; rt: number;
   xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped

@@ -33,14 +33,14 @@ import {
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
-import { GROUND_MAT } from './models';
+import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { bedMaterial, lavaBedMaterial } from './textures';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -266,7 +266,7 @@ export class GameView {
     for (const ps of s.pl) {
       seenP.add(ps.id); let v = this.players.get(ps.id);
       if (!v) {
-        const b = buildPlayer(ps.c, this.cfg.rake.range); this.dyn.add(b.g);
+        const b = buildPlayer(ps.c, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
         const ring = new THREE.Mesh(GEO.ring, addMat(PLAYER_RING[ps.c % 4], .4)); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(.5); ring.position.y = .035; this.dyn.add(ring);
         v = { ...b, ring, bar: makeBar(.7, .07, 0x6fcf4a), s: ps, x: ps.x, z: ps.z, rot: ps.f, recoil: 0 };
         this.players.set(ps.id, v);
@@ -649,17 +649,19 @@ export class GameView {
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
     // rake model: handle from the hands (pivot .62 m up) to the head; head distance d and height y set length + tilt
     const R = this.cfg.rake, reach = s.rr || R.range, L0 = R.range - .12, HY = .62;
-    v.rake.scale.x = (s.ra || R.width) / R.width; // wider head with width upgrades
+    const rw = s.ra || R.width; // width upgrade: rebuild the head with more tines (nothing stretched)
+    if (v.head.userData.w !== rw) { const h = rakeHead(rw); h.position.copy(v.head.position); v.rake.remove(v.head); v.rake.add(h); v.head = h; }
     v.rake.position.z = 0;
     const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
     if (swinging) { // human raking: reach out and lay the rake down `reach` ahead, then pull it back to the feet
-      const k = s.sw; v.rake.rotation.y = 0;
+      const k = s.sw; v.rake.rotation.y = s.rt || 0; // alternating strokes from the left / right
       if (k < .3) { const t = k / .3; aimRake(lerp(.55, reach, t), .3 * (1 - t * t) + .02); v.body.rotation.x = .2 * t; }
       else { const t = (k - .3) / .7, e = t * t * (3 - 2 * t); aimRake(lerp(reach, .4, e), .02); v.body.rotation.x = .2 * (1 - e) - .06 * Math.sin(e * Math.PI); }
     } else {
       v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2);
       const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
     }
+    v.head.scale.z = 1 / Math.max(.05, v.rake.scale.z); // the handle stretches with the reach, the head keeps its shape
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.hatHp(v, s.hp / s.mhp);
@@ -815,7 +817,7 @@ export class GameView {
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
     if (w === 'rake' || w === 'cran') {
       const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
-      if (w === 'rake') { this.rakeW = me.s.ra || this.cfg.rake.width; m.visible = true; m.scale.set(this.rakeW, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang; return; } // rectangle: width x reach
+      if (w === 'rake') return; // no marker: the scratches of the stroke show where the rake worked
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp' || w === 'lemon') {
       const m = this.aimInd.asp, r = rng(w);

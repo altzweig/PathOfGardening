@@ -54,7 +54,7 @@ interface SkillState { learned: boolean; lvDmg: number; lvRange: number; lvCd: n
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
-  stun: number; stunMax: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; walk: number; flash: number; tillT: number;
+  stun: number; stunMax: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; swingTilt: number; rakeSide: number; walk: number; flash: number; tillT: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null;
@@ -139,7 +139,7 @@ export class Sim {
     const mk = (): SkillState => ({ learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
-      stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, walk: 0, flash: 0, tillT: 0,
+      stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, swingTilt: 0, rakeSide: 1, walk: 0, flash: 0, tillT: 0,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, wid: 0, cd: 0 }, xbT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
@@ -506,11 +506,14 @@ export class Sim {
     p.rakeCd = this.rakeStats(p).cd; p.aimX = dx; p.aimZ = dz; p.face = Math.atan2(dx, dz);
     // one stroke = lay the rake down `range` m ahead and pull it back: hits every enemy in the rectangle
     // and tills every field it covers (in proportion to the covered area)
+    // strokes alternate: from the left, then from the right, the rectangle turned by rake.tilt degrees around the player
+    p.rakeSide = -p.rakeSide; const tilt = p.rakeSide * (R.tilt ?? 15) * Math.PI / 180;
+    { const c = Math.cos(tilt), s = Math.sin(tilt), nx = dx * c + dz * s, nz = -dx * s + dz * c; dx = nx; dz = nz; }
     const targets = this.enemies.filter(e => !e.dead && this.inRakeRect(p, e, dx, dz));
-    p.swing = R.swingTime; p.swingDir = p.face;
+    p.swing = R.swingTime; p.swingDir = p.face; p.swingTilt = tilt;
     this.snd('rake');
     const RS = this.rakeStats(p);
-    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(p.swingDir), p: p.id, r: r2(RS.range), w: r2(RS.width) });
+    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(Math.atan2(dx, dz)), p: p.id, r: r2(RS.range), w: r2(RS.width) });
     this.till(p, dx, dz);
     let hits = 0;
     for (const e of targets) if (this.hurtEnemy(e, RS.dmg, { color: 'r', punch: true })) {
@@ -1484,7 +1487,7 @@ export class Sim {
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
-        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width),
+        sw: p.swing > 0 ? r2(1 - p.swing / sw) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.cfg.rake.swingTime * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width), rt: r2(p.swingTilt),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: p.xbT > 0 || p.active === 'asp' ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') ? 1 : 0,
       })),

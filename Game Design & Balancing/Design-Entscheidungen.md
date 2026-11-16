@@ -19,7 +19,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Das Spiel ist insgesamt dunkel. Am Rand ist es komplett schwarz, nur Silhouetten von Büschen und Bäumen.
 - Auf den Büschen am Rand sitzen kleine Augenpaare (2–3 pro Busch, alle gleich groß ±10 %, dunkelblau bis lila). Sie leuchten selbst, beleuchten aber nichts und haben keinen Bloom. Beim Blinzeln klappen Lider schnell runter und hoch. Kurz vor einem Stoß füllen sich die Büsche in dieser Richtung mit Augen (`waves.warnTime`).
 - Früchte am Busch leuchten nicht, nur Früchte, die herumliegen. Geschosse leuchten deutlich stärker.
-- Harken-Animation und Trefferfläche sind identisch: ein Rechteck vor dem Spieler (Länge `rake.range`, Breite `rake.width`).
+- Harken-Animation und Trefferfläche sind identisch: ein Rechteck vor dem Spieler (Länge `rake.range`, Breite `rake.width`). Kein Marker: Nur die Kratzspuren der Zinken zeigen, wo geharkt wurde. Der Harkenkopf ist genau so breit wie die Spur, mit einer Zinke pro Kratzer im festen Abstand (7,5 cm). Beim Breite-Upgrade kommen Zinken und Kratzer dazu, nichts wird verzerrt. Die Kratzer sind leicht wellig und an Anfang und Ende ausgefranst. Die Züge kommen abwechselnd von links und rechts, das Rechteck ist dabei um `rake.tilt` (15°) um den Spieler gedreht.
 - Jeder Harkentreffer: Comic-Punch-Stern pro getroffenem Gegner + Punch-Sound pro Ziel (leicht versetzt), damit man hört und sieht, wie viele getroffen wurden.
 
 ## Gegner

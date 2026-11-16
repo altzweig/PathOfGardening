@@ -150,6 +150,7 @@ rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
   range: 1.2               # m, so weit vor sich legt man die Harke an und zieht sie bis zu sich zurück (Länge des Rechtecks)
   width: 0.9               # m, Breite des geharkten Rechtecks (Treffer + Beackern)
+  tilt: 15                 # Grad, Harkenzüge abwechselnd von links und rechts, Rechteck um so viel um den Spieler gedreht
   cooldown: 0.5            # s
   swingTime: 0.3           # s, Animation: Harke vorstrecken, ablegen, zurückziehen
   knockback: 0             # m Rückstoß pro Treffer (kein Upgrade mehr, 16.11.2026)

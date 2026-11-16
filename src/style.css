@@ -254,3 +254,19 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #lobbyPlayers .lp{position:relative}
 #lobbyPlayers .lp b{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:13px;white-space:nowrap;color:var(--parch)}
 #lobbyPlayers{margin-bottom:18px}
+/* build preview: ghost field, rate change, neighbour bonus, synergy chips on shared edges */
+.fInfo.ghost{opacity:.85}
+.fRate b{font-weight:700;color:var(--gold);margin:0 calc(var(--u)*2)}
+.fRate.up{border-color:#7dff6a;color:#c8ffb0}
+.fRate.down{border-color:#ff6a5a;color:#ffb0a0}
+.fRate em.nb{display:flex;align-items:center;gap:calc(var(--u)*1.5);margin-left:calc(var(--u)*4);font-style:normal;font-size:calc(var(--u)*11);color:#9fe88a}
+.fRate em.nb svg{width:calc(var(--u)*13);height:calc(var(--u)*11)}
+.fEdge{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*1);--u:1px;filter:drop-shadow(0 0 calc(var(--u)*3) #000) drop-shadow(0 0 calc(var(--u)*2) #000)}
+.fEdge[hidden]{display:none}
+.fEdge svg{width:calc(var(--u)*26);height:calc(var(--u)*16)}
+.fEdge .in{color:#8fff70}
+.fEdge .out{color:#ffd860}
+.fEdge .loss{color:#ff6a5a}
+.fRate em.nb.chg{color:#ffd860}
+.fInfo.hov .fRate{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);border-color:var(--gold);box-shadow:0 0 calc(var(--u)*8) #000c}
+.fInfo.hov.ghost .fRate,.fInfo.hov .fRate.up{border-color:#7dff6a}

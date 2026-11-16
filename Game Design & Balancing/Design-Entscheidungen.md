@@ -253,3 +253,9 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Mit Hut verschwinden Haarteile, die durch den Hut stechen würden (Locken oben, Strähnen); der Dutt rutscht in den Nacken.
 - Aussehen wird im Browser gespeichert (localStorage) und im Koop an alle geschickt; über Mitspielern steht ihr Name in ihrer Spielerfarbe. Der farbige Ring am Boden bleibt die Spielerfarbe.
 - Hände greifen per IK, was gerade benutzt wird: Harke beidhändig am Stiel, Zitronenstab links, Armbrust und Chili-Flammenwerfer beidhändig. Beine laufen mit der Laufphase, Arme schwingen beim Gehen.
+
+## Nachbarboni und Bau-Vorschau (16.11.2026)
+- Regel (unverändert): Jedes Feld bekommt +10 % Produktion je Seltenheitsstufe jedes angrenzenden lebenden Feldes, egal welche Frucht (`fields.neighborBonus`, additiv). Gewöhnliche Felder (Stufe 0) geben nichts, ein grünes +10 %, ein blaues +20 % usw. Die eigene Seltenheit zählt zusätzlich ×1,5 je Stufe.
+- Im Baumodus zeigt jeder Produktions-Chip den aktuellen Nachbarbonus (Doppel-Hex-Icon + %).
+- Vorschau beim Zeigen auf ein Feld: Auf freiem Platz erscheint das neue Feld halbtransparent mit seiner Produktion. Alle Felder, deren Produktion sich durch den Bau ändert, zeigen „alt → neu /s“ (grün mehr, rot weniger). Pfeile auf den gemeinsamen Kanten: grün = Nachbar gibt dem neuen Feld Bonus, gold = das Feld gibt dem Nachbarn Bonus, rot = Nachbar verliert Bonus (Überbauen eines höherstufigen Feldes).
+- Handy: erstes Tippen zeigt die Vorschau, zweites Tippen auf dasselbe Feld baut (beim Überbauen danach noch die Bestätigung). Maus baut weiter mit einem Klick.

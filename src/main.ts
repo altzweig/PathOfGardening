@@ -115,6 +115,9 @@ class Game {
     canvas.addEventListener('pointerup', e => {
       if (!this.view.placing || this.view.confirmSlot >= 0) return;
       const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
+      // touch: first tap shows the preview (rates, neighbour synergies), a second tap on the same spot builds
+      if (e.pointerType !== 'mouse' && slot !== this.touchSel) { this.touchSel = slot; this.view.setHover(e.clientX, e.clientY); sfx('ui.hover'); return; }
+      this.touchSel = -1;
       // overbuilding another fruit: safety confirmation first
       const there = this.view.fieldTypeAt(slot);
       if (there && there !== this.view.placing) { this.askOverbuild(slot, there, this.view.placing); return; }
@@ -135,6 +138,7 @@ class Game {
     only('#editor');
     this.editor.open(this.look, l => { this.look = l; next(); }, () => only('#menu'));
   }
+  private touchSel = -1;
   private doPlace(slot: number) {
     if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
     sfx('ui.confirm');
@@ -291,6 +295,7 @@ class Game {
     // build mode: card chosen, now pick a spot in the top-down view
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
     this.view.setPlacing(placing);
+    if (!placing) this.touchSel = -1;
     show('#placeBar', !!placing);
     if (!placing && this.view.confirmSlot >= 0) { this.view.confirmSlot = -1; show('#placeConfirm', false); }
     if (placing) {

@@ -191,12 +191,13 @@ export class Sim {
     return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
   }
   /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries; without tilling) */
-  rate(f: Field) {
-    if (!f.alive) return 0;
-    const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]);
-    let n = (this.cfg.plants[f.type].amount || 1) * (1 + dbl);
-    if (f.type === 'blue') n += this.f(this.cfg.coop.xpYieldExponent) - 1;
-    return n * this.prodMult(f) / this.cfg.plants[f.type].interval;
+  rate(f: Field) { return f.alive ? this.baseRate(f.type) * this.prodMult(f) : 0; }
+  /** fruit per second of a common field of this type without neighbours (double harvest, coop blueberries) */
+  baseRate(t: FruitType) {
+    const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[t]);
+    let n = (this.cfg.plants[t].amount || 1) * (1 + dbl);
+    if (t === 'blue') n += this.f(this.cfg.coop.xpYieldExponent) - 1;
+    return n / this.cfg.plants[t].interval;
   }
   /** types that were ever on the board (a dead field disappears, but its type still counts as owned) */
   lost = new Set<FruitType>();
@@ -1545,6 +1546,7 @@ export class Sim {
       pj: this.projs.map(p => [p.id, p.kind === 'asp' ? 0 : 1, r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : 1)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0]),
       mi: this.mines.map(m => [m.id, r2(m.x), r2(m.z), r2(clamp(1 - m.t / this.cfg.skills.cran.splashDelay, 0, 1))]),
+      br: FRUITS.map(t => Math.round(this.baseRate(t) * 1000) / 1000),
       fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / this.cfg.skills.cab.poolDuration))]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),

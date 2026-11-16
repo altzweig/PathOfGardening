@@ -55,6 +55,7 @@ export interface Snap {
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss
+  br?: number[];  // per fruit type: fruit per second of a common field without neighbours
   me: Record<number, Priv>;
   ev: Ev[];
 }

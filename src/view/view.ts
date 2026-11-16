@@ -2,7 +2,7 @@
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
 import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon } from '../config';
-import { Slot, cornerAngle, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
+import { Slot, cornerAngle, hexDist, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -50,7 +50,8 @@ interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: n
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 /** nature-pack broadleaf tree (about 7 units tall) scaled to a ~3.5 m nut tree */
 const NUT_TREE_SCALE = .5;
-const BADGE = 1.0; // badge diameter in hex radii
+const BADGE = 1.0;
+const EDGE_T = .38; // synergy chips sit on the line to each neighbour, this far from the hovered field's centre // badge diameter in hex radii
 const BADGES: Record<string, THREE.CanvasTexture> = {};
 function badgeTex(t: FruitType, rarity = 0) {
   const key = t + rarity, have = BADGES[key]; if (have) return have;
@@ -178,7 +179,7 @@ export class GameView {
     if (this.placing === type) return;
     this.placing = type; this.hoverSlot = -1;
     for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
-    this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = [];
+    this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = []; this.edgeEls = [];
     if (!type || !this.cfg) return;
     const H = hexR(this.cfg);
     for (const s of this.slots) {
@@ -200,6 +201,13 @@ export class GameView {
   private infoLayer = (() => { const d = document.createElement('div'); d.id = 'fieldInfo'; document.getElementById('dmg')!.after(d); return d; })();
   private infoEls: HTMLElement[] = [];
   private infoKey: string[] = [];
+  /** synergy chips on the edges between the hovered slot and its neighbours */
+  private edgeEls: HTMLElement[] = [];
+  private edgeChip(k: number) {
+    let el = this.edgeEls[k];
+    if (!el || !el.isConnected) { el = document.createElement('div'); el.className = 'fEdge'; this.infoLayer.appendChild(el); this.edgeEls[k] = el; }
+    return el;
+  }
   setHover(cx: number, cy: number) { this.hoverSlot = this.slotFromScreen(cx, cy); }
   /** slot kept highlighted while the overbuild confirmation is open */
   confirmSlot = -1;
@@ -218,48 +226,111 @@ export class GameView {
     // screen scale of one hex (for the HTML labels)
     const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera);
     const px = Math.abs(pb.x - pa.x) * innerWidth / 2; // pixels per H
+    const pv = this.buildPreview(type);
     this.slotOverlay.children.forEach((g, i) => {
-      if (!g.visible) { this.fieldInfo(i, null, false, false, px); return; }
+      if (!g.visible) { this.fieldInfo(i, null, false, false, px, pv); return; }
       const [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
       const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
       const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
       const hov = i === this.hoverSlot || i === this.confirmSlot;
       const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
-      if (f && f.alive) {
+      const ghost = hov && pv.slot === i && (!f || !f.alive);
+      if (ghost) { // preview of the new field on a free spot
+        badge.visible = true; const t = badgeTex(this.placing!, 0); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
+        badge.scale.setScalar(hexR(this.cfg) * BADGE * (.96 + .04 * Math.sin(performance.now() / 160))); bm.color.set(0xffffff); bm.opacity = .85;
+      } else if (f && f.alive) {
         const t = badgeTex(FRUITS[f.type], f.rarity); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
         const over = !same && hov, now = performance.now() / 1000;
         badge.scale.setScalar(hexR(this.cfg) * BADGE * (hov ? 1.1 : 1) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
         bm.color.set(over ? 0xffb0a0 : 0xffffff); bm.opacity = hov ? 1 : .92;
       }
-      (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? .38 : .07;
+      (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? (f && f.alive ? .38 : .16) : .07;
       (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : .45;
-      this.fieldInfo(i, f && f.alive ? f : null, same, hov, px);
+      this.fieldInfo(i, f && f.alive ? f : null, same, hov, px, pv);
     });
+    this.edgeInfo(pv, px);
+  }
+
+  /** what the build under the pointer would change: new rarity on the hovered slot, rates before/after for every field */
+  private buildPreview(type: number) {
+    const F = this.cfg.fields, cost = F.rarityCost, br = this.snap?.br ?? [];
+    const cur = new Map<number, { t: number; r: number }>();
+    for (const [slot, v] of this.fields) if (v.alive) cur.set(slot, { t: v.type, r: v.rarity });
+    const h = this.confirmSlot >= 0 ? this.confirmSlot : this.hoverSlot;
+    const g = h >= 0 ? this.slotOverlay.children[h] : null;
+    const next = new Map(cur);
+    let slot = -1;
+    if (g && g.visible) {
+      slot = h; const c = cur.get(h), v = this.fields.get(h);
+      if (c && c.t === type && v) next.set(h, { t: type, r: c.r < cost.length && v.prog + 1 >= cost[c.r] ? c.r + 1 : c.r });
+      else next.set(h, { t: type, r: 0 });
+    }
+    const nbSum = (m: Map<number, { t: number; r: number }>, i: number) => { let n = 0; for (const [o, x] of m) if (o !== i && hexDist(this.slots[i], this.slots[o]) === 1) n += x.r; return n; };
+    const rate = (m: Map<number, { t: number; r: number }>, i: number) => { const x = m.get(i); return x ? (br[x.t] ?? 0) * Math.pow(F.rarityProduction, x.r) * (1 + F.neighborBonus * nbSum(m, i)) : 0; };
+    return { slot, cur, next, bonus: (i: number) => F.neighborBonus * nbSum(cur, i), bonusNext: (i: number) => F.neighborBonus * nbSum(next, i), rateNow: (i: number) => rate(cur, i), rateNext: (i: number) => rate(next, i), nb: F.neighborBonus };
+  }
+  /** chips on the shared edges: how much the hovered field gets from each neighbour and gives to it (arrow = direction) */
+  private edgeInfo(pv: ReturnType<GameView['buildPreview']>, px: number) {
+    let k = 0;
+    if (pv.slot >= 0) {
+      const h = pv.slot, sh = this.slots[h], me = pv.next.get(h)!, before = pv.cur.get(h);
+      const gaveBefore = before ? before.r : 0;
+      const ph = V(sh.x, 0, sh.z).project(camera);
+      for (const [o, x] of pv.next) {
+        if (o === h || hexDist(sh, this.slots[o]) !== 1) continue;
+        const inc = x.r * pv.nb, out = (me.r - gaveBefore) * pv.nb, keep = me.r * pv.nb;
+        if (!inc && !out && !keep) continue;
+        const so = this.slots[o], po = V(so.x, 0, so.z).project(camera);
+        const ax = (ph.x + 1) / 2 * innerWidth, ay = (1 - ph.y) / 2 * innerHeight, bx = (po.x + 1) / 2 * innerWidth, by = (1 - po.y) / 2 * innerHeight;
+        const ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+        const pct = (v: number) => (v > 0 ? '+' : '−') + Math.round(Math.abs(v) * 100) + ' %';
+        const arrow = (deg: number, cls: string) => `<svg class="${cls}" viewBox="0 0 20 12" style="transform:rotate(${deg.toFixed(0)}deg)"><path d="M1 6h14M11 1.5l6 4.5-6 4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        // arrows only (numbers are in the rate chips): green = neighbour feeds the hovered field, gold = hovered feeds the neighbour, red = the neighbour loses its bonus
+        let html = '';
+        if (inc) html += arrow(ang + 180, 'in');
+        if (out) html += arrow(ang, out > 0 ? 'out' : 'loss');
+        else if (keep) html += arrow(ang, 'out');
+        void pct;
+        const el = this.edgeChip(k++); el.hidden = false; el.innerHTML = html;
+        el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
+        el.style.transform = `translate(${ax + (bx - ax) * EDGE_T}px,${ay + (by - ay) * EDGE_T}px) translate(-50%,-50%)`;
+      }
+    }
+    for (; k < this.edgeEls.length; k++) if (this.edgeEls[k]) this.edgeEls[k].hidden = true;
   }
 
   /** HTML label of one slot: level (gems in rarity colours), fruit per second, step bar to the next rarity (only for the type being built) */
-  private fieldInfo(i: number, f: FieldView | null, same: boolean, hov: boolean, px: number) {
+  private fieldInfo(i: number, f: FieldView | null, same: boolean, hov: boolean, px: number, pv: ReturnType<GameView['buildPreview']>) {
     const el = this.infoEls[i]; if (!el) return;
-    el.hidden = !f; if (!f) { this.infoKey[i] = ''; return; }
-    const cost = this.cfg.fields.rarityCost, maxR = cost.length, r = f.rarity, maxed = r >= maxR;
+    const ghost = !f && pv.slot === i; // free spot under the pointer: preview of the new field
+    el.hidden = !f && !ghost; if (el.hidden) { this.infoKey[i] = ''; return; }
+    el.classList.toggle('ghost', ghost);
+    const cost = this.cfg.fields.rarityCost, maxR = cost.length, r = f ? f.rarity : 0, maxed = r >= maxR, prog = f ? f.prog : 0;
+    const ftype = f ? FRUITS[f.type] : this.placing!;
+    const now = f ? f.rate : 0, nxt = pv.slot >= 0 ? pv.rateNext(i) : now, bonus = pv.slot >= 0 ? pv.bonusNext(i) : pv.bonus(i), bonusUp = pv.slot >= 0 && bonus !== pv.bonus(i);
     const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
     const s = this.slots[i], p = V(s.x, 0, s.z).project(camera);
     el.style.transform = `translate(${(p.x + 1) / 2 * innerWidth}px,${(1 - p.y) / 2 * innerHeight}px) translate(-50%,-50%)`;
     el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
     el.classList.toggle('hov', hov);
-    const key = [r, f.prog, f.rate, same ? 1 : 0, hov ? 1 : 0].join('|'); if (this.infoKey[i] === key) return; this.infoKey[i] = key;
+    const changes = pv.slot >= 0 && Math.abs(nxt - now) > .0005;
+    const key = [ghost ? 'g' : '', ftype, r, prog, now, nxt.toFixed(3), bonus, bonusUp ? 1 : 0, same ? 1 : 0, hov ? 1 : 0].join('|'); if (this.infoKey[i] === key) return; this.infoKey[i] = key;
     const lv = el.children[0] as HTMLElement, rate = el.querySelector('.fRate') as HTMLElement, bar = el.querySelector('.fBar') as HTMLElement;
     // level: one gem per rarity reached, coloured like that rarity; on hover the gem that the next build completes blinks
-    const n = !maxed ? cost[r] : 0, completes = same && hov && !maxed && f.prog + 1 >= n;
+    const n = !maxed ? cost[r] : 0, completes = same && hov && !maxed && prog + 1 >= n;
     let h = '';
     for (let k = 0; k <= maxR; k++) h += `<i class="${k <= r ? 'on' : ''}${k === r + 1 && completes ? ' nx' : ''}" style="--c:${hex(RARITY_COL[k])}"></i>`;
     lv.innerHTML = h;
-    rate.innerHTML = `${fruitIcon(FRUITS[f.type])}<span>${f.rate.toLocaleString('de-DE', { maximumFractionDigits: f.rate < 1 ? 2 : 1 })}/s</span>`;
+    const num = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: v < 1 ? 2 : 1 });
+    // fruit per second; while building: current -> after the build (green up, red down); neighbour bonus as hex chip
+    const nbChip = bonus > 0 ? `<em class="nb${bonusUp && !ghost ? ' chg' : ''}"><svg viewBox="0 0 24 20"><path d="M6 1.5l5 2.9v5.8L6 13.1 1 10.2V4.4z M18 6.9l5 2.9v5.8l-5 2.9-5-2.9V9.8z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>+${Math.round(bonus * 100)}%</em>` : '';
+    rate.classList.toggle('up', changes && nxt > now); rate.classList.toggle('down', changes && nxt < now);
+    rate.innerHTML = `${fruitIcon(ftype)}<span>${ghost ? '' : changes ? num(now) + '<b>→</b>' : ''}${num(ghost || changes ? nxt : now)}/s</span>${nbChip}`;
     // step bar: one segment per field still needed for the next rarity, filled in the next rarity's colour
     bar.hidden = !same || maxed;
     if (same && !maxed) {
       let b = '';
-      for (let k = 0; k < n; k++) b += `<i class="${k < f.prog ? 'on' : ''}${hov && k === f.prog ? ' nx' : ''}"></i>`;
+      for (let k = 0; k < n; k++) b += `<i class="${k < prog ? 'on' : ''}${hov && k === prog ? ' nx' : ''}"></i>`;
       bar.innerHTML = b + `<b></b>`; bar.style.setProperty('--c', hex(RARITY_COL[r + 1])); bar.style.setProperty('--c0', hex(RARITY_COL[r]));
     }
   }

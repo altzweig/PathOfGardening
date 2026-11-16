@@ -35,7 +35,8 @@ import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAY
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
-import { bedMaterial, lavaBedMaterial } from './textures';
+import { lavaBedMaterial } from './textures';
+import { buildBed } from './beds';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
@@ -313,7 +314,7 @@ export class GameView {
       v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
-    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches(s.fi.filter(f => !slots[f[0]]?.forest).map(f => slots[f[0]]), hexR(this.cfg)); }
+    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches([], hexR(this.cfg)); } // no torches at the beds any more
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
       const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
@@ -387,9 +388,16 @@ export class GameView {
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
     // flat bed, flush with the ground: walkable, no collider
     // soft bed: hexagon only hinted (rounded, ragged outline) and fading out into the surrounding ground
-    const bm = type === 'chili' ? lavaBedMaterial() : bedMaterial(); bm.vertexColors = true; bm.transparent = true; bm.depthWrite = false;
-    const bed = new THREE.Mesh(softBedGeo(H, rand(0, 99)), bm); bed.position.y = .015; bed.renderOrder = -1; // decals sit above at .03+
-    bed.receiveShadow = true; g.add(bed);
+    // earth: chili = soft lava rock bed; every other bed = overlapping raked-earth decals + wet earth around the plants
+    let bedMat: THREE.MeshStandardMaterial;
+    if (type === 'chili') {
+      const bm = lavaBedMaterial(); bm.vertexColors = true; bm.transparent = true; bm.depthWrite = false; bedMat = bm;
+      const bed = new THREE.Mesh(softBedGeo(H, rand(0, 99)), bm); bed.position.y = .015; bed.renderOrder = -1; // decals sit above at .03+
+      bed.receiveShadow = true; g.add(bed);
+    } else {
+      const spots: [number, number][] = type === 'nut' ? [[0, 0]] : [0, 1, 2, 3, 4, 5].map(k => triPlant(0, 0, H, k));
+      const bed = buildBed(H, spots); g.add(bed); bedMat = (bed.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    }
     // rim kept only as data holder for the rarity colour (no visible UI line any more)
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
@@ -413,7 +421,7 @@ export class GameView {
       lava = new THREE.Mesh(softBedGeo(H * .92, rand(0, 99)), new THREE.MeshBasicMaterial({ map: lavaTex, vertexColors: true, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat: bed.material as THREE.MeshStandardMaterial, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    const v: FieldView = { bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);

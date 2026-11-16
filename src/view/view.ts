@@ -21,7 +21,12 @@ interface PView { hat: { uHp: { value: number }; uCol: { value: THREE.Color }; u
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
-interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number }
+interface FieldView { g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; flash: THREE.Mesh; hit: number; comb: number; ftype: FruitType }
+/** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
+interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
+const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
+const leafMats = new Map<number, THREE.MeshLambertMaterial>();
+function leafMat(c: THREE.Color) { const k = c.getHex(); let m = leafMats.get(k); if (!m) { m = new THREE.MeshLambertMaterial({ color: c.clone().multiplyScalar(1.5), side: THREE.DoubleSide }); leafMats.set(k, m); } return m; }
 // common, uncommon, rare, epic, legendary
 export const RARITY_COL = [0x9a9488, 0x5fd35f, 0x4a8cff, 0xb05cff, 0xffa020];
 
@@ -53,6 +58,7 @@ export class GameView {
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
   private shake = 0;
+  private bits: Bit[] = [];
   hurtT = 0;
   zoom = 1;
   /** mouse wheel: + zooms out, - zooms in */
@@ -157,7 +163,7 @@ export class GameView {
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
     this.setPlacing(null);
-    PART.clear(); clearFx(); clearEyes(); this.snap = null; this.fieldKey = '';
+    PART.clear(); clearFx(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
@@ -277,7 +283,10 @@ export class GameView {
     }
     const pulse: THREE.Sprite[] = [];
     for (let i = 0; i < 6; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pulseTex, color: new THREE.Color(FRUIT_HEX[type]).lerp(new THREE.Color(0xffffff), .45), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); sp.renderOrder = 3; this.dyn.add(sp); pulse.push(sp); }
-    const v: FieldView = { g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0 };
+    // rake flash: the whole bed lights up for a moment on every stroke
+    const flash = new THREE.Mesh(new THREE.CylinderGeometry(H * .95, H * .95, .002, 6), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    flash.position.y = .035; flash.visible = false; flash.renderOrder = 2; g.add(flash);
+    const v: FieldView = { g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, flash, hit: 0, comb: 0, ftype: type };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
@@ -299,11 +308,53 @@ export class GameView {
       s.scale.set(sz, sz, 1); (s.material as THREE.SpriteMaterial).opacity = (.45 + v.glow * .5) * head;
     });
     const rm = v.rim.material as THREE.MeshBasicMaterial;
-    rm.opacity = .5 + v.glow * (.4 + .1 * Math.sin(now * 8));
-    rm.color.set(RARITY_COL[v.rarity] ?? RARITY_COL[0]).lerp(new THREE.Color(0xfff0c0), v.glow * .55);
+    rm.opacity = Math.min(1, .5 + v.glow * (.4 + .1 * Math.sin(now * 8)) + v.hit * .5);
+    rm.color.set(RARITY_COL[v.rarity] ?? RARITY_COL[0]).lerp(new THREE.Color(0xfff0c0), Math.min(1, v.glow * .55 + v.hit * .6));
+    // rake stroke: bed flashes up, then fades
+    v.hit = Math.max(0, v.hit - dt * 3.2); v.flash.visible = v.hit > 0; (v.flash.material as THREE.MeshBasicMaterial).opacity = v.hit * v.hit * .55;
     // shake on hits/harvest, gentle wiggle while tilled
     v.plant.rotation.z = Math.sin(now * 50) * v.shake * .25 + Math.sin(now * 11) * .06 * v.glow;
     v.plant.rotation.x = Math.sin(now * 9 + 1) * .04 * v.glow;
+    // combed through: every clump is yanked and rattles out with a decaying wobble
+    v.comb = Math.max(0, v.comb - dt * 2.2);
+    const cb = v.comb * v.comb;
+    v.plant.children.forEach((c, i) => {
+      c.rotation.x = Math.sin(now * 31 + i * 2.1) * .28 * cb;
+      c.rotation.z = Math.cos(now * 27 + i * 1.3) * .28 * cb;
+      c.scale.y = .62 * (1 - .18 * cb + Math.sin(now * 38 + i) * .08 * cb);
+    });
+  }
+  /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
+  private rakeStroke(slot: number) {
+    const v = this.fields.get(slot); if (!v || !v.alive) return;
+    v.hit = 1; v.comb = 1;
+    play('rustle');
+    decal(v.x, v.z, 0xfff0c0, hexR(this.cfg) * .3, .35, { ring: true, add: true, grow: hexR(this.cfg) * .95, op: .6 });
+    const lm = leafMat(v.mats.leaf.color), clumps = v.plant.children;
+    // (the real harvest shaken loose by the stroke falls out of the bushes as normal fruit, see sim produce)
+    // leaves whirl up out of the clumps and flutter down
+    const n = 6 + Math.floor(rand(0, 4));
+    for (let i = 0; i < n; i++) {
+      const c = clumps[i % clumps.length], p = c ? c.getWorldPosition(V()) : V(v.x, 0, v.z);
+      const m = new THREE.Mesh(LEAF_GEO, lm); m.position.set(p.x + rand(-.25, .25), rand(.3, .6), p.z + rand(-.25, .25)); m.rotation.set(rand(0, 7), rand(0, 7), rand(0, 7)); this.dyn.add(m);
+      const a = rand(0, 7), sp = rand(.6, 1.6);
+      this.bits.push({ m, vx: Math.cos(a) * sp, vy: rand(1.6, 3), vz: Math.sin(a) * sp, t: 0, life: rand(1, 1.6), leaf: true, spin: rand(6, 14) * (Math.random() < .5 ? -1 : 1), s0: rand(.8, 1.4), landed: false });
+    }
+  }
+  private updateBits(dt: number) {
+    for (let i = this.bits.length - 1; i >= 0; i--) {
+      const b = this.bits[i], m = b.m; b.t += dt; const k = b.t / b.life;
+      if (k >= 1) { this.dyn.remove(m); this.bits.splice(i, 1); continue; }
+      if (b.leaf) { // flutter: strong drag, slow fall, swirl sideways
+        b.vy -= 4.5 * dt; const drag = Math.exp(-dt * 3); b.vx *= drag; b.vz *= drag; b.vy = Math.max(b.vy * drag, -.7);
+        m.position.x += (b.vx + Math.sin(b.t * 9 + i) * .5) * dt; m.position.z += (b.vz + Math.cos(b.t * 8 + i) * .5) * dt; m.position.y += b.vy * dt;
+        if (m.position.y < .04) { m.position.y = .04; b.vy = 0; b.vx *= .5; b.vz *= .5; } else { m.rotation.x += b.spin * dt; m.rotation.y += b.spin * .6 * dt; }
+      } else if (!b.landed) {
+        b.vy -= 9.8 * dt; m.position.x += b.vx * dt; m.position.y += b.vy * dt; m.position.z += b.vz * dt; m.rotation.z += b.spin * dt;
+        if (m.position.y < .06) { m.position.y = .06; if (b.vy < -1.2) { b.vy *= -.35; b.vx *= .5; b.vz *= .5; } else b.landed = true; }
+      }
+      m.scale.setScalar(b.s0 * (k < .7 ? 1 : 1 - (k - .7) / .3));
+    }
   }
   private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g, ...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot); }
   private killField(v: FieldView) {
@@ -364,6 +415,7 @@ export class GameView {
         for (const sg of e.s as number[][]) { const d = sg[4]; bolt([{ x: sg[0], y: .65, z: sg[1] }, { x: sg[2], y: .45, z: sg[3] }], d ? 0x9fc8f0 : 0xd8c860, .045 - d * .01, .2, .14); burst(V(sg[2], .45, sg[3]), 0xeaf6ff, 12, 2.2, .14, .3); decal(sg[2], sg[3], d ? 0x9fd8ff : 0xfff080, .2, .3, { ring: true, add: true, grow: .9, op: .9 }); }
         this.shake = Math.min(.2, this.shake + .03); break;
       }
+      case 'till': this.rakeStroke(e.s); break;
       case 'lemonZap': { // harvest: lightning jumps between the lemons of the tree
         const v = this.fields.get(e.s); if (!v) break;
         const ps = v.fruits.filter(m => m.visible).sort(() => Math.random() - .5).slice(0, 4).map(m => m.getWorldPosition(V()));
@@ -415,7 +467,7 @@ export class GameView {
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     if (Math.random() < dt * 5) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); }
-    PART.update(dt); updateFx(dt); this.updateNums(dt);
+    PART.update(dt); updateFx(dt); this.updateBits(dt); this.updateNums(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);
@@ -437,7 +489,7 @@ export class GameView {
     const arc = (s.ra || this.cfg.rake.arc) * Math.PI / 180, L = (s.rr || this.cfg.rake.range) - .12;
     v.rake.scale.z = (s.rr || this.cfg.rake.range) / this.cfg.rake.range; // longer rake with range upgrades
     v.rake.position.z = 0;
-    if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(.6, L); v.rake.position.z = Math.sin(s.ti * Math.PI) * .45; } // till: forward push
+    if (s.ti > 0) { v.rot = s.f; v.g.rotation.y = v.rot; v.rake.rotation.y = lerp(v.rake.rotation.y, 0, .5); v.rake.rotation.x = Math.atan2(1.1, L * .55); v.rake.position.z = .15 - Math.sin(s.ti * Math.PI) * .75; v.body.rotation.x = Math.sin(s.ti * Math.PI) * .18; } // till: scrape the bed underfoot, pulling the rake back
     else if (swinging) { v.rake.rotation.y = lerp(arc / 2, -arc / 2, s.sw); v.rake.rotation.x = Math.atan2(.56, L); }
     else { v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2); }
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;

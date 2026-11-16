@@ -74,6 +74,13 @@ export function tickAudio(dt: number) {
 
 export const SND: Record<string, (arg?: any) => void> = {
   pop(big: boolean) { if (!AC || !audio.on) return; popQueue.push(big); },
+  /** bush rustle for a rake stroke through a plant: a cluster of dry crackly leaf bursts plus a soft swish */
+  rustle() {
+    if (!can('rustle', .1)) return;
+    noise({ t: .32, vol: .11, type: 'bandpass', f: rand(1800, 2600), f2: 900, q: .7, at: .03 });
+    const n = 7 + Math.floor(rand(0, 5));
+    for (let i = 0; i < n; i++) noise({ t: rand(.025, .06), vol: rand(.05, .12), type: 'bandpass', f: rand(2500, 6500), q: rand(1.5, 4), when: rand(0, .3) * Math.pow(rand(0, 1), .6), at: .002 });
+  },
   rake() { if (can('rake', .08)) noise({ t: .16, vol: .18, type: 'bandpass', f: 2600, f2: 500, q: 1.2 }); },
   /** n = number of enemies hit by one swing: one punch per target, slightly staggered */
   punches(n: number) { if (!can('punch', .06)) return; const k = Math.min(5, n); for (let i = 0; i < k; i++) comicPunch(i * .045, n); },

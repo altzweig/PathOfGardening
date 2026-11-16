@@ -72,7 +72,9 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Mausrad: zoomen (PC).
 
 ## Beackern und Feldrand (15.11.2026)
-- Harke benutzen, wenn kein Gegner im Kegel ist und 1 m vor dem Spieler ein Feld liegt: statt eines Schlags macht der Spieler einen Vorwärtsstoß und beackert das Feld. Annahme: Gegner im Kegel haben Vorrang, damit Kämpfen am Feld nicht ins Leere geht.
+- Harke benutzen, wenn kein Gegner im Kegel ist und der Spieler auf einem Feld steht: statt eines Schlags harkt er das Feld **direkt unter sich** (16.11.2026, vorher 1 m voraus). Gegner im Kegel haben Vorrang, damit Kämpfen am Feld nicht ins Leere geht. Kegel/Reichweite-Upgrades wirken nur auf den Kampf.
+- Ertrag durch Harken: Jeder Harkenzug schiebt die Ernte um `fields.tillStroke` s (1 s) vor. Wer nur harkt, erntet also alle (Erntezeit × Harken-Abklingzeit) s, z. B. Erntezeit 2 s × 0,5 s → jede Sekunde. Die normale Produktion läuft parallel weiter. Eine durchs Harken fertige Ernte fällt aus den Büschen (statt an der Randecke). Schnellere Harke (`upgrades.rakeSpeed`) = mehr Ertrag. Ersetzt das alte „x2 Produktion solange beackert“.
+- Feedback pro Harkenzug: Feld leuchtet kurz hell auf, die Büsche werden durchgekämmt (rütteln, wippen), Blätter wirbeln hoch. Dazu prozedurales Gebüsch-Rascheln.
 - Ein beackertes Feld produziert doppelt so schnell, wackelt leicht und sein Rand leuchtet heller. Die Wirkung hält 1 s nach jedem Stoß (`fields.tillDuration`), man muss also dranbleiben. Jeder Spieler kann nur ein Feld gleichzeitig beackern (im Koop also mehrere Felder von verschiedenen Spielern).
 - Der Feldrand ist ein Ladebalken: Ein dezent leuchtender Impuls läuft im Uhrzeigersinn um das Feld, jede der 6 Kanten ist eine Ernte. Kommt der Impuls an einer Ecke an, fällt dort der Ertrag (`fruit.cornerScatter`). Die Geschwindigkeit folgt der Produktionszeit inklusive Seltenheit, Nachbarbonus und Beackern.
 

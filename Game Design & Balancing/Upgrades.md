@@ -54,6 +54,7 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | Reichweite | +20 cm Reichweite (Karte zeigt cm) | 10 | `upgrades.rakeRange` |
 | Schaden | +20 % Grundschaden | 10 | `upgrades.rakeDamage` |
 | Rückstoß | +10 cm Rückstoß je Treffer | 10 | `upgrades.rakeKnockback`, `rake.knockback` |
+| Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | 5 | `upgrades.rakeSpeed` |
 
 ## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)
 
@@ -108,5 +109,5 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 10 Schaden, 90° Kegel, 1,8 m, 0,5 s. Auf ein Feld 1 m voraus: beackern statt schlagen | `rake.*`, `fields.till*` |
+| Harke | 10 Schaden, 90° Kegel, 1,8 m, 0,5 s. Auf dem Feld unter dem Spieler: beackern statt schlagen (wenn kein Gegner im Kegel) | `rake.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

@@ -1168,6 +1168,12 @@ export class Sim {
 
   // ---------- level-up offers ----------
   offers(p: Player): Offer[] {
+    // short explanation line under upgrade values (names.hints): full key, then the part after "_", then the part before
+    const out = this.drawOffers(p), H = this.cfg.names.hints || {};
+    for (const o of out) if (!o.wp) { const [k0, k1] = o.key.split('_'); const h = H[o.key] ?? H[k1] ?? H[k0]; if (h) o.hint = h; }
+    return out;
+  }
+  private drawOffers(p: Player): Offer[] {
     const N = this.cfg.names, U = this.cfg.upgrades, PL = this.cfg.plants;
     const pool: (Offer & { w: number })[] = [], prio: Offer[] = [];
     // guaranteed openers: 1st level-up = new field, 2nd level-up = its weapon (or rake upgrades)
@@ -1176,10 +1182,12 @@ export class Sim {
     for (const id of SKILLS) {
       const s = p.skills[id];
       if (this.fieldOf(id) && !s.learned && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
-        const st = this.stats(id, s);
-        const l1 = id === 'cab' ? `{dmg} ${nf(st.dmg)} · {radius} ${nf(st.range * 100)} cm` : id === 'chili' ? `{fire} ${this.cfg.skills.chili.burnStacks} × ${nf(st.dmg, 1)} % · {range} ${nf(st.range, 1)} m` : `{dmg} ${nf(st.dmg)}${id === 'cran' ? ' ×' + st.pellets : ''} · {range} ${nf(st.range, 0)} m`;
-        const l2 = id === 'chili' ? `${nf(st.cost / st.cd)} {chili} / s · {sweep} ${nf(st.sweep)}°` : `${st.cost * st.shots} {${id}} / {cd} ${nf(st.cd, 2)} s`;
-        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines: [l1, l2] });
+        // weapon unlock card: every stat as an icon chip, special effect named briefly
+        const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
+        const lines = id === 'chili' ? [`{fire} ${C.chili.burnStacks} × ${nf(st.dmg, 1)} %`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
+          : id === 'cab' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.range * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, ammo]
+          : [`{dmg} ${nf(st.dmg)}${id === 'cran' ? ' × ' + st.pellets : ''}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
+        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
       }
     }
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)

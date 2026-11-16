@@ -5,7 +5,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Grundsätze
 - **Keine Erklärtexte im Spiel.** Mechaniken, Steuerung, Upgrades werden nicht erklärt. Spieler entdecken selbst. Später kommt ein Tutorial für die zentralen Mechaniken.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil, groß genug für das jeweilige Gerät.
-- **Level-up-Karten:** Bild + Titel + höchstens 2 Zeilen, Zahlen mit Icons statt Sätzen. Es darf spannend bleiben.
+- **Level-up-Karten:** Bild + Titel + höchstens 2 Zeilen, Zahlen mit Icons statt Sätzen. Es darf spannend bleiben. Ausnahme (16.11.2026): Upgrade-Karten bekommen darunter eine knappe Erklärzeile, meist ein Wort (`names.hints`).
 - Arbeitstitel: **PathOfGardening** (früher „Beerenwacht“).
 
 ## Steuerung
@@ -165,3 +165,9 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **Beerenshotgun:** Streuung zufällig statt gleichmäßigem Fächer, normalverteilt um die Zielrichtung (σ 20°), hart begrenzt auf 80° (±40°). Dadurch landen grob 2/3 (gemessen etwa 70 %) der Beeren in den inneren 40°. Feuerrate −20 % (0,5 → 0,625 s). Das +1-Projektil-Upgrade macht den Kegel nicht mehr breiter. Werte `skills.cran.pellets/cone/spreadSigma`.
 - **Liegende Beeren:** Jede Beere, die nichts trifft, bleibt 2 s liegen (schwillt an, pulsiert schneller) und platzt dann zu einem roten Fleck: 50 % des Beerenschadens an allen Gegnern im Radius 0,6 m (ohne Blutung, keine fliegenden Kröten). Ersetzt die alten Beeren-Minen. Werte `skills.cran.splashDelay/splashDamage/splashRadius`.
 - Annahme: Die bisherige Minen-Karte wird zur Karte **Platzschaden** (+10 Prozentpunkte je Stufe, 50 → 100 %, `upgrades.cranSplash`), weil jetzt ohnehin alle verfehlten Beeren liegen bleiben.
+
+## Level-up-Karten (16.11.2026)
+- Upgrade-Karten: unter den Werten eine Erklärzeile, meist ein Wort (Reichweite, Kegelbreite, Rückstoß …). Texte in `names.hints` (Suche: ganzer Karten-Key, dann Teil nach „_“, dann Teil davor).
+- Waffen-Freischaltkarten sind größer, in der Waffenfarbe leuchtend umrandet, mit wanderndem Glanz. Alle Werte stehen als Icon-Chips da (Schaden, Reichweite/Radius, Abklingzeit, Munition pro Angriff, ggf. Durchbohren/Kettenradius/Schwenk), der Spezialeffekt knapp darunter (`names.effects`).
+- Alle drei Karten kippen wie echte Karten zur Stelle unter Maus bzw. Finger (die gedrückte Seite geht nach hinten) und schimmern dabei (Lichtfleck + Holo-Streifen). Mobile: Finger auf der Karte ziehen. Im Hochformat bleibt senkrechtes Wischen zum Scrollen frei. Bei „Bewegung reduzieren“ aus.
+- Rückstoß-Icon neu: Tier mit Bewegungsstrichen und Pfeil nach außen.

@@ -47,7 +47,7 @@ const MINI: Record<string, string> = {
   stun: `<path d="M20 4 l3.5 9 9.5 .5 -7.5 6 2.5 9.5 -8 -5.5 -8 5.5 2.5 -9.5 -7.5 -6 9.5 -.5z" fill="#ffe066"/>`,
   unlock: `<rect x="9" y="18" width="22" height="17" rx="3" fill="#e3b964"/><path d="M14 18 v-5 a6 6 0 0 1 12 0" stroke="#e3b964" stroke-width="3.4" fill="none" transform="rotate(-20 26 13)"/>`,
   size: `<path d="M6 20 H34" stroke="#8fe36a" stroke-width="9" stroke-linecap="round"/><path d="M12 9 l-5 -4 v8 z M28 9 l5 -4 v8 z M12 31 l-5 4 v-8 z M28 31 l5 4 v-8 z" fill="#e3d9c3"/>`,
-  knock: `<circle cx="27" cy="20" r="7" fill="#77726c"/><path d="M4 20 H17" stroke="#e3d9c3" stroke-width="3"/><path d="M17 20 l-6 -5 v10 z" fill="#e3d9c3"/><path d="M33 12 q4 8 0 16" stroke="#e3b964" stroke-width="2.4" fill="none"/>`,
+  knock: `<path d="M3 13 h8 M2 20 h9 M3 27 h8" stroke="#e3d9c3" stroke-width="2.4" stroke-linecap="round" opacity=".7"/><circle cx="19" cy="20" r="7.5" fill="#9a7a58"/><circle cx="21.5" cy="17.5" r="1.4" fill="#1a1206"/><path d="M28 20 H35" stroke="#e3b964" stroke-width="3.4" stroke-linecap="round"/><path d="M38 20 l-7 -6 v12 z" fill="#e3b964"/>`,
   player: `<circle cx="20" cy="12" r="6" fill="#e0b08a"/><path d="M8 36 q12 -22 24 0z" fill="#3c5a3e"/><path d="M11 8 h18 l-3 -4 h-12z" fill="#c9a35a"/>`,
   fire: `<path d="M20 4 C24 12 32 15 31 25 a11 11 0 0 1 -22 0 C9 19 13 16 14 11 C16 15 18 16 19 16 C19 12 18 8 20 4z" fill="#ff6a18"/><path d="M20 17 C23 22 26 24 25 28 a5 5 0 0 1 -10 0 C15 25 18 23 20 17z" fill="#ffd860"/>`,
   sweep: `<path d="M20 34 L8 14 M20 34 L32 14" stroke="#e3d9c3" stroke-width="2" stroke-dasharray="3 2"/><path d="M8 11 A16 16 0 0 1 32 11" stroke="#ff8a3a" stroke-width="3" fill="none"/><path d="M8 11 l1 -6 l4 5z M32 11 l-1 -6 l-4 5z" fill="#ff8a3a"/>`,

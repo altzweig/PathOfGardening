@@ -34,6 +34,35 @@ names:
     chili: Chilifeld
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
+  # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
+  hints:
+    dmg: Schaden
+    rng: Reichweite
+    cab_rng: Radius
+    cd: Abklingzeit
+    arc: Kegelbreite
+    kb: Rückstoß
+    pierce: Durchbohren
+    pb: Durchbohr-Schaden
+    size: Bolzenbreite
+    pel: Beeren pro Schuss
+    mine: Platzschaden
+    tgt: Kettenziel
+    xfer: Weiterleitung
+    mini: Mini-Kohl
+    chili_dmg: Brandschaden
+    sweep: Schwenk
+    tick: Brandtempo
+    till: Heilen beim Beackern
+    yield: Doppelernte
+    tea: Heilung
+  # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
+  effects:
+    asp: 3er-Salve · durchbohrt
+    cran: Blutung · Beeren platzen
+    cab: Giftlache · verlangsamt
+    lemon: Kettenblitz
+    chili: Brand stapelt sich
 
 player:
   hp: 100

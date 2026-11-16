@@ -86,22 +86,22 @@ fields:
 
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
-  tierValue: [1, 10, 100]     # Wert Stufe 1/2/3
-  mergeCount: 10              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
-  mergeCheck: 0.4             # s zwischen Verschmelz-Prüfungen
+  tierValue: [1, 5, 25]     # Wert Stufe 1/2/3
+  mergeCount: 5              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
+  mergeCheck: 0.5             # s zwischen Verschmelz-Prüfungen
   cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
 
 plants:
   blue: { interval: 1 }                 # 1 Frucht alle x s
-  asp:  { interval: 4, unlockAt: 15, amount: 3 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 1, unlockAt: 60, amount: 3 }   # 3x Ertrag
-  cab:  { interval: 3.2, unlockAt: 8 }   # Produktion x2,5 (vorher interval 8)
-  lemon: { interval: 3, unlockAt: 10, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
+  asp:  { interval: 2, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  cran: { interval: 1, unlockAt: 0, amount: 4 }   # 3x Ertrag
+  cab:  { interval: 3, unlockAt: 0 }
+  lemon: { interval: 2, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
 
 rake:
   damage: 10
-  range: 1.8               # m (Prototyp: 1.0 -> +50 %)
-  arc: 90                  # Grad, Breite des Kegels
+  range: 1.2               # m (Prototyp: 1.0 -> +50 %)
+  arc: 50                  # Grad, Breite des Kegels
   cooldown: 0.5            # s
   swingTime: 0.15          # s, Animation
   knockback: 0             # m Rückstoß pro Treffer (Upgrade +10 cm)
@@ -119,16 +119,16 @@ skills:
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
   cran:
     damage: 5              # je Projektil
-    range: 6.75            # m (4,5 -> +50 %)
+    range: 7.00            # m (4,5 -> +50 %)
     cooldown: 0.5          # +50 % Feuerrate (vorher 0.75)
     ammoPerShot: 6
     pelletStep: 10         # Grad zwischen zwei Beeren: 50 Grad Fächer -> 6 Beeren
     spread: 50             # Grad, Fächer (gleichmäßig verteilt)
     bleedDuration: 3       # s
     bleedDps: 1
-    mineLifetime: 15       # s
+    mineLifetime: 3        # s
   lemon:                   # Citrateaser: Kettenblitz, trifft immer genau 1 Ziel direkt
-    damage: 16             # Grundschaden am ersten Ziel
+    damage: 20             # Grundschaden am ersten Ziel
     cooldown: 1.0          # 1 Angriff pro Sekunde
     ammoPerShot: 1
     range: 6               # m bis zum ersten Ziel
@@ -138,22 +138,22 @@ skills:
     dropLoot: true         # das erste getroffene Tier lässt seine Beute fallen
   cab:
     damage: 5
-    radius: 1.8            # m, Explosionsradius
+    radius: 1.5            # m, Explosionsradius
     cooldown: 1.0
     ammoPerShot: 1
     throwDistance: 0.5     # m
-    fuse: 0.8                # s bis zur Explosion
-    poolDuration: 3        # s, Giftlache nach der Explosion (Radius = Explosionsradius)
+    fuse: 0.5              # s bis zur Explosion
+    poolDuration: 4        # s, Giftlache nach der Explosion (Radius = Explosionsradius)
     poolTicksPerSecond: 2
-    poolTickDamage: 0.10   # Anteil des Kohlschadens pro Tick (3 s x 2/s x 10 % = 60 %)
-    poolSlow: 0.35         # Gegner in der Lache 35 % langsamer
+    poolTickDamage: 0.20   # Anteil des Kohlschadens pro Tick (3 s x 2/s x 10 % = 60 %)
+    poolSlow: 0.25         # Gegner in der Lache % langsamer
     miniRadiusFactor: 0.9  # Mini-Kohl: Radius x 0.5
     miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
 
 upgrades:
   offersPerLevel: 3
-  damagePerLevel: 0.10     # +10 % Schaden je Stufe (additiv)
-  rangePerLevel: 0.10      # +10 % Reichweite / Radius je Stufe (additiv)
+  damagePerLevel: 0.20     # +10 % Schaden je Stufe (additiv)
+  rangePerLevel: 0.20      # +10 % Reichweite / Radius je Stufe (additiv)
   cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
   aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
   aspPierceBonus: { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Durchbohr-Schaden (50 -> 100 %)

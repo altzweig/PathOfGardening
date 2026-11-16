@@ -232,6 +232,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Feldoptik (16.11.2026, abends)
 - Beete gehen weich in die Landschaft über: Umriss nur angedeutet sechseckig (zur Rundung hin, leicht ausgefranst), der Rand blendet in den Boden aus. Keine farbige Randlinie mehr. Seltenheit sieht man im Baumodus (Rauten) und an der Pflanzengröße. Der dezente Ernte-Impuls am Rand bleibt.
 - Kein Aufleuchten des Feldes beim Harken. Stattdessen leuchten die Früchte der geharkten Pflanzen auf, je stärker, desto mehr Fläche ihres Dreiecks der Zug überdeckt hat.
+- Alle Erd-Decals sind gleich groß (1,8 m) und unverzerrt, die Furchen haben überall den Zinkenabstand der Harke (7,5 cm). Nach außen werden die Decals transparenter.
 - Keine Fackeln mehr an den Beeten. Beet-Erde besteht aus mehreren überlagerten Harken-Decals (Furchen in zufälligen Richtungen, ausgefranster, nicht runder Umriss), die grob das Sechseck füllen und organisch darüber hinausgehen. Um jede Pflanze liegt dunkle nasse Erde als eigenes Decal mit unruhigem Übergang zur trockenen Erde. Das Chilibeet bleibt Lavagestein.
 - Beeren (Blaubeere, Preiselbeere) sind echte Beeren statt Kugeln: leicht abgeflacht, mit dunkler, eingesunkener Sternkrone, glänzend. Königsblau bzw. himbeerrot, kein milchiges Leuchten. Herumliegende Blaubeeren leuchten nur noch sanft anschwellend, je näher das nächste Level-up ist (max. ca. 1/10 von vorher). Das Leuchten der Beeren am Busch beim Harken ist ebenfalls deutlich schwächer.
 ## VFX-Labor für Skill-Effekte (16.11.2026)

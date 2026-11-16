@@ -2,6 +2,7 @@
 // hexagon but spilling over its edge organically, plus wet earth around every plant. Textures are painted once on
 // canvases (atlas of variants), each bed is merged into one mesh per material (2 draw calls).
 import * as THREE from 'three';
+import { TINE_GAP } from './core';
 
 // ---- value noise ----
 const P = new Uint8Array(512); { const p = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) P[i] = p[i & 255]; }
@@ -15,20 +16,23 @@ const fbm = (x: number, y: number) => vnoise(x, y) * .55 + vnoise(x * 2.1 + 17, 
 const sm = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 const N = 2, TILE = 256; // 2x2 variants per atlas
+/** every earth decal has the same size and is never stretched, so the furrows everywhere have the rake's tine spacing */
+const EARTH_SIZE = 1.8; // m
+const FURROW_PX = TINE_GAP / EARTH_SIZE * TILE;
 /** raked earth patch: furrows in one direction (warped), crumbs, ragged non-round outline */
 function paintEarth() {
   const cv = document.createElement('canvas'); cv.width = cv.height = TILE * N; const g = cv.getContext('2d')!;
   const img = g.createImageData(TILE * N, TILE * N), D = img.data;
   for (let v = 0; v < N * N; v++) {
-    const ox = (v % N) * TILE, oy = Math.floor(v / N) * TILE, s = v * 37.7, freq = 2 * Math.PI / (9 + v * 1.5);
+    const ox = (v % N) * TILE, oy = Math.floor(v / N) * TILE, s = v * 37.7, freq = 2 * Math.PI / FURROW_PX;
     // outline: a few random lobes instead of a circle
     const lobes = Array.from({ length: 4 }, () => ({ x: .5 + (Math.random() - .5) * .35, y: .5 + (Math.random() - .5) * .35, r: .2 + Math.random() * .14 }));
     for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
       const u = x / TILE, w = y / TILE, i = ((oy + y) * TILE * N + ox + x) * 4;
       let m = 0; for (const l of lobes) m = Math.max(m, 1 - Math.hypot(u - l.x, w - l.y) / l.r);
       const edge = m + (fbm(u * 6 + s, w * 6) - .5) * .7 + (vnoise(u * 22 + s, w * 22) - .5) * .25;
-      const a = sm(.0, .35, edge);
-      const warp = fbm(u * 3 + s, w * 3 + 5) * 14, fur = Math.sin((y + warp) * freq + vnoise(u * 9, w * 9 + s) * 2);
+      const a = sm(.0, .35, edge) * (.45 + .55 * sm(0, .75, m)); // more transparent towards the outside
+      const warp = fbm(u * 3 + s, w * 3 + 5) * 6, fur = Math.sin((y + warp) * freq + vnoise(u * 9, w * 9 + s) * 2);
       const n = fbm(u * 8 + s, w * 8 + 3), crumb = vnoise(u * 60 + s, w * 60);
       let b = .78 + n * .35 + fur * .16 + (crumb > .82 ? .18 : crumb < .12 ? -.16 : 0);
       b *= .92 + (vnoise(u * 2 + s, w * 2) - .5) * .25;
@@ -94,8 +98,8 @@ export function buildBed(H: number, plants: [number, number][]) {
   const earth: Parameters<typeof quads>[0] = [];
   const n = 9 + Math.floor(R(0, 4));
   for (let i = 0; i < n; i++) {
-    const [x, z] = inHex(i < 3 ? .5 : R(.75, 1.12)), sz = R(1.3, 2.1);
-    earth.push({ x, z, w: sz * R(.85, 1.15), l: sz * R(.85, 1.15), r: R(0, Math.PI * 2), v: Math.floor(R(0, N * N)), y: .012 + i * .0005 });
+    const [x, z] = inHex(i < 3 ? .5 : R(.75, 1.12));
+    earth.push({ x, z, w: EARTH_SIZE, l: EARTH_SIZE, r: R(0, Math.PI * 2), v: Math.floor(R(0, N * N)), y: .012 + i * .0005 });
   }
   const wet = plants.map(([x, z], i) => { const sz = R(1.25, 1.65); return { x: x + R(-.08, .08), z: z + R(-.08, .08), w: sz * R(.85, 1.15), l: sz * R(.85, 1.15), r: R(0, 7), v: Math.floor(R(0, N * N)), y: .02 + i * .0005 }; });
   const e = new THREE.Mesh(quads(earth), M.earth), w = new THREE.Mesh(quads(wet), M.wet);

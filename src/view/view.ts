@@ -38,11 +38,13 @@ import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
+import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
+import { Look, cleanLook, lookKey } from '../look';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; hat: { uHp: { value: number }; uCol: { value: THREE.Color }; uPulse: { value: number }; uCrown: { value: number } }; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -134,16 +136,23 @@ export class GameView {
   zoomBy(dy: number) { this.zoom = clamp(this.zoom * Math.pow(1.0015, dy), .55, 1.7); }
   private berryT = 0;
   private lowHp = 0;
-  /** hat = health: eaten top-down, colour gradient, blink when low */
-  private hatHp(v: PView, frac: number) {
+  /** low-HP warning for the local player: red screen edges (life itself shows in the HUD bar + bars over the mates) */
+  private lowHpWarn(v: PView, frac: number) {
     const H = this.cfg.hud.hat, now = performance.now() / 1000; frac = clamp(frac, 0, 1);
-    v.hat.uHp.value = frac; v.hat.uCrown.value = H.crownShare;
-    const cs = H.colors; let c = new THREE.Color(cs[cs.length - 1][1]);
-    for (let i = 0; i < cs.length - 1; i++) if (frac <= cs[i][0] && frac >= cs[i + 1][0]) { const t = (cs[i][0] - frac) / (cs[i][0] - cs[i + 1][0] || 1); c = new THREE.Color(cs[i][1]).lerp(new THREE.Color(cs[i + 1][1]), t); }
-    if (frac >= cs[0][0]) c = new THREE.Color(cs[0][1]);
-    v.hat.uCol.value.copy(c);
-    v.hat.uPulse.value = frac <= H.pulseBelow ? .55 + .45 * Math.sin(now * 9) : frac <= H.blinkBelow ? .18 + .18 * Math.sin(now * 4) : 0;
     if (v.s.id === this.me) this.lowHp = v.s.al && frac <= H.vignetteBelow ? H.vignetteStrength * (.8 + .2 * Math.sin(now * 3)) : 0;
+  }
+  /** player looks (character editor), by player id; a changed look rebuilds that figure */
+  private looks = new Map<number, Look>();
+  setLooks(list: { id: number; look?: Look }[]) { for (const p of list) if (p.look) this.looks.set(p.id, cleanLook(p.look)); }
+  private lookFor(id: number, c: number) { return this.looks.get(id) ?? cleanLook({ name: '', face: c % 5, body: (c + 1) % 5, hair: c % 5, hairCol: (c * 2) % 5, skin: (c * 3) % 5, shirt: c % 5, pants: c % 5, hat: 'straw' }); }
+  private nameLabel(name: string, c: number) {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48; const x = cv.getContext('2d')!;
+    x.font = '700 30px "Alegreya Sans", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,.75)'; x.strokeText(name, 128, 25);
+    x.fillStyle = '#' + new THREE.Color(PLAYER_RING[c % 4]).getHexString(); x.fillText(name, 128, 25);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); sp.scale.set(1.2, .225, 1); sp.renderOrder = 5;
+    return sp;
   }
   /** lying blueberries glow and pulse more the closer the team is to the next level */
   private berryGlow(dt: number) {
@@ -292,16 +301,23 @@ export class GameView {
     const seenP = new Set<number>();
     for (const ps of s.pl) {
       seenP.add(ps.id); let v = this.players.get(ps.id);
+      const look = this.lookFor(ps.id, ps.c), lk = lookKey(look);
+      if (v && v.lookKey !== lk) { // look changed (co-op: arrived after the figure was built) -> rebuild the figure
+        this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.label) this.dyn.remove(v.label);
+        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
+        Object.assign(v, b, { lookKey: lk, xbow: undefined, label: undefined });
+      }
       if (!v) {
-        const b = buildPlayer(ps.c, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
+        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
         const ring = new THREE.Mesh(GEO.ring, addMat(PLAYER_RING[ps.c % 4], .4)); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(.5); ring.position.y = .035; this.dyn.add(ring);
-        v = { ...b, ring, bar: makeBar(.7, .07, 0x6fcf4a), s: ps, x: ps.x, z: ps.z, rot: ps.f, recoil: 0 };
+        v = { ...b, ring, bar: makeBar(.7, .07, 0x6fcf4a), s: ps, x: ps.x, z: ps.z, rot: ps.f, recoil: 0, lookKey: lk, walk: 0 };
         this.players.set(ps.id, v);
       }
+      if (!v.label && ps.id !== this.me && look.name) { v.label = this.nameLabel(look.name, ps.c); this.dyn.add(v.label); }
       if (!this.smooth || Math.hypot(ps.x - v.x, ps.z - v.z) > 3) { v.x = ps.x; v.z = ps.z; }
       v.s = ps;
     }
-    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); this.players.delete(pid); }
+    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); this.players.delete(pid); }
     // fields
     const slots = this.slots;
     const seenF = new Set<number>();
@@ -680,8 +696,10 @@ export class GameView {
     composer.render();
   }
   private animPlayer(v: PView, dt: number, k: number) {
-    const s = v.s;
+    const s = v.s, ox = v.x, oz = v.z;
     v.x = lerp(v.x, s.x, k); v.z = lerp(v.z, s.z, k);
+    const spd = dt > 0 ? Math.hypot(v.x - ox, v.z - oz) / dt : 0;
+    v.walk = lerp(v.walk, s.al ? clamp(spd / 2.2, 0, 1) : 0, 1 - Math.exp(-dt * 10));
     v.g.position.set(v.x, 0, v.z); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(v.x, .035, v.z);
     const swinging = s.sw > 0;
     v.rot = swinging ? s.sd : lerpAngle(v.rot, s.f, .25);
@@ -706,13 +724,32 @@ export class GameView {
     v.head.scale.z = 1 / Math.max(.05, v.rake.scale.z); // the handle stretches with the reach, the head keeps its shape
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
-    this.hatHp(v, s.hp / s.mhp);
+    this.lowHpWarn(v, s.hp / s.mhp);
     this.animFlame(v, dt);
     this.animXbow(v);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
     v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible));
+    this.poseFarmer(v, dt);
     const other = s.id !== this.me;
+    if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
     v.bar.visible = other && !!s.al; v.bar.position.set(v.x, 1.6, v.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, s.hp / s.mhp);
+  }
+  /** legs walk with the walk phase; hands grip whatever is in use (rake handle, wand, crossbow, flamethrower) via IK */
+  private poseFarmer(v: PView, dt: number) {
+    if (!v.g.visible) return;
+    const R = v.rig, s = v.s;
+    animateLegs(R, dt, s.wk, v.walk);
+    v.g.updateMatrixWorld(true);
+    let t0: THREE.Vector3 | null = null, t1: THREE.Vector3 | null = null; // t0: hand on the +x side, t1: -x side
+    const F = v.flame;
+    if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
+    else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
+    else if (v.rake.visible) {
+      const sz = Math.max(.05, v.rake.scale.z);
+      t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
+    }
+    if (v.wand.visible && !(F && F.gun.visible) && !(v.xbow && v.xbow.g.visible)) t1 = v.wandGrip.localToWorld(V(0, -.01, .0));
+    animateArms(R, dt, s.wk, [t0, t1]);
   }
   /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */
   private animXbow(v: PView) {

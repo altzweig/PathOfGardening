@@ -90,8 +90,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Sounds: Beackern = echter Harken-Sound. Ein Waschbär, der mit Beute flieht, lacht keckernd (doppelt so schnell und höher), alle 2,5–4 s. Der Panda tut das etwas höher.
 
 ## Leben und Munition anzeigen (15.11.2026)
-- Leben = Strohhut. Bei vollem Leben ist er ganz und grüngelb. Mit sinkendem Leben wird erst der Hutkopf von oben nach unten angefressen (Bissspuren), danach die Krempe von außen nach innen. Die Farbe geht von Grüngelb über Gelb und Orange nach Rot. Gilt für alle Spieler, im Koop sieht man also auch den Zustand der anderen.
-- Unter 10 % ist der Hut tiefrot und blinkt leicht, unter 5 % pulsiert er stärker und die Bildschirmränder glühen dauerhaft rot, bis wieder Leben da ist oder man nach dem Tod voll geheilt wird. Die Mitte bleibt frei, damit es beim Spielen nicht stört. Alle Schwellen und Farben unter `hud.hat`.
+- Leben zeigen nur der Lebensbalken im HUD und die Balken über den Mitspielern (der Hut ist seit dem Charakter-Editor reine Deko, Basti 16.11.2026).
+- Unter 5 % Leben glühen die Bildschirmränder dauerhaft rot, bis wieder Leben da ist oder man nach dem Tod voll geheilt wird. Die Mitte bleibt frei, damit es beim Spielen nicht stört. Schwelle und Stärke unter `hud.hat` (`vignetteBelow`, `vignetteStrength`).
 - Munition der aktiven Waffe schwebt über dem Kopf: nach einem Waffenwechsel 1,5 s sichtbar, dann sanft weg. Sobald nur noch etwa 3 s Dauerfeuer übrig sind (Munition ÷ Kosten × Abklingzeit), erscheint sie 1 s lang (rötlich). Lädt man nach über die Schwelle, warnt sie beim nächsten Mal wieder. Werte unter `hud.ammo`.
 
 ## Kartenregeln und Balancing (15.11.2026, Runde 3)
@@ -242,3 +242,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Effekte sind reine Daten aus Ebenen (Partikel, Bodeneffekt, Blitz, Schockwelle, Kristalle, Licht), System in `src/fx/` (siehe `src/fx/README.md`). Später wandern die Spiel-Effekte auf dieses System.
 - Startpresets: Feuer (Flammenwerfer), Zitronenblitz, Frostnova, Giftwolke, Kohl-Explosion, Heilung, Betäubung, Blätterwirbel.
 - Sprites: Kenney Particle Pack (CC0, schon im Spiel) plus selbst gezeichnete Formen (Leuchten, Funke, Stern, Schneeflocke, Blase, Plus, Blatt, Splitter).
+
+## Spielfigur und Charakter-Editor
+
+- Detaillierte Bäuerin/Bauer statt Low-Poly-Figur, kein Geschlecht wählbar. Immer Latzhose (mit Trägern, Messingknöpfen, Brusttasche), Gummistiefel und kariertes Hemd mit hochgekrempelten Ärmeln.
+- Vor „Spielen“ und „Koop“ öffnet sich der Editor: 3D-Vorschau (ziehen = drehen, Doppelklick = Gesicht/ganze Figur), Name (max. 16 Zeichen) mit Würfel, ein Würfel für alles inklusive Name. Nur Icons und Farbfelder, kein Text. Testmodus startet ohne Editor.
+- Je 5 Optionen: Gesicht (rund, oval, kantig, lang, Herz), Körper (schlank, normal, kräftig, rundlich, klein & stämmig), Frisur (kurz, Dutt, Zopf, Locken, Haarkranz), Haarfarbe (schwarz, braun, rot, blond, grau), Hautfarbe, Augenfarbe (braun, blau, grün, grau, bernstein), Hemd (5 Karomuster), Hosenfarbe.
+- Accessoires frei kombinierbar: dicker Schnauzer, großer Nasenring, Gesichtstattoo (Ranke auf der Wange), Haarreif mit Gänseblümchen. Hüte: genau einer oder keiner (Sonnenhut mit Schleife, Strohhut, Zylinder, Schiebermütze). Haarreif und Hut schließen sich gegenseitig aus (der Reif säße unter dem Hut).
+- Mit Hut verschwinden Haarteile, die durch den Hut stechen würden (Locken oben, Strähnen); der Dutt rutscht in den Nacken.
+- Aussehen wird im Browser gespeichert (localStorage) und im Koop an alle geschickt; über Mitspielern steht ihr Name in ihrer Spielerfarbe. Der farbige Ring am Boden bleibt die Spielerfarbe.
+- Hände greifen per IK, was gerade benutzt wird: Harke beidhändig am Stiel, Zitronenstab links, Armbrust und Chili-Flammenwerfer beidhändig. Beine laufen mit der Laufphase, Arme schwingen beim Gehen.

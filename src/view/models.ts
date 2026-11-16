@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
+import { buildFarmer } from './farmer';
+import type { Look } from '../look';
 import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
@@ -111,7 +113,6 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
   return { g, fruits };
 }
 
-export const PLAYER_COATS = [0x3c5a3e, 0x34507a, 0x7a3a34, 0x5e3f7a];
 export const PLAYER_RING = [0xffd890, 0x8fc8ff, 0xff9a8a, 0xd0a0ff];
 const RAKE_STEEL = M(0xa8b0b8, { m: .8, r: .35 });
 /** rake head as wide as the raked strip: one tine per scratch, same spacing (wider rake = more tines) */
@@ -121,21 +122,12 @@ export function rakeHead(w: number) {
   for (let i = 0; i < n; i++) part(head, GEO.cyl, RAKE_STEEL, .012, .12, .012, -w / 2 + w * (i + .5) / n, -.06, .02);
   head.userData.w = w; return head;
 }
-export function buildPlayer(color: number, rakeLen: number, rakeW: number) {
+export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
   const g = new THREE.Group();
-  const coat = M(PLAYER_COATS[color % 4]), skin = M(0xe0b08a), straw = M(0xc9a35a), dark = M(0x2a2420), wood = M(0x7a5230);
+  const wood = M(0x7a5230);
   const body = new THREE.Group(); g.add(body);
-  part(body, GEO.capsule, coat, .22, .32, .2, 0, .62, 0);
-  part(body, GEO.box, M(0x6b4a2a), .46, .08, .4, 0, .52, 0);
-  part(body, GEO.cyl, dark, .07, .32, .07, -.1, .16, 0); part(body, GEO.cyl, dark, .07, .32, .07, .1, .16, 0);
-  part(body, GEO.sph, skin, .16, .16, .16, 0, 1.08, 0);
-  // straw hat = health display: eaten from the top down (bite marks), colour follows HP
-  const hat = makeHatMaterial();
-  const brimG = new THREE.CylinderGeometry(.36, .36, .03, 28, 1); brimG.translate(0, 1.2, 0);
-  const crownG = new THREE.CylinderGeometry(.13, .17, .16, 24, 6); crownG.translate(0, 1.29, 0);
-  const brim = new THREE.Mesh(brimG, hat.mat), crownM = new THREE.Mesh(crownG, hat.mat); brim.castShadow = crownM.castShadow = true; body.add(brim, crownM);
-  part(body, GEO.sph, M(0x222222), .025, .025, .025, -.06, 1.1, .14, false); part(body, GEO.sph, M(0x222222), .025, .025, .025, .06, 1.1, .14, false);
-  const arm = part(body, GEO.cyl, coat, .055, .38, .055, .26, .78, .08); arm.rotation.x = -1.0;
+  // detailed farmer figure (character editor look), hands follow the weapons via IK (view.animPlayer)
+  const rig = buildFarmer(look); body.add(rig.root);
   // rake: pivot at the player, head reaches exactly the hit range so the swing matches the cone
   const rake = new THREE.Group(); rake.position.set(0, .62, 0); rake.rotation.order = 'YXZ'; g.add(rake);
   const L = rakeLen - .12;
@@ -143,7 +135,6 @@ export function buildPlayer(color: number, rakeLen: number, rakeW: number) {
   const head = rakeHead(rakeW); head.position.z = L; rake.add(head);
   // lemon wand (Citrateaser): second arm + slim wooden wand with a lemon on the tip, only while equipped
   const wand = new THREE.Group(); wand.visible = false; body.add(wand);
-  const arm2 = part(wand, GEO.cyl, coat, .055, .38, .055, -.26, .78, .08); arm2.rotation.x = -1.0;
   const stick = new THREE.Group(); stick.position.set(-.25, .67, .22); stick.rotation.set(-.42, .2, 0, 'YXZ'); wand.add(stick); // in the hand, tilted up, pointing slightly inward
   const wandWood = M(0x4a2e1a, { r: .6 }), brass = M(0xc89a3a, { m: .7, r: .35 });
   const shaftG = new THREE.CylinderGeometry(.011, .019, .46, 7); shaftG.rotateX(Math.PI / 2); shaftG.translate(0, 0, .17);
@@ -158,7 +149,7 @@ export function buildPlayer(color: number, rakeLen: number, rakeW: number) {
   const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .56); stick.add(wandTip);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
-  return { g, body, rake, head, stars, coat, L, hat, wand, wandTip, lemonMat };
+  return { g, body, rake, head, stars, L, wand, wandTip, wandGrip: stick, lemonMat, rig };
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green
@@ -259,31 +250,6 @@ export function buildEnemy(type: EnemyType) {
 
 /** Hat material: uHp 1..0 eats the hat. Crown (y 1.215..1.37) is bitten from the top down,
  *  then the brim from the outside in. uCol = colour, uPulse = emissive blink. */
-export function makeHatMaterial() {
-  const uHp = { value: 1 }, uCol = { value: new THREE.Color(0xb8d040) }, uPulse = { value: 0 }, uCrown = { value: .65 };
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .85, flatShading: true, side: THREE.DoubleSide });
-  mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { uHp, uCol, uPulse, uCrown });
-    sh.vertexShader = 'varying vec3 vHatPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHatPos = position;');
-    sh.fragmentShader = 'varying vec3 vHatPos; uniform float uHp; uniform vec3 uCol; uniform float uPulse; uniform float uCrown;\n' + sh.fragmentShader
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-        float ang = atan(vHatPos.z, vHatPos.x);
-        float bites = .018 * (abs(sin(ang * 5.0)) + .6 * abs(sin(ang * 9.0 + 1.3)));   // scalloped bite marks
-        float r = length(vHatPos.xz);
-        // crown: share uCrown of the HP bar eats the crown top-down
-        float kc = clamp((uHp - (1.0 - uCrown)) / uCrown, 0.0, 1.0);
-        float cutY = mix(1.205, 1.415, kc) - bites;
-        if (vHatPos.y > 1.214 && vHatPos.y > cutY) discard;
-        // brim: the rest of the HP eats the brim from the outside in
-        float kb = clamp(uHp / (1.0 - uCrown), 0.0, 1.0);
-        float cutR = mix(.12, .40, kb) - bites * 1.6;
-        if (vHatPos.y <= 1.214 && r > cutR) discard;`)
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * uCol * .5, opacity );')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += uCol * uPulse;');
-  };
-  return { mat, uHp, uCol, uPulse, uCrown };
-}
-
 /** elite colour per animal (its eye colour; the sheep gets warm gold) */
 export const ELITE_COL: Record<EnemyType, number> = { ...EYE_COL, sheep: 0xffd860 };
 // Glowing outline: inverted hull of every lit body part, pushed out along smoothed normals by a fixed

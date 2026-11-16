@@ -442,7 +442,7 @@ transitions:               # Pausieren / Weiterspielen (Level-up, Menü …)
   uiFade: 0.25             # s Ein-/Ausblenden der Pause-Oberfläche
 
 hud:
-  hat:                     # Leben = Strohhut, der angefressen wird
+  hat:                     # Warnung bei wenig Leben (früher Strohhut-Anzeige; Hut ist jetzt Deko, nur vignette* wird noch benutzt)
     colors:                # [Leben-Anteil, Farbe] – dazwischen wird gemischt
       - [1.00, "#b8d040"]  # grüngelb, voll
       - [0.70, "#e6cf3a"]  # gelb

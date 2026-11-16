@@ -54,6 +54,16 @@
     <div class="err" id="menuErr" hidden></div>
   </div>
 
+  <!-- character editor (before playing) -->
+  <div class="ov" id="editor" hidden>
+    <div id="edView"><canvas id="edCanvas"></canvas></div>
+    <div id="edSide">
+      <div id="edName"><input id="edNameIn" maxlength="16" spellcheck="false" autocomplete="off" aria-label="Name"><button class="edIco" id="edNameDice" aria-label="Name würfeln"></button></div>
+      <div id="edRows"></div>
+      <div id="edBar"><button class="btn sec edIcoBtn" id="edBack" aria-label="Zurück"></button><button class="btn sec edIcoBtn" id="edDice" aria-label="Würfeln"></button><button class="btn" id="edGo" aria-label="Los"></button></div>
+    </div>
+  </div>
+
   <div class="ov" id="coop" hidden>
     <h2>Koop</h2>
     <div class="col">

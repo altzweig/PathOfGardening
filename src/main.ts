@@ -11,10 +11,12 @@ import { mobileControls, pcControls } from './ui/controls';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
+import { Editor } from './ui/editor';
+import { Look, loadLook } from './look';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
+const OVERLAYS = ['#menu', '#editor', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); }
 
 type Mode = 'idle' | 'solo' | 'host' | 'client';
@@ -37,6 +39,8 @@ class Game {
   private overShown = false;
   private placeShown: string | null = null;
   private backTo = '#menu';
+  look: Look = loadLook();
+  private editor = new Editor();
 
   constructor() {
     this.input = new Input(this.view, isTouch);
@@ -75,12 +79,13 @@ class Game {
   private wire() {
     const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
     addEventListener('wheel', e => { if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY); }, { passive: true });
-    click('#soloBtn', () => this.startSolo(false));
+    this.editor.onSound = k => sfx(k);
+    click('#soloBtn', () => this.openEditor(() => this.startSolo(false)));
     click('#testBtn', () => this.startSolo(true));
     click('#cheatBtn', () => this.toggleCheat());
     click('#cheatClose', () => this.toggleCheat());
     this.input.onCheat = () => this.toggleCheat();
-    click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
+    click('#coopBtn', () => this.openEditor(() => { $('#coopErr').hidden = true; only('#coop'); }));
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
     click('#optBack', () => only(this.backTo === '#pause' ? '#pause' : '#menu'));
@@ -125,6 +130,11 @@ class Game {
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
   }
+  /** character editor first; then the given next step (solo start / co-op menu) */
+  private openEditor(next: () => void) {
+    only('#editor');
+    this.editor.open(this.look, l => { this.look = l; next(); }, () => only('#menu'));
+  }
   private doPlace(slot: number) {
     if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
     sfx('ui.confirm');
@@ -157,18 +167,18 @@ class Game {
 
   // ---------- modes ----------
   testMode = false;
-  startSolo(test = this.testMode) { this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.smooth = false; this.enterGame(); }
+  startSolo(test = this.testMode) { this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); }
   restart() {
     if (this.mode === 'solo') return this.startSolo();
     if (this.mode === 'host' && this.host) { this.startHost(); }
   }
   async hostGame() {
     $('#coopErr').hidden = true; ($('#hostBtn') as HTMLButtonElement).disabled = true;
-    const h = new Host(this.cfg); this.host = h;
+    const h = new Host(this.cfg); this.host = h; h.players[0].look = this.look;
     try { await h.open(); }
     catch { ($('#hostBtn') as HTMLButtonElement).disabled = false; $('#coopErr').hidden = false; $('#coopErr').textContent = '✕'; this.host = null; return; }
     ($('#hostBtn') as HTMLButtonElement).disabled = false;
-    h.onChange = () => this.renderLobby();
+    h.onChange = () => { this.view.setLooks(h.players); this.renderLobby(); };
     h.onIntent = (id, it) => this.sim?.setIntent(id, it);
     h.onPick = (id, key) => this.sim?.pick(id, key);
     h.onPlace = (id, slot) => this.sim?.place(id, slot);
@@ -187,8 +197,8 @@ class Game {
     if (code.length < 4) return;
     $('#coopErr').hidden = true; ($('#joinBtn') as HTMLButtonElement).disabled = true;
     const c = new Client(); this.client = c;
-    c.onWelcome = () => { ($('#joinBtn') as HTMLButtonElement).disabled = false; this.me = c.id; this.view.setConfig(c.cfg!); $('#lobbyCode').textContent = code; show('#lobbyStart', false); only('#lobby'); this.renderLobby(); };
-    c.onLobby = () => this.renderLobby();
+    c.onWelcome = () => { c.send({ t: 'hello', look: this.look }); ($('#joinBtn') as HTMLButtonElement).disabled = false; this.me = c.id; this.view.setConfig(c.cfg!); $('#lobbyCode').textContent = code; show('#lobbyStart', false); only('#lobby'); this.renderLobby(); };
+    c.onLobby = () => { this.view.setLooks(c.lobby); this.renderLobby(); };
     c.onStart = () => { this.mode = 'client'; this.view.smooth = true; this.enterGame(); };
     c.onSnap = s => { if (this.mode === 'client') this.view.apply(s); };
     c.onClose = r => {
@@ -205,9 +215,9 @@ class Game {
     this.idle(); this.view.setConfig(this.cfg); only('#menu');
   }
   private renderLobby() {
-    const list = this.host ? this.host.players.map(p => ({ id: p.id, color: p.color })) : this.client ? this.client.lobby : [];
+    const list = this.host ? this.host.players.map(p => ({ id: p.id, color: p.color, look: p.look })) : this.client ? this.client.lobby : [];
     if (this.host) $('#lobbyCode').textContent = this.host.code;
-    $('#lobbyPlayers').innerHTML = list.map(p => `<div class="lp${p.id === this.me ? ' me' : ''}" style="background:${PLAYER_CSS[p.color % 4]}">${mini('player')}</div>`).join('');
+    $('#lobbyPlayers').innerHTML = list.map(p => `<div class="lp${p.id === this.me ? ' me' : ''}" style="background:${PLAYER_CSS[p.color % 4]}">${mini('player')}<b>${esc(p.look?.name ?? '')}</b></div>`).join('');
   }
   /** test mode only: cheat menu with every upgrade as +/− (no limits) */
   toggleCheat() {
@@ -320,5 +330,7 @@ class Game {
     if (s.ph !== 'over' && this.overShown) { this.overShown = false; show('#over', false); }
   }
 }
+
+const esc = (t: string) => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
 new Game().boot();

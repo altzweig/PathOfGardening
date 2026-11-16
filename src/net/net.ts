@@ -4,18 +4,19 @@
 import Peer, { DataConnection } from 'peerjs';
 import type { Balancing } from '../config';
 import type { Intent, Snap } from '../sim/snap';
+import { Look, cleanLook } from '../look';
 
 const PREFIX = 'pathofgardening-v1-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from({ length: 5 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join('');
 
-export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello' };
+export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello'; look?: Look };
 export type ToClient =
   | { t: 'welcome'; id: number; color: number; cfg: Balancing }
-  | { t: 'lobby'; players: { id: number; color: number }[] }
+  | { t: 'lobby'; players: { id: number; color: number; look?: Look }[] }
   | { t: 'start' } | { t: 's'; s: Snap } | { t: 'full' } | { t: 'bye' };
 
-export interface LobbyPlayer { id: number; color: number; conn: DataConnection | null }
+export interface LobbyPlayer { id: number; color: number; conn: DataConnection | null; look?: Look }
 
 export class Host {
   peer: Peer | null = null;
@@ -62,6 +63,7 @@ export class Host {
         if (m.t === 'in') this.onIntent(p.id, m.i);
         else if (m.t === 'pick') this.onPick(p.id, m.key);
         else if (m.t === 'place') this.onPlace(p.id, m.slot);
+        else if (m.t === 'hello' && m.look) { p.look = cleanLook(m.look); this.broadcastLobby(); this.onChange(); }
       });
       const gone = () => {
         const i = this.players.indexOf(p); if (i < 0) return;
@@ -70,7 +72,7 @@ export class Host {
       c.on('close', gone); c.on('error', gone);
     });
   }
-  broadcastLobby() { this.broadcast({ t: 'lobby', players: this.players.map(p => ({ id: p.id, color: p.color })) }); }
+  broadcastLobby() { this.broadcast({ t: 'lobby', players: this.players.map(p => ({ id: p.id, color: p.color, look: p.look })) }); }
   broadcast(m: ToClient) { for (const p of this.players) if (p.conn && p.conn.open) p.conn.send(m); }
   start() { this.started = true; this.broadcast({ t: 'start' }); }
   close() { this.broadcast({ t: 'bye' }); setTimeout(() => { this.peer?.destroy(); this.peer = null; }, 200); }
@@ -80,7 +82,7 @@ export class Client {
   peer: Peer | null = null;
   conn: DataConnection | null = null;
   id = -1; color = 0; cfg: Balancing | null = null;
-  lobby: { id: number; color: number }[] = [];
+  lobby: { id: number; color: number; look?: Look }[] = [];
   onWelcome: () => void = () => {};
   onLobby: () => void = () => {};
   onStart: () => void = () => {};

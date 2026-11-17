@@ -98,6 +98,7 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
 | +1 Mini-Kohl | Nach der Explosion springt ein Mini-Kohl weg (Radius × 0,9, Schaden × 0,5), vergiftet auch | 5 | `upgrades.cabMini`, `skills.cab.miniRadiusFactor`, `miniDamageFactor` |
+| Kohlgas | Kohl-Treffer legen den Debuff „Kohlgas“ (so lange wie das Gift). Stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis von 1 m; Karte: „Kohlgas“, alter Wert, goldenes +10 % | 5 Stufen | `upgrades.cabGas`, `skills.cab.gasRadius` |
 
 ## 4. Pflanzen
 

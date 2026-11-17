@@ -243,6 +243,7 @@ skills:
     poisonTick: 0.4        # s pro Gift-Tick (2 s / 0,4 s = 5 Ticks)
     poisonTickDamage: 0.10 # Anteil des Explosionsschadens pro Tick (5 x 10 % = 50 %)
     poisonSlow: 0.40       # vergiftete Gegner 40 % langsamer
+    gasRadius: 1.0         # m, Kohlgas-Upgrade: Umkreis der Gaswolke beim Tod (vergiftet alle Nachbarn darin)
     miniRadiusFactor: 0.9  # Mini-Kohl: Radius x 0.5
     miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
 
@@ -274,6 +275,7 @@ upgrades:
   cranPierce:     { step: 0.20, maxLevel: 5 }  # Chance pro Beere, einmal zu durchbohren: 0 -> 20/40/60/80/100 % (17.11.2026)
   cranSplash:     { step: 0.15, maxLevel: 5 }  # +15 Prozentpunkte Platzschaden liegender Beeren: 25 -> 40/55/70/85/100 % (17.11.2026)
   cabMini:        { step: 1,    maxLevel: 5 }
+  cabGas:         { step: 0.10, maxLevel: 5 }  # Kohlgas: Kohl-Treffer legen Debuff "Kohlgas" (so lange wie das Gift); stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis cab.gasRadius (17.11.2026)
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
   # Kartenregeln pro Level-up (3 Karten):
   fieldCardsPerLevel: 1    # immer 1 Feld-Karte: Feld eines vorhandenen Typs (bauen/hochleveln), Doppelernte oder Feldpflege

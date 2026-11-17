@@ -314,6 +314,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Alle drei Karten zeigen den bisherigen Wert und dahinter golden das Plus, wie beim Spargel.
 - Kombiwaffen: Wo „mehr Beeren“ übernommen wird, zählt jede Stufe wie bisher (Hotgun bekommt dadurch +2 statt +1 Beere vor dem Faktor). Durchbohren wird in Kombiwaffen nicht übernommen und zählt als Schadensbonus.
 
+## Kohl: Kohlgas (17.11.2026, abends)
+- Mini-Kohl bleibt wie er ist.
+- Neues Spezial-Upgrade „Kohlgas“ (5 Stufen, `upgrades.cabGas`): Jeder Kohl-Treffer (auch Mini-Kohl) legt zusätzlich zum Gift den Debuff „Kohlgas“, er hält so lange wie das Gift (`skills.cab.poisonDuration`, ein neuer Treffer frischt ihn auf).
+- Stirbt ein Gegner mit Kohlgas, platzt er mit 10/20/30/40/50 % Chance. Alle Gegner im Umkreis von 1 m (`skills.cab.gasRadius`) bekommen den normalen Gift-Debuff des Kohls (Tick-Schaden aus dem Explosionsschaden des Kohls, der das Gas gelegt hat). Kein Kettenausbruch: Die Nachbarn bekommen Gift, aber kein Gas. Auch ein Tod direkt durch die Explosion zählt.
+- Karte: „Kohlgas“, bisherige Chance und dahinter golden „+10 %“. In Kombiwaffen wird Kohlgas nicht übernommen und zählt als Schadensbonus.
+
 ## Kombiwaffen (17.11.2026)
 - Quelle: Bastis Tabelle „PathOfGardening – Waffenkombinationen“ (Claude Doc). Umsetzungs-Prompt: `Kombiwaffen-Prompt.md`. Zahlen in `balancing.yaml` unter `combos`.
 - Zehn Kombiwaffen aus je zwei Fruchtwaffen, die Harke ist nicht kombinierbar.

@@ -58,11 +58,11 @@ export interface Balancing {
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; splashDelay: number; splashDamage: number; splashRadius: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
-    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; doubleHarvest: Lim;
+    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; cabGas: Lim; doubleHarvest: Lim;
     rakeDiameter: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
     chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };

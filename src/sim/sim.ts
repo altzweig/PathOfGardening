@@ -52,7 +52,7 @@ export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const triPlant = (x: number, z: number, H: number, k: number): [number, number] => { const a = cornerAngle(k) + Math.PI / 6, r = H * .577; return [x + Math.cos(a) * r, z + Math.sin(a) * r]; };
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; cranPierceLv: number; mineLv: number; minis: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
+interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; cranPierceLv: number; mineLv: number; minis: number; gasLv: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -89,6 +89,7 @@ interface Enemy {
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
   shock: number; shockT: number; shockDmg: number; shockR: number; shockTk: number; // combo "unter Strom": s left, s to next tick, damage per tick, neighbour radius, tick interval
   pois: number; poisT: number; poisDmg: number; // cabbage poison: ticks left, s to next tick, damage per tick
+  gasT: number; gasCh: number; gasDmg: number; // "Kohlgas" debuff: s left, chance to burst on death, blast damage for the poison it spreads
   puff: number; // hedgehog: s into the current puff cycle
   /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
   hx: number; hz: number; cx: number; cz: number; y: number;
@@ -100,7 +101,7 @@ interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx
   /** combo extras: blast radius / share (jam, rocket), burn stacks + tick (lance, hot), shock share (sour), stats of the shot */
   r?: number; b?: number; burn?: number; tick?: number; dmgPct?: number; shk?: number; cs?: ComboStats }
 export const BK = ['cab', 'cole', 'cabboom', 'kimchi'] as const;
-interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean;
+interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean; gas?: number;
   kind: typeof BK[number]; gen: number; cs?: ComboStats; tickT?: number }
 interface Mine { id: number; x: number; z: number; dmg: number; t: number; r?: number; bleed?: boolean; fire?: { tick: number; dmgPct: number; n: number }; sx?: number; sz?: number; fl?: number; ft?: number } // missed cranberry lying on the ground until it pops (fl: flight time left of a scattered berry)
 /** Shockgun berry on the ground: every tickInterval lightning jumps to the nearest berries */
@@ -114,7 +115,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; splash: number; minis: number; throwDist: number; width: number; size: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string }
@@ -166,7 +167,7 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
+    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, gasLv: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
@@ -371,7 +372,7 @@ export class Sim {
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
-      minis: s.minis, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
+      minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
   /** flamethrower geometry for a sweep level: oscillating sweep (+30 deg / +5 deg cone per level, one sweep always takes sweepPeriod),
@@ -510,6 +511,7 @@ export class Sim {
   killEnemy(e: Enemy) {
     if (e.burn > 0) { if (e.burnSum > 0) { this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; } this.spreadFire(e); }
     e.dead = true; this.kills++; this.sfx(e.type + '.die', e.x, e.z);
+    if (e.gasT > 0 && Math.random() < e.gasCh) this.gasBurst(e);
     this.burst(e.x, .4, e.z, 0xffe0b0, 22, 2.6, .18, .6, { g: 4 });
     this.burst(e.x, .4, e.z, 0x404040, 10, 1.2, .5, .9, { a: .4 });
     for (const fr of e.carry) {
@@ -744,7 +746,7 @@ export class Sim {
         [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
       if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
       if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.cranPierceLv', g, 'Durchbohr-Chance', s.cranPierceLv], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
-      if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
+      if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis], ['cab.gasLv', g, 'Kohlgas', s.gasLv]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
       if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
     }
@@ -822,7 +824,7 @@ export class Sim {
     } else {
       this.snd('throw');
       const td = this.throwAt(p, st.throwDist), t = this.clampArena(p.x + dx * td, p.z + dz * td);
-      this.spawnBomb(fx, fy, fz, t[0], t[1], st.range, st.dmg, st.minis, false);
+      this.spawnBomb(fx, fy, fz, t[0], t[1], st.range, st.dmg, st.minis, false, st.gas);
     }
   }
   /** one asparagus bolt from the crossbow; follow = later bolt of a salvo (pays its own ammo, own muzzle event) */
@@ -839,19 +841,19 @@ export class Sim {
   flightFor(d: number) { return clamp(.3 + d * .055, .35, .8); }
   /** charged throw distance: throwMin without charge, max at full charge (p.thrK) */
   throwAt(p: Player, max: number) { const mn = Math.min(this.cfg.skills.cab.throwMin, max); return mn + (max - mn) * clamp(p.thrK, 0, 1); }
-  spawnBomb(fx: number, fy: number, fz: number, tx: number, tz: number, radius: number, dmg: number, minis: number, mini: boolean) {
+  spawnBomb(fx: number, fy: number, fz: number, tx: number, tz: number, radius: number, dmg: number, minis: number, mini: boolean, gas = 0) {
     const flight = mini ? .35 : this.flightFor(Math.hypot(tx - fx, tz - fz)); // explodes the moment it lands
-    this.bombs.push({ id: this.nid++, fx, fy, fz, tx, tz, x: fx, y: fy, z: fz, t: 0, flight, fuse: flight, radius, dmg, minis, mini, kind: 'cab', gen: 0 });
+    this.bombs.push({ id: this.nid++, fx, fy, fz, tx, tz, x: fx, y: fy, z: fz, t: 0, flight, fuse: flight, radius, dmg, minis, mini, kind: 'cab', gen: 0, gas });
   }
   explode(b: Bomb) {
     const C = this.cfg.skills.cab;
     this.snd(b.mini ? 'boomS' : 'boom');
     this.emit({ k: 'boom', x: r2(b.tx), z: r2(b.tz), r: r2(b.radius), m: b.mini ? 1 : 0 });
     // no pool any more: everything hit is poisoned (poisonDuration, a tick every poisonTick of poisonTickDamage x blast damage, poisonSlow slower)
-    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) { this.hurtEnemy(e, b.dmg, { color: 'c', src: 'cab' }); this.poisonEnemy(e, b.dmg); }
+    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) { this.poisonEnemy(e, b.dmg); if (b.gas) this.gasEnemy(e, b.gas, b.dmg); this.hurtEnemy(e, b.dmg, { color: 'c', src: 'cab' }); }
     for (let i = 0; i < b.minis; i++) {
       const a = rand(0, Math.PI * 2), t = this.clampArena(b.tx + Math.cos(a), b.tz + Math.sin(a));
-      this.spawnBomb(b.tx, .3, b.tz, t[0], t[1], b.radius * C.miniRadiusFactor, b.dmg * C.miniDamageFactor, 0, true);
+      this.spawnBomb(b.tx, .3, b.tz, t[0], t[1], b.radius * C.miniRadiusFactor, b.dmg * C.miniDamageFactor, 0, true, b.gas);
     }
   }
   /** cabbage poison debuff: a new hit restarts it (the stronger tick damage counts) */
@@ -861,7 +863,19 @@ export class Sim {
     if (e.pois <= 0) { e.poisT = iv; e.poisDmg = d; } else e.poisDmg = Math.max(e.poisDmg, d);
     e.pois = Math.max(1, Math.round(C.poisonDuration / iv));
   }
+  /** "Kohlgas" upgrade: a cabbage hit leaves gas on the enemy (as long as the poison); dying with it = chance to burst */
+  gasEnemy(e: Enemy, chance: number, blastDmg: number) {
+    if (e.dead) return; const on = e.gasT > 0;
+    e.gasCh = on ? Math.max(e.gasCh, chance) : chance; e.gasDmg = on ? Math.max(e.gasDmg, blastDmg) : blastDmg; e.gasT = this.cfg.skills.cab.poisonDuration;
+  }
+  /** gas burst on death: every enemy within gasRadius gets the cabbage poison debuff (no chain: they get no gas) */
+  private gasBurst(e: Enemy) {
+    const r = this.cfg.skills.cab.gasRadius ?? 1;
+    this.snd('boomS'); this.emit({ k: 'boom', x: r2(e.x), z: r2(e.z), r: r2(r), m: 1 });
+    for (const o of this.enemies) if (o !== e && !o.dead && Math.hypot(o.x - e.x, o.z - e.z) < r + o.r) this.poisonEnemy(o, e.gasDmg);
+  }
   private tickEnemyPoison(e: Enemy, dt: number) {
+    if (e.gasT > 0) { e.gasT -= dt; if (e.gasT <= 0) { e.gasCh = 0; e.gasDmg = 0; } }
     if (e.pois <= 0) return;
     e.poisT -= dt;
     while (e.poisT <= 1e-6 && e.pois > 0 && !e.dead) { e.poisT += Math.max(.05, this.cfg.skills.cab.poisonTick); e.pois--; this.hurtEnemy(e, e.poisDmg, { color: 'v', silent: true, dot: true, src: 'cab' }); }
@@ -873,11 +887,11 @@ export class Sim {
   pierceUp(s: SkillState) { const U = this.cfg.upgrades.aspPierce; s.pierce = s.pierce >= (U.max ?? 4) ? PIERCE_ALL : s.pierce + U.step; }
   /** upgrades taken for one weapon (all kinds) */
   upCount(id: SkillId, s: SkillState) {
-    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.cranPierceLv + s.mineLv + s.minis + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
+    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.cranPierceLv + s.mineLv + s.minis + s.gasLv + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
   }
   /** special upgrade levels of a weapon by upgrade key (asp_pierce, cran_pel, ...) */
   private specials(id: SkillId, s: SkillState): Record<string, number> {
-    const all: Record<string, number> = { asp_pierce: this.pierceLv(s), asp_pb: s.pierceBonus, asp_size: s.sizeLv, asp_salvo: s.salvoLv, cran_pel: s.extraPel, cran_pierce: s.cranPierceLv, cran_mine: s.mineLv, cab_mini: s.minis, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
+    const all: Record<string, number> = { asp_pierce: this.pierceLv(s), asp_pb: s.pierceBonus, asp_size: s.sizeLv, asp_salvo: s.salvoLv, cran_pel: s.extraPel, cran_pierce: s.cranPierceLv, cran_mine: s.mineLv, cab_mini: s.minis, cab_gas: s.gasLv, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
     const out: Record<string, number> = {}; for (const k in all) if (k.startsWith(id + '_')) out[k] = Math.max(0, all[k]); return out;
   }
   /** combo weapon owned by this main weapon state: every upgrade of both weapons folded into one set of numbers */
@@ -1112,7 +1126,7 @@ export class Sim {
       stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, leave: 0, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
-      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, pois: 0, poisT: 0, poisDmg: 0, puff: rand(0, D.puffEvery || 2),
+      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, pois: 0, poisT: 0, poisDmg: 0, gasT: 0, gasCh: 0, gasDmg: 0, puff: rand(0, D.puffEvery || 2),
       hx: 0, hz: 0, cx: 0, cz: 0, y: 0,
     };
     if (type === 'squirrel' && !this.squirrelStart(e)) return; // no nut tree (any more): nobody comes
@@ -1815,6 +1829,7 @@ export class Sim {
         if (s.xferLv < (U.lemonTransfer.maxLevel || 4)) { const t0 = this.cfg.skills.lemon.transfer + U.lemonTransfer.step * s.xferLv, t1 = t0 + U.lemonTransfer.step; mk('lemon_xfer', x => x.xferLv++, () => `{chain} ${nf(t0 * 100)} → ${nf(t1 * 100)} %`); }
       }
       if (id === 'cab' && s.minis < (U.cabMini.maxLevel || 5)) mk('cab_mini', x => x.minis += U.cabMini.step, b => `{mini} ${a.minis} → ${b.minis}`);
+      if (id === 'cab' && s.gasLv < (U.cabGas.maxLevel || 5)) { const b = this.stats('cab', { ...s, gasLv: s.gasLv + 1 }); pool.push({ key: 'cab_gas', cat: 'skill', w: 1, pic: 'skill_cab', title: N.skills.cab, lines: ['Kohlgas', `{poison} ${nf(a.gas * 100)} % [[+${nf((b.gas - a.gas) * 100)} %]]`] }); }
     }
     // starting weapon (rake) upgrades: always available, no limit
     { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, line: string) => pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] });
@@ -1919,6 +1934,7 @@ export class Sim {
       case 'cran_pierce': s.cranPierceLv++; break;
       case 'cran_mine': s.mineLv++; break;
       case 'cab_mini': s.minis += U.cabMini.step; break;
+      case 'cab_gas': s.gasLv++; break;
     }
   }
 

@@ -319,6 +319,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Neues Spezial-Upgrade „Kohlgas“ (5 Stufen, `upgrades.cabGas`): Jeder Kohl-Treffer (auch Mini-Kohl) legt zusätzlich zum Gift den Debuff „Kohlgas“, er hält so lange wie das Gift (`skills.cab.poisonDuration`, ein neuer Treffer frischt ihn auf).
 - Stirbt ein Gegner mit Kohlgas, platzt er mit 10/20/30/40/50 % Chance. Alle Gegner im Umkreis von 1 m (`skills.cab.gasRadius`) bekommen den normalen Gift-Debuff des Kohls (Tick-Schaden aus dem Explosionsschaden des Kohls, der das Gas gelegt hat). Kein Kettenausbruch: Die Nachbarn bekommen Gift, aber kein Gas. Auch ein Tod direkt durch die Explosion zählt.
 - Karte: „Kohlgas“, bisherige Chance und dahinter golden „+10 %“. In Kombiwaffen wird Kohlgas nicht übernommen und zählt als Schadensbonus.
+- Neues Spezial-Upgrade „Poison Damage“ (5 Stufen, `upgrades.cabPoison`): Gift-Tickschaden des Kohls +50 % je Stufe, additiv (100 → 150 … 350 %). Gilt für Kohl, Mini-Kohl und das Gift, das Kohlgas verteilt. Karte: „Poison Damage“, bisheriger Wert, golden „+50 %“. In Kombiwaffen nicht übernommen (zählt als Schadensbonus).
 
 ## Kombiwaffen (17.11.2026)
 - Quelle: Bastis Tabelle „PathOfGardening – Waffenkombinationen“ (Claude Doc). Umsetzungs-Prompt: `Kombiwaffen-Prompt.md`. Zahlen in `balancing.yaml` unter `combos`.

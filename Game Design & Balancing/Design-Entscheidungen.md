@@ -310,3 +310,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Beim Fall auf 0 HP gibt es kein XP mehr (das Blaubeer-Geschenk und `fields.deathXpShare/deathRemoveDelay` sind entfernt).
 - Gegner suchen sich nur Felder mit HP als Ziel. Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
 
+
+## Waffenmodelle (17.11.2026)
+- Alle 16 Waffen haben neue, handgebaut wirkende 3D-Modelle (`src/view/arsenal.ts`, Arbeitsanweisung `Waffenmodelle-Prompt.md`): weiche Schattierung statt Flat Shading, gedrehte Profile, gebogene und sich verjüngende Formen, abgerundete Kanten.
+- Jede Oberfläche hat eine eigene gemalte Textur mit Relief (Holzmaserung, gebürstetes und abgenutztes Metall, Leder- und Schnurwicklung, Spargelfasern mit Schuppen, Kohlblattadern, Zitronenporen, lackierte Chilihaut). Metall, Lack und glänzende Früchte spiegeln leicht, nachts schwächer.
+- Je Waffe eine gedeckte Palette aus 4 bis 6 Tönen (Tabelle im Prompt), Leuchten nur an Ladung, Sprengkopf und Glut.
+- Neu in der Hand: Beeren-Schrotflinte (Donnerbüchse aus Kirschholz und Kupfer mit Beeren-Glaskugel) und die geschnürte Kohlbombe. Vorher hatten diese beiden Waffen kein Haltemodell.
+- Nahansicht aller Modelle beim lokalen Entwickeln: `arsenal-preview.html` (nicht Teil des Spiels).

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { lemonWand, rakeHandle, rakeHeadModel } from './arsenal';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
@@ -114,12 +115,9 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
 }
 
 export const PLAYER_RING = [0xffd890, 0x8fc8ff, 0xff9a8a, 0xd0a0ff];
-const RAKE_STEEL = M(0xa8b0b8, { m: .8, r: .35 });
 /** rake head as wide as the raked strip: one tine per scratch, same spacing (wider rake = more tines) */
 export function rakeHead(w: number) {
-  const head = new THREE.Group(), n = rakeTines(w);
-  part(head, GEO.box, RAKE_STEEL, n * TINE_GAP, .04, .05, 0, 0, 0);
-  for (let i = 0; i < n; i++) part(head, GEO.cyl, RAKE_STEEL, .012, .12, .012, -w / 2 + w * (i + .5) / n, -.06, .02);
+  const head = rakeHeadModel(rakeTines(w), TINE_GAP, w);
   head.userData.w = w; return head;
 }
 export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
@@ -131,22 +129,13 @@ export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
   // rake: pivot at the player, head reaches exactly the hit range so the swing matches the cone
   const rake = new THREE.Group(); rake.position.set(0, .62, 0); rake.rotation.order = 'YXZ'; g.add(rake);
   const L = rakeLen - .12;
-  const h = part(rake, GEO.cyl, wood, .025, L, .025, 0, 0, L / 2); h.rotation.x = Math.PI / 2;
+  rake.add(rakeHandle(L)); void wood;
   const head = rakeHead(rakeW); head.position.z = L; rake.add(head);
   // lemon wand (Citrateaser): second arm + slim wooden wand with a lemon on the tip, only while equipped
   const wand = new THREE.Group(); wand.visible = false; body.add(wand);
   const stick = new THREE.Group(); stick.position.set(-.25, .67, .22); stick.rotation.set(-.42, .2, 0, 'YXZ'); wand.add(stick); // in the hand, tilted up, pointing slightly inward
-  const wandWood = M(0x4a2e1a, { r: .6 }), brass = M(0xc89a3a, { m: .7, r: .35 });
-  const shaftG = new THREE.CylinderGeometry(.011, .019, .46, 7); shaftG.rotateX(Math.PI / 2); shaftG.translate(0, 0, .17);
-  const shaft = new THREE.Mesh(shaftG, wandWood); shaft.castShadow = true; stick.add(shaft);
-  part(stick, GEO.sph, wandWood, .024, .024, .03, 0, 0, -.07); // pommel
-  for (const z of [.02, .36]) { const r = part(stick, GEO.cyl, brass, .02, .018, .02, 0, 0, z, false); r.rotation.x = Math.PI / 2; } // grip + tip ferrule
-  const lemonMat = new THREE.MeshStandardMaterial({ color: 0xf0cf2a, roughness: .42, emissive: 0xffe46a, emissiveIntensity: 0 });
-  part(stick, GEO.sph, lemonMat, .052, .052, .07, 0, 0, .46); // lemon: elongated along the wand
-  const nub = part(stick, GEO.cone, lemonMat, .022, .04, .022, 0, 0, .535, false); nub.rotation.x = Math.PI / 2;
-  part(stick, GEO.cyl, M(0x3d6a2a), .012, .02, .012, 0, 0, .385, false).rotation.x = Math.PI / 2; // stem
-  const leaf = part(stick, GEO.sph, M(0x3f7a2c), .035, .006, .016, .03, .02, .39, false); leaf.rotation.y = .6;
-  const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .56); stick.add(wandTip);
+  const lemonMat = lemonWand(stick) as THREE.MeshStandardMaterial;
+  const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .53); stick.add(wandTip);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
   return { g, body, rake, head, stars, L, wand, wandTip, wandGrip: stick, lemonMat, rig };

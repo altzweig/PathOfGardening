@@ -5,6 +5,7 @@ import { COMBOS, ComboId } from '../config';
 import { GEO, M, PART, V, addMat, burst, decal, lightning, part, rand } from './core';
 import { BUSH_MAT, CHILI_STEM, PROJ_ASP, PROJ_CRAN, BERRY_GEO } from './models';
 import { play, sfx } from '../audio';
+import { comboModel } from './arsenal';
 
 // ---------- materials ----------
 const glow = (c: number, e: number, ei: number, r = .4) => new THREE.MeshStandardMaterial({ color: c, emissive: e, emissiveIntensity: ei, roughness: r });
@@ -49,90 +50,9 @@ export interface Held { g: THREE.Group; cid: ComboId; t0: THREE.Vector3; t1: THR
 /** model in the player's hands, local to the player group (+z = forward). t0/t1 = grip points for the hands (weapon space) */
 export function buildHeld(cid: ComboId): Held {
   const g = new THREE.Group(), a = new THREE.Group(); g.add(a);
-  let t0 = V(0, -.07, -.17), t1 = V(0, -.03, .1), muzzle = V(0, .05, .4), loaded: THREE.Object3D | undefined, base = V(.2, .78, .22);
-  const crossbow = (stock: THREE.Material, dark: THREE.Material, limb: THREE.Material, limbTip: THREE.Material) => {
-    part(a, GEO.box, stock, .07, .06, .52, 0, 0, -.02, false); part(a, GEO.box, dark, .05, .1, .06, 0, -.07, -.18, false);
-    part(a, GEO.box, MAT.brass, .075, .02, .05, 0, .025, .2, false);
-    for (const sd of [-1, 1]) { seg(a, limb, .026, [0, 0, .24], [sd * .3, 0, .12]); part(a, GEO.sph, limbTip, .032, .032, .032, sd * .3, 0, .12, false); seg(a, MAT.string, .006, [sd * .3, 0, .12], [0, .02, -.03]); }
-  };
-  switch (cid) {
-    case 'jam': { // red wooden crossbow, asparagus limbs, bolt with a glowing berry tip
-      crossbow(MAT.redWood, MAT.redWoodDk, BUSH_MAT.asp, MAT.berry);
-      const l = new THREE.Group(); a.add(l); bolt(l, PROJ_ASP, MAT.berry, .34, .018, .1, 0, .05, true); loaded = l;
-      for (let i = 0; i < 3; i++) berry(a, MAT.berry, .022, rand(-.03, .03), -.02, -.12 + i * .045); // berry magazine on the stock
-      break;
-    }
-    case 'sour': { // yellow lacquered crossbow, three bolts with lemon tips in a fan
-      crossbow(MAT.yellowLac, MAT.yellowDk, BUSH_MAT.asp, MAT.lemon);
-      const l = new THREE.Group(); a.add(l);
-      for (const k of [-1, 0, 1]) { const b = new THREE.Group(); b.rotation.y = k * .18; b.position.set(k * .02, .05, .05); l.add(b); bolt(b, MAT.sourShaft, MAT.tipLemon, .34, .016, .06); }
-      loaded = l; part(a, GEO.sph, MAT.lemon, .05, .04, .04, 0, -.01, -.27, false); // lemon pommel
-      break;
-    }
-    case 'lance': { // long asparagus staff, a bundle of chilis at the front
-      base = V(.22, .82, .1); t0 = V(0, 0, -.25); t1 = V(0, 0, .18); muzzle = V(0, 0, .9);
-      const st = part(a, GEO.cyl, BUSH_MAT.asp, .028, 1.25, .028, 0, 0, .2, false); st.rotation.x = Math.PI / 2;
-      for (let i = 0; i < 6; i++) part(a, GEO.cone, BUSH_MAT.asp, .02, .05, .02, (i % 2 ? .025 : -.025), 0, -.25 + i * .14, false).rotation.z = (i % 2 ? -1 : 1) * 1.2;
-      part(a, GEO.cyl, MAT.brass, .04, .05, .04, 0, 0, .78, false).rotation.x = Math.PI / 2;
-      for (let i = 0; i < 5; i++) { const an = i / 5 * Math.PI * 2; chiliPod(a, MAT.chiliHot, 1.2, Math.cos(an) * .035, Math.sin(an) * .035, .88, Math.cos(an) * .25, -Math.sin(an) * .25); }
-      const core = part(a, GEO.sph, ADD(0xff8a20, .7), .06, .06, .06, 0, 0, .98, false); loaded = core;
-      break;
-    }
-    case 'shock': case 'hot': { // shotguns: Shockgun = lemon-yellow double barrel, Hotgun = shaped like a chili pod
-      t0 = V(0, -.06, -.2); t1 = V(0, -.02, .12); muzzle = V(0, .02, .42);
-      if (cid === 'shock') {
-        part(a, GEO.box, MAT.redWoodDk, .07, .08, .26, 0, -.02, -.18, false); part(a, GEO.box, MAT.redWoodDk, .05, .1, .06, 0, -.08, -.22, false);
-        for (const sd of [-1, 1]) { const b = part(a, GEO.cyl, MAT.yellowLac, .026, .5, .026, sd * .028, .02, .14, false); b.rotation.x = Math.PI / 2; }
-        const ring = part(a, GEO.cyl, MAT.lemon, .07, .03, .07, 0, .02, .4, false); ring.rotation.x = Math.PI / 2;
-        part(a, GEO.box, MAT.steel, .08, .03, .08, 0, .02, -.03, false);
-        loaded = part(a, GEO.sph, ADD(0xfff4a0, .8), .03, .03, .03, 0, .02, .43, false);
-      } else {
-        const b = part(a, GEO.capsule, MAT.chili, .065, .17, .065, 0, .01, .1, false); b.rotation.x = Math.PI / 2;
-        const tip = part(a, GEO.cone, MAT.chili, .055, .14, .055, 0, .04, .34, false); tip.rotation.x = Math.PI / 2 - .3;
-        part(a, GEO.cyl, CHILI_STEM, .07, .05, .07, 0, .01, -.16, false).rotation.x = Math.PI / 2;
-        seg(a, CHILI_STEM, .02, [0, 0, -.18], [0, -.14, -.24]); // stem = grip
-        const hl = part(a, GEO.capsule, M(0xff8a60, { r: .3 }), .015, .14, .015, .03, .06, .1, false); hl.rotation.x = Math.PI / 2;
-        loaded = part(a, GEO.sph, ADD(0xff7a20, .9), .035, .035, .035, 0, .06, .5, false);
-      }
-      break;
-    }
-    case 'rocket': { // bazooka on the shoulder: green tube, lemon warhead
-      base = V(.16, 1.2, .02); t0 = V(0, -.1, -.12); t1 = V(0, -.11, .2); muzzle = V(0, 0, .62);
-      const tb = part(a, GEO.cyl, MAT.tube, .07, 1.0, .07, 0, 0, .05, false); tb.rotation.x = Math.PI / 2;
-      for (const z of [-.42, .52]) part(a, GEO.cyl, MAT.tubeDk, .085, .07, .085, 0, 0, z, false).rotation.x = Math.PI / 2;
-      part(a, GEO.box, MAT.tubeDk, .04, .14, .05, 0, -.11, -.1, false); part(a, GEO.box, MAT.tubeDk, .035, .12, .05, 0, -.1, .2, false);
-      part(a, GEO.box, MAT.steel, .03, .06, .08, -.07, .08, .1, false);
-      const head = new THREE.Group(); head.position.set(0, 0, .62); a.add(head);
-      part(head, GEO.sph, MAT.lemon, .085, .085, .14, 0, 0, .06, false); part(head, GEO.cone, MAT.lemon, .03, .05, .03, 0, 0, .2, false).rotation.x = Math.PI / 2;
-      loaded = head;
-      break;
-    }
-    case 'cole': case 'cabboom': case 'kimchi': { // thrown: the cabbage sits in the hand
-      base = V(.24, .86, .26); t0 = V(.05, -.06, -.03); t1 = V(-.05, -.06, .02); muzzle = V(0, 0, .1);
-      const c = new THREE.Group(); a.add(c);
-      if (cid === 'kimchi') cabbage(c, MAT.cabRed, .11, MAT.cabRedLeaf); else cabbage(c, MAT.cab, .11);
-      if (cid === 'cole') for (let i = 0; i < 12; i++) { const d = V(rand(-1, 1), rand(-.6, 1), rand(-1, 1)).normalize(); seg(c, BUSH_MAT.asp, .01, [d.x * .08, d.y * .08, d.z * .08], [d.x * .17, d.y * .17, d.z * .17]); }
-      if (cid === 'cabboom') for (let i = 0; i < 9; i++) { const d = V(rand(-1, 1), rand(-.5, 1), rand(-1, 1)).normalize(); berry(c, MAT.berry, .022, d.x * .115, d.y * .11, d.z * .115); }
-      if (cid === 'kimchi') for (let i = 0; i < 4; i++) chiliPod(c, MAT.chiliHot, .8, rand(-.06, .06), .1, rand(-.06, .06), rand(0, 7), -1.2);
-      loaded = c;
-      break;
-    }
-    case 'chilight': { // big yellow-red chili pod as a wide blade
-      base = V(.2, .95, .18); t0 = V(0, 0, -.32); t1 = V(0, 0, -.18); muzzle = V(0, 0, .9);
-      const bl = new THREE.Group(); bl.scale.setScalar(.8); a.add(bl);
-      // pod: red back, yellow flat cutting side, curved pointed tip, green calyx + stem as the handle
-      const b1 = part(bl, GEO.capsule, MAT.chili, .12, .44, .06, 0, 0, .4, false); b1.rotation.x = Math.PI / 2;
-      const b2 = part(bl, GEO.capsule, MAT.bladeY, .085, .4, .065, .045, 0, .42, false); b2.rotation.x = Math.PI / 2;
-      const tp = part(bl, GEO.cone, MAT.chili, .1, .3, .055, .02, 0, .86, false); tp.rotation.x = Math.PI / 2; tp.rotation.z = .2;
-      for (let i = 0; i < 4; i++) part(bl, GEO.lo, CHILI_STEM, .07, .03, .06, Math.cos(i * 1.6) * .06, Math.sin(i * 1.6) * .03, .02, false);
-      seg(bl, CHILI_STEM, .026, [0, 0, 0], [0, 0, -.36]); // stem = handle
-      part(bl, GEO.sph, CHILI_STEM, .034, .034, .034, 0, 0, -.37, false);
-      const edge = part(bl, GEO.box, ADD(0xfff0a0, .3), .01, .03, .62, .135, 0, .36, false); loaded = edge;
-      break;
-    }
-  }
-  g.position.copy(base);
-  return { g, cid, t0, t1, muzzle, anim: a, loaded, base };
+  const m = comboModel(cid, a);
+  g.position.copy(m.base);
+  return { g, cid, t0: m.t0, t1: m.t1, muzzle: m.muzzle, anim: a, loaded: m.loaded, base: m.base };
 }
 /** recoil / slam animation; k = time since the last shot (s) */
 export function animHeld(h: Held, k: number) {

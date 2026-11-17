@@ -1,7 +1,7 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon } from '../config';
+import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { Slot, cornerAngle, hexDist, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
@@ -29,7 +29,7 @@ import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flam
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight,
+  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { loadNature, natureMesh } from './nature';
@@ -41,12 +41,14 @@ import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
+import { aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -173,6 +175,7 @@ export class GameView {
 
   constructor() {
     buildWorld();
+    setArsenalEnv(new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture); // reflections for the weapon props
     this.heat = new GroundHeat(scene); this.fire = new FireSprites(scene);
     scene.add(this.dyn);
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
@@ -775,7 +778,7 @@ export class GameView {
     this.updateOverlay();
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
-    updateEyes(dt); updateFog(dt); updateTorches(dt);
+    updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     const night = 1 - dayNow().day;
@@ -829,9 +832,10 @@ export class GameView {
     this.lowHpWarn(v, s.hp / s.mhp);
     this.animFlame(v, dt);
     this.animXbow(v);
+    this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -849,6 +853,8 @@ export class GameView {
     if (v.cw && v.cw.g.visible) { v.cw.anim.updateMatrixWorld(true); t0 = v.cw.anim.localToWorld(v.cw.t0.clone()); t1 = v.cw.anim.localToWorld(v.cw.t1.clone()); }
     else if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
     else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
+    else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
+    else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
@@ -865,27 +871,22 @@ export class GameView {
     if (!v.cw) { v.cw = buildHeld(cid); v.g.add(v.cw.g); }
     v.cw.g.visible = true; animHeld(v.cw, v.cwT);
   }
+  /** cranberry blunderbuss / tied cabbage in the hand while that weapon is active */
+  private animBaseHeld(v: PView) {
+    const aw = v.s.aw ? WEAPONS[v.s.aw] : 'rake', al = !!v.s.al;
+    const gunOn = al && aw === 'cran', cabOn = al && aw === 'cab';
+    if (gunOn && !v.gun) { const m = cranGun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = m; }
+    if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
+    if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
+    if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
+  }
   /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */
   private animXbow(v: PView) {
     const on = !!v.s.xb && !!v.s.al;
     if (!on && !v.xbow) return;
-    if (!v.xbow) {
-      const g = new THREE.Group(), wood = M(0x6a4528), dark = M(0x3d2a18), str = new THREE.MeshBasicMaterial({ color: 0xe8dcc0 });
-      const stock = part(g, GEO.box, wood, .07, .06, .5, 0, 0, -.02, false);
-      part(g, GEO.box, dark, .05, .1, .06, 0, -.07, -.18, false); // grip
-      const seg = (mat: THREE.Material, r: number, a: number[], b: number[]) => { // cylinder from a to b
-        const d = V(b[0] - a[0], b[1] - a[1], b[2] - a[2]), m = part(g, GEO.cyl, mat, r, d.length(), r, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, false);
-        m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); return m;
-      };
-      for (const sd of [-1, 1]) { // bow limbs: asparagus spears swept back, purple tips, string to the nut
-        seg(BUSH_MAT.asp, .025, [0, 0, .24], [sd * .28, 0, .13]);
-        const tip = part(g, GEO.sph, ASP_TIP_BUSH, .03, .03, .03, sd * .28, 0, .13, false); void tip;
-        seg(str, .006, [sd * .28, 0, .13], [0, .02, -.02]);
-      }
-      const bolt = new THREE.Group(); g.add(bolt); // loaded asparagus bolt
-      const sh = part(bolt, GEO.cyl, PROJ_ASP, .02, .36, .02, 0, .05, .08, false); sh.rotation.x = Math.PI / 2;
-      const bt = part(bolt, GEO.cone, PROJ_ASP_TIP, .03, .08, .03, 0, .05, .29, false); bt.rotation.x = Math.PI / 2;
-      void stock; v.g.add(g); g.position.set(.2, .78, .22);
+    if (!v.xbow) { // walnut crossbow with bundled asparagus limbs (arsenal.ts)
+      const { g, bolt } = aspCrossbow();
+      v.g.add(g); g.position.set(.2, .78, .22);
       v.xbow = { g, bolt };
     }
     const X = v.xbow; X.g.visible = on; if (!on) return;
@@ -899,11 +900,7 @@ export class GameView {
     if (!on && !v.flame) return;
     if (!v.flame) {
       const fx = makeFlame(); this.dyn.add(fx.g);
-      const gun = new THREE.Group(); // chili-shaped flamethrower pointing along +z
-      const body = part(gun, GEO.capsule, BUSH_MAT.chili, .055, .16, .055, 0, 0, 0, false); body.rotation.x = Math.PI / 2;
-      const tip = part(gun, GEO.cone, BUSH_MAT.chili, .05, .14, .05, 0, .02, .18, false); tip.rotation.x = Math.PI / 2 - .3;
-      const cap = part(gun, GEO.cyl, CHILI_STEM, .06, .04, .06, 0, 0, -.14, false); cap.rotation.x = Math.PI / 2;
-      part(gun, GEO.cyl, CHILI_STEM, .015, .1, .015, 0, .04, -.2, false).rotation.x = 1;
+      const gun = chiliThrower(); // chili-pod flamethrower pointing along +z (arsenal.ts)
       this.dyn.add(gun);
       v.flame = { fx, gun, ang: s.fa, was: false };
     }

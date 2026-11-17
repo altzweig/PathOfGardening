@@ -18,6 +18,7 @@ export interface PSnap {
   xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped
+  aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
 }

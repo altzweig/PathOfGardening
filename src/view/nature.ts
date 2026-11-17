@@ -22,7 +22,7 @@ function tex(file: string) {
  *  - night: things in the forest ring sink into darkness with a thin cold rim, so the garden stays the lit stage
  *  - optional glow (mushrooms, flowers) that only comes out at night */
 interface NatOpt { wind?: number; glow?: number; glowCol?: number; edge?: boolean }
-function natMat(mat: THREE.MeshStandardMaterial, o: NatOpt, key: string) {
+function natMat(mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial, o: NatOpt, key: string) {
   const wind = o.wind ?? 0, glow = o.glow ?? 0;
   if (glow) { mat.emissive = new THREE.Color(o.glowCol ?? 0xffffff); mat.emissiveMap = mat.map; mat.emissiveIntensity = glow; }
   mat.onBeforeCompile = sh => {
@@ -72,14 +72,15 @@ const MAT_DEF: Record<string, { file: string; kind: Kind; color?: number }> = {
   Rocks: { file: 'rocks.jpg', kind: 'rock', color: 0x9aa0a8 },
   PathRocks: { file: 'pathrocks.jpg', kind: 'rock', color: 0xa0a4a8 },
 };
-const matCache = new Map<string, THREE.MeshStandardMaterial>();
+const matCache = new Map<string, THREE.MeshStandardMaterial | THREE.MeshLambertMaterial>();
 function material(name: string, vc: boolean, scale: number) {
   const d = MAT_DEF[name] ?? { file: 'rocks.jpg', kind: 'rock' as Kind };
   const key = name + vc;
   let m = matCache.get(key); if (m) return m;
   const cut = d.kind === 'leaf' || d.kind === 'plant' || d.kind === 'flower';
-  m = new THREE.MeshStandardMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, roughness: d.kind === 'rock' ? .92 : .85, metalness: 0,
-    alphaTest: cut ? .35 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide, vertexColors: vc });
+  // foliage: Lambert (no specular) - PBR fresnel lit the crown edges up as a bright rim
+  m = cut ? new THREE.MeshLambertMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, alphaTest: .35, side: THREE.DoubleSide, vertexColors: vc })
+    : new THREE.MeshStandardMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, roughness: d.kind === 'rock' ? .92 : .85, metalness: 0, vertexColors: vc });
   const wind = d.kind === 'leaf' ? .012 / scale : d.kind === 'plant' || d.kind === 'flower' ? .07 : 0;
   natMat(m, { wind, glow: d.kind === 'glow' ? 1.4 : d.kind === 'flower' ? .3 : 0, glowCol: d.kind === 'glow' ? 0xb8a0ff : 0xffffff, edge: d.kind !== 'glow' }, key);
   matCache.set(key, m); return m;
@@ -111,7 +112,7 @@ function softNormals(g: THREE.BufferGeometry) {
   const P = g.getAttribute('position'), Nn = g.getAttribute('normal'), v = new THREE.Vector3(), n = new THREE.Vector3();
   for (let i = 0; i < P.count; i++) {
     v.fromBufferAttribute(P, i).sub(c).normalize(); n.fromBufferAttribute(Nn, i);
-    n.multiplyScalar(.2).addScaledVector(v, .8).normalize(); Nn.setXYZ(i, n.x, n.y, n.z);
+    n.multiplyScalar(.05).addScaledVector(v, .95).normalize(); Nn.setXYZ(i, n.x, n.y, n.z);
   }
 }
 

@@ -81,7 +81,7 @@ function buildGardenDeco() {
   for (const [name, list] of group(['Petal_1', 'Petal_2', 'Petal_3', 'Petal_5'], pts(18, 7.2, 10)))
     instance(G, name, list.map(p => ({ x: p.x, z: p.z, y: .01, s: rand(.25, .4), tilt: .3, col: hsl(rand(.6, .85), .2, .6) })));
   // grass creeping in from the lawn, and a few glowing mushrooms
-  for (const [name, list] of group(['Grass_Common_Short', 'Clover_1', 'Plant_7'], pts(34, 8.4, 10)))
+  for (const [name, list] of group(['Grass_Common_Short', 'Clover_1', 'Clover_2'], pts(34, 8.4, 10)))
     instance(G, name, list.map(p => ({ x: p.x, z: p.z, s: rand(.25, .4), col: hsl(rand(.22, .35), .25, rand(.6, .72)) })));
   const sh: Inst[] = [];
   for (const p of pts(5, 7, 9.8)) for (let i = 0, n = 2 + Math.floor(Math.random() * 3); i < n; i++) { const x = p.x + rand(-.25, .25), z = p.z + rand(-.25, .25); if (ok(x, z)) sh.push({ x, z, s: rand(.3, .5), tilt: .3 }); }
@@ -106,10 +106,10 @@ function buildNature() {
   // --- forest: twisted giants, dead trees, dark pines, a few broadleaf trees; a dense wall close in, thinner behind
   const taken: { x: number; z: number; d: number }[] = [];
   const trees: { name: string; s: number; col: () => THREE.Color; d: number; n: number; r0: number; r1: number }[] = [
-    { name: 'Twisted', s: .38, n: 11, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .3 ? hsl(rand(.7, .78), rand(.35, .5), rand(.32, .4)) : hsl(rand(.45, .52), rand(.45, .6), rand(.24, .32)) },
-    { name: 'Pine', s: .72, n: 28, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.48, .55), rand(.15, .3), rand(.62, .78)) },
+    { name: 'Twisted', s: .38, n: 11, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .25 ? hsl(rand(.07, .12), rand(.65, .8), rand(.42, .5)) : hsl(rand(.22, .3), rand(.55, .7), rand(.34, .42)) },
+    { name: 'Pine', s: .72, n: 28, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.2, .28), rand(.25, .4), rand(.78, .9)) },
     { name: 'Dead', s: .42, n: 11, d: 2.6, r0: 15.4, r1: 25, col: () => white },
-    { name: 'Common', s: .62, n: 12, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.33, .42), rand(.4, .55), rand(.2, .28)) },
+    { name: 'Common', s: .62, n: 12, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.24, .32), rand(.55, .7), rand(.32, .4)) },
   ];
   const variants: Record<string, string[]> = {
     Twisted: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), Dead: [1, 2, 3, 4, 5].map(i => 'DeadTree_' + i),
@@ -127,10 +127,10 @@ function buildNature() {
   // --- bushes on the rim (the eyes sit in them); some flowering
   const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6).filter(p => !inClearing(p.x, p.z));
   BUSHES.length = 0;
-  const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.42, .5), rand(.45, .6), rand(.17, .24)) }; });
+  const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.25, .34), rand(.5, .65), rand(.28, .36)) }; });
   const fl = bushList.filter(() => Math.random() < .25);
   add('Bush_Common', bushList.filter(b => !fl.includes(b)), { shadow: true });
-  add('Bush_Common_Flowers', fl.map(b => ({ ...b, col: hsl(rand(.36, .44), .5, .24) })), { shadow: true });
+  add('Bush_Common_Flowers', fl.map(b => ({ ...b, col: hsl(rand(.27, .33), .55, .34) })), { shadow: true });
 
   // --- boulders: rim + forest floor, mossy cool grey
   add('Rock_Medium_1', ringPts(N(7), 12.6, 22).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.35, .8), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
@@ -142,7 +142,7 @@ function buildNature() {
   add('Fern_1', fern(70, 13.4, 23));
   add('Plant_1_Big', ringPts(N(26), 13.5, 22).map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.42, .52), .3, rand(.6, .72)) })));
   add('Plant_1', ringPts(N(30), 11.5, 16).map(p => ({ x: p.x, z: p.z, s: rand(.35, .55), col: hsl(rand(.38, .5), .25, rand(.62, .75)) })));
-  for (const [name, list] of group(['Plant_7', 'Plant_7_Big'], ringPts(N(36), 10.6, 15))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.3, .5), .25, rand(.68, .8)) })));
+  for (const [name, list] of group(['Clover_1', 'Clover_2'], ringPts(N(30), 10.6, 15))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.22, .32), .35, rand(.7, .8)) })));
   const grassCol = () => hsl(rand(.2, .32), rand(.2, .35), rand(.58, .72));
   for (const [name, list] of group(['Grass_Common_Short', 'Grass_Common_Short', 'Grass_Common_Tall'], ringPts(N(260), 10.3, 17.5)))
     add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.32, .55) * (p.r > 13 ? 1.25 : 1), col: grassCol() })));
@@ -151,7 +151,7 @@ function buildNature() {
 
   // --- flowers that glow faintly at night
   for (const [name, list] of group(['Flower_3_Group', 'Flower_4_Group', 'Flower_3_Single', 'Flower_4_Single'], ringPts(N(34), 10.8, 15.5)))
-    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.22, .34), col: hsl(rand(.6, .8), .25, .85) })));
+    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.22, .34), col: hsl(rand(.08, .15), .2, .95) })));
 
   // --- glowing mushrooms: two fairy rings on the lawn, clusters at the tree feet
   const shrooms: Inst[] = [], bracket: Inst[] = [];

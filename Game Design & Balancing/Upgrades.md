@@ -118,5 +118,5 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 5 Schaden, Rechteck 1,2 m lang × 0,9 m breit vor dem Spieler, 0,5 s. Jeder Zug trifft Gegner und beackert alle Felder im Rechteck anteilig zur Fläche | `rake.*`, `fields.till*` |
+| Harke | 5 Schaden, Rechteck 1,2 m lang × 0,9 m breit vor dem Spieler, 0,5 s. Zug nach links hinten, dann Stoß nach vorne: beim Aufprall Schaden, 0,5 s Stun, 0,3 m Rückstoß, beackert alle Felder im Rechteck anteilig zur Fläche | `rake.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

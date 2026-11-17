@@ -45,7 +45,7 @@ export interface Balancing {
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; deathXpShare?: number; deathRemoveDelay?: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>;
-  rake: { damage: number; range: number; width: number; tilt?: number; cooldown: number; swingTime: number; knockback: number };
+  rake: { damage: number; range: number; width: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
   skills: {
     readySeconds: number;
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number };

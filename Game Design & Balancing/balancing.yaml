@@ -152,10 +152,11 @@ rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
   range: 1.2               # m, so weit vor sich legt man die Harke an und zieht sie bis zu sich zurück (Länge des Rechtecks)
   width: 0.9               # m, Breite des geharkten Rechtecks (Treffer + Beackern)
-  tilt: 15                 # Grad, Harkenzüge abwechselnd von links und rechts, Rechteck um so viel um den Spieler gedreht
   cooldown: 0.5            # s
-  swingTime: 0.3           # s, Animation: Harke vorstrecken, ablegen, zurückziehen
-  knockback: 0             # m Rückstoß pro Treffer (kein Upgrade mehr, 16.11.2026)
+  pullTime: 0.22           # s, Zug: Harke in einem Schwung von vorne nach links hinten ziehen (17.11.2026, immer gleich, nicht mehr abwechselnd)
+  pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
+  stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
+  knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
 
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist

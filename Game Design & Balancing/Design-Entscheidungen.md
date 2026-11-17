@@ -19,7 +19,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Das Spiel ist insgesamt dunkel. Am Rand ist es komplett schwarz, nur Silhouetten von Büschen und Bäumen.
 - Auf den Büschen am Rand sitzen kleine Augenpaare (2–3 pro Busch, alle gleich groß ±10 %, dunkelblau bis lila). Sie leuchten selbst, beleuchten aber nichts und haben keinen Bloom. Beim Blinzeln klappen Lider schnell runter und hoch. Kurz vor einem Stoß füllen sich die Büsche in dieser Richtung mit Augen (`waves.warnTime`).
 - Früchte am Busch leuchten nicht, nur Früchte, die herumliegen. Geschosse leuchten deutlich stärker.
-- Harken-Animation und Trefferfläche sind identisch: ein Rechteck vor dem Spieler (Länge `rake.range`, Breite `rake.width`). Kein Marker: Nur die Kratzspuren der Zinken zeigen, wo geharkt wurde. Der Harkenkopf ist genau so breit wie die Spur, mit einer Zinke pro Kratzer im festen Abstand (7,5 cm). Beim Breite-Upgrade kommen Zinken und Kratzer dazu, nichts wird verzerrt. Die Kratzer sind leicht wellig und an Anfang und Ende ausgefranst. Die Züge kommen abwechselnd von links und rechts, das Rechteck ist dabei um `rake.tilt` (15°) um den Spieler gedreht.
+- Harken-Animation und Trefferfläche sind identisch: ein Rechteck vor dem Spieler (Länge `rake.range`, Breite `rake.width`). Kein Marker: Nur die Kratzspuren der Zinken zeigen, wo geharkt wurde. Der Harkenkopf ist genau so breit wie die Spur, mit einer Zinke pro Kratzer im festen Abstand (7,5 cm). Beim Breite-Upgrade kommen Zinken und Kratzer dazu, nichts wird verzerrt. Die Kratzer sind leicht wellig und an Anfang und Ende ausgefranst. Jeder Zug läuft gleich ab (siehe „Harkenzug: Zug und Stoß“, 17.11.2026).
 - Jeder Harkentreffer: Comic-Punch-Stern pro getroffenem Gegner + Punch-Sound pro Ziel (leicht versetzt), damit man hört und sieht, wie viele getroffen wurden.
 
 ## Gegner
@@ -173,7 +173,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Upgrade-Karten: unter den Werten eine Erklärzeile, meist ein Wort (Reichweite, Kegelbreite, Abklingzeit …). Texte in `names.hints` (Suche: ganzer Karten-Key, dann Teil nach „_“, dann Teil davor).
 - Waffen-Freischaltkarten sind größer, in der Waffenfarbe leuchtend umrandet, mit wanderndem Glanz. Alle Werte stehen als Icon-Chips da (Schaden, Reichweite/Radius, Abklingzeit, Munition pro Angriff, ggf. Durchbohren/Kettenradius/Schwenk), der Spezialeffekt knapp darunter (`names.effects`).
 - Alle drei Karten kippen wie echte Karten zur Stelle unter Maus bzw. Finger (die gedrückte Seite geht nach hinten) und schimmern dabei (Lichtfleck + Holo-Streifen). Mobile: Finger auf der Karte ziehen. Im Hochformat bleibt senkrechtes Wischen zum Scrollen frei. Bei „Bewegung reduzieren“ aus.
-- Das Rückstoß-Upgrade der Harke ist entfernt (16.11.2026), die Harke braucht es nicht. `rake.knockback` bleibt als Grundwert (0).
+- Das Rückstoß-Upgrade der Harke ist entfernt (16.11.2026), die Harke braucht es nicht. `rake.knockback` ist ein fester Grundwert (seit 17.11.2026 0,3 m).
 
 ## Feuer-Mechanik, Flammen-Shader, Fauch-Sounds (16.11.2026)
 - Brand nicht mehr an Gegner-HP gekoppelt, sondern an die Waffe (Ersatz für die Prozent-Regel oben): Jeder Flammenstoß, der trifft, macht 1 Sofortschaden und gibt 1 Brand-Stapel (max. 6). Brennen tickt alle 0,5 s mit Stapel × 0,5 Schaden und erlischt 3 s nach dem letzten Treffer (jeder Treffer frischt auf). Wer in der Flamme bleibt, brennt also immer heißer.
@@ -270,3 +270,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Boss hält 3× so viel aus wie vorher (≈ 33,3 Waschbären à 12,6 statt 20 à 7). Sein Leben ist in 3 Stufen geteilt (zwei Striche im Boss-Balken). Nach jeder verlorenen Stufe lacht er und greift 20 % schneller an (×1,2, dann ×1,44): Sammeln, Aufladen, Bomben-Takt und Nahkampf laufen schneller; die Ausweichzeit der Bomben bleibt gleich.
 - Nussbaum vorerst ausgebaut (`plants.nut.disabled: true`): wird im Level-up nicht mehr angeboten, keine Waldlichtungen; damit kommen auch keine Eichhörnchen. Code bleibt, kommt mit einer Nuss-Waffe wieder.
 - Preiselbeer-Schrotflinte streut weniger: Kegel 80° → 45°, Standardabweichung 20° → 11°.
+
+## Harkenzug: Zug und Stoß (17.11.2026)
+- Jeder Harkenzug ist gleich, nicht mehr abwechselnd links/rechts (`rake.tilt` entfällt). Zuerst wird die Harke in einer flüssigen Bewegung mit Schwung von vorne nach links hinten gezogen (`rake.pullTime`), dann zügig nach vorne geschoben (`rake.pushTime`).
+- Schaden gibt es beim Aufprall am Ende des Stoßes. Getroffen wird das Rechteck vor dem Spieler (wie bisher `rake.range` × `rake.width`), im selben Moment werden die Felder darin beackert und die Kratzspuren erscheinen.
+- Getroffene Gegner werden 0,5 s gestunnt (`rake.stun`, Stun-Definition wie überall) und 0,3 m vom Spieler weggestoßen (`rake.knockback`). Bosse bekommen nur Schaden, sonst wären sie bei jedem Zug dauerhaft festgesetzt.
+- Richtungswechsel greifen sofort, auch mitten im Zug: Figur und Harke drehen sich mit, der Aufprall geht in die Richtung, in die der Spieler in diesem Moment schaut. Richtung: Zielen (Maus bzw. Zielstick) > nächster Gegner in Reichweite > Laufrichtung > letzte Richtung.
+- Mit dem Tempo-Upgrade wird der Zug entsprechend schneller, damit er immer vor dem nächsten fertig ist (höchstens 90 % der Abklingzeit).

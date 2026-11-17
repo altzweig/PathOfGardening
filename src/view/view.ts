@@ -44,7 +44,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { heatT?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -773,7 +773,7 @@ export class GameView {
     v.walk = lerp(v.walk, s.al ? clamp(spd / 2.2, 0, 1) : 0, 1 - Math.exp(-dt * 10));
     v.g.position.set(v.x, 0, v.z); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(v.x, .035, v.z);
     const swinging = s.sw > 0;
-    v.rot = swinging ? s.sd : lerpAngle(v.rot, s.f, .25);
+    v.rot = lerpAngle(v.rot, swinging ? s.sd : s.f, swinging ? .55 : .25); // a running stroke turns with the player at once
     v.g.rotation.y = v.rot;
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
@@ -784,12 +784,19 @@ export class GameView {
     if (v.head.userData.w !== rw) { const h = rakeHead(rw); h.position.copy(v.head.position); v.rake.remove(v.head); v.rake.add(h); v.head = h; }
     v.rake.position.z = 0;
     const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
-    if (swinging) { // human raking: reach out and lay the rake down `reach` ahead, then pull it back to the feet
-      const k = s.sw; v.rake.rotation.y = s.rt || 0; // alternating strokes from the left / right
-      if (k < .3) { const t = k / .3; aimRake(lerp(.55, reach, t), .3 * (1 - t * t) + .02); v.body.rotation.x = .2 * t; }
-      else { const t = (k - .3) / .7, e = t * t * (3 - 2 * t); aimRake(lerp(reach, .4, e), .02); v.body.rotation.x = .2 * (1 - e) - .06 * Math.sin(e * Math.PI); }
+    if (swinging) { // one stroke, always the same: pull from the front to the left back in one swing, then shove forward
+      const RC = this.cfg.rake, P = RC.pullTime / (RC.pullTime + RC.pushTime), k = s.sw, BACK = 1.75, NEAR = .5;
+      let yaw: number, d: number, y: number, lean: number;
+      if (k < P) { // pull: head drags over the ground, sweeps round to the left back and lifts off at the end (swing)
+        const t = k / P, e = t * t * (3 - 2 * t);
+        yaw = BACK * e; d = lerp(reach, NEAR, e); y = .02 + .3 * Math.pow(t, 4); lean = .2 * (1 - e);
+      } else { // push: swings round to the front and shoots forward, accelerating, slams down at the impact
+        const t = (k - P) / (1 - P), e = t * t, r = 1 - Math.pow(1 - Math.min(1, t * 1.5), 2);
+        yaw = BACK * (1 - r); d = lerp(NEAR, reach, e); y = .32 * (1 - e) + .02; lean = .28 * e;
+      }
+      v.rake.rotation.y = yaw; aimRake(d, y); v.body.rotation.x = lean; v.twist = yaw * .3;
     } else {
-      v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2);
+      v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2); v.twist = lerp(v.twist || 0, 0, .2);
       const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
     }
     v.head.scale.z = 1 / Math.max(.05, v.rake.scale.z); // the handle stretches with the reach, the head keeps its shape
@@ -810,6 +817,7 @@ export class GameView {
     if (!v.g.visible) return;
     const R = v.rig, s = v.s;
     animateLegs(R, dt, s.wk, v.walk);
+    R.torso.rotation.y += v.twist || 0; // rake stroke: upper body turns with the swing
     v.g.updateMatrixWorld(true);
     let t0: THREE.Vector3 | null = null, t1: THREE.Vector3 | null = null; // t0: hand on the +x side, t1: -x side
     const F = v.flame;

@@ -271,3 +271,8 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 .fRate em.nb.chg{color:#ffd860}
 .fInfo.hov .fRate{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);border-color:var(--gold);box-shadow:0 0 calc(var(--u)*8) #000c}
 .fInfo.hov.ghost .fRate,.fInfo.hov .fRate.up{border-color:#7dff6a}
+
+/* combo weapons: golden double rim on the button, card with a warm shimmer */
+.skill.combo .face{border-color:#ffd870;box-shadow:inset 0 0 0 2px #ffd87055}
+.card.combo-c{border-color:#ffd060!important;box-shadow:0 0 0 2px #ffd06055,0 0 28px 6px #ffb84066}
+.card.combo-c h3{background:linear-gradient(90deg,#ffe9a0,#ffb040,#ffe9a0);-webkit-background-clip:text;background-clip:text;color:transparent}

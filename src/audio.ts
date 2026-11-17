@@ -111,6 +111,10 @@ export const SND: Record<string, (arg?: any) => void> = {
   pauseIn() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 520, f2: 260, t: .5, vol: .045, at: .06, filt: { type: 'lowpass', f: 1400 } }); noise({ t: .5, vol: .035, type: 'lowpass', f: 1600, f2: 260, at: .08 }); },
   /** the reverse: gentle upward sweep as the game speeds up again */
   pauseOut() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 260, f2: 520, t: .5, vol: .04, at: .12, filt: { type: 'lowpass', f: 1600 } }); noise({ t: .45, vol: .03, type: 'lowpass', f: 300, f2: 1800, at: .15 }); },
+  /** time bomb tick: short click, higher towards the end (f = 0..1) */
+  tick(f = 0) { if (can('tick', .03)) { tone({ type: 'square', f: 1400 + f * 1200, t: .03, vol: .05 }); noise({ t: .02, vol: .05, type: 'bandpass', f: 4000, q: 3 }); } },
+  /** small electric crackle (Shockgun berries) */
+  zapS() { if (can('zapS', .08)) { noise({ t: .09, vol: .07, type: 'bandpass', f: rand(3000, 5000), q: 2 }); tone({ type: 'sawtooth', f: 180, f2: 120, t: .08, vol: .03 }); } },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }

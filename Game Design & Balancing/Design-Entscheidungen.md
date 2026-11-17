@@ -277,3 +277,15 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Getroffene Gegner werden 0,5 s gestunnt (`rake.stun`, Stun-Definition wie überall) und 0,3 m vom Spieler weggestoßen (`rake.knockback`). Bosse bekommen nur Schaden, sonst wären sie bei jedem Zug dauerhaft festgesetzt.
 - Richtungswechsel greifen sofort, auch mitten im Zug: Figur und Harke drehen sich mit, der Aufprall geht in die Richtung, in die der Spieler in diesem Moment schaut. Richtung: Zielen (Maus bzw. Zielstick) > nächster Gegner in Reichweite > Laufrichtung > letzte Richtung.
 - Mit dem Tempo-Upgrade wird der Zug entsprechend schneller, damit er immer vor dem nächsten fertig ist (höchstens 90 % der Abklingzeit).
+
+
+## Kombiwaffen (17.11.2026)
+- Quelle: Bastis Tabelle „PathOfGardening – Waffenkombinationen“ (Claude Doc). Umsetzungs-Prompt: `Kombiwaffen-Prompt.md`. Zahlen in `balancing.yaml` unter `combos`.
+- Zehn Kombiwaffen aus je zwei Fruchtwaffen, die Harke ist nicht kombinierbar.
+- **Freischaltung:** Haben beide Waffen eines Paares je 5 Upgrades (alle Arten zählen), bietet das nächste Level-up die Kombiwaffe als große Waffenkarte an (vor allen anderen Waffenkarten). Können mehrere Kombis entstehen, kommen mehrere Karten.
+- **Verschmelzen:** Die Kombiwaffe sitzt auf dem Platz der Hauptwaffe (gleicher Knopf, gleiche Taste), der Platz der Nebenwaffe wird frei, dort kann später eine neue Waffe gelernt werden. Die Nebenwaffe wird nicht mehr angeboten, ihre Felder schon.
+- **Munition:** Frucht der Hauptwaffe. Früchte der Nebenwaffe zählen beim Einsammeln × `subAmmo`, übrige Munition der Nebenwaffe wird beim Verschmelzen genauso umgerechnet.
+- **Upgrades:** Schaden, Reichweite und Abklingzeit beider Waffen zählen zusammen. Spezial-Upgrades wirken weiter, wenn sie zur Kombiwaffe passen (`keep`), sonst wird jede Stufe zu +10 % Schaden. Danach bietet das Level-up für die Kombiwaffe Schaden, Reichweite, Abklingzeit und die passenden Spezial-Upgrades an.
+- **„Unter Strom“** (Sourbow, Chillightning): Gegner knistert 2 s, alle 0,5 s Schaden an sich und an Nachbarn in 0,5 m, mit kleinen Blitzbögen.
+- Annahmen, wo die Tabelle offen war: Kimchi hat Kohl als Hauptwaffe, Chillightning Chili. Die Coleateral Bomb hinterlässt keine Giftlache (nicht erwähnt), die Cabboomberry schon. Die Rakete explodiert beim ersten Gegner oder am Ende ihrer 20 m, am Rand der Explosion 50 % Schaden. Shockgun-Blitze verbinden auch Beeren aus verschiedenen Schüssen.
+- Test-Menü: Gruppe „Kombiwaffen“ schaltet jede Kombi direkt frei (inkl. 60 Munition).

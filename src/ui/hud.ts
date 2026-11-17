@@ -1,7 +1,7 @@
-import { FRUITS, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
 import type { Snap } from '../sim/snap';
 import { sfx } from '../audio';
-import { fruitIcon, iconText, mini, pic, skillIcon } from './icons';
+import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -80,6 +80,8 @@ export class Hud {
       const pos = pr.ln[i] ? slot : -1;
       b.hidden = pos < 0; if (pos < 0) { this.wasReady[id] = false; return; }
       if (b.dataset.pos !== String(pos)) b.dataset.pos = String(pos);
+      const cb = pr.cb?.[i] ?? -1, fk = cb >= 0 ? COMBOS[cb] : id; // combo weapon: its own icon on the main weapon's button
+      if (b.dataset.face !== fk) { b.dataset.face = fk; b.querySelector('.face')!.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); b.classList.toggle('combo', cb >= 0); }
       const ready = slot >= 0 && pr.am[i] >= pr.nd[i], usable = slot >= 0 && pr.am[i] >= pr.co[i] && (ready || active === id);
       b.classList.toggle('grey', !usable); b.classList.toggle('ready', ready);
       if (ready && !this.wasReady[id] && s.ph === 'play') { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); sfx('ui.weaponReady'); setTimeout(() => b.classList.remove('pulse'), 1500); }
@@ -92,7 +94,7 @@ export class Hud {
 }
 
 export function cardEl(o: Offer) {
-  const b = document.createElement('button'); b.className = `card ${o.cat}-c${o.wp ? ' wpn' : ''}`; b.dataset.key = o.key;
+  const b = document.createElement('button'); b.className = `card ${o.cat}-c${o.wp ? ' wpn' : ''}${o.combo ? ' combo-c' : ''}`; b.dataset.key = o.key;
   if (o.wp) {
     b.dataset.skill = o.wp;
     b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3><div class="stats">${o.lines.map(l => `<span>${iconText(l)}</span>`).join('')}</div>${o.fx ? `<div class="fx">${o.fx}</div>` : ''}<i class="shine"></i>`;

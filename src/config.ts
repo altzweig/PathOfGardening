@@ -9,6 +9,12 @@ export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
+/** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
+export type ComboId = 'jam' | 'cole' | 'sour' | 'lance' | 'cabboom' | 'shock' | 'hot' | 'rocket' | 'kimchi' | 'chilight';
+export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'shock', 'hot', 'rocket', 'kimchi', 'chilight'];
+/** one combo weapon: main/sub weapon, ammo (main fruit; sub fruit converts at subAmmo), keep = special upgrades that still apply
+ *  (as "<skill>_<key>", all others turn into convertDamage), the rest are weapon-specific numbers */
+export interface ComboCfg { main: SkillId; sub: SkillId; subAmmo: number; ammoPerShot: number; cooldown: number; damage: number; keep?: string[]; [k: string]: any }
 export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog', 'squirrel'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
@@ -35,7 +41,7 @@ export interface EnemyCfg {
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
-  names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>> };
+  names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number };
@@ -74,6 +80,8 @@ export interface Balancing {
   /** day-night cycle: dayWaves day waves, then nightWaves night waves (boss in the last one); night waves bigger/stronger */
   dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
   weaponSlots?: { max: number };
+  /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
+  combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };
   hud: {
     hat: { colors: [number, string][]; crownShare: number; blinkBelow: number; pulseBelow: number; vignetteBelow: number; vignetteStrength: number };

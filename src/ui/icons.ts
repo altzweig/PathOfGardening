@@ -20,6 +20,19 @@ const SKILL = {
   // chili-shaped flamethrower: pod as barrel, green stem as grip, flame out of the tip
   chili: `<path d="M27 15 q7 2 11 -2 q-3 9 -12 9 z" fill="#ffd060"/><path d="M28 17 q5 1 8 -1 q-3 4 -8 3z" fill="#fff2b0"/><path d="M6 22 q2 -8 10 -8 q8 0 12 3 q-5 6 -14 7 q-6 1 -8 -2z" fill="#e02a12"/><path d="M10 18 q6 -2 14 0" stroke="#ff8a60" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M8 22 l-2 10 h5 l3 -9" fill="#4f8a2a"/><path d="M6 21 q-3 -3 -1 -7" stroke="#4f8a2a" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
 };
+// combo weapons (Kombiwaffen): main fruit = shape, sub fruit = accent
+const COMBO: Record<string, string> = {
+  jam: `<rect x="5" y="18" width="24" height="5" rx="2" fill="#7a2416"/><path d="M26 6 Q20 20.5 26 35" stroke="#6aa83c" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M26 6 L15 20.5 L26 35" stroke="#f2e6c8" stroke-width="1.2" fill="none"/><path d="M15 20.5 H33" stroke="#7fbf45" stroke-width="3" stroke-linecap="round"/><circle cx="35.5" cy="20.5" r="3.6" fill="#ff2a44"/><circle cx="34.5" cy="19.3" r="1" fill="#ffc0c8"/><path d="M9 23 l-2 7 h4 l2-7" fill="#4a140c"/><circle cx="9" cy="14" r="2.4" fill="#e2384a"/><circle cx="14" cy="12" r="2" fill="#ff5466"/>`,
+  cole: `<circle cx="19" cy="22" r="10" fill="#8fd16a"/><path d="M19 12 q-4 10 0 20 M19 12 q4 10 0 20 M10 19 q9 3 18 0" stroke="#4f8a2a" stroke-width="1.6" fill="none"/><path d="M19 12 L19 4 M27 15 L33 9 M29 23 L37 23 M26 30 L32 36 M11 15 L5 9 M9 23 L2 23 M12 30 L6 36" stroke="#7fbf45" stroke-width="2.4" stroke-linecap="round"/><path d="M19 4 l-2 3 h4z M33 9 l-3.5 .5 l2.5 2.5z M37 23 l-3 -2 v4z" fill="#a46cc0"/><circle cx="31" cy="31" r="3" fill="#ff3020"/>`,
+  sour: `<rect x="5" y="18" width="22" height="5" rx="2" fill="#e8c22a"/><path d="M24 6 Q18 20.5 24 35" stroke="#6aa83c" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M14 20.5 L34 12 M14 20.5 H36 M14 20.5 L34 29" stroke="#c8ff70" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="35" cy="11.5" rx="3" ry="2.2" fill="#ffe23a"/><ellipse cx="37" cy="20.5" rx="3" ry="2.2" fill="#ffe23a"/><ellipse cx="35" cy="29.5" rx="3" ry="2.2" fill="#ffe23a"/><path d="M9 23 l-2 7 h4 l2-7" fill="#a8861a"/>`,
+  lance: `<path d="M4 36 L28 12" stroke="#6aa83c" stroke-width="3.4" stroke-linecap="round"/><path d="M28 12 q2 -6 6 -8 M28 12 q5 -2 8 1 M28 12 q1 -7 -1 -9" stroke="#e02a12" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="34" cy="6" r="5" fill="#ff7a18" opacity=".85"/><circle cx="34" cy="6" r="2.6" fill="#ffe0a0"/>`,
+  cabboom: `<circle cx="20" cy="21" r="12" fill="#8fd16a"/><path d="M20 9 q-5 12 0 24 M20 9 q5 12 0 24 M8 18 q12 4 24 0" stroke="#4f8a2a" stroke-width="1.8" fill="none"/><circle cx="10" cy="12" r="3" fill="#ff2a44"/><circle cx="31" cy="11" r="3" fill="#e2384a"/><circle cx="34" cy="26" r="3" fill="#ff5466"/><circle cx="7" cy="28" r="3" fill="#c42638"/><circle cx="20" cy="36" r="2.6" fill="#ff2a44"/>`,
+  shock: `<rect x="4" y="18" width="16" height="7" rx="2" fill="#4a140c"/><rect x="15" y="15" width="17" height="4.5" rx="2" fill="#e8c22a"/><rect x="15" y="20" width="17" height="4.5" rx="2" fill="#e8c22a"/><circle cx="34" cy="10" r="2.6" fill="#ffe23a"/><circle cx="37" cy="30" r="2.6" fill="#ffe23a"/><path d="M34 10 L36 16 L33 19 L37 30" stroke="#fffbd0" stroke-width="1.8" fill="none" stroke-linejoin="round"/>`,
+  hot: `<path d="M5 24 q1 -9 11 -9 q10 0 17 3 q-6 7 -18 8 q-7 1 -10 -2z" fill="#e02a12"/><path d="M9 19 q8 -2 18 0" stroke="#ff8a60" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M7 24 l-2 9 h5 l3 -8" fill="#4f8a2a"/><circle cx="35" cy="13" r="3" fill="#ff6a20"/><circle cx="37" cy="21" r="2.6" fill="#ffb040"/><circle cx="34" cy="28" r="2.8" fill="#ff6a20"/>`,
+  rocket: `<rect x="3" y="15" width="25" height="9" rx="2" fill="#4f8a2a"/><rect x="3" y="14" width="3" height="11" fill="#2f5a1a"/><rect x="24" y="14" width="3" height="11" fill="#2f5a1a"/><ellipse cx="32" cy="19.5" rx="6" ry="5" fill="#ffe23a"/><path d="M37 19.5 l3 0" stroke="#c8a020" stroke-width="2.4" stroke-linecap="round"/><path d="M10 24 l-1 8 h4 l1 -8 M18 24 l0 6 h3 l0 -6" fill="#2f5a1a"/>`,
+  kimchi: `<circle cx="16" cy="22" r="9" fill="#a8243a"/><path d="M16 13 q-4 9 0 18 M16 13 q4 9 0 18" stroke="#7a1a3a" stroke-width="1.6" fill="none"/><circle cx="30" cy="14" r="5" fill="#a8243a"/><circle cx="31" cy="29" r="4" fill="#a8243a"/><circle cx="37" cy="21" r="2.6" fill="#a8243a"/><path d="M10 12 q2 -6 7 -7 M21 12 q0 -5 4 -7" stroke="#ff3a1a" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M6 34 q10 -4 30 0" stroke="#ff7a18" stroke-width="2.4" fill="none"/>`,
+  chilight: `<path d="M7 33 q4 -16 17 -24 q7 -4 11 -3 q-3 5 -9 9 q-11 9 -19 18z" fill="#e02a12"/><path d="M11 29 q6 -12 18 -19" stroke="#ffd23a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M5 35 l4 -4" stroke="#4f8a2a" stroke-width="3.4" stroke-linecap="round"/><path d="M18 36 L24 30 L22 34 L30 28 L28 32 L37 26" stroke="#fffbd0" stroke-width="1.8" fill="none" stroke-linejoin="round"/>`,
+};
 const BED = `<path d="M20 26 l15 5 l-15 6 l-15 -6 z" fill="#3a2818" stroke="#5a5048" stroke-width="1.5"/>`;
 const PLANT = {
   blue: `<circle cx="13" cy="20" r="7" fill="#2f5a34"/><circle cx="26" cy="19" r="7.5" fill="#2f5a34"/><circle cx="20" cy="13" r="7" fill="#376a3d"/><circle cx="12" cy="21" r="2" fill="#5a74ff"/><circle cx="24" cy="15" r="2" fill="#5a74ff"/><circle cx="28" cy="23" r="2" fill="#5a74ff"/><circle cx="18" cy="24" r="2" fill="#5a74ff"/>`,
@@ -60,11 +73,13 @@ const TEA = `<path d="M8 16 h20 v10 a9 9 0 0 1 -9 9 h-2 a9 9 0 0 1 -9 -9z" fill=
 
 export function mini(name: string) { return MINI[name] ? svg(MINI[name]) : ''; }
 export function skillIcon(w: string) { return svg((SKILL as any)[w] || RAKE); }
+export function comboIcon(c: string) { return svg(COMBO[c] || RAKE); }
 export function fruitIcon(t: string) { return svg((FRUIT as any)[t]); }
 /** big card picture */
 export function pic(name: string) {
   const [kind, id] = name.split('_');
   if (kind === 'skill') return svg((SKILL as any)[id]);
+  if (kind === 'combo') return svg(COMBO[id] || RAKE);
   if (kind === 'field') return svg(BED + (PLANT as any)[id] + `<g transform="translate(25 2) scale(.38)">${(FRUIT as any)[id]}</g>`);
   if (kind === 'plant') return svg(BED + (PLANT as any)[id] + `<g transform="translate(22 0) scale(.45)">${MINI.x2}</g>`);
   if (kind === 'tea') return svg(TEA);

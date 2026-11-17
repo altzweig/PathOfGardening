@@ -40,11 +40,12 @@ import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
+import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -118,6 +119,7 @@ export class GameView {
   private fields = new Map<number, FieldView>();
   private pools = new Map<number, JView>();
   private bbombs = new Map<number, JView>();
+  private snodes = new Map<number, JView>();
   private slots: Slot[] = [];
   // build mode (top-down strategy view)
   placing: FruitType | null = null;
@@ -128,7 +130,7 @@ export class GameView {
   private aggro: THREE.Mesh;
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
-  private shake = 0;
+  private shake = 0; private dtLast = .016;
   private heat!: GroundHeat; private fire!: FireSprites;
   private bits: Bit[] = [];
   hurtT = 0;
@@ -359,7 +361,7 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
-    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs].forEach(m => m.clear());
+    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
     stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
@@ -376,7 +378,7 @@ export class GameView {
       if (v && v.lookKey !== lk) { // look changed (co-op: arrived after the figure was built) -> rebuild the figure
         this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.label) this.dyn.remove(v.label);
         const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
-        Object.assign(v, b, { lookKey: lk, xbow: undefined, label: undefined });
+        Object.assign(v, b, { lookKey: lk, xbow: undefined, label: undefined, cw: undefined });
       }
       if (!v) {
         const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
@@ -408,10 +410,17 @@ export class GameView {
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches([], hexR(this.cfg)); } // no torches at the beds any more
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
-      const m = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
+      const m = new THREE.Mesh(GEO.circle, p[5] ? addMat(0xff5a10, .3) : new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.scale.setScalar(p[3]); return m;
     }, (v, p) => {
-      v.tx = p[1]; v.ty = .04; v.tz = p[2]; ((v.m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .38 * Math.min(1, p[4] * 3);
+      v.tx = p[1]; v.ty = .04; v.tz = p[2];
+      if (p[5]) { // Kimchi: burning pool, flickering, embers and glowing ground
+        ((v.m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (.22 + .08 * Math.sin(performance.now() / 60 + p[0])) * Math.min(1, p[4] * 3);
+        if (Math.random() < .6) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * p[3]; PART.spawn(V(p[1] + Math.cos(a) * r, .05, p[2] + Math.sin(a) * r), V(rand(-.1, .1), rand(.6, 1.4), rand(-.1, .1)), Math.random() < .5 ? 0xff6a18 : 0xffc040, rand(.12, .26), rand(.3, .6), { a: .9, s1: .1 }); }
+        if (Math.random() < .15) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * p[3]; this.heat.add(p[1] + Math.cos(a) * r, p[2] + Math.sin(a) * r, .25); }
+        return;
+      }
+      ((v.m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = .38 * Math.min(1, p[4] * 3);
       if (Math.random() < .5) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * p[3]; PART.spawn(V(p[1] + Math.cos(a) * r, .05, p[2] + Math.sin(a) * r), V(0, rand(.3, .7), 0), 0x7dff4a, rand(.08, .16), rand(.4, .8), { a: .7 }); }
     });
     // enemies
@@ -451,19 +460,25 @@ export class GameView {
     });
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], (p) => {
+      if (p[1] >= 2) return projMesh(p[1]);
       if (p[1] !== 0) return fruitMesh('cran', .9, false, true);
       const m = new THREE.Group();
       const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
       return m;
-    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } });
-    this.sync(this.bombs, s.bo, id, b => b[0], (b) => fruitMesh('cab', b[4] ? .6 : 1, false, true), (v, b) => {
-      v.tx = b[1]; v.ty = b[2]; v.tz = b[3]; v.m.rotation.x += .13;
+    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
+    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, true), (v, b) => {
+      v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
+      if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
+      v.m.rotation.x += .13;
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
     // missed cranberries lying on the ground: swell and pulse faster until they pop
-    this.sync(this.mines, s.mi, id, m => m[0], () => { const m = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: 0xff2040, emissive: 0xff1030, emissiveIntensity: 1.6 })); return m; },
-      (v, m) => { const k = m[3] || 0, mat = (v.m as THREE.Mesh).material as THREE.MeshStandardMaterial; v.tx = m[1]; v.ty = .06; v.tz = m[2]; v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
+    this.sync(this.mines, s.mi, id, m => m[0], (m) => { const m2 = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: m[5] ? 0xff7a20 : 0xff2040, emissive: m[5] ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 })); return m2; },
+      (v, m) => { const k = m[3] || 0, mat = (v.m as THREE.Mesh).material as THREE.MeshStandardMaterial; v.tx = m[1]; v.ty = .06 + (m[4] || 0); v.tz = m[2];
+        if (m[5] && Math.random() < .2) PART.spawn(V(v.x, .12, v.z), V(rand(-.1, .1), .7, rand(-.1, .1)), 0xff8a20, .08, .3, { a: .9 }); v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
+    // Shockgun berries lying on the ground
+    this.sync(this.snodes, s.sn || [], id, n => n[0], () => nodeMesh(), (v, n) => { v.tx = n[1]; v.ty = .08; v.tz = n[2]; animNode(v.m, n[1], n[2], n[3]); });
     for (const e of s.ev) this.event(e);
   }
   private sync<T>(map: Map<number, JView>, arr: T[], id: number, key: (t: T) => number, make: (t: T) => THREE.Object3D, upd: (v: JView, t: T) => void) {
@@ -622,7 +637,13 @@ export class GameView {
   }
 
   // ---------------- events ----------------
+  private comboCtx = {
+    shake: (n: number) => { this.shake = Math.min(.45, this.shake + n); },
+    recoil: (pid: number) => { const pv = this.players.get(pid); if (pv) { pv.recoil = .12; pv.cwT = 0; } },
+    heat: (x: number, z: number, v: number) => this.heat.add(x, z, v),
+  };
   private event(e: Ev) {
+    if (comboEvent(e, this.comboCtx)) return;
     switch (e.k) {
       case 'snd': play(e.n); break;
       case 'sfx': sfx(e.s, e.x, e.z); break;
@@ -757,7 +778,7 @@ export class GameView {
     const night = 1 - dayNow().day;
     if (Math.random() < dt * 5 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
     else if (Math.random() < dt * 2.5 * (1 - night)) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(Math.cos(a) * r, rand(.4, 2), Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); } // pollen drifting in the sun
-    PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt);
+    this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);
@@ -805,8 +826,9 @@ export class GameView {
     this.lowHpWarn(v, s.hp / s.mhp);
     this.animFlame(v, dt);
     this.animXbow(v);
+    this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -821,14 +843,24 @@ export class GameView {
     v.g.updateMatrixWorld(true);
     let t0: THREE.Vector3 | null = null, t1: THREE.Vector3 | null = null; // t0: hand on the +x side, t1: -x side
     const F = v.flame;
-    if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
+    if (v.cw && v.cw.g.visible) { v.cw.anim.updateMatrixWorld(true); t0 = v.cw.anim.localToWorld(v.cw.t0.clone()); t1 = v.cw.anim.localToWorld(v.cw.t1.clone()); }
+    else if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
     else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
     }
-    if (v.wand.visible && !(F && F.gun.visible) && !(v.xbow && v.xbow.g.visible)) t1 = v.wandGrip.localToWorld(V(0, -.01, .0));
+    if (v.wand.visible && !(F && F.gun.visible) && !(v.xbow && v.xbow.g.visible) && !(v.cw && v.cw.g.visible)) t1 = v.wandGrip.localToWorld(V(0, -.01, .0));
     animateArms(R, dt, s.wk, [t0, t1]);
+  }
+  /** combo weapon in the hand (rebuilt when the combo changes), recoil / slam animation */
+  private animCombo(v: PView, dt: number) {
+    const cid = comboOf(v.s.cw ?? -1), on = !!cid && !!v.s.al;
+    v.cwT = (v.cwT ?? 9) + dt;
+    if (v.cw && (!on || v.cw.cid !== cid)) { v.g.remove(v.cw.g); v.cw = undefined; }
+    if (!on || !cid) return;
+    if (!v.cw) { v.cw = buildHeld(cid); v.g.add(v.cw.g); }
+    v.cw.g.visible = true; animHeld(v.cw, v.cwT);
   }
   /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */
   private animXbow(v: PView) {
@@ -956,6 +988,10 @@ export class GameView {
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
+    if (fl & EF.shock) { // under current: white-yellow crackle around the body
+      const sc = v.g.scale.x; if (Math.random() < dt * 22) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.2, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-1.2, 1.2), rand(-.2, 1.2), rand(-1.2, 1.2)), Math.random() < .5 ? 0xfff6c0 : 0x9fd0ff, rand(.04, .08), rand(.08, .16), { a: 1 });
+      if (!burning) for (const m of v.P.mats) m.emissive.setRGB(.25 + .2 * Math.random(), .25 + .2 * Math.random(), .12);
+    }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
   }
@@ -974,6 +1010,11 @@ export class GameView {
     if (!me || !me.s.al || !a.show || !a.weapon || !this.snap) return;
     const w = a.weapon, ang = Math.atan2(a.x, a.z), px = me.x, pz = me.z, priv = this.snap.me[this.me];
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
+    const cid = w !== 'rake' && priv ? comboOf(priv.cb?.[SKILLS.indexOf(w)] ?? -1) : '';
+    if (cid === 'chilight') { // lightning wave: long strip as wide as the wave
+      const m = this.aimInd.asp, r = rng('chili'), C = this.cfg.combos!.list.chilight;
+      m.visible = true; m.scale.set(C.width, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI); return;
+    }
     if (w === 'rake' || w === 'cran') {
       const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
       if (w === 'rake') return; // no marker: the scratches of the stroke show where the rake worked
@@ -986,7 +1027,7 @@ export class GameView {
       if (m.userData.arc !== arc) { m.userData.arc = arc; m.geometry.dispose(); m.geometry = sectorGeo(1, arc * Math.PI / 180, 32); }
       const r = me.s.fr || rng('chili'); m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'cab') {
-      const m = this.aimInd.cab, d = this.cfg.skills.cab.throwDistance;
+      const m = this.aimInd.cab, d = cid ? this.cfg.combos!.list[cid].throwDistance ?? 1 : this.cfg.skills.cab.throwDistance;
       m.visible = true; m.scale.setScalar(rng('cab')); m.position.set(px + a.x * d, .045, pz + a.z * d);
     }
   }

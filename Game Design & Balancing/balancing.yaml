@@ -34,6 +34,28 @@ names:
     lemon: Zitronenbäumchen
     chili: Chilifeld
     nut: Nussbaum
+  combos:           # Kombiwaffen (Bastis Namen)
+    jam: Jam-Bow
+    cole: Coleateral Bomb
+    sour: Sourbow
+    lance: Fire Lance
+    cabboom: Cabboomberry
+    shock: Shockgun
+    hot: Hotgun
+    rocket: Rocabblauncher
+    kimchi: Kimchi
+    chilight: Chillightning
+  comboFx:          # Effektzeile auf der Freischaltkarte (knapp)
+    jam: Beerenspitzen explodieren · Blutung
+    cole: Zeitbombe · 20 Spargel in alle Richtungen
+    sour: 3 Pfeile durchbohren alles · unter Strom
+    lance: Feuerball fliegt durch · Brand
+    cabboom: Giftlache · streut platzende Beeren
+    shock: Beeren bleiben liegen · Blitze dazwischen
+    hot: Brennende Beeren · Durchschuss
+    rocket: Rakete · riesige Explosion
+    kimchi: Splittert 3 × 3 · brennende Lache
+    chilight: Schlag · Blitzwelle schleudert Gegner weg
   tea: Kräutertee
   care: Feldpflege          # Upgrade: Beackern heilt das Feld
   # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
@@ -444,6 +466,169 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
 
 weaponSlots:               # Waffen neben der Harke
   max: 3                   # höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
+
+# ---------------------------------------------------------------------
+#  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")
+#  Haben beide Waffen eines Paares je unlockUpgrades Upgrades, bietet das nächste Level-up die Kombiwaffe an.
+#  Sie belegt den Platz der Hauptwaffe (main), der Platz der Nebenwaffe (sub) wird frei.
+#  Munition: Frucht der Hauptwaffe; Früchte der Nebenwaffe zählen x subAmmo (auch die beim Verschmelzen übrige Munition).
+#  Upgrades: Schaden/Reichweite/Abklingzeit beider Waffen zählen zusammen. keep = Spezial-Upgrades, die weiter wirken;
+#  jede andere Spezial-Stufe wird zu +convertDamage Schaden. Danach gibt es für die Kombiwaffe Schaden, Reichweite,
+#  Abklingzeit und die keep-Upgrades. Reichweite wirkt auf range bzw. Radius/Länge (siehe Kommentar je Waffe).
+# ---------------------------------------------------------------------
+combos:
+  unlockUpgrades: 5        # Upgrades je Waffe, bevor die Kombi angeboten wird
+  convertDamage: 0.10      # +10 % Schaden je nicht passender Spezial-Stufe
+  shock:                   # "unter Strom" (Sourbow, Chillightning): Gegner knistert, Ticks bei sich und Nachbarn
+    duration: 2            # s
+    tick: 0.5              # s pro Tick
+    radius: 0.5            # m, Nachbarn in diesem Abstand bekommen den Tick auch
+  list:
+    jam:                   # Jam-Bow: Armbrust aus rotem Holz, Spargelbolzen mit Beerenspitze
+      main: asp
+      sub: cran
+      subAmmo: 0.5         # Munition je Preiselbeere
+      ammoPerShot: 1       # je Bolzen
+      damage: 18           # Bolzen
+      range: 8             # m
+      cooldown: 0.75       # s pro Salve
+      burstShots: 3
+      burstGap: 0.1
+      speed: 16
+      width: 0.3
+      blastRadius: 0.5     # m, Explosion bei Kontakt: Blutung für alle im Umkreis
+      blastDamage: 0.5     # Anteil des Bolzenschadens für die anderen im Umkreis
+      keep: [asp_size, cran_pel, cran_mine]   # Bolzenbreite; +1 Bolzen pro Salve; +10 % Explosionsradius
+    cole:                  # Coleateral Bomb: Kohl mit Spargelstacheln, Zeitbombe
+      main: cab
+      sub: asp
+      subAmmo: 0.5
+      ammoPerShot: 1
+      damage: 14           # Explosion
+      radius: 1.5          # m Explosion (Reichweite-Upgrade)
+      cooldown: 1.5
+      throwDistance: 3     # m
+      fuse: 1.8            # s, tickt immer schneller
+      spikes: 20           # Spargel in 360 Grad
+      spikeDamage: 10
+      spikeRange: 5        # m
+      spikeSpeed: 14
+      spikePierce: 3       # Gegner pro Spargel
+      keep: [asp_pierce, asp_pb, asp_size, cab_mini]   # +1 Durchbohren; Durchbohr-Schaden; Breite; +4 Spargel je Mini-Kohl-Stufe
+    sour:                  # Sourbow: gelbe Armbrust, 3 Pfeile mit Zitronenspitze
+      main: lemon
+      sub: asp
+      subAmmo: 1
+      ammoPerShot: 1
+      damage: 22
+      range: 20            # m
+      cooldown: 1.0
+      arrows: 3
+      arc: 40              # Grad Fächer
+      speed: 24
+      width: 0.3
+      shockDamage: 0.2     # Anteil des Pfeilschadens pro Strom-Tick
+      keep: [asp_size, lemon_tgt, lemon_xfer]  # Breite; +1 Pfeil; +10 Prozentpunkte Strom-Schaden
+    lance:                 # Fire Lance: Spargelstab mit Chili-Bündel, pulsierender Feuerball
+      main: asp
+      sub: chili
+      subAmmo: 0.3
+      ammoPerShot: 1
+      damage: 14
+      radius: 0.5          # m Feuerball
+      range: 9             # m
+      speed: 7
+      cooldown: 0.55
+      burnStacks: 2        # Brand-Stapel bei Berührung
+      keep: [asp_size, chili_tick]   # +30 % Feuerball-Radius; Brandtempo
+    cabboom:               # Cabboomberry: Kohlkopf voller Preiselbeeren
+      main: cab
+      sub: cran
+      subAmmo: 0.25
+      ammoPerShot: 1
+      damage: 8
+      radius: 1.5          # m Explosion + Giftlache (Reichweite-Upgrade)
+      cooldown: 1.0
+      throwDistance: 1.5
+      fuse: 0.5
+      berries: 10          # in 5 Richtungen (72 Grad)
+      directions: 5
+      scatter: [1.2, 3.2]  # m Flugweite der Beeren
+      berryDelay: 1.2      # s am Boden, dann platzen
+      berryDamage: 4
+      berryRadius: 0.5
+      keep: [cab_mini, cran_pel, cran_mine]   # Mini-Kohl; +2 Beeren; +10 % Beerenschaden
+    shock:                 # Shockgun: zitronengelbe Schrotflinte
+      main: cran
+      sub: lemon
+      subAmmo: 4
+      ammoPerShot: 6
+      pellets: 6
+      cone: 70
+      range: 6
+      cooldown: 0.8
+      damage: 5            # pro Blitz-Tick
+      links: 2             # Blitze pro Beere zu den nächsten Beeren
+      linkRange: 2.8       # m
+      linkWidth: 0.35      # m Trefferbreite eines Blitzes
+      ticks: 3
+      tickInterval: 0.5
+      keep: [cran_pel, cran_mine, lemon_tgt, lemon_xfer]  # +1 Beere; +10 % Blitzschaden; +1 Blitz pro Beere; +10 % Blitzreichweite
+    hot:                   # Hotgun: Schrotflinte in Chiliform, brennende Beeren
+      main: cran
+      sub: chili
+      subAmmo: 0.5
+      ammoPerShot: 6
+      damage: 6
+      pelletFactor: 1.5    # +50 % Beeren
+      rangeFactor: 1.3     # +30 % Reichweite
+      pierce: 1            # +1 Durchschuss
+      cooldown: 0.625
+      burnStacks: 2        # Getroffene brennen sofort
+      keep: [cran_pel, cran_mine, chili_tick]
+    rocket:                # Rocabblauncher: Panzerfaust mit Zitronen-Sprengkopf
+      main: lemon
+      sub: cab
+      subAmmo: 1
+      ammoPerShot: 1
+      damage: 70           # in der Mitte, am Rand edge x
+      edge: 0.5
+      radius: 4            # m Explosion (Reichweite-Upgrade)
+      range: 20            # m Flugweite
+      speed: 18
+      size: 0.5            # m Geschoss
+      cooldown: 2.0
+      keep: [cab_mini]     # Mini-Kohl fliegen aus der Explosion
+    kimchi:                # Kimchi: Kohl splittert in 3, die in 3
+      main: cab
+      sub: chili
+      subAmmo: 0.3
+      ammoPerShot: 1
+      damage: 9
+      radius: 1.4          # m (Reichweite-Upgrade)
+      cooldown: 1.4
+      throwDistance: 3
+      fuse: 0.45
+      splits: [3, 3]       # Teile je Stufe
+      splitDistance: 1.7   # m
+      splitScale: 0.65     # Radius und Schaden je Stufe x
+      poolDuration: 6      # s brennende Lache
+      poolTick: 0.5
+      poolDamage: 0.2      # Anteil des Schadens pro Tick, dazu 1 Brand-Stapel
+      keep: [chili_tick]
+    chilight:              # Chillightning: Chili-Klinge, Blitzwelle
+      main: chili
+      sub: lemon
+      subAmmo: 3
+      ammoPerShot: 6
+      damage: 26
+      range: 10            # m Länge der Welle (Reichweite-Upgrade)
+      width: 1.0           # m
+      speed: 30            # m/s
+      cooldown: 1.1
+      knockback: 1.6       # m zur nächstgelegenen Seite
+      shockDamage: 0.2     # Anteil des Schadens pro Strom-Tick
+      keep: [chili_sweep, chili_tick, lemon_tgt, lemon_xfer]  # +20 % Breite; schnellere Strom-Ticks; +0,2 m Strom-Radius; +10 Prozentpunkte Strom-Schaden
 
 transitions:               # Pausieren / Weiterspielen (Level-up, Menü …)
   slow: 0.5                # s, in denen das Spiel bis zum Stillstand langsamer bzw. wieder schneller wird

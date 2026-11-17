@@ -260,3 +260,4 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Im Baumodus zeigt jeder Produktions-Chip den aktuellen Nachbarbonus (Doppel-Hex-Icon + %).
 - Vorschau beim Zeigen auf ein Feld: Auf freiem Platz erscheint das neue Feld halbtransparent mit seiner Produktion. Alle Felder, deren Produktion sich durch den Bau ändert, zeigen „alt → neu /s“ (grün mehr, rot weniger). Pfeile auf den gemeinsamen Kanten: grün = Nachbar gibt dem neuen Feld Bonus, gold = das Feld gibt dem Nachbarn Bonus, rot = Nachbar verliert Bonus (Überbauen eines höherstufigen Feldes).
 - Handy: erstes Tippen zeigt die Vorschau, zweites Tippen auf dasselbe Feld baut (beim Überbauen danach noch die Bestätigung). Maus baut weiter mit einem Klick.
+- 17.11.2026: Die weißen Marker, die am Feldrand wanderten (Ernte-Impuls), sind entfernt. Herumliegende Blaubeeren leuchten wieder dezent von Anfang an (am Tag besser zu sehen) und schwellen zum Level-up hin etwas an.

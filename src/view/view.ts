@@ -160,8 +160,8 @@ export class GameView {
     const s = this.snap; const k = s && s.nx ? clamp(s.xp / s.nx, 0, 1) : 0;
     this.berryT += dt * (1.5 + k * k * 9);
     const pulse = .5 + .5 * Math.sin(this.berryT * Math.PI * 2);
-    // no glow normally; swells gently towards the next level-up (max ~.5, was ~5)
-    GROUND_MAT.blue.emissiveIntensity = k * k * .32 + pulse * k * k * k * .18;
+    // a soft base glow so they can be spotted by day, swelling gently towards the next level-up
+    GROUND_MAT.blue.emissiveIntensity = .45 + k * k * .35 + pulse * k * k * k * .2;
   }
   private fieldKey = '';
   private frameId = 0;
@@ -512,7 +512,7 @@ export class GameView {
       return m;
     });
     const pulse: THREE.Sprite[] = [];
-    for (let i = 0; i < 6; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pulseTex, color: new THREE.Color(FRUIT_HEX[type]).lerp(new THREE.Color(0xffffff), .45), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); sp.renderOrder = 3; this.dyn.add(sp); pulse.push(sp); }
+    // (no wandering markers on the field edge any more: they only irritated, 17.11.2026)
     let lava: THREE.Mesh | undefined;
     if (type === 'chili') { // the bed glows like lava at every harvest, as if it was breathing
       lava = new THREE.Mesh(softBedGeo(H * .92, rand(0, 99)), new THREE.MeshBasicMaterial({ map: lavaTex, vertexColors: true, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));

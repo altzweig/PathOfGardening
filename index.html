@@ -46,27 +46,25 @@
   <!-- weapon test room: settings (Escape), the game keeps running behind as live preview -->
   <div id="sbPanel" hidden></div>
 
-  <!-- main menu -->
+  <!-- main menu: character card left, menu right, garden behind -->
   <div class="ov" id="menu">
-    <h1>PathOfGardening</h1>
-    <div class="col">
-      <button class="btn" id="soloBtn">Spielen</button>
-      <button class="btn sec" id="testBtn">Testmodus</button>
-      <button class="btn sec" id="wtestBtn">Waffentest</button>
-      <button class="btn sec" id="coopBtn">Koop</button>
-      <button class="btn sec" id="optBtn">Optionen</button>
-    </div>
-    <div class="err" id="menuErr" hidden></div>
-  </div>
-
-  <!-- character editor (before playing) -->
-  <div class="ov" id="editor" hidden>
-    <div id="edView"><canvas id="edCanvas"></canvas></div>
-    <div id="edSide">
-      <div id="edName"><input id="edNameIn" maxlength="16" spellcheck="false" autocomplete="off" aria-label="Name"><button class="edIco" id="edNameDice" aria-label="Name würfeln"></button></div>
-      <div id="edRows"></div>
-      <div id="edBar"><button class="btn sec edIcoBtn" id="edBack" aria-label="Zurück"></button><button class="btn sec edIcoBtn" id="edDice" aria-label="Würfeln"></button><button class="btn" id="edGo" aria-label="Los"></button></div>
-    </div>
+    <div id="mMotes" aria-hidden="true"></div>
+    <section id="mChar" class="rise r3">
+      <input id="mName" maxlength="16" spellcheck="false" autocomplete="off" aria-label="Name">
+      <div id="mStage"><div id="mGlow"></div><canvas id="mCanvas"></canvas><button id="mDice" aria-label="Zufall"></button></div>
+      <div id="mOpts"></div>
+    </section>
+    <section id="mMain">
+      <div id="mLogo" class="rise r1"><div class="mKicker"><svg class="mLeaf" viewBox="0 0 120 24" aria-hidden="true"><path d="M2 12h44M74 12h44" stroke="currentColor" stroke-width="1"/><path d="M60 3c-8 2-12 6-12 9 0 3 4 7 12 9 8-2 12-6 12-9 0-3-4-7-12-9z" fill="currentColor" opacity=".9"/><path d="M60 5v14" stroke="#05080b" stroke-width="1"/><circle cx="46" cy="12" r="1.6" fill="currentColor"/><circle cx="74" cy="12" r="1.6" fill="currentColor"/></svg></div><h1>Path<span>Of</span>Gardening</h1><div class="mRule"></div></div>
+      <nav id="mNav" class="rise r2">
+        <button class="mi main" id="soloBtn">Spielen</button>
+        <button class="mi" id="coopBtn">Koop</button>
+        <button class="mi" id="wtestBtn">Waffentest</button>
+        <button class="mi" id="testBtn">Testmodus</button>
+        <button class="mi" id="optBtn">Optionen</button>
+      </nav>
+      <div class="err" id="menuErr" hidden></div>
+    </section>
   </div>
 
   <div class="ov" id="coop" hidden>

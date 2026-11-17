@@ -245,15 +245,18 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Startpresets: Feuer (Flammenwerfer), Zitronenblitz, Frostnova, Giftwolke, Kohl-Explosion, Heilung, Betäubung, Blätterwirbel.
 - Sprites: Kenney Particle Pack (CC0, schon im Spiel) plus selbst gezeichnete Formen (Leuchten, Funke, Stern, Schneeflocke, Blase, Plus, Blatt, Splitter).
 
-## Spielfigur und Charakter-Editor
+## Spielfigur und Startmenü (überarbeitet 17.11.2026)
 
-- Detaillierte Bäuerin/Bauer statt Low-Poly-Figur, kein Geschlecht wählbar. Immer Latzhose (mit Trägern, Messingknöpfen, Brusttasche), Gummistiefel und kariertes Hemd mit hochgekrempelten Ärmeln.
-- Vor „Spielen“ und „Koop“ öffnet sich der Editor: 3D-Vorschau (ziehen = drehen, Doppelklick = Gesicht/ganze Figur), Name (max. 16 Zeichen) mit Würfel, ein Würfel für alles inklusive Name. Nur Icons und Farbfelder, kein Text. Testmodus startet ohne Editor.
-- Je 5 Optionen: Gesicht (rund, oval, kantig, lang, Herz), Körper (schlank, normal, kräftig, rundlich, klein & stämmig), Frisur (kurz, Dutt, Zopf, Locken, Haarkranz), Haarfarbe (schwarz, braun, rot, blond, grau), Hautfarbe, Augenfarbe (braun, blau, grün, grau, bernstein), Hemd (5 Karomuster), Hosenfarbe.
-- Accessoires frei kombinierbar: dicker Schnauzer, großer Nasenring, Gesichtstattoo (Ranke auf der Wange), Haarreif mit Gänseblümchen. Hüte: genau einer oder keiner (Sonnenhut mit Schleife, Strohhut, Zylinder, Schiebermütze). Haarreif und Hut schließen sich gegenseitig aus (der Reif säße unter dem Hut).
-- Mit Hut verschwinden Haarteile, die durch den Hut stechen würden (Locken oben, Strähnen); der Dutt rutscht in den Nacken.
-- Aussehen wird im Browser gespeichert (localStorage) und im Koop an alle geschickt; über Mitspielern steht ihr Name in ihrer Spielerfarbe. Der farbige Ring am Boden bleibt die Spielerfarbe.
-- Hände greifen per IK, was gerade benutzt wird: Harke beidhändig am Stiel, Zitronenstab links, Armbrust und Chili-Flammenwerfer beidhändig. Beine laufen mit der Laufphase, Arme schwingen beim Gehen.
+- Detaillierte Bäuerin/Bauer, kein Geschlecht wählbar. Immer Latzhose (Träger, Messingknöpfe, Brusttasche), Gummistiefel, Karohemd mit hochgekrempelten Ärmeln. Gesicht und Körperform fest, Augen immer braun. Keine Accessoires, keine Hüte.
+- Auswahl direkt im Startmenü, kein eigener Editor-Bildschirm: links kleine Figur auf einem Moos-Podest (ziehen = drehen), darüber der frei wählbare Name, darunter vier kompakte Reihen:
+  - Frisur: Pippi-Langstrumpf-Zöpfe, Bubikopf, Tonsur, Afro
+  - Haarfarbe: rot, schwarz, hellblond
+  - Hautfarbe: dunkelbraun, leicht braun, fast weiß
+  - Outfit: blaue Latzhose + pinkes Hemd, schwarze Latzhose + weiß-rotes Hemd, grüne Latzhose + hellgrün-gelbes Hemd
+- Würfel rollt Name und Aussehen. Alles wird sofort im Browser gespeichert und im Koop an alle geschickt (Name über den Mitspielern).
+- Menü rechts: Logo mit Goldverlauf und Glanz, Einträge Spielen (groß), Koop, Waffentest, Testmodus, Optionen als Serifen-Wörter ohne Kästen; Hover/Fokus mit Goldlinie und Blatt-Marker, Pfeiltasten + Enter. Hintergrund: der Garten mit langsam kreisender, flacher Kamera, aufsteigende Pollen, gestaffeltes Einblenden. Unterseiten im selben Stil (Überschriften mit Goldlinien, Glas-Knöpfe).
+- Handy quer wie PC, nur kompakter; Handy hoch: Logo oben, Figur in der Mitte, Menü unten.
+- Umsetzungs-Prompt: Projektordner `startmenue/prompt.md`.
 
 ## Nachbarboni und Bau-Vorschau (16.11.2026)
 - Regel (unverändert): Jedes Feld bekommt +10 % Produktion je Seltenheitsstufe jedes angrenzenden lebenden Feldes, egal welche Frucht (`fields.neighborBonus`, additiv). Gewöhnliche Felder (Stufe 0) geben nichts, ein grünes +10 %, ein blaues +20 % usw. Die eigene Seltenheit zählt zusätzlich ×1,5 je Stufe.

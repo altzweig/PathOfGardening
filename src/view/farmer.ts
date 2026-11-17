@@ -4,7 +4,6 @@
 // one mesh per material (few draw calls on mobile).
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import type { Look } from '../look';
 
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -12,35 +11,21 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const sstep = (x: number, a: number, b: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ---------------- option palettes (5 each) ----------------
-export const SKIN = [0xf3d3bb, 0xe3ad86, 0xc4885b, 0x8d5836, 0x58361f];
-export const HAIR = [0x1d1815, 0x4a2c19, 0x9a3e1a, 0xd9b36c, 0xbab6b0];
-export const EYES = [0x5b3416, 0x3f80cc, 0x4a9038, 0x7c8a96, 0xb07c26];
-/** plaid shirts: base, wide band, thin line */
-export const SHIRTS: [string, string, string][] = [
-  ['#b3272b', '#1c1818', '#e6d6a8'], ['#2e5c9e', '#e8eef3', '#162746'], ['#3d6e33', '#e3c548', '#16301a'],
-  ['#c77a2c', '#5b391c', '#f2e3c2'], ['#6b4a8c', '#a3a8b0', '#261f36'],
+export const SKIN = [0x5c3720, 0xc68c5f, 0xf6dfd0]; // dark brown, light brown, almost white
+export const HAIR = [0xa63c18, 0x1c1714, 0xead39a]; // red, black, light blond
+const EYE_BROWN = 0x5b3416;
+/** outfits: [overalls colour, plaid shirt base, wide band, thin line] */
+export const OUTFITS: [number, string, string, string][] = [
+  [0x3e5f9a, '#e2679c', '#f8c6dc', '#8a2856'], // blue overalls, pink shirt
+  [0x25262b, '#f1ede6', '#c9262d', '#7a1419'], // black overalls, white-red shirt
+  [0x4d7a33, '#b9dc66', '#f3e25a', '#5b8a2a'], // green overalls, light green-yellow shirt
 ];
-export const PANTS = [0x3e5c8e, 0x5d6c37, 0x7d5232, 0x3b3e46, 0x9c4a2b];
 const BOOT = 0x2e5530;
 
-/** face types: round, oval, square, long, heart */
 interface FaceP { w: number; h: number; jaw: number; chin: number; cheek: number; top: number; sq: number; nose: [number, number, number, number]; ear: number }
-const FACES: FaceP[] = [
-  { w: 1.07, h: .95, jaw: .9, chin: 0, cheek: .14, top: 1, sq: 0, nose: [.022, .025, .25, 0], ear: 1 },
-  { w: .96, h: 1.03, jaw: .74, chin: .07, cheek: .05, top: .98, sq: 0, nose: [.032, .019, 0, 0], ear: .95 },
-  { w: 1.05, h: 1, jaw: .98, chin: .05, cheek: .03, top: 1, sq: .6, nose: [.03, .028, 0, .2], ear: 1.05 },
-  { w: .9, h: 1.12, jaw: .8, chin: .1, cheek: .03, top: .95, sq: .1, nose: [.042, .021, -.15, .7], ear: 1.1 },
-  { w: 1.02, h: 1, jaw: .6, chin: .12, cheek: .1, top: 1.08, sq: 0, nose: [.026, .019, .5, 0], ear: .95 },
-];
-/** body shapes: slim, normal, strong, round, short & stocky */
+const FACE: FaceP = { w: .98, h: 1.02, jaw: .8, chin: .05, cheek: .08, top: .99, sq: 0, nose: [.026, .021, .2, 0], ear: 1 };
 interface BodyP { sh: number; ch: number; wa: number; hip: number; dep: number; belly: number; h: number; legH: number; arm: number; leg: number }
-const BODIES: BodyP[] = [
-  { sh: .165, ch: .128, wa: .104, hip: .118, dep: .084, belly: 0, h: 1.04, legH: 1.05, arm: .88, leg: .88 },
-  { sh: .176, ch: .14, wa: .12, hip: .13, dep: .094, belly: .012, h: 1, legH: 1, arm: 1, leg: 1 },
-  { sh: .208, ch: .168, wa: .138, hip: .14, dep: .108, belly: .01, h: 1.03, legH: 1.02, arm: 1.25, leg: 1.15 },
-  { sh: .182, ch: .152, wa: .168, hip: .152, dep: .118, belly: .065, h: .98, legH: .95, arm: 1.1, leg: 1.12 },
-  { sh: .19, ch: .156, wa: .146, hip: .146, dep: .104, belly: .03, h: .9, legH: .84, arm: 1.15, leg: 1.18 },
-];
+const BODY: BodyP = { sh: .176, ch: .14, wa: .12, hip: .13, dep: .094, belly: .012, h: 1, legH: 1, arm: 1, leg: 1 };
 const HR = { x: .119, y: .143, z: .127 }; // base head radii
 
 // ---------------- textures (canvas, cached) ----------------
@@ -61,7 +46,7 @@ function noise(c: CanvasRenderingContext2D, w: number, h: number, amt: number, f
   c.putImageData(d, 0, 0);
 }
 function drawPlaid(c: CanvasRenderingContext2D, i: number, S: number) {
-  const [base, band, line] = SHIRTS[i];
+  const [, base, band, line] = OUTFITS[i];
   c.fillStyle = base; c.fillRect(0, 0, S, S);
   const k = S / 128;
   const bands = (col: string, a: number, list: [number, number][]) => {
@@ -81,7 +66,7 @@ export function plaidSwatch(i: number) {
 }
 function denimTex(i: number, stitched: boolean) {
   return canvasTex('denim' + i + stitched, 128, 128, c => {
-    c.fillStyle = '#' + new THREE.Color(PANTS[i]).getHexString(); c.fillRect(0, 0, 128, 128);
+    c.fillStyle = '#' + new THREE.Color(OUTFITS[i][0]).getHexString(); c.fillRect(0, 0, 128, 128);
     noise(c, 128, 128, 22, (x, y) => ((x + y * 2) % 5 < 2 ? 9 : -5));
     if (stitched) { c.strokeStyle = '#d8a24a'; c.lineWidth = 2; c.setLineDash([5, 4]); c.strokeRect(7, 7, 114, 114); }
   });
@@ -91,35 +76,15 @@ const hairTex = () => canvasTex('hair', 64, 128, c => {
   for (let x = 0; x < 64; x++) { const b = 150 + Math.random() * 105; c.fillStyle = `rgb(${b},${b},${b})`; c.fillRect(x, 0, 1, 128); }
   noise(c, 64, 128, 25);
 });
-const strawTex = () => canvasTex('straw', 128, 128, c => {
-  c.fillStyle = '#d9b46a'; c.fillRect(0, 0, 128, 128);
-  for (let y = 0; y < 128; y += 8) for (let x = 0; x < 128; x += 8) {
-    const v = ((x + y) / 8) % 2 ? 1 : 0, b = 190 + Math.random() * 50;
-    c.fillStyle = `rgb(${b},${b * .82},${b * .48})`;
-    if (v) c.fillRect(x + 1, y + 2, 6, 4); else c.fillRect(x + 2, y + 1, 4, 6);
-  }
-  noise(c, 128, 128, 16);
-});
-const tweedTex = () => canvasTex('tweed', 128, 128, c => {
-  c.fillStyle = '#6e604c'; c.fillRect(0, 0, 128, 128);
-  noise(c, 128, 128, 50, (x, y) => ((x + y) % 6 < 3 ? 10 : -10) + ((x - y + 256) % 16 < 2 ? -14 : 0));
-});
-function eyeTex(i: number) {
-  return canvasTex('eye' + i, 128, 64, c => {
+function eyeTex() {
+  return canvasTex('eye', 128, 64, c => {
     c.fillStyle = '#f1ece4'; c.fillRect(0, 0, 128, 64);
-    const col = new THREE.Color(EYES[i]), g = c.createRadialGradient(32, 32, 2, 32, 32, 11);
+    const col = new THREE.Color(EYE_BROWN), g = c.createRadialGradient(32, 32, 2, 32, 32, 11);
     g.addColorStop(0, '#' + col.clone().multiplyScalar(.55).getHexString()); g.addColorStop(.55, '#' + col.getHexString()); g.addColorStop(1, '#' + col.clone().multiplyScalar(.45).getHexString());
     c.fillStyle = g; c.beginPath(); c.arc(32, 32, 11, 0, 7); c.fill();
     c.fillStyle = '#0a0806'; c.beginPath(); c.arc(32, 32, 4.6, 0, 7); c.fill();
   });
 }
-const tattooTex = () => canvasTex('tattoo', 128, 128, c => {
-  c.clearRect(0, 0, 128, 128); c.strokeStyle = c.fillStyle = '#1e3a4c'; c.lineWidth = 5; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(64, 120); c.bezierCurveTo(30, 90, 96, 60, 60, 12); c.stroke(); // vine
-  const leaf = (x: number, y: number, a: number) => { c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.ellipse(13, 0, 14, 6.5, 0, 0, 7); c.fill(); c.restore(); };
-  leaf(50, 95, 2.6); leaf(70, 70, -.4); leaf(58, 42, 2.8); leaf(64, 22, -.8);
-}, true);
-
 // ---------------- geometry builders ----------------
 interface Ring { y: number; rx: number; rz: number; cx?: number; cz?: number }
 /** tube along +y through elliptical rings (a = 0 is the front, +z), optional arc for panels */
@@ -192,11 +157,11 @@ function headSurf(n: THREE.Vector3, F: FaceP, out = V3()) {
   return out.set(x * HR.x * sx * (1 + ck * .6), y * HR.y * F.h, pz);
 }
 /** hair shell over the head between minEl(az) and maxEl, thickness fading to 0 at the edges */
-function capGeo(F: FaceP, minEl: (az: number) => number, maxEl: number, thick: number, az0 = -Math.PI, az1 = Math.PI, fadeTop = false) {
+function capGeo(F: FaceP, minEl: (az: number) => number, maxEl: number, thick: number, az0 = -Math.PI, az1 = Math.PI, fadeTop = false, o: { bottom?: number; drop?: number } = {}) {
   const C = 48, R = 16, pos: number[] = [], uv: number[] = [], idx: number[] = [], p = V3();
   for (let j = 0; j <= R; j++) for (let k = 0; k <= C; k++) {
     const az = lerp(az0, az1, k / C), lo = minEl(az), el = lerp(lo, maxEl, j / R), n = dirOf(az, el);
-    const t = j / R, th = thick * (fadeTop ? Math.pow(Math.sin(Math.PI * t), .5) : sstep(t, 0, .35)) + .0015;
+    const t = j / R, th = thick * (fadeTop ? Math.pow(Math.sin(Math.PI * t), .5) : lerp(o.bottom ?? 0, 1, sstep(t, 0, .35))) + .0015 + (o.drop ?? 0) * Math.max(0, .15 - el);
     headSurf(n, F, p).addScaledVector(n, th); pos.push(p.x, p.y, p.z); uv.push(k / C * 3, t * 1.4);
   }
   const W = C + 1;
@@ -247,20 +212,20 @@ export interface Rig { root: THREE.Group; pelvis: THREE.Group; torso: THREE.Grou
 
 /** build the figure; returns the root group (feet on y = 0, facing +z) and its rig */
 export function buildFarmer(L: Look): Rig {
-  const F = FACES[L.face] ?? FACES[0], B = BODIES[L.body] ?? BODIES[0];
+  const F = FACE, B = BODY;
   const skinC = SKIN[L.skin] ?? SKIN[0], hairC = HAIR[L.hairCol] ?? HAIR[0];
   const M = {
     skin: mat(skinC, { roughness: .62 }),
     head: mat(skinC, { roughness: .6, vertexColors: true }),
-    shirt: mat(0xffffff, { map: plaidTex(L.shirt), roughness: .9 }),
-    denim: mat(0xffffff, { map: denimTex(L.pants, false), roughness: .95, side: THREE.DoubleSide }),
-    denimP: mat(0xffffff, { map: denimTex(L.pants, true), roughness: .95, side: THREE.DoubleSide }),
+    shirt: mat(0xffffff, { map: plaidTex(L.outfit), roughness: .9 }),
+    denim: mat(0xffffff, { map: denimTex(L.outfit, false), roughness: .95, side: THREE.DoubleSide }),
+    denimP: mat(0xffffff, { map: denimTex(L.outfit, true), roughness: .95, side: THREE.DoubleSide }),
     boot: mat(BOOT, { roughness: .32 }),
     sole: mat(0x1a1714, { roughness: .9 }),
     brass: mat(0xc9a046, { metalness: .7, roughness: .35 }),
-    hair: mat(hairC, { map: hairTex(), roughness: .55 }),
+    hair: mat(hairC, { map: hairTex(), roughness: .55, side: THREE.DoubleSide }),
     brow: mat(new THREE.Color(hairC).multiplyScalar(.8).getHex(), { roughness: .7 }),
-    eye: mat(0xffffff, { map: eyeTex(L.eyes), roughness: .12 }),
+    eye: mat(0xffffff, { map: eyeTex(), roughness: .12 }),
     lip: mat(new THREE.Color(skinC).lerp(new THREE.Color(0x9a3a3a), .45).getHex(), { roughness: .5 }),
     metal: mat(0xdcdce2, { metalness: .65, roughness: .28, emissive: 0x222226 }),
   };
@@ -388,31 +353,8 @@ export function buildFarmer(L: Look): Rig {
     add(sh, SPH, M.skin, ep, [.012 * F.ear, .03 * F.ear, .019 * F.ear], new THREE.Euler(0, sd * -.3, 0));
   }
   // hair
-  const hat = L.hat;
-  const hairTop = buildHair(L.hair, F, M.hair, sh, !!hat);
-  // accessories
-  if (L.stache) {
-    const pts: THREE.Vector3[] = [], nr: THREE.Vector3[] = [];
-    for (let i = 0; i <= 14; i++) { const t = i / 14, u = 2 * t - 1, az = u * .6, el = -.34 - .13 * Math.pow(Math.abs(u), 1.6); pts.push(surfAt(az, el, .006)); nr.push(dirOf(az, el)); }
-    add(sh, sweepGeo(pts, t => { const k = Math.pow(Math.sin(Math.PI * t), .55); return [.004 + .013 * k, .003 + .008 * k]; }, i => nr[i], 10), M.brow);
-  }
-  if (L.pierce) add(sh, new THREE.TorusGeometry(.015, .0028, 8, 24), M.metal, nt.clone().add(V3(0, -.006 - .015 * .75, -.01)));
-  if (L.band) {
-    const ry = HR.y * F.h + .016, rx = HR.x * F.w * F.top + .017;
-    const bandG = add(sh, new THREE.TorusGeometry(1, .055, 8, 44, Math.PI), mat(0xc42f3c, { roughness: .45 }), V3(0, -.005, -.02), [rx, ry, 1]);
-    bandG.rotation.x = -.38;
-    const fl = flower(); fl.position.set(rx * .82, ry * .48, .03); fl.rotation.set(0, .9, -.3); fl.scale.setScalar(.9); sh.add(fl);
-  }
-  if (hat) sh.add(buildHat(hat, F));
+  buildHair(L.hair, F, M.hair, sh, L.hairCol);
   bake(sh, head);
-  void hairTop;
-  if (L.tattoo) {
-    headMesh.updateMatrixWorld(true);
-    const d = dirOf(.6, -.14), at = headSurf(d, F), o = new THREE.Object3D(); o.position.copy(at); o.lookAt(at.clone().add(d));
-    const dg = new DecalGeometry(headMesh, at, o.rotation, V3(.06, .06, .06));
-    const dm = new THREE.Mesh(dg, new THREE.MeshStandardMaterial({ map: tattooTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: .6, color: 0xffffff }));
-    head.add(dm);
-  }
 
   // ---- arms: plaid sleeve rolled up at the elbow, bare forearm, hand ----
   const arms: Arm[] = [];
@@ -438,97 +380,40 @@ export function buildFarmer(L: Look): Rig {
   return { root, pelvis, torso, head, arms: arms as [Arm, Arm], legs: legs as [Leg, Leg], ua, fa: fa + .035, walk: 0, t: Math.random() * 10 };
 }
 
-function flower() {
-  const g = new THREE.Group(), w = mat(0xf6f2ea, { roughness: .6 }), y = mat(0xf0b82a, { roughness: .5 });
-  for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; add(g, SPH_LO, w, V3(Math.cos(a) * .014, Math.sin(a) * .014, 0), [.011, .005, .003], new THREE.Euler(0, 0, a)); }
-  add(g, SPH_LO, y, V3(0, 0, .002), [.007, .007, .004]);
-  return g;
-}
-
-/** hair styles: short, bun, braid, curls, horseshoe (bald top). Parts that would stick out of a hat are left out with a hat. */
-function buildHair(style: number, F: FaceP, m: THREE.Material, g: THREE.Group, hat: boolean) {
-  const rnd = mulberry(7 + style);
+/** hair styles: Pippi braids sticking out, bob, tonsure, afro */
+function buildHair(style: number, F: FaceP, m: THREE.Material, g: THREE.Group, _col: number) {
+  const rnd = mulberry(11 + style);
   const minEl = (front: number, side: number, back: number) => (az: number) => { const c = Math.cos(az); return c > 0 ? lerp(side, front, c) : lerp(side, back, -c); };
-  const onHead = (az: number, el: number, out: number) => { const d = dirOf(az, el); return headSurf(d, F).addScaledVector(d, out); };
-  if (style === 0) { // short and tousled
-    add(g, capGeo(F, minEl(.5, -.02, -.4), Math.PI / 2, .014), m);
-    if (!hat) for (let i = 0; i < 16; i++) {
-      const az = (rnd() - .5) * 2.2, el = .5 + rnd() * .7, d = dirOf(az, el), p = headSurf(d, F).addScaledVector(d, .014);
-      const fwd = dirOf(az, el - .2).sub(dirOf(az, el)).normalize();
-      add(g, SPH_LO, m, p, [.02, .012, .04], new THREE.Quaternion().setFromUnitVectors(V3(0, 0, 1), fwd));
-    }
-  } else if (style === 1) { // bun
-    add(g, capGeo(F, minEl(.42, -.04, -.32), Math.PI / 2, .01), m);
-    const el = hat ? .02 : .62, c = onHead(Math.PI, el, .042);
-    add(g, SPH, m, c, [.05, .046, .046]);
-    add(g, new THREE.TorusGeometry(.03, .007, 8, 20), mat(0x8a3a2a), onHead(Math.PI, el, .012), undefined, new THREE.Quaternion().setFromUnitVectors(V3(0, 0, 1), dirOf(Math.PI, el)));
-  } else if (style === 2) { // braid down the back
-    add(g, capGeo(F, minEl(.42, -.06, -.45), Math.PI / 2, .01), m);
-    const s = onHead(Math.PI, -.42, .01);
-    for (let i = 0; i < 9; i++) {
-      const t = i / 8, r = lerp(.03, .021, t), p = V3(0, s.y - t * .3, s.z - .015 - Math.sin(t * 1.4) * .05);
-      add(g, SPH, m, p, [r * 1.05, r * 1.25, r * .95], new THREE.Euler(0, 0, i % 2 ? .45 : -.45));
-    }
-    add(g, new THREE.TorusGeometry(.017, .006, 8, 18), mat(0x2f6a3a), V3(0, s.y - .325, s.z - .06), undefined, new THREE.Euler(Math.PI / 2, 0, 0));
-    add(g, new THREE.ConeGeometry(.022, .05, 12), m, V3(0, s.y - .36, s.z - .062), undefined, new THREE.Euler(Math.PI, 0, 0));
-  } else if (style === 3) { // curls
-    const lo = minEl(.4, -.1, -.45);
-    add(g, capGeo(F, lo, Math.PI / 2, .016), m);
-    const N = 60, curls = new THREE.Group();
-    for (let i = 0; i < N; i++) {
-      const az = (i * 2.39996) % (Math.PI * 2) - Math.PI, l = lo(az), el = lerp(l + .1, 1.5, Math.sqrt((i + .5) / N));
-      if (hat && el > .35) continue;
-      const r = .021 + rnd() * .011; add(curls, SPH_LO, m, onHead(az, el, .016 + r * .35), r);
-    }
-    g.add(curls);
-  } else { // horseshoe: bald top, hair around the sides and back
-    add(g, capGeo(F, minEl(-.05, -.18, -.5), .5, .016, .75, Math.PI * 2 - .75, true), m);
-  }
-  return null;
-}
-
-function buildHat(kind: string, F: FaceP) {
-  const g = new THREE.Group(), base = HR.y * F.h * .42, cr = HR.x * F.w * Math.max(1, F.top) + .03;
-  g.position.y = base; g.rotation.x = -.1;
-  const ds = { side: THREE.DoubleSide };
-  if (kind === 'straw') {
-    const m = mat(0xffffff, { map: strawTex(), roughness: .85, ...ds });
-    add(g, lathe([[cr, -.01], [cr * .99, .04], [cr * .93, .08], [cr * .72, .1], [cr * .4, .088], [0, .086]]), m);
-    const brim = lathe([[cr * .98, 0], [cr + .04, -.006], [.2, -.018], [.215, -.012]], 48); add(g, brim, m);
-    add(g, new THREE.CylinderGeometry(cr * 1.005, cr * 1.01, .024, 40, 1, true), mat(0x5a3a20, { roughness: .7, ...ds }), V3(0, .012, 0));
-  } else if (kind === 'sun') {
-    const m = mat(0xf0e4c8, { map: strawTex(), roughness: .9, ...ds }), rib = mat(0xe0566a, { roughness: .55, ...ds });
-    add(g, lathe([[cr, -.01], [cr, .05], [cr * .86, .09], [cr * .48, .115], [0, .12]]), m);
-    const brim = lathe([[cr * .98, 0], [cr + .02, -.002], [.15, -.012], [.2, -.03], [.25, -.055], [.275, -.07]], 56);
-    const bp = brim.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < bp.count; i++) { const x = bp.getX(i), z = bp.getZ(i), r = Math.hypot(x, z), t = Math.max(0, (r - cr) / (.275 - cr)); bp.setY(i, bp.getY(i) + Math.sin(Math.atan2(z, x) * 4) * .014 * t * t); }
-    brim.computeVertexNormals(); add(g, brim, m);
-    add(g, new THREE.CylinderGeometry(cr * 1.005, cr * 1.01, .03, 40, 1, true), rib, V3(0, .015, 0));
-    // bow at the back: two loops, knot, two tails
-    const bz = -cr - .006;
-    for (const sd of [1, -1]) add(g, new THREE.TorusGeometry(.024, .008, 8, 18), rib, V3(sd * .024, .018, bz), [1, .62, .5], new THREE.Euler(0, 0, sd * .25));
-    add(g, SPH, rib, V3(0, .016, bz - .002), [.011, .012, .008]);
+  const tie = mat(0x3f8a3a, { roughness: .5 });
+  if (style === 0) { // Pippi: fringe, two stiff braids sticking out sideways and a bit up
+    add(g, capGeo(F, minEl(.4, -.12, -.4), Math.PI / 2, .012), m);
     for (const sd of [1, -1]) {
-      const pts = [V3(sd * .005, .01, bz), V3(sd * .02, -.02, bz - .03), V3(sd * .035, -.05, bz - .07), V3(sd * .04, -.075, bz - .085)];
-      add(g, sweepGeo(pts, () => [.011, .0025], () => V3(0, 0, -1), 6), rib);
+      const d = dirOf(sd * Math.PI / 2 * .96, .02), s0 = headSurf(d, F).addScaledVector(d, .006);
+      const dir = V3(sd, .42, -.12).normalize(), up = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), dir);
+      for (let i = 0; i < 8; i++) {
+        const t = i / 7, r = lerp(.026, .017, t), p = s0.clone().addScaledVector(dir, .02 + t * .17);
+        const q = up.clone().multiply(new THREE.Quaternion().setFromAxisAngle(V3(0, 0, 1), i % 2 ? .5 : -.5));
+        add(g, SPH, m, p, [r, r * 1.35, r * .9], q);
+      }
+      const end = s0.clone().addScaledVector(dir, .205);
+      add(g, new THREE.TorusGeometry(.014, .006, 8, 16), tie, end, undefined, new THREE.Quaternion().setFromUnitVectors(V3(0, 0, 1), dir));
+      const tuft = add(g, new THREE.ConeGeometry(.02, .045, 10), m, end.clone().addScaledVector(dir, .028)); tuft.quaternion.setFromUnitVectors(V3(0, -1, 0), dir);
     }
-  } else if (kind === 'top') {
-    const m = mat(0x26221f, { roughness: .6, ...ds });
-    add(g, new THREE.CylinderGeometry(cr * .98, cr * .93, .2, 40), m, V3(0, .1, 0));
-    const brim = lathe([[cr * .9, 0], [cr + .04, .0], [cr + .062, .012], [cr + .066, .02]], 48);
-    const bp = brim.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < bp.count; i++) { const x = bp.getX(i), z = bp.getZ(i), r = Math.hypot(x, z); bp.setY(i, bp.getY(i) + Math.pow(Math.abs(x) / (r || 1), 2) * Math.max(0, r - cr) * .7); }
-    brim.computeVertexNormals(); add(g, brim, m);
-    add(g, new THREE.CylinderGeometry(cr * .94, cr * .935, .035, 40, 1, true), mat(0x6a1f24, { roughness: .5, ...ds }), V3(0, .022, 0));
-    const fl = flower(); fl.position.set(cr * .7, .03, cr * .7); fl.rotation.y = Math.PI / 4; fl.scale.setScalar(1.3); g.add(fl);
-  } else { // flat cap
-    const m = mat(0xffffff, { map: tweedTex(), roughness: .95, ...ds });
-    add(g, new THREE.SphereGeometry(1, 36, 14, 0, Math.PI * 2, 0, Math.PI / 2), m, V3(0, -.012, .012), [cr * .98, .07, cr * 1.08], new THREE.Euler(.12, 0, 0));
-    add(g, new THREE.CylinderGeometry(cr * .97, cr * .97, .02, 36, 1, true), m, V3(0, -.018, .01), [1, 1, 1.08]);
-    add(g, new THREE.CylinderGeometry(cr * .95, cr * .95, .007, 28, 1, false, -Math.PI / 2, Math.PI), m, V3(0, -.024, cr * .55), [1, 1, .6], new THREE.Euler(.18, 0, 0));
-    add(g, SPH_LO, m, V3(0, .058, .03), .01);
+  } else if (style === 1) { // bob: straight fringe, hangs to the jaw
+    const lo = (az: number) => lerp(.36, -.62, sstep(Math.abs(az), .85, 1.2));
+    add(g, capGeo(F, lo, Math.PI / 2, .018, -Math.PI, Math.PI, false, { bottom: .75, drop: .05 }), m);
+  } else if (style === 2) { // tonsure: ring of hair, bald crown
+    add(g, capGeo(F, minEl(.3, -.12, -.4), .74, .017, -Math.PI, Math.PI, true), m);
+  } else { // afro: big round volume covered with curls
+    const lo = minEl(.42, -.12, -.36), T = .08, thAt = (t: number) => T * sstep(t, 0, .35);
+    add(g, capGeo(F, lo, Math.PI / 2, T), m);
+    const N = 150;
+    for (let i = 0; i < N; i++) {
+      const az = (i * 2.39996) % (Math.PI * 2) - Math.PI, l = lo(az), t = Math.sqrt((i + .5) / N), el = lerp(l + .05, Math.PI / 2, t);
+      const d = dirOf(az, el), r = .028 + rnd() * .016;
+      add(g, SPH_LO, m, headSurf(d, F).addScaledVector(d, thAt(t) + .004 + rnd() * .008), r);
+    }
   }
-  return g;
 }
 
 function mulberry(a: number) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }

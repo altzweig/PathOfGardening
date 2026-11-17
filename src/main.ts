@@ -11,13 +11,14 @@ import { mobileControls, pcControls } from './ui/controls';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
-import { Editor } from './ui/editor';
+import { StartMenu } from './ui/startmenu';
 import { Look, loadLook } from './look';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#editor', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
-function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); }
+const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
+let onMenu: (on: boolean) => void = () => {};
+function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); onMenu(id === '#menu'); }
 
 type Mode = 'idle' | 'solo' | 'host' | 'client';
 const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
@@ -39,8 +40,8 @@ class Game {
   private overShown = false;
   private placeShown: string | null = null;
   private backTo = '#menu';
-  look: Look = loadLook();
-  private editor = new Editor();
+  private menu = new StartMenu(loadLook());
+  get look(): Look { return this.menu.look; }
 
   constructor() {
     this.input = new Input(this.view, isTouch);
@@ -82,15 +83,16 @@ class Game {
       if (this.sandbox) { if (!this.sbOpen && this.mode === 'solo') this.sbWheel(e.deltaY); return; } // test room: the wheel switches weapons
       if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY);
     }, { passive: true });
-    this.editor.onSound = k => sfx(k);
-    click('#soloBtn', () => this.openEditor(() => this.startSolo(false)));
+    this.menu.onSound = k => sfx(k);
+    onMenu = on => this.menu.setActive(on); this.menu.setActive(!$('#menu').hidden);
+    click('#soloBtn', () => this.startSolo(false));
     click('#testBtn', () => this.startSolo(true));
     click('#wtestBtn', () => this.startSandbox());
     this.wireSandbox();
     click('#cheatBtn', () => this.toggleCheat());
     click('#cheatClose', () => this.toggleCheat());
     this.input.onCheat = () => this.toggleCheat();
-    click('#coopBtn', () => this.openEditor(() => { $('#coopErr').hidden = true; only('#coop'); }));
+    click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
     click('#optBack', () => only(this.backTo === '#pause' ? '#pause' : '#menu'));
@@ -137,11 +139,6 @@ class Game {
     }, true);
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
-  }
-  /** character editor first; then the given next step (solo start / co-op menu) */
-  private openEditor(next: () => void) {
-    only('#editor');
-    this.editor.open(this.look, l => { this.look = l; next(); }, () => only('#menu'));
   }
   private touchSel = -1;
   private doPlace(slot: number) {

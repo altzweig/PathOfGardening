@@ -148,7 +148,7 @@ export class GameView {
   /** player looks (character editor), by player id; a changed look rebuilds that figure */
   private looks = new Map<number, Look>();
   setLooks(list: { id: number; look?: Look }[]) { for (const p of list) if (p.look) this.looks.set(p.id, cleanLook(p.look)); }
-  private lookFor(id: number, c: number) { return this.looks.get(id) ?? cleanLook({ name: '', face: c % 5, body: (c + 1) % 5, hair: c % 5, hairCol: (c * 2) % 5, skin: (c * 3) % 5, shirt: c % 5, pants: c % 5, hat: 'straw' }); }
+  private lookFor(id: number, c: number): Look { return this.looks.get(id) ?? { name: '', hair: c % 4, hairCol: c % 3, skin: (c + 1) % 3, outfit: c % 3 }; }
   private nameLabel(name: string, c: number) {
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48; const x = cv.getContext('2d')!;
     x.font = '700 30px "Alegreya Sans", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
@@ -1042,6 +1042,15 @@ export class GameView {
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;
     const z = this.zoom, off = V(0, (portrait ? 18 : 13.5) * z, (portrait ? 11.6 : 9.3) * z);
+    if (this.me < 0 && !this.sandbox) { // menus: slow cinematic orbit around the garden, low angle; garden sits left of the menu
+      const t = performance.now() / 1000 * .03 + .7, R = portrait ? 14 : 10.8, H = portrait ? 8.5 : 4.4;
+      camera.position.set(Math.sin(t) * R, H + Math.sin(t * 2.3) * .25, Math.cos(t) * R);
+      const sh = portrait ? 0 : .6;
+      camera.lookAt(Math.cos(t) * sh, portrait ? -1.5 : .7, -Math.sin(t) * sh);
+      gardenLight.position.set(0, 6, 1); torch.position.set(0, 3, .6);
+      moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
+      return;
+    }
     const me = this.players.get(this.me);
     let tx = me ? me.x : 0, tz = me ? me.z : 0;
     if (DBG_CAM) { tx = DBG_CAM[0]; tz = DBG_CAM[1]; } // dev only: ?cam=x,z looks at that spot (screenshots)

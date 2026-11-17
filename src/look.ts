@@ -1,48 +1,36 @@
-// Player appearance (character editor): indices into the option lists of src/view/farmer.ts.
+// Player appearance (start menu): indices into the option lists of src/view/farmer.ts.
 // Saved in localStorage, sent to the host in co-op and shared with all players via the lobby.
-
-export const HATS = ['sun', 'straw', 'top', 'cap'] as const; // sun hat with bow, straw hat, top hat, flat cap
-export type Hat = typeof HATS[number] | '';
 
 export interface Look {
   name: string;
-  face: number; body: number; hair: number; hairCol: number; skin: number; eyes: number;
-  shirt: number; pants: number;
-  stache: boolean; pierce: boolean; tattoo: boolean; band: boolean;
-  hat: Hat;
+  hair: number;    // 0 Pippi braids, 1 bob, 2 tonsure, 3 afro
+  hairCol: number; // 0 red, 1 black, 2 light blond
+  skin: number;    // 0 dark brown, 1 light brown, 2 almost white
+  outfit: number;  // 0 blue overalls + pink shirt, 1 black + white-red, 2 green + light green-yellow
 }
-
-export const LOOK_N = 5; // 5 options per category
+export const LOOK_COUNT = { hair: 4, hairCol: 3, skin: 3, outfit: 3 } as const;
 const KEY = 'pog.look';
 
 const FIRST = ['Toni', 'Kim', 'Sascha', 'Robin', 'Alex', 'Kai', 'Charlie', 'Jo', 'Luca', 'Mika', 'Nicki', 'Sam', 'Uli', 'Chris', 'Andi', 'Maxi', 'Flo', 'Kiki', 'Bo', 'Jule', 'Rike', 'Fritzi', 'Hanni', 'Pepe', 'Lou', 'Wenzel', 'Ronja', 'Mats'];
-const LAST = ['Klee', 'Rübe', 'Lauch', 'Distel', 'Krume', 'Furche', 'Hafer', 'Kohl', 'Moos', 'Senf', 'Dinkel', 'Raps', 'Kresse', 'Quitte', 'Sauerampfer', 'Kümmel', 'Schnittlauch', 'Mohn', 'Holunder', 'Rhabarber'];
+const LAST = ['Klee', 'Rübe', 'Lauch', 'Distel', 'Krume', 'Furche', 'Hafer', 'Kohl', 'Moos', 'Senf', 'Dinkel', 'Raps', 'Kresse', 'Quitte', 'Kümmel', 'Mohn', 'Holunder', 'Rhabarber'];
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
-const ri = (n = LOOK_N) => Math.floor(Math.random() * n);
+const ri = (n: number) => Math.floor(Math.random() * n);
 
 export function randomName() {
   for (let i = 0; i < 20; i++) { const n = pick(FIRST) + ' ' + pick(LAST); if (n.length <= 16) return n; }
   return pick(FIRST);
 }
-export function randomLook(keepName?: string): Look {
-  const hat: Hat = Math.random() < .55 ? pick(HATS) : '';
-  return {
-    name: keepName ?? randomName(),
-    face: ri(), body: ri(), hair: ri(), hairCol: ri(), skin: ri(), eyes: ri(), shirt: ri(), pants: ri(),
-    stache: Math.random() < .25, pierce: Math.random() < .15, tattoo: Math.random() < .15,
-    band: !hat && Math.random() < .2, hat,
-  };
+export function randomLook(): Look {
+  return { name: randomName(), hair: ri(LOOK_COUNT.hair), hairCol: ri(LOOK_COUNT.hairCol), skin: ri(LOOK_COUNT.skin), outfit: ri(LOOK_COUNT.outfit) };
 }
-const clampI = (v: unknown) => { const n = Math.floor(Number(v)); return n >= 0 && n < LOOK_N ? n : 0; };
-/** sanitise anything (localStorage, network) into a valid look */
+const clampI = (v: unknown, n: number) => { const x = Math.floor(Number(v)); return x >= 0 && x < n ? x : 0; };
+/** sanitise anything (localStorage, network, older saves) into a valid look */
 export function cleanLook(o: any): Look {
   const d = o && typeof o === 'object' ? o : {};
-  const hat: Hat = (HATS as readonly string[]).includes(d.hat) ? d.hat : '';
   return {
-    name: typeof d.name === 'string' && d.name.trim() ? d.name.trim().slice(0, 16) : 'Gärtner',
-    face: clampI(d.face), body: clampI(d.body), hair: clampI(d.hair), hairCol: clampI(d.hairCol), skin: clampI(d.skin), eyes: clampI(d.eyes),
-    shirt: clampI(d.shirt), pants: clampI(d.pants),
-    stache: !!d.stache, pierce: !!d.pierce, tattoo: !!d.tattoo, band: !!d.band && !hat, hat,
+    name: typeof d.name === 'string' && d.name.trim() ? d.name.trim().slice(0, 16) : randomName(),
+    hair: clampI(d.hair, LOOK_COUNT.hair), hairCol: clampI(d.hairCol, LOOK_COUNT.hairCol),
+    skin: clampI(d.skin, LOOK_COUNT.skin), outfit: clampI(d.outfit, LOOK_COUNT.outfit),
   };
 }
 export function loadLook(): Look {
@@ -50,4 +38,4 @@ export function loadLook(): Look {
   return randomLook();
 }
 export function saveLook(l: Look) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* ignore */ } }
-export const lookKey = (l: Look) => JSON.stringify(l);
+export const lookKey = (l: Look) => JSON.stringify([l.name, l.hair, l.hairCol, l.skin, l.outfit]);

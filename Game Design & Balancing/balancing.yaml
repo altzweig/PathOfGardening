@@ -136,14 +136,15 @@ fruit:
   cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
 
 plants:
+  # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
   blue: { interval: 2 }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
-  asp:  { interval: 4, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 2, unlockAt: 0, amount: 4 }   # 3x Ertrag
-  cab:  { interval: 6, unlockAt: 0 }
-  lemon: { interval: 4, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 1, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 1 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 8, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false }
-  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 8 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
+  asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  cran: { interval: 5, unlockAt: 0, amount: 4 }   # 3x Ertrag
+  cab:  { interval: 15, unlockAt: 0 }
+  lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
+  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
+  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false }
+  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 
 rake:

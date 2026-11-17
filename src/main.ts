@@ -350,16 +350,16 @@ const ENEMY_NAMES: Record<EnemyType, string> = { raccoon: 'Waschbär', panda: 'P
 /** short labels for the weapon values (test room only) */
 const SB_LABEL: Record<string, string> = {
   damage: 'Schaden', range: 'Reichweite', cooldown: 'Abklingzeit', ammoPerShot: 'Munition/Schuss', radius: 'Radius', speed: 'Tempo', pierce: 'Durchschuss', pierceFactor: 'Durchschuss-Faktor',
-  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite',
+  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite max',
   fuse: 'Zünder', bleedDuration: 'Blutung Dauer', bleedDps: 'Blutung/s', splashDelay: 'Platzen nach', splashDamage: 'Platzschaden', splashRadius: 'Platzradius', chainRadius: 'Kettenradius',
   transfer: 'Weitergabe', burnDamage: 'Brandschaden', burnStacks: 'Brand-Stapel', burnDuration: 'Brand Dauer', burnTick: 'Brand-Tick', spreadRadius: 'Brand-Sprung', spreadShare: 'Brand-Sprunganteil',
-  sweep: 'Schwenk °', sweepPeriod: 'Schwenkdauer', poolDuration: 'Lache Dauer', poolTicksPerSecond: 'Lache Ticks/s', poolTickDamage: 'Lache Schaden', poolSlow: 'Lache Bremse',
+  sweep: 'Schwenk °', sweepPeriod: 'Schwenkdauer', poolDuration: 'Lache Dauer',
   miniRadiusFactor: 'Mini-Radius', miniDamageFactor: 'Mini-Schaden', pullTime: 'Zug', pushTime: 'Stoß', stun: 'Stun', knockback: 'Rückstoß', size: 'Größe', edge: 'Randschaden',
   links: 'Blitze je Beere', linkRange: 'Blitz-Reichweite', linkWidth: 'Blitz-Breite', ticks: 'Ticks', tickInterval: 'Tick-Abstand', splitScale: 'Splitter-Größe', poolTick: 'Lache Tick', poolDamage: 'Lache Schaden',
   shots: 'Schüsse', gap: 'Abstand', bleed: 'Blutung', burn: 'Brand', arrows: 'Pfeile', arc: 'Fächer °', shockDamage: 'Strom-Schaden', berries: 'Beeren', berryDamage: 'Beeren-Schaden',
   berryDelay: 'Beeren platzen nach', berryRadius: 'Beeren-Radius', blastDamage: 'Explosionsschaden', blastRadius: 'Explosionsradius', branch: 'Verzweigung', directions: 'Richtungen',
   pelletFactor: 'Beeren-Faktor', rangeFactor: 'Reichweiten-Faktor', scatter: 'Streuweite', spikeDamage: 'Stachel-Schaden', spikePierce: 'Stachel-Durchschuss', spikeRange: 'Stachel-Reichweite',
-  spikeSpeed: 'Stachel-Tempo', spikes: 'Stacheln', splitDistance: 'Splitter-Weite', splits: 'Splitter',
+  spikeSpeed: 'Stachel-Tempo', chargeTime: 'Aufladezeit', throwMin: 'Wurfweite min', throwMax: 'Wurfweite max', poisonDuration: 'Gift Dauer', poisonTick: 'Gift-Tick', poisonTickDamage: 'Gift Schaden', poisonSlow: 'Gift Bremse', spikes: 'Stacheln', splitDistance: 'Splitter-Weite', splits: 'Splitter',
 };
 const nice = (v: number) => Math.abs(v) >= 100 ? String(Math.round(v)) : Math.abs(v) >= 10 ? (Math.round(v * 10) / 10).toString() : (Math.round(v * 100) / 100).toString();
 function deepAssign(t: any, src: any) { for (const k in src) { const v = src[k]; if (v && typeof v === 'object' && !Array.isArray(v) && t[k] && typeof t[k] === 'object') deepAssign(t[k], v); else t[k] = Array.isArray(v) ? [...v] : v; } }

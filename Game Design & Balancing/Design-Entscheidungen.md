@@ -38,6 +38,16 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Keine Betäubung mehr. Nach der Explosion bleibt eine Giftlache: 3 s, 2 Ticks/s, je Tick 10 % des Kohlschadens (gesamt 60 %), Gegner darin 35 % langsamer.
 - Annahme: Die Wunschangabe „10 % pro Sekunde, insgesamt 60 %“ passt nur mit 10 % pro Tick zusammen, deshalb pro Tick.
 
+## Kohlbombe als Aufladewurf (17.11.2026, ersetzt die Giftlache)
+- Gedrückthalten lädt eine Leiste über dem Spieler auf, beim Loslassen fliegt der Kohl. Wurfweite linear von 1,5 m (nur Antippen) bis 8 m (volle Ladung nach 1 s). Der Zielkreis wandert beim Aufladen mit nach außen. PC: Maustaste halten. Handy: Kohl-Knopf halten und mit dem Daumen zielen, Antippen wirft sofort die kürzeste Weite.
+- Explosion sofort beim Aufkommen (kein Zünder mehr). Radius 1,5 → 1,9 m (Fläche ×1,6, gelesen als Fläche, nicht als Radius).
+- Keine Lache mehr. Getroffene Gegner sind 2 s **vergiftet**: alle 0,4 s 10 % des Explosionsschadens (5 Ticks = 50 %), 40 % langsamer. Ein neuer Treffer setzt die Dauer zurück, es gilt der stärkere Tick. Vergiftete Gegner schimmern grün mit aufsteigenden Bläschen.
+- Abklingzeit startet beim Wurf, Aufladen beginnt erst, wenn sie abgelaufen ist. Waffenwechsel während des Aufladens wirft sofort, beim Tod geht der Wurf verloren.
+- Mini-Kohl explodiert ebenfalls beim Aufkommen und vergiftet auch.
+- Kombiwaffen mit Kohl als Hauptwaffe (Coleateral Bomb, Cabboomberry, Kimchi) werfen genauso mit Aufladen, `throwDistance` ist jetzt die Weite bei voller Ladung (8 m statt fest 3 / 1,5 / 3 m). Ihre Zünder laufen weiter wie bisher nach dem Aufkommen.
+- Cabboomberry: statt Giftlache vergiftet die Explosion (wie Kohl), Radius 1,9 m. Mini-Kohl aus dem Rocabblauncher vergiften auch. Kimchis brennende Lache bleibt (Chili, kein Gift). Coleateral Bomb vergiftet nicht (hatte auch keine Lache).
+- Werte: `skills.cab.chargeTime`, `throwMin`, `throwMax`, `poisonDuration`, `poisonTick`, `poisonTickDamage`, `poisonSlow`.
+
 ## Koop (bis 4 Spieler)
 - Technik: WebRTC über **PeerJS**. Funktioniert von GitHub Pages aus, weil der öffentliche PeerJS-Server nur den Verbindungsaufbau vermittelt. Der Host rechnet das Spiel, die anderen schicken nur Eingaben und bekommen Zustände zurück.
 - Ablauf: *Koop → Spiel erstellen* zeigt einen 5-stelligen Code. Die anderen geben ihn bei *Beitreten* ein.
@@ -290,7 +300,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **Munition:** Frucht der Hauptwaffe. Früchte der Nebenwaffe zählen beim Einsammeln × `subAmmo`, übrige Munition der Nebenwaffe wird beim Verschmelzen genauso umgerechnet.
 - **Upgrades:** Schaden, Reichweite und Abklingzeit beider Waffen zählen zusammen. Spezial-Upgrades wirken weiter, wenn sie zur Kombiwaffe passen (`keep`), sonst wird jede Stufe zu +10 % Schaden. Danach bietet das Level-up für die Kombiwaffe Schaden, Reichweite, Abklingzeit und die passenden Spezial-Upgrades an.
 - **„Unter Strom“** (Sourbow, Chillightning): Gegner knistert 2 s, alle 0,5 s Schaden an sich und an Nachbarn in 0,5 m, mit kleinen Blitzbögen.
-- Annahmen, wo die Tabelle offen war: Kimchi hat Kohl als Hauptwaffe, Chillightning Chili. Die Coleateral Bomb hinterlässt keine Giftlache (nicht erwähnt), die Cabboomberry schon. Die Rakete explodiert beim ersten Gegner oder am Ende ihrer 20 m, am Rand der Explosion 50 % Schaden. Shockgun-Blitze verbinden auch Beeren aus verschiedenen Schüssen.
+- Annahmen, wo die Tabelle offen war: Kimchi hat Kohl als Hauptwaffe, Chillightning Chili. Die Coleateral Bomb hinterlässt keine Giftlache (nicht erwähnt), die Cabboomberry schon (seit 17.11.2026 abends Gift-Debuff statt Lache, siehe „Kohlbombe als Aufladewurf“). Die Rakete explodiert beim ersten Gegner oder am Ende ihrer 20 m, am Rand der Explosion 50 % Schaden. Shockgun-Blitze verbinden auch Beeren aus verschiedenen Schüssen.
 - Test-Menü: Gruppe „Kombiwaffen“ schaltet jede Kombi direkt frei (inkl. 60 Munition).
 
 ## Waffentest-Modus (17.11.2026)

@@ -58,7 +58,7 @@ export interface Balancing {
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; splashDelay: number; splashDamage: number; splashRadius: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; chainRadius: number; transfer: number; branch: number[]; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; throwDistance: number; fuse: number; poolDuration: number; poolTicksPerSecond: number; poolTickDamage: number; poolSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;

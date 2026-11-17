@@ -84,7 +84,7 @@ names:
   effects:
     asp: 3er-Salve · durchbohrt
     cran: Blutung · Beeren platzen
-    cab: Giftlache · verlangsamt
+    cab: Gift · verlangsamt
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
 
@@ -231,17 +231,18 @@ skills:
     burnTick: 0.5          # s pro Brand-Tick
     spreadRadius: 1.5      # m
     spreadShare: 0.5
-  cab:
+  cab:                     # 17.11.2026: Aufladewurf statt Zeitzünder + Giftlache
     damage: 5
-    radius: 1.5            # m, Explosionsradius
+    radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
     cooldown: 1.0
     ammoPerShot: 1
-    throwDistance: 0.5     # m
-    fuse: 0.5              # s bis zur Explosion
-    poolDuration: 4        # s, Giftlache nach der Explosion (Radius = Explosionsradius)
-    poolTicksPerSecond: 2
-    poolTickDamage: 0.20   # Anteil des Kohlschadens pro Tick (3 s x 2/s x 10 % = 60 %)
-    poolSlow: 0.25         # Gegner in der Lache % langsamer
+    chargeTime: 1.0        # s Gedrückthalten bis zur vollen Ladung (Leiste über dem Spieler)
+    throwMin: 1.5          # m Wurfweite ohne Ladung (kurzes Antippen)
+    throwMax: 8            # m Wurfweite bei voller Ladung (linear dazwischen)
+    poisonDuration: 2      # s Debuff "vergiftet" (keine Lache mehr); erneuter Treffer setzt die Dauer zurück
+    poisonTick: 0.4        # s pro Gift-Tick (2 s / 0,4 s = 5 Ticks)
+    poisonTickDamage: 0.10 # Anteil des Explosionsschadens pro Tick (5 x 10 % = 50 %)
+    poisonSlow: 0.40       # vergiftete Gegner 40 % langsamer
     miniRadiusFactor: 0.9  # Mini-Kohl: Radius x 0.5
     miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
 
@@ -512,8 +513,8 @@ combos:
       damage: 14           # Explosion
       radius: 1.5          # m Explosion (Reichweite-Upgrade)
       cooldown: 1.5
-      throwDistance: 3     # m
-      fuse: 1.8            # s, tickt immer schneller
+      throwDistance: 8     # m bei voller Ladung (Aufladewurf wie Kohl, ohne Ladung skills.cab.throwMin); vorher fest 3 m
+      fuse: 1.8            # s, tickt immer schneller (Wurfzeit 0,6 s eingerechnet, Flug dauert je nach Weite länger/kürzer)
       spikes: 20           # Spargel in 360 Grad
       spikeDamage: 10
       spikeRange: 5        # m
@@ -552,9 +553,9 @@ combos:
       subAmmo: 0.25
       ammoPerShot: 1
       damage: 8
-      radius: 1.5          # m Explosion + Giftlache (Reichweite-Upgrade)
+      radius: 1.9          # m Explosion + Gift-Debuff wie Kohl (Reichweite-Upgrade); 17.11.2026 1.5 -> 1.9 wie Kohl
       cooldown: 1.0
-      throwDistance: 1.5
+      throwDistance: 8     # m bei voller Ladung (Aufladewurf); vorher fest 1.5 m
       fuse: 0.5
       berries: 10          # in 5 Richtungen (72 Grad)
       directions: 5
@@ -612,7 +613,7 @@ combos:
       damage: 9
       radius: 1.4          # m (Reichweite-Upgrade)
       cooldown: 1.4
-      throwDistance: 3
+      throwDistance: 8     # m bei voller Ladung (Aufladewurf); vorher fest 3 m
       fuse: 0.45
       splits: [3, 3]       # Teile je Stufe
       splitDistance: 1.7   # m

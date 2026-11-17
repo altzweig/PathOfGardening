@@ -66,6 +66,8 @@ export interface Player {
   nuts: number;
   /** combo weapon shown in the hand for cwT s after it fired */
   cwT: number; cwId: ComboId | '';
+  /** charge throw (cabbage and thrown combos): weapon being charged, s held, charge 0..1 of the throw being fired */
+  chW: SkillId | ''; chT: number; thrK: number; chAim: boolean;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
@@ -84,6 +86,7 @@ interface Enemy {
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
   shock: number; shockT: number; shockDmg: number; shockR: number; shockTk: number; // combo "unter Strom": s left, s to next tick, damage per tick, neighbour radius, tick interval
+  pois: number; poisT: number; poisDmg: number; // cabbage poison: ticks left, s to next tick, damage per tick
   puff: number; // hedgehog: s into the current puff cycle
   /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
   hx: number; hz: number; cx: number; cz: number; y: number;
@@ -165,7 +168,7 @@ export class Sim {
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
-      cwT: 0, cwId: '',
+      cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, wid: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
@@ -365,7 +368,7 @@ export class Sim {
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
-      minis: s.minis, throwDist: S.cab.throwDistance, width: S.asp.width * size, size,
+      minis: s.minis, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
   /** flamethrower geometry for a sweep level: oscillating sweep (+30 deg / +5 deg cone per level, one sweep always takes sweepPeriod),
@@ -817,7 +820,7 @@ export class Sim {
       this.flame(p, dx, dz, st);
     } else {
       this.snd('throw');
-      const t = this.clampArena(p.x + dx * st.throwDist, p.z + dz * st.throwDist);
+      const td = this.throwAt(p, st.throwDist), t = this.clampArena(p.x + dx * td, p.z + dz * td);
       this.spawnBomb(fx, fy, fz, t[0], t[1], st.range, st.dmg, st.minis, false);
     }
   }
@@ -829,21 +832,38 @@ export class Sim {
     this.snd('asp'); p.xbT = .9;
     this.projs.push({ id: this.nid++, kind: 'asp', x: fx, y: fy, z: fz, dx, dz, speed: this.cfg.skills.asp.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
   }
+  /** charge of the throw being held, 0..1 (full after skills.cab.chargeTime) */
+  chargeK(p: Player) { return clamp(p.chT / Math.max(.05, this.cfg.skills.cab.chargeTime), 0, 1); }
+  /** flight time of a thrown cabbage: longer throws stay longer in the air */
+  flightFor(d: number) { return clamp(.3 + d * .055, .35, .8); }
+  /** charged throw distance: throwMin without charge, max at full charge (p.thrK) */
+  throwAt(p: Player, max: number) { const mn = Math.min(this.cfg.skills.cab.throwMin, max); return mn + (max - mn) * clamp(p.thrK, 0, 1); }
   spawnBomb(fx: number, fy: number, fz: number, tx: number, tz: number, radius: number, dmg: number, minis: number, mini: boolean) {
-    this.bombs.push({ id: this.nid++, fx, fy, fz, tx, tz, x: fx, y: fy, z: fz, t: 0, flight: mini ? .35 : .6, fuse: mini ? .45 : this.cfg.skills.cab.fuse, radius, dmg, minis, mini, kind: 'cab', gen: 0 });
+    const flight = mini ? .35 : this.flightFor(Math.hypot(tx - fx, tz - fz)); // explodes the moment it lands
+    this.bombs.push({ id: this.nid++, fx, fy, fz, tx, tz, x: fx, y: fy, z: fz, t: 0, flight, fuse: flight, radius, dmg, minis, mini, kind: 'cab', gen: 0 });
   }
   explode(b: Bomb) {
     const C = this.cfg.skills.cab;
     this.snd(b.mini ? 'boomS' : 'boom');
     this.emit({ k: 'boom', x: r2(b.tx), z: r2(b.tz), r: r2(b.radius), m: b.mini ? 1 : 0 });
-    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) this.hurtEnemy(e, b.dmg, { color: 'c', src: 'cab' });
-    // poison pool: ticks poolTicksPerSecond x poolDuration, each tick poolTickDamage x bomb damage, slows enemies inside
-    this.sfx('effects.pool', b.tx, b.tz);
-    this.pools.push({ id: this.nid++, x: b.tx, z: b.tz, r: b.radius, t: C.poolDuration, tickT: 1 / C.poolTicksPerSecond, ticks: Math.round(C.poolDuration * C.poolTicksPerSecond), dmg: b.dmg * C.poolTickDamage, dur: C.poolDuration, iv: 1 / C.poolTicksPerSecond });
+    // no pool any more: everything hit is poisoned (poisonDuration, a tick every poisonTick of poisonTickDamage x blast damage, poisonSlow slower)
+    for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) { this.hurtEnemy(e, b.dmg, { color: 'c', src: 'cab' }); this.poisonEnemy(e, b.dmg); }
     for (let i = 0; i < b.minis; i++) {
       const a = rand(0, Math.PI * 2), t = this.clampArena(b.tx + Math.cos(a), b.tz + Math.sin(a));
       this.spawnBomb(b.tx, .3, b.tz, t[0], t[1], b.radius * C.miniRadiusFactor, b.dmg * C.miniDamageFactor, 0, true);
     }
+  }
+  /** cabbage poison debuff: a new hit restarts it (the stronger tick damage counts) */
+  poisonEnemy(e: Enemy, blastDmg: number) {
+    const C = this.cfg.skills.cab; if (e.dead || !C.poisonDuration) return;
+    const iv = Math.max(.05, C.poisonTick), d = blastDmg * C.poisonTickDamage;
+    if (e.pois <= 0) { e.poisT = iv; e.poisDmg = d; } else e.poisDmg = Math.max(e.poisDmg, d);
+    e.pois = Math.max(1, Math.round(C.poisonDuration / iv));
+  }
+  private tickEnemyPoison(e: Enemy, dt: number) {
+    if (e.pois <= 0) return;
+    e.poisT -= dt;
+    while (e.poisT <= 1e-6 && e.pois > 0 && !e.dead) { e.poisT += Math.max(.05, this.cfg.skills.cab.poisonTick); e.pois--; this.hurtEnemy(e, e.poisDmg, { color: 'v', silent: true, dot: true, src: 'cab' }); }
   }
   // ---------- combo weapons ----------
   get CB() { return this.cfg.combos!; }
@@ -915,7 +935,9 @@ export class Sim {
     const fx = p.x + dx * .45, fy = .78, fz = p.z + dz * .45;
     this.emit({ k: 'cshot', p: p.id, c: COMBOS.indexOf(cs.cid), x: r2(fx), z: r2(fz), a: r2(a) });
     const proj = (kind: ProjKind, ang: number, o: Partial<Proj>) => this.projs.push({ id: this.nid++, kind, x: fx, y: fy, z: fz, dx: Math.sin(ang), dz: Math.cos(ang), speed: 12, left: cs.range, total: cs.range, dmg: cs.dmg, pierceLeft: 0, pf: 1, mine: 0, w: .1, hit: new Set(), cs, ...o });
-    const bomb = (kind: Bomb['kind'], fuse: number) => { const t = this.clampArena(p.x + dx * cs.throwDist, p.z + dz * cs.throwDist); this.snd('throw'); this.bombs.push({ id: this.nid++, fx, fy, fz, tx: t[0], tz: t[1], x: fx, y: fy, z: fz, t: 0, flight: .6, fuse, radius: cs.radius, dmg: cs.dmg, minis: cs.minis, mini: false, kind, gen: 0, cs }); };
+    const bomb = (kind: Bomb['kind'], fuse: number) => { // charged throw like the cabbage; fuse counts from a 0.6 s flight, so the time on the ground stays the same
+      const td = this.throwAt(p, cs.throwDist), t = this.clampArena(p.x + dx * td, p.z + dz * td), flight = this.flightFor(Math.hypot(t[0] - fx, t[1] - fz));
+      this.snd('throw'); this.bombs.push({ id: this.nid++, fx, fy, fz, tx: t[0], tz: t[1], x: fx, y: fy, z: fz, t: 0, flight, fuse: Math.max(flight, fuse + flight - .6), radius: cs.radius, dmg: cs.dmg, minis: cs.minis, mini: false, kind, gen: 0, cs }); };
     switch (cs.cid) {
       case 'jam': this.jamBolt(p, dx, dz, cs, false); s.burst = cs.shots - 1; s.burstT = cs.gap; break;
       case 'cole': bomb('cole', C.fuse); break;
@@ -1019,7 +1041,7 @@ export class Sim {
       const n = cs.count, a0 = rand(0, Math.PI * 2);
       for (let i = 0; i < n; i++) { const a = a0 + i / n * Math.PI * 2; this.projs.push({ id: this.nid++, kind: 'spike', x, y: .45, z, dx: Math.sin(a), dz: Math.cos(a), speed: C.spikeSpeed, left: cs.linkRange, total: cs.linkRange, dmg: cs.spikeDmg, pierceLeft: cs.pierce - 1, pf: cs.pf, mine: 0, w: cs.width, hit: new Set(), cs }); }
       this.emit({ k: 'coleBoom', x: r2(x), z: r2(z), r: r2(b.radius) });
-    } else if (b.kind === 'cabboom') { // cabbage full of berries: blast + poison pool + berries in 5 directions
+    } else if (b.kind === 'cabboom') { // cabbage full of berries: blast + poison debuff + berries in 5 directions
       this.explode(b);
       const n = cs.count, dirs = Math.max(1, C.directions), a0 = rand(0, Math.PI * 2);
       for (let i = 0; i < n; i++) {
@@ -1086,7 +1108,7 @@ export class Sim {
       stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, leave: 0, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
-      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, puff: rand(0, D.puffEvery || 2),
+      burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, pois: 0, poisT: 0, poisDmg: 0, puff: rand(0, D.puffEvery || 2),
       hx: 0, hz: 0, cx: 0, cz: 0, y: 0,
     };
     if (type === 'squirrel' && !this.squirrelStart(e)) return; // no nut tree (any more): nobody comes
@@ -1118,8 +1140,8 @@ export class Sim {
     if (D.prefersFields) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.hp > 0 && D.prefersFields.includes(f.type)) { const d = dist(e, f); if (d < bd) { bd = d; best = f; } } if (best) return { kind: 'field', f: best }; }
     const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
   }
-  inPool(x: number, z: number, r = 0) { return this.pools.some(p => !p.fire && Math.hypot(x - p.x, z - p.z) < p.r + r * .5); }
-  slowF(e: Enemy) { return this.inPool(e.x, e.z, e.r) ? 1 - this.cfg.skills.cab.poolSlow : 1; }
+  /** poisoned (cabbage) enemies are slower */
+  slowF(e: Enemy) { return e.pois > 0 ? 1 - (this.cfg.skills.cab.poisonSlow ?? 0) : 1; }
   steer(e: Enemy, tx: number, tz: number, speed: number, dt: number, stop = 0) {
     speed *= this.slowF(e);
     let vx = tx - e.x, vz = tz - e.z; const d = Math.hypot(vx, vz); if (d < .001) return d;
@@ -1160,6 +1182,7 @@ export class Sim {
     } else e.bleedT = 1;
     this.tickBurn(e, dt); if (e.dead) return;
     this.tickShock(e, dt); if (e.dead) return;
+    this.tickEnemyPoison(e, dt); if (e.dead) return;
     if (e.kbLeft > 0) { const s = Math.min(e.kbLeft, 9 * dt); e.x += e.kbx * s; e.z += e.kbz * s; e.kbLeft -= s; } // rake knockback
     if (e.leave > 0) { // wave over: turn round, walk back to the forest and vanish (no more attacks)
       e.leave -= dt; e.lunge = 0; e.tongueT = 0;
@@ -1500,6 +1523,7 @@ export class Sim {
     const P = this.cfg.player, it = p.intent;
     p.flash -= dt; p.swing -= dt; p.tillT -= dt;
     if (!p.alive) {
+      p.chW = ''; p.chT = 0; // a held throw is lost when the player falls
       p.respawnT -= dt;
       if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
@@ -1542,7 +1566,18 @@ export class Sim {
       const d = this.rakeDir(p); p.aimX = d[0]; p.aimZ = d[1]; p.face = p.swingDir = Math.atan2(d[0], d[1]);
       if (p.swing <= 0) { p.rakeHit = false; this.rakeImpact(p, d[0], d[1]); }
     }
-    if (fw) {
+    // thrown weapons (cabbage, Coleateral Bomb, Cabboomberry, Kimchi): hold to charge, the throw flies on release
+    const chg = fw && fw !== 'rake' && this.thrown(p.skills[fw], fw) ? fw : null;
+    if (p.chW && p.chW !== chg) {
+      const w = p.chW, dir: [number, number] | undefined = p.chAim ? [p.aimX, p.aimZ] : undefined;
+      p.thrK = this.chargeK(p); p.chW = ''; p.chT = 0; p.chAim = false;
+      this.tryFire(p, w, dir); p.thrK = 0;
+    }
+    if (chg) {
+      if (!p.chW) { if (this.canFire(p, chg) && p.skills[chg].cdT <= 0) { p.chW = chg; p.chT = 0; p.chAim = false; } }
+      else p.chT += dt * sf;
+      if (p.chW) { p.skills[chg].firing = true; if (it.aim) p.chAim = true; p.face = Math.atan2(p.aimX, p.aimZ); }
+    } else if (fw) {
       if (fw === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range); this.rakeAttack(p, d[0], d[1]); } }
       else this.tryFire(p, fw);
     }
@@ -1620,7 +1655,7 @@ export class Sim {
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), m = a.r + b.r;
       if (d < m && d > .001) { const k = (m - d) / d * .5; a.x -= dx * k; a.z -= dz * k; b.x += dx * k; b.z += dz * k; }
     }
-    // cabbage poison pools
+    // burning pools (Kimchi)
     for (let i = this.pools.length - 1; i >= 0; i--) {
       const pl = this.pools[i]; pl.t -= dt; pl.tickT -= dt;
       while (pl.tickT <= 1e-6 && pl.ticks > 0) {
@@ -1628,7 +1663,6 @@ export class Sim {
         pl.tickT += pl.iv;
         for (const e of [...this.enemies]) if (!e.dead && Math.hypot(e.x - pl.x, e.z - pl.z) < pl.r + e.r * .5) {
           if (pl.fire) { this.ignite(e, pl.fire, 1); e.burnSum += pl.dmg; this.hurtEnemy(e, pl.dmg, { silent: true, dot: true, src: 'chili' }); } // Kimchi: burning pool
-          else this.hurtEnemy(e, pl.dmg, { color: 'v', silent: true, src: 'cab' });
         }
       }
       if (pl.ticks <= 0 || pl.t < -.1) this.pools.splice(i, 1);
@@ -1898,6 +1932,7 @@ export class Sim {
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
+        ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw
         // combo weapon in the hand: active weapon is a combo, or a combo fired just now
         cw: (() => { const ac = p.active !== 'rake' ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
@@ -1908,7 +1943,7 @@ export class Sim {
         if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
         if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.leave > 0) { fl |= EF.leave; fl &= ~EF.flee; } if (e.elite) fl |= EF.elite;
         if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
-        if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock;
+        if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock; if (e.pois > 0) fl |= EF.poison;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }
         if (e.type === 'hedgehog') aux = r2(e.puff / (this.cfg.enemies.hedgehog.puffEvery || 2));
         if (e.type === 'squirrel') { aux = e.state === 'climb' ? 1 : 0; aux2 = r2(e.y); }

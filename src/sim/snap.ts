@@ -21,6 +21,7 @@ export interface PSnap {
   aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
+  ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string }
@@ -47,7 +48,7 @@ export type PuSnap = [number, number, number, number, number, number]; // + burn
 /** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

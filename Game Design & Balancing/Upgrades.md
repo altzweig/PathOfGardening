@@ -42,9 +42,9 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 | Preiselbeer-Schrotflinte | **6 Beeren, zufällig gestreut (normalverteilt, max. 80°-Kegel, ca. 2/3 in den inneren 40°)**, je 5 Schaden + Blutung 1/s für 3 s, 7 m, **0,625 s**, 6 Beeren pro Schuss. Verfehlte Beeren bleiben 2 s liegen und platzen zu einem roten Fleck (50 % Schaden, 0,6 m Radius) | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
 | Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer: 1 Sofortschaden + 1 Brand-Stapel (max. 6). Brennen: alle 0,5 s Stapel × 0,5 Schaden, erlischt 3 s nach dem letzten Treffer. Flächenbrand: stirbt ein brennender Gegner, springen die Hälfte seiner Stapel (mind. 1) auf Gegner im Umkreis von 1,5 m über | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
-| Kohlbombe | Wurf 0,5 m, Explosion nach 0,8 s: 5 Schaden, 1,8 m Radius, danach **Giftlache** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
+| Kohlbombe | Aufladewurf: Gedrückthalten 1 s lädt auf, Weite 1,5–8 m; Explosion beim Aufkommen: 5 Schaden, 1,9 m Radius, danach **vergiftet** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
-**Giftlache der Kohlbombe:** bleibt 3 s liegen (Radius = Explosionsradius), tickt 2× pro Sekunde mit je 10 % des Kohlschadens, also insgesamt 60 %. Gegner darin sind 35 % langsamer. Parameter: `skills.cab.poolDuration`, `poolTicksPerSecond`, `poolTickDamage`, `poolSlow`. Keine Betäubung mehr.
+**Gift der Kohlbombe (seit 17.11.2026, statt Giftlache):** getroffene Gegner sind 2 s vergiftet, alle 0,4 s 10 % des Explosionsschadens (insgesamt 50 %), 40 % langsamer. Parameter: `skills.cab.poisonDuration`, `poisonTick`, `poisonTickDamage`, `poisonSlow`; Wurf: `chargeTime`, `throwMin`, `throwMax`.
 
 Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skills.readySeconds`).
 
@@ -62,7 +62,7 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
 | Schaden | +10 % Grundschaden (additiv) | – | `upgrades.damagePerLevel` |
-| Reichweite / Radius | +10 % Reichweite (Kohlbombe: Explosions- und Lachenradius) | – | `upgrades.rangePerLevel` |
+| Reichweite / Radius | +10 % Reichweite (Kohlbombe: Explosionsradius) | – | `upgrades.rangePerLevel` |
 | Abklingzeit | Abklingzeit × 0,9 (multiplikativ; Armbrust: ganze Salve inkl. Bolzen-Abstand) | – | `upgrades.cooldownPerLevel` |
 
 ### Spargel-Armbrust
@@ -95,7 +95,7 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 ### Kohlbombe
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| +1 Mini-Kohl | Nach der Explosion springt ein Mini-Kohl weg (Radius × 0,9, Schaden × 0,5), hinterlässt auch eine Giftlache | 5 | `upgrades.cabMini`, `skills.cab.miniRadiusFactor`, `miniDamageFactor` |
+| +1 Mini-Kohl | Nach der Explosion springt ein Mini-Kohl weg (Radius × 0,9, Schaden × 0,5), vergiftet auch | 5 | `upgrades.cabMini`, `skills.cab.miniRadiusFactor`, `miniDamageFactor` |
 
 ## 4. Pflanzen
 

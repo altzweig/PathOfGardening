@@ -48,7 +48,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -394,7 +394,7 @@ export class GameView {
       if (!this.smooth || Math.hypot(ps.x - v.x, ps.z - v.z) > 3) { v.x = ps.x; v.z = ps.z; }
       v.s = ps;
     }
-    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); this.players.delete(pid); }
+    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); if (v.cbar) barGroup.remove(v.cbar); this.players.delete(pid); }
     // fields
     const slots = this.slots;
     const seenF = new Set<number>();
@@ -842,6 +842,14 @@ export class GameView {
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
     v.bar.visible = other && !!s.al; v.bar.position.set(v.x, 1.6, v.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, s.hp / s.mhp);
+    // charge bar of a held throw (cabbage): fills while held, glows when full
+    const ch = s.ch ?? -1;
+    if (ch >= 0 && s.al) {
+      if (!v.cbar) v.cbar = makeBar(.6, .07, 0xb8f070);
+      const full = ch >= 1, fg = v.cbar.userData.fg.material as THREE.MeshBasicMaterial;
+      fg.color.setHex(full ? 0xeaffb0 : 0x9ad850); if (full) fg.color.multiplyScalar(1 + .35 * (.5 + .5 * Math.sin(performance.now() / 70)));
+      v.cbar.visible = true; v.cbar.position.set(v.x, other ? 1.75 : 1.6, v.z); v.cbar.quaternion.copy(camera.quaternion); setBar(v.cbar, ch);
+    } else if (v.cbar) v.cbar.visible = false;
   }
   /** legs walk with the walk phase; hands grip whatever is in use (rake handle, wand, crossbow, flamethrower) via IK */
   private poseFarmer(v: PView, dt: number) {
@@ -995,6 +1003,11 @@ export class GameView {
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
+    if (fl & EF.poison) { // poisoned (cabbage): sickly green shimmer and rising bubbles
+      const sc = v.g.scale.x, pg = .18 + .1 * Math.sin(now * 9 + e[0]);
+      if (!burning && !(fl & EF.flash)) for (const m of v.P.mats) m.emissive.setRGB(pg * .35, pg, pg * .1);
+      if (Math.random() < dt * 10) PART.spawn(V(v.x + rand(-.22, .22) * sc, rand(.25, .65) * sc, v.z + rand(-.22, .22) * sc), V(rand(-.1, .1), rand(.4, .8), rand(-.1, .1)), Math.random() < .6 ? 0x7dff4a : 0xb8f070, rand(.06, .12) * sc, rand(.4, .7), { a: .8 });
+    }
     if (fl & EF.shock) { // under current: white-yellow crackle around the body
       const sc = v.g.scale.x; if (Math.random() < dt * 22) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.2, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-1.2, 1.2), rand(-.2, 1.2), rand(-1.2, 1.2)), Math.random() < .5 ? 0xfff6c0 : 0x9fd0ff, rand(.04, .08), rand(.08, .16), { a: 1 });
       if (!burning) for (const m of v.P.mats) m.emissive.setRGB(.25 + .2 * Math.random(), .25 + .2 * Math.random(), .12);
@@ -1034,7 +1047,10 @@ export class GameView {
       if (m.userData.arc !== arc) { m.userData.arc = arc; m.geometry.dispose(); m.geometry = sectorGeo(1, arc * Math.PI / 180, 32); }
       const r = me.s.fr || rng('chili'); m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'cab') {
-      const m = this.aimInd.cab, d = cid ? this.cfg.combos!.list[cid].throwDistance ?? 1 : this.cfg.skills.cab.throwDistance;
+      // charged throw: the marker walks out from throwMin to the max distance while the charge fills
+      const C = this.cfg.skills.cab, max = cid ? this.cfg.combos!.list[cid].throwDistance ?? C.throwMax : C.throwMax, mn = Math.min(C.throwMin, max);
+      const d = mn + (max - mn) * Math.max(0, Math.min(1, me.s.ch ?? 0));
+      const m = this.aimInd.cab;
       m.visible = true; m.scale.setScalar(rng('cab')); m.position.set(px + a.x * d, .045, pz + a.z * d);
     }
   }

@@ -25,7 +25,7 @@ Feld-Karten gibt es für alle Typen, beliebig oft. Nach der Wahl öffnet sich di
 | Ziel | Ergebnis |
 |---|---|
 | Freier Platz | Neues Feld, Seltenheit Gewöhnlich |
-| Feld eines anderen Typs (oder zerstörtes Feld) | Wird überbaut, neues gewöhnliches Feld |
+| Feld eines anderen Typs | Wird überbaut, neues gewöhnliches Feld |
 | Feld desselben Typs | Fortschritt zur nächsten Seltenheit, Feld wird voll geheilt |
 
 **Seltenheit:** Gewöhnlich → Ungewöhnlich → Selten → Episch → Legendär. Benötigte Felder pro Stufe: 1, 2, 3, 4 (`fields.rarityCost`).

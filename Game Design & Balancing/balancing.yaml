@@ -115,7 +115,7 @@ xp:
   base: 40
   growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
   linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
-  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1). Abgestorbenes Feld gibt weiter deathXpShare
+  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
@@ -134,7 +134,9 @@ fields:
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
-  # Die Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
+  # Felder gehen nie kaputt: bei 0 HP welken sie und produzieren nichts. Ertrag = HP-Anteil (100 % HP = 100 % Ertrag, 50 % HP = 50 %),
+  # gilt für Wachstum und Harken-Ertrag. Beackern (und Draufstehen) heilt auch Felder mit 0 HP wieder. Kein XP beim Fall auf 0 HP. (17.11.2026)
+  # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
   tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
@@ -146,9 +148,6 @@ fields:
   rarityProduction: 1.5        # Produktion x1,5 je Seltenheitsstufe (multiplikativ)
   rarityHp: 2                  # max. HP x2 je Seltenheitsstufe (Feld wird beim Aufstieg voll geheilt)
   neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
-  # Abgestorbenes Feld: XP-Geschenk fällt als Blaubeeren auf das Beet, die tote Pflanze verschwindet, der Platz ist wieder frei.
-  deathXpShare: 0.3333         # Anteil der XP, die insgesamt zum nächsten Level nötig sind
-  deathRemoveDelay: 1.2        # s, bis die tote Pflanze verschwunden ist
 
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3

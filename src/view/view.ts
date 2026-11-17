@@ -72,7 +72,7 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
+interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -402,10 +402,13 @@ export class GameView {
       if (!v) v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]);
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
+      // 0 HP: the plant wilts (brown, squashed, no fruit) until it is raked back above 0 HP, then it grows back fresh
+      if (v.alive && f[2] <= 0 && !v.wilt) { this.killField(v); v.wilt = true; }
+      else if (v.wilt && f[2] > 0) { this.removeField(f[0], v); v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]); }
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
       v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.shake = f[4]; v.plant.scale.y = (v.alive ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
+      v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches([], hexR(this.cfg)); } // no torches at the beds any more
@@ -648,7 +651,6 @@ export class GameView {
     switch (e.k) {
       case 'snd': play(e.n); break;
       case 'sfx': sfx(e.s, e.x, e.z); break;
-      case 'deathGift': burst(V(e.x, .6, e.z), 0x7a90ff, 36, 2.4, .14, .9, { g: 2 }); decal(e.x, e.z, 0x8fa4ff, hexR(this.cfg) * .3, .5, { ring: true, add: true, grow: hexR(this.cfg), op: .7 }); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
       case 'punch': {

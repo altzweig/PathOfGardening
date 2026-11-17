@@ -67,7 +67,7 @@ export interface Player {
   /** combo weapon shown in the hand for cwT s after it fired */
   cwT: number; cwId: ComboId | '';
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean; goneT?: number }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number; dur: number; iv: number; fire?: { tick: number; dmgPct: number } }
@@ -191,7 +191,7 @@ export class Sim {
   fieldAt(slot: number) { return this.fields.find(f => f.slot === slot); }
   /** nut trees stand in the forest outside the garden: enemies leave them alone, they do not count for game over */
   isForest(f: Field) { return !!this.slots[f.slot]?.forest; }
-  /** build on a slot: empty -> new field, same type -> rarity progress, other type (or dead) -> replace */
+  /** build on a slot: empty -> new field, same type -> rarity progress, other type -> replace */
   placeField(slot: number, type: FruitType) {
     const s = this.slots[slot]; if (!s) return null;
     const F = this.cfg.fields; let f = this.fieldAt(slot);
@@ -217,8 +217,10 @@ export class Sim {
     for (const o of this.fields) if (o !== f && o.alive && hexDist(me, this.slots[o.slot]) === 1) nb += o.rarity;
     return Math.pow(F.rarityProduction, f.rarity) * (1 + F.neighborBonus * nb);
   }
-  /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries; without tilling) */
-  rate(f: Field) { return f.alive ? this.baseRate(f.type) * this.prodMult(f) : 0; }
+  /** fields never break: they produce in proportion to their HP (100 % HP = full yield, 0 HP = nothing) */
+  hpF(f: Field) { return f.maxHp > 0 ? clamp(f.hp / f.maxHp, 0, 1) : 0; }
+  /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries, HP; without tilling) */
+  rate(f: Field) { return f.alive ? this.baseRate(f.type) * this.prodMult(f) * this.hpF(f) : 0; }
   /** fruit per second of a common field of this type without neighbours (double harvest, coop blueberries) */
   baseRate(t: FruitType) {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[t]);
@@ -226,39 +228,24 @@ export class Sim {
     if (t === 'blue') n += this.f(this.cfg.coop.xpYieldExponent) - 1;
     return n / this.cfg.plants[t].interval;
   }
-  /** types that were ever on the board (a dead field disappears, but its type still counts as owned) */
-  lost = new Set<FruitType>();
-  fieldOf(type: FruitType) { return !!(this.fields.find(f => f.type === type) || this.lost.has(type)); }
+  fieldOf(type: FruitType) { return !!this.fields.find(f => f.type === type); }
   place(id: number, slot: number) {
     const p = this.player(id); if (!p || !p.placing || this.phase !== 'lvl' || !slotFits(this.cfg, this.slots[slot], p.placing)) return;
     this.placeField(slot, p.placing); p.placing = null; p.picked = true;
     this.checkAllPicked();
   }
   hurtField(f: Field, dmg: number) {
-    if (!f.alive || this.phase === 'over') return;
-    // the starting fields only become vulnerable once every other field is gone
-    if (f.starter && this.fields.some(o => !o.starter && o.alive && !this.isForest(o))) { f.shake = .12; this.emit({ k: 'imm', x: r2(f.x), z: r2(f.z) }); return; }
+    if (!f.alive || f.hp <= 0 || this.phase === 'over') return;
+    // the starting fields only become vulnerable once every other garden field is down to 0 HP
+    if (f.starter && this.fields.some(o => !o.starter && o.hp > 0 && !this.isForest(o))) { f.shake = .12; this.emit({ k: 'imm', x: r2(f.x), z: r2(f.z) }); return; }
     f.hp -= dmg; f.shake = .25; this.sfx('plants.eaten.' + f.type, f.x, f.z);
     this.num(f.x, f.z, dmg, 'f');
-    if (f.hp <= 0) {
-      f.hp = 0; f.alive = false;
+    if (f.hp <= 0) { // fields do not break: they wilt at 0 HP, produce nothing and can be raked back to health (no XP)
+      f.hp = 0;
       this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
       this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
-      if (this.fields.every(x => !x.alive || this.isForest(x))) { this.gameOver(); return; }
-      this.deathGift(f);
+      if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
     }
-  }
-  /** a field died: a share of the XP to the next level drops as blueberries onto the bed; the dead plant vanishes after a moment, the slot is free again */
-  deathGift(f: Field) {
-    const F = this.cfg.fields, tv = this.cfg.fruit.tierValue;
-    f.goneT = F.deathRemoveDelay ?? 1.2;
-    let v = Math.round((F.deathXpShare ?? 1 / 3) * this.need(this.level) / ((this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent)));
-    const H = hexR(this.cfg) * .6;
-    for (let tier = tv.length - 1; tier >= 0 && v > 0; tier--) while (v >= tv[tier] || (tier === 0 && v > 0)) {
-      v -= tv[tier]; const a = rand(0, 7), d = Math.sqrt(Math.random()) * H;
-      this.spawnFruit('blue', tier, f.x, .7, f.z, f.x + Math.cos(a) * d, f.z + Math.sin(a) * d, -1);
-    }
-    this.emit({ k: 'deathGift', s: f.slot, x: r2(f.x), z: r2(f.z) });
   }
   spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number) {
     const T = .55;
@@ -623,7 +610,7 @@ export class Sim {
       any = true;
       if (A > bestA) { bestA = A; best = f; }
       f.tilledT = F.tillDuration; f.shake = Math.max(f.shake, .2);
-      f.t -= F.tillStroke * (A / A0) * this.prodMult(f);
+      f.t -= F.tillStroke * (A / A0) * this.prodMult(f) * this.hpF(f);
       while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, tri); }
       // view: field flash; only the plants of the raked triangles wobble and shed leaves (bit mask m), rustle
       let m = 0; tri.forEach((x, k) => { if (x > .01) m |= 1 << k; });
@@ -639,7 +626,7 @@ export class Sim {
     this.sfx('player.till', p.x + dx * RS.range * .5, p.z + dz * RS.range * .5);
     this.burst(p.x + dx * RS.range * .4, .1, p.z + dz * RS.range * .4, 0x8a6a3a, 10, 1.2, .14, .4, { g: 4 });
   }
-  /** while a field is being tilled it heals, and so do the tilling player and team mates standing on it */
+  /** while a field is being tilled it heals (also back up from 0 HP), and so do the tilling player and team mates standing on it */
   tillHeal(f: Field, dt: number) {
     const F = this.cfg.fields, up = this.cfg.upgrades.tillHeal.step * this.tillHealLv;
     if (f.alive) f.hp = Math.min(f.maxHp, f.hp + (F.tillHealField + up) * dt);
@@ -1105,7 +1092,7 @@ export class Sim {
     if (type === 'squirrel' && !this.squirrelStart(e)) return; // no nut tree (any more): nobody comes
     this.enemies.push(e); this.waveSpawned++;
   }
-  nearestField(x: number, z: number) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && !this.isForest(f)) { const d = Math.hypot(x - f.x, z - f.z); if (d < bd) { bd = d; best = f; } } return best; }
+  nearestField(x: number, z: number) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.hp > 0 && !this.isForest(f)) { const d = Math.hypot(x - f.x, z - f.z); if (d < bd) { bd = d; best = f; } } return best; }
   chooseTarget(e: Enemy): Target {
     if (e.fleeing) return { kind: 'flee' };
     const D = this.cfg.enemies[e.type];
@@ -1128,7 +1115,7 @@ export class Sim {
       const [x, z] = this.clampArena((f ? f.x : 0) + Math.cos(a) * r, (f ? f.z : 0) + Math.sin(a) * r);
       return { kind: 'wander', x, z };
     }
-    if (D.prefersFields) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && D.prefersFields.includes(f.type)) { const d = dist(e, f); if (d < bd) { bd = d; best = f; } } if (best) return { kind: 'field', f: best }; }
+    if (D.prefersFields) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.hp > 0 && D.prefersFields.includes(f.type)) { const d = dist(e, f); if (d < bd) { bd = d; best = f; } } if (best) return { kind: 'field', f: best }; }
     const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
   }
   inPool(x: number, z: number, r = 0) { return this.pools.some(p => !p.fire && Math.hypot(x - p.x, z - p.z) < p.r + r * .5); }
@@ -1181,7 +1168,7 @@ export class Sim {
     if (e.type === 'squirrel') return this.squirrelAI(e, dt);
     e.think -= dt;
     const t0 = e.target;
-    if (e.think <= 0 || !t0 || (t0.kind === 'fruit' && t0.fr.state !== 'ground') || (t0.kind === 'field' && !t0.f.alive) || (t0.kind === 'player' && (!t0.p.alive || !this.players.includes(t0.p)))) {
+    if (e.think <= 0 || !t0 || (t0.kind === 'fruit' && t0.fr.state !== 'ground') || (t0.kind === 'field' && (!t0.f.alive || t0.f.hp <= 0)) || (t0.kind === 'player' && (!t0.p.alive || !this.players.includes(t0.p)))) {
       if (e.type !== 'sheep' || e.state === 'approach') e.target = this.chooseTarget(e);
       e.think = .3;
     }
@@ -1582,11 +1569,9 @@ export class Sim {
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
       if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
-      if (f.alive) { f.t -= dt * this.prodMult(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
+      if (f.alive) { f.t -= dt * this.prodMult(f) * this.hpF(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
-    // dead fields vanish (their type stays known for offers)
-    for (const f of [...this.fields]) if (!f.alive && f.goneT !== undefined && (f.goneT -= dt) <= 0) { this.lost.add(f.type); this.fields.splice(this.fields.indexOf(f), 1); }
     // fruit
     this.mergeT -= dt; if (this.mergeT <= 0) { this.mergeT = this.cfg.fruit.mergeCheck; this.mergeFruit(); }
     for (let i = this.merges.length - 1; i >= 0; i--) {
@@ -1734,7 +1719,7 @@ export class Sim {
       }
     }
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
-    const owned = new Set([...this.fields.map(f => f.type), ...this.lost]), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
+    const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
       if (this.closedType(p, id) || PL[id].disabled) continue; // disabled: field type switched off for now (nut tree)
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];

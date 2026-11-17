@@ -104,7 +104,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Schrotflinte nochmal stärker: Abklingzeit 0,5 s (+50 % Feuerrate), Reichweite 6,75 m (+50 %).
 
 ## Startfelder, Heilen, Zitronenbäumchen (16.11.2026)
-- Das Spiel startet mit einem Blaubeerfeld in der Gartenmitte (17.11.2026, vorher drei). Startfelder sind unzerstörbar, solange noch irgendein anderes Feld lebt. Erst wenn alle anderen kaputt sind, kann man sie zerstören (und damit verlieren).
+- Das Spiel startet mit einem Blaubeerfeld in der Gartenmitte (17.11.2026, vorher drei). Startfelder nehmen keinen Schaden, solange noch irgendein anderes Gartenfeld HP hat. Erst wenn alle anderen auf 0 HP sind, werden sie verwundbar (Stand 17.11.2026, siehe „Felder gehen nicht kaputt“).
 - Beackern heilt: das beackerte Feld, den beackernden Spieler und im Koop alle Mitspieler, die mit dem Mittelpunkt auf diesem Feld stehen (je 1 HP/s). Die Feldpflege-Karte erhöht beide Werte.
 - Zitronenbäumchen ab Level 10 als neuer Feldtyp: kleiner Baum, bei jeder Ernte zuckt ein Blitz zwischen den Zitronen und sie leuchten kurz auf.
 - Citrateaser (Munition Zitronen): trifft genau 1 Ziel direkt (16 Schaden, 1 Angriff/s), springt auf bis zu 2 Nachbarn (50 %), die je auf 2 weitere (25 %). Max. 100 % + 2×50 % + 4×25 % = 300 %. Das erste Ziel lässt seine Beute fallen. Spezial-Upgrades: +1 Ziel (3. Glied → 2. Glied → Hauptziel) und +10 % Weiterleitung (4×).
@@ -186,8 +186,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Bau-Ansicht und abgestorbene Felder (16.11.2026)
 - **Bau-Ansicht (Draufsicht):** Auf jedem bepflanzten Feld steht mittig ein großes Frucht-Icon (dunkle Plakette, goldener Rand), damit sofort erkennbar ist, was dort wächst. Die Seltenheits-Punkte rutschen unter das Icon. Beim Zeigen auf ein fremdes Feld wird das Icon größer und rötlich pulsierend.
 - **Überbauen** eines Feldes mit anderer Frucht braucht eine Bestätigung: Dialog unten mittig, altes Feld (rot durchgestrichen) → neues Feld, darunter ✗ und ✓. Ohne Text. PC: Maus, Enter = ✓, Esc = ✗. Gleiche Frucht (Seltenheit steigern) und freie Plätze bauen ohne Nachfrage.
-- **Abgestorbenes Feld:** Es fällt sofort ein XP-Geschenk von 1/3 der XP, die insgesamt zum nächsten Level nötig sind, als Blaubeeren auf das Beet (größte Stufen zuerst, verschmelzen nicht). Die tote Pflanze sinkt nach 1,2 s in den Boden und verschwindet, der Platz ist danach frei (kein Überbauen nötig). Werte `fields.deathXpShare/deathRemoveDelay`.
-- Annahme: Der Fruchttyp eines verschwundenen Feldes gilt für Kartenangebote weiter als „vorhanden“ (wie vorher mit dem toten Feld), z. B. für Waffen-Freischaltung und Doppelernte. Stirbt das letzte Feld, ist das Spiel vorbei (kein Geschenk).
+- ~~**Abgestorbenes Feld:** Es fällt sofort ein XP-Geschenk von 1/3 der XP, die insgesamt zum nächsten Level nötig sind, als Blaubeeren auf das Beet (größte Stufen zuerst, verschmelzen nicht). Die tote Pflanze sinkt nach 1,2 s in den Boden und verschwindet, der Platz ist danach frei (kein Überbauen nötig). Werte `fields.deathXpShare/deathRemoveDelay`.~~ Ersetzt am 17.11.2026, siehe „Felder gehen nicht kaputt“.
+- ~~Annahme: Der Fruchttyp eines verschwundenen Feldes gilt für Kartenangebote weiter als „vorhanden“ (wie vorher mit dem toten Feld), z. B. für Waffen-Freischaltung und Doppelernte. Stirbt das letzte Feld, ist das Spiel vorbei (kein Geschenk).~~
 
 ## Flammenwerfer: Sprite-Feuer und glühender Boden (16.11.2026)
 - Die Flamme besteht jetzt aus Sprite-Partikeln aus Kenneys Particle Pack (CC0): Flammenzungen wachsen, drehen sich und zerfallen; Farbe über die Lebenszeit von Weißgelb über Orange zu einem Magenta-Roten Rand; dunkler Rauch steigt am Ende der Flamme auf. Darunter bleibt eine schwache Shader-Flamme als Grundglühen. Brennende Gegner tragen kleine Flammen.
@@ -299,3 +299,11 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Escape (Handy: Pause-Knopf) öffnet die Einstellungen als Seitenleiste (Handy: unten). Das Spiel läuft dahinter als Live-Vorschau weiter, der Spieler zielt automatisch auf den nächsten Gegner und feuert dauernd.
 - Einstellungen: Waffe, Slider für jeden Zahlenwert der gewählten Waffe aus `balancing.yaml` (0 bis 3× Standard, geänderte Werte golden), Zurücksetzen, „Werte kopieren“ (geänderte Werte als YAML-Zeilen in die Zwischenablage), Gegnerart (Zufall oder eine Art; Eichhörnchen fehlt, es braucht seinen Nussbaum), Gegner pro Minute, Tageszeit.
 - Slider-Änderungen gelten nur im Waffentest und werden beim Verlassen zurückgesetzt.
+
+## Felder gehen nicht kaputt, Ertrag nach HP (17.11.2026)
+- Felder werden nie zerstört. Bei 0 HP welkt die Pflanze (braun, gestaucht, keine Früchte) und produziert nichts. Der Platz bleibt belegt.
+- Ertrag skaliert linear mit den HP: 100 % HP = 100 % Ertrag, 50 % HP = 50 %. Gilt für das normale Wachstum und für den Harken-Ertrag. Die Produktionsrate im Feld-Info zeigt den aktuellen Wert.
+- Beackern heilt beschädigte Felder wie bisher, auch Felder mit 0 HP. Sobald ein Feld wieder über 0 HP ist, wächst die Pflanze frisch nach. Draufstehen heilt weiterhin ebenfalls (auch bei 0 HP).
+- Beim Fall auf 0 HP gibt es kein XP mehr (das Blaubeer-Geschenk und `fields.deathXpShare/deathRemoveDelay` sind entfernt).
+- Gegner suchen sich nur Felder mit HP als Ziel. Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
+

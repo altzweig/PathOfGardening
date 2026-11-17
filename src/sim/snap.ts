@@ -47,13 +47,13 @@ export type PuSnap = [number, number, number, number, number, number]; // + burn
 /** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 
 export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
-  wp: 0 | 1; won: 0 | 1;
+  wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]

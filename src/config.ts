@@ -89,7 +89,7 @@ export interface Balancing {
   };
   waves: {
     total: number; firstWave: number; spawnRadius: number; firstWaveEnemies: number;
-    durationStart: number; durationPerWave: number; pauseStart: number; pausePerWave: number; endKilled?: number;
+    durationStart: number; durationPerWave: number; pauseStart: number; pausePerWave: number; countdownAfter?: number; leaveTime?: number; leaveSpeed?: number; announce?: number; tickFrom?: number; redFrom?: number;
     gapStart: number; gapPerWave: number; gapMin: number; gapJitter: number;
     sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
     directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;

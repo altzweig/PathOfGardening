@@ -79,7 +79,7 @@ interface Fruit {
 type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
 interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
-  stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number;
+  stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number; /** s left until it is gone after the wave countdown ran out (0 = not leaving) */ leave: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest' | 'climb'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
@@ -1083,7 +1083,7 @@ export class Sim {
     const e: Enemy = {
       id: this.nid++, type, x: Math.cos(angle) * R, z: Math.sin(angle) * R, hp: D.hp * hpF, maxHp: D.hp * hpF,
       shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
-      stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, face: angle + Math.PI,
+      stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, leave: 0, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, puff: rand(0, D.puffEvery || 2),
@@ -1146,8 +1146,8 @@ export class Sim {
   tickPoison(obj: { poison: Poison[] }, dt: number, hurt: (d: number) => void) {
     const T = this.cfg.enemies.toad;
     for (let i = obj.poison.length - 1; i >= 0; i--) {
-      const s = obj.poison[i]; s.t -= dt;
-      if (s.t <= 0) { s.t += T.poisonInterval!; s.ticks--; hurt(T.poisonDamage!); if (s.ticks <= 0) obj.poison.splice(i, 1); }
+      const s = obj.poison[i]; if (!s) continue; s.t -= dt; // a lethal tick can clear the list (death)
+      if (s.t <= 0) { s.t += T.poisonInterval!; s.ticks--; hurt(T.poisonDamage!); if (s.ticks <= 0 && obj.poison[i] === s) obj.poison.splice(i, 1); }
     }
   }
   updateEnemy(e: Enemy, dt: number) {
@@ -1161,6 +1161,14 @@ export class Sim {
     this.tickBurn(e, dt); if (e.dead) return;
     this.tickShock(e, dt); if (e.dead) return;
     if (e.kbLeft > 0) { const s = Math.min(e.kbLeft, 9 * dt); e.x += e.kbx * s; e.z += e.kbz * s; e.kbLeft -= s; } // rake knockback
+    if (e.leave > 0) { // wave over: turn round, walk back to the forest and vanish (no more attacks)
+      e.leave -= dt; e.lunge = 0; e.tongueT = 0;
+      if (e.leave <= 0 || Math.hypot(e.x, e.z) > this.cfg.arena.radius + 3) { this.removeEnemy(e); return; }
+      const sf = e.stun > 0 ? this.stunF(e) : 1; e.stun = Math.max(0, e.stun - dt);
+      const a = Math.atan2(e.z, e.x); this.steer(e, Math.cos(a) * 40, Math.sin(a) * 40, e.speed * (this.cfg.waves.leaveSpeed ?? 1.3) * this.slowF(e), dt * sf);
+      if (e.type === 'toad') e.hop += dt * sf / (this.cfg.enemies.toad.hopPeriod || .5);
+      return;
+    }
     if (e.stun > 0) { // stunned: everything it does runs slower, ramping up from 0 to normal
       const sf = this.stunF(e); e.stun = Math.max(0, e.stun - dt); dt *= sf; if (dt <= 0) return;
     }
@@ -1344,7 +1352,8 @@ export class Sim {
 
   // ---------- waves ----------
   // A wave is a schedule of groups (bursts). It ends when its last group has started and at least
-  // waves.endKilled of its enemies are gone (killed or fled); then a fixed pause follows. Groups grow during a wave and the wave
+  // A wave lasts a fixed countdown (group schedule + waves.countdownAfter); when it runs out every enemy except the boss
+  // turns round and vanishes, then a fixed pause follows. Groups grow during a wave and the wave
   // closes with one big group.
   wave = 0; wavePause = true; won = false; private waveSpawned = 0; private bossCount = 0;
   private waveGroups: { at: number; size: number; planned?: PlannedWave }[] = [];
@@ -1379,7 +1388,7 @@ export class Sim {
   // ---------- day / night ----------
   // A day-night cycle = dayWaves day waves + nightWaves night waves (16 + 8 like 16 h / 8 h). The boss comes in the
   // last night wave; after it the next day starts. Night waves are bigger and stronger (dayNight.night).
-  private waveT0 = 0; private waveDur = 1; private pauseLen = 1; private dayEnd = .75;
+  private waveT0 = 0; private waveDur = 1; private waveEndAt = 0; private pauseLen = 1; private dayEnd = .75;
   cycleLen() { const D = this.cfg.dayNight; return D ? D.dayWaves + D.nightWaves : 0; }
   isNight(w = this.wave) { const D = this.cfg.dayNight; return !!D && w >= 1 && (w - 1) % this.cycleLen() >= D.dayWaves; }
   bossEvery() { return this.cycleLen() || this.cfg.enemies.boss.every || 0; }
@@ -1410,7 +1419,7 @@ export class Sim {
       this.waveGroups = gs.slice(gs.length - n);
       this.waveGroups.forEach((g, i) => { g.size = i === n - 1 ? left : 1; left -= g.size; });
     }
-    this.waveT = 0; this.waveT0 = this.time; this.waveDur = D + 4;
+    this.waveT = 0; this.waveT0 = this.time; this.waveDur = D + (W.countdownAfter ?? 20); this.waveEndAt = this.time + this.waveDur;
     this.emit({ k: 'waveStart', w });
     const BL = this.cfg.enemies.boss.levels;
     if (BL) { // boss by player level: first wave after reaching level first, first+every, ... (one boss at a time)
@@ -1466,8 +1475,9 @@ export class Sim {
           for (const type of g.planned!.groups[i]) { this.spawnQueue.push({ at, type, angle: a + rand(-spread, spread) }); at += rand(W.staggerMin, W.staggerMax); }
         });
       }
-      const alive = this.enemies.reduce((n, e) => n + (e.wv === this.wave && !e.dead ? 1 : 0), 0);
-      if (!this.waveGroups.length && !this.spawnQueue.length && alive <= this.waveSpawned * (1 - (W.endKilled ?? 0))) { // all groups out and enough of them gone: pause begins
+      if (this.time >= this.waveEndAt) { // countdown ran out: every enemy except the boss turns round and vanishes, pause begins
+        this.waveGroups.length = 0; this.spawnQueue.length = 0;
+        for (const e of this.enemies) if (!e.boss && !e.dead && !e.leave) { this.dropCarry(e); e.fleeing = false; e.leave = W.leaveTime ?? 3; e.target = null; }
         this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
       }
@@ -1882,7 +1892,7 @@ export class Sim {
       };
     }
     return {
-      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width),
@@ -1896,7 +1906,7 @@ export class Sim {
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
         if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
-        if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.elite) fl |= EF.elite;
+        if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.leave > 0) { fl |= EF.leave; fl &= ~EF.flee; } if (e.elite) fl |= EF.elite;
         if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }

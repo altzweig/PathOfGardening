@@ -444,7 +444,9 @@ export class GameView {
       v.s = e; (v as any).f = id;
       if (v.carry !== e[8]) this.setCarry(v, e[8]);
     }
-    for (const [eid, v] of this.enemies) if ((v as any).f !== id) { this.dyn.remove(v.g); if (v.ind) this.dyn.remove(v.ind); barGroup.remove(v.bar); this.enemies.delete(eid); }
+    for (const [eid, v] of this.enemies) if ((v as any).f !== id) {
+      if (v.s[7] & EF.leave) burst(V(v.x, .3, v.z), 0xcfe8b0, 12, 1.4, .08, .35); // wave over: it vanishes in a little puff
+      this.dyn.remove(v.g); if (v.ind) this.dyn.remove(v.ind); barGroup.remove(v.bar); this.enemies.delete(eid); }
     // fruit
     for (const f of s.fr) {
       let v = this.fruits.get(f[0]);
@@ -936,6 +938,11 @@ export class GameView {
   private animEnemy(v: EView, dt: number, k: number, now: number) {
     const e = v.s, fl = e[7];
     v.x = lerp(v.x, e[2], k); v.z = lerp(v.z, e[3], k);
+    if (fl & EF.leave) { // wave over: walks off and shrinks away during the last 0.8 s of waves.leaveTime
+      const u = v as any; u.base ??= v.g.scale.x; u.leaveT = (u.leaveT ?? 0) + dt;
+      const L = this.cfg.waves.leaveTime ?? 3, f = clamp(1 - (u.leaveT - (L - .8)) / .8, 0, 1);
+      v.g.scale.setScalar(u.base * (.15 + .85 * f * f));
+    }
     const sq = v.type === 'squirrel', hy = sq ? (this.smooth ? lerp(v.g.position.y, e[10], k) : e[10]) : 0;
     v.g.position.set(v.x, hy, v.z);
     v.g.rotation.y = lerpAngle(v.g.rotation.y, e[4], .2);

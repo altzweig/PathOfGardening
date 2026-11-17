@@ -29,6 +29,18 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 #wave{margin-left:auto;font:700 15px var(--f-display);color:var(--parch);font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000;opacity:.85}
 #wave.pause{color:var(--mut)}
 #timer{font-family:var(--f-display);font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000}
+/* wave countdown (top centre) + "Welle N" announcement (centre) */
+#wcd{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 50px);transform:translateX(-50%);font:700 30px var(--f-display);color:var(--parch);
+  font-variant-numeric:tabular-nums;letter-spacing:.04em;text-shadow:0 0 10px #000,0 2px 4px #000;transition:color .2s,font-size .2s,opacity .3s}
+#wcd.pause{font-size:17px;font-weight:400;color:var(--mut);opacity:.75}
+#wcd.red{color:#ff4a3a;text-shadow:0 0 14px #ff200088,0 2px 4px #000}
+#wcd.beat{animation:wcdBeat .5s ease-out}
+@keyframes wcdBeat{0%{transform:translateX(-50%) scale(1.35)}100%{transform:translateX(-50%) scale(1)}}
+#wann{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);white-space:nowrap;font:700 clamp(40px,9vw,84px) var(--f-display);color:var(--gold);
+  letter-spacing:.06em;text-shadow:0 0 30px #000,0 0 14px #e3b96477,0 3px 6px #000;opacity:0}
+#wann.night{color:#b9c8ff;text-shadow:0 0 30px #000,0 0 16px #6f8cff88,0 3px 6px #000}
+@media (prefers-reduced-motion:reduce){#wcd.beat{animation:none}}
+@media (max-height:430px){#wcd{top:calc(env(safe-area-inset-top,0px) + 46px);font-size:24px}#wcd.pause{font-size:15px}}
 #respawn{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--f-display);font-size:64px;color:#ffd890;text-shadow:0 0 30px #000,0 0 12px #e3b96488}
 
 /* joysticks */
@@ -189,7 +201,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 .crow b{min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
 .crow button{width:30px;height:30px;border-radius:7px;border:1px solid #ffffff33;background:#222b33;color:var(--parch);font:700 18px var(--f-body);cursor:pointer}
 /* boss health */
-#bossbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 92px);transform:translateX(-50%);width:min(420px,60vw);height:12px;border-radius:6px;background:#100a1ccc;border:1px solid #8a4cff88;overflow:hidden;box-shadow:0 0 14px #6a3cff55}
+#bossbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 96px);transform:translateX(-50%);width:min(420px,60vw);height:12px;border-radius:6px;background:#100a1ccc;border:1px solid #8a4cff88;overflow:hidden;box-shadow:0 0 14px #6a3cff55}
 #bossbar::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent calc(33.33% - 1px),#100a1c calc(33.33% - 1px) calc(33.33% + 1px),transparent calc(33.33% + 1px) calc(66.67% - 1px),#100a1c calc(66.67% - 1px) calc(66.67% + 1px),transparent calc(66.67% + 1px))}
 #bossfill{position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#b090ff,#6a3cff 60%,#3a1a9a);transition:width .15s}
 #credView{width:min(560px,92vw);max-height:66vh;overflow:auto;text-align:center;color:var(--parch);font-family:var(--f-body)}

@@ -317,3 +317,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Je Waffe eine gedeckte Palette aus 4 bis 6 Tönen (Tabelle im Prompt), Leuchten nur an Ladung, Sprengkopf und Glut.
 - Neu in der Hand: Beeren-Schrotflinte (Donnerbüchse aus Kirschholz und Kupfer mit Beeren-Glaskugel) und die geschnürte Kohlbombe. Vorher hatten diese beiden Waffen kein Haltemodell.
 - Nahansicht aller Modelle beim lokalen Entwickeln: `arsenal-preview.html` (nicht Teil des Spiels).
+
+## Wellen-Ansage und Countdown (17.11.2026)
+- Kurz vor jeder Welle wird „Welle N“ groß mittig eingeblendet (2,5 s, mit Trommel-Horn-Klang), Nachtwellen in Mondblau. Danach laufen die Gegner los.
+- Jede Welle hat einen festen Countdown oben mittig: Gruppen-Zeitplan der Welle + 20 s nach der letzten großen Gruppe (Welle 1 ≈ 40 s, Welle 20 ≈ 88 s, Welle 48 ≈ 158 s). Ab 60 s als m:ss, darunter in Sekunden.
+- Ab 10 s tickt er hörbar (jede Sekunde ein Holz-Tick, die Zahl pulsiert), ab 3 s sind die Zahlen rot und der Tick höher. Bei 0 ein tiefer Gong.
+- Läuft der Countdown ab, ist die Welle vorbei, egal wie viele Gegner noch leben: Alle drehen um, laufen 30 % schneller Richtung Wald (greifen nicht mehr an, sind aber noch treffbar), schrumpfen und verschwinden nach 3 s in einem kleinen Wölkchen. Geklautes Obst lassen sie beim Umdrehen fallen. Noch nicht gestartete Gruppen der Welle entfallen.
+- Ersetzt die alte Regel „Welle endet, wenn 90 % der Gegner weg sind“ (`endKilled` entfernt).
+- Der Boss dreht nicht ab: Er bleibt, bis er besiegt ist, auch über die Pause und die nächste Welle hinweg. Grund: Ein Bosskampf soll nicht durch Aussitzen enden, und der Boss ist selten genug (nach Spieler-Level).
+- Danach Pause mit dezentem Countdown (klein, grau) bis zur nächsten Welle, ohne Ticken.
+- Werte unter `waves`: `countdownAfter`, `leaveTime`, `leaveSpeed`, `announce`, `tickFrom`, `redFrom`.

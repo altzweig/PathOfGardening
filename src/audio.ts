@@ -113,6 +113,13 @@ export const SND: Record<string, (arg?: any) => void> = {
   pauseOut() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 260, f2: 520, t: .5, vol: .04, at: .12, filt: { type: 'lowpass', f: 1600 } }); noise({ t: .45, vol: .03, type: 'lowpass', f: 300, f2: 1800, at: .15 }); },
   /** time bomb tick: short click, higher towards the end (f = 0..1) */
   tick(f = 0) { if (can('tick', .03)) { tone({ type: 'square', f: 1400 + f * 1200, t: .03, vol: .05 }); noise({ t: .02, vol: .05, type: 'bandpass', f: 4000, q: 3 }); } },
+  /** wave countdown tick (last tickFrom s): dry woody clock tick, last seconds higher and stronger (hot = red digits) */
+  cdTick(hot = false) { if (!can('cdTick', .3)) return; noise({ t: .05, vol: hot ? .2 : .14, type: 'bandpass', f: hot ? 3200 : 2400, q: 4 }); tone({ type: 'triangle', f: hot ? 1250 : 880, t: .07, vol: hot ? .12 : .08 }); },
+  /** "Welle N" announcement: low drum hit + two rising horn-like notes */
+  waveAnn() { if (!can('waveAnn', 1)) return; tone({ f: 90, f2: 50, t: .5, vol: .3 }); noise({ t: .3, vol: .08, f: 300 });
+    tone({ type: 'sawtooth', f: 220, t: .5, vol: .05, at: .04, when: .05, filt: { type: 'lowpass', f: 900 } }); tone({ type: 'sawtooth', f: 330, t: .9, vol: .06, at: .05, when: .32, filt: { type: 'lowpass', f: 1100 } }); },
+  /** wave countdown ran out: low soft gong */
+  cdEnd() { if (!can('cdEnd', .5)) return; tone({ f: 196, t: 1.4, vol: .14, at: .01 }); tone({ f: 294, t: 1.1, vol: .06, at: .01 }); noise({ t: .25, vol: .05, type: 'lowpass', f: 900 }); },
   /** small electric crackle (Shockgun berries) */
   zapS() { if (can('zapS', .08)) { noise({ t: .09, vol: .07, type: 'bandpass', f: rand(3000, 5000), q: 2 }); tone({ type: 'sawtooth', f: 180, f2: 120, t: .08, vol: .03 }); } },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },

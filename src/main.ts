@@ -291,7 +291,7 @@ class Game {
     const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden);
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); }
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); }
     else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);

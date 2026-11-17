@@ -1,6 +1,6 @@
 import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
 import type { Snap } from '../sim/snap';
-import { sfx } from '../audio';
+import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 
@@ -43,7 +43,35 @@ export class Hud {
       box.appendChild(b); this.btn[w] = b;
     }
   }
-  reset() { this.cache = {}; this.wasReady = {}; this.resKey = ''; }
+  // wave countdown + announcement
+  private cd = { sec: -1, ann: -1, wp: -1 };
+  updateWave(s: Snap, W: { announce?: number; tickFrom?: number; redFrom?: number }, dayWaves = 0) {
+    const el = $('#wcd'), an = $('#wann'), st = this.cd, wt = s.wt ?? -1;
+    const annT = W.announce ?? 2.5, next = s.wv + 1;
+    // "Welle N" in the middle during the last announce seconds of the pause, then the enemies set off
+    const announcing = !document.body.classList.contains('sandbox') && !!s.wp && wt >= 0 && wt <= annT && next <= s.wn && s.ph !== 'over';
+    if (announcing && st.ann !== next) {
+      st.ann = next; an.textContent = `Welle ${next}`;
+      an.classList.toggle('night', s.dc > 0 && (next - 1) % s.dc >= dayWaves); // night waves in moon blue
+      play('waveAnn');
+    }
+    an.hidden = !announcing;
+    if (announcing) { // driven by game time (stops with the pause): pops in, holds, fades out
+      const u = 1 - wt / annT, op = u < .14 ? u / .14 : u > .75 ? (1 - u) / .25 : 1, sc = u < .14 ? 1.25 - .25 * u / .14 : u > .75 ? 1 - .04 * (u - .75) / .25 : 1;
+      an.style.opacity = op.toFixed(3); an.style.transform = `translate(-50%,-50%) scale(${sc.toFixed(3)})`;
+    }
+    if (!announcing && st.ann > 0 && !s.wp) { st.ann = -1; }
+    if (wt < 0 || document.body.classList.contains('sandbox') || s.ph === 'over' || announcing || (!!s.wp && next > s.wn)) { el.hidden = true; st.sec = -1; st.wp = s.wp; return; }
+    const sec = Math.ceil(wt - 1e-3), red = !s.wp && sec <= (W.redFrom ?? 3);
+    if (st.wp === 0 && s.wp === 1) play('cdEnd'); // fight countdown ran out
+    st.wp = s.wp; el.hidden = false;
+    if (sec !== st.sec) {
+      if (!s.wp && st.sec > sec && sec >= 1 && sec <= (W.tickFrom ?? 10) && s.ph === 'play') { play('cdTick', red); el.classList.remove('beat'); void el.offsetWidth; el.classList.add('beat'); }
+      st.sec = sec; el.textContent = sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : String(sec);
+    }
+    el.classList.toggle('pause', !!s.wp); el.classList.toggle('red', red);
+  }
+  reset() { this.cd = { sec: -1, ann: -1, wp: -1 }; ($('#wann')).hidden = true; this.cache = {}; this.wasReady = {}; this.resKey = ''; }
   private set(id: string, key: string, v: string, html = false) {
     if (this.cache[key] === v) return; this.cache[key] = v; const el = $(id); if (html) el.innerHTML = v; else el.textContent = v;
   }

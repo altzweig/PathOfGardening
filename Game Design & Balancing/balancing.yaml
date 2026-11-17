@@ -418,8 +418,9 @@ enemies:
 
 waves:
   # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
-  # Die Welle ist vorbei, sobald ihre letzte Gruppe gestartet ist UND mindestens endKilled ihrer Gegner
-  # besiegt (oder geflohen) sind. Dann folgt eine feste Pause, danach startet die nächste Welle.
+  # 17.11.2026: Jede Welle hat einen festen COUNTDOWN (oben mittig): Gruppen-Zeitplan (durationStart/-PerWave)
+  # + countdownAfter. Läuft er ab, drehen alle Gegner (außer dem Boss) um und verschwinden. Dann folgt eine feste
+  # Pause mit dezentem Countdown, kurz vor der nächsten Welle wird "Welle N" mittig eingeblendet.
   total: 48                # Wellen bis zum Sieg (= 2 volle Tag-Nacht-Zyklen, endet mit dem 2. Boss)
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
@@ -427,7 +428,12 @@ waves:
   countMultiplier: 1.3     # 17.11.2026: Gegneranzahl aller Wellen +30 % (auf Gruppengröße, nach sizeMax)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 2.5     # s länger je Welle
-  endKilled: 0.9           # Anteil der Gegner der Welle, die weg sein müssen, damit die Welle endet
+  countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
+  leaveTime: 3             # s nach Ablauf drehen die Gegner um, laufen Richtung Wald und verblassen; danach sind sie weg
+  leaveSpeed: 1.3          # x Laufgeschwindigkeit beim Abdrehen
+  announce: 2.5            # s vor Wellenstart: "Welle N" mittig eingeblendet (am Ende der Pause)
+  tickFrom: 10             # ab so vielen Sekunden Rest tickt der Wellen-Countdown hörbar (in der Pause nie)
+  redFrom: 3               # ab so vielen Sekunden Rest sind die Zahlen rot
   pauseStart: 15           # s Pause nach jeder Welle (fest)
   pausePerWave: 0          # s längere Pause je Welle
   gapStart: 6              # s zwischen zwei Gruppen in Welle 1

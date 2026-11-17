@@ -324,10 +324,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Citrateaser als Kugelblitz (17.11.2026, abends, ersetzt den Sofort-Kettenblitz)
 - Die Zitrone ist ein Zauberstab. Sie schießt einen leuchtenden Kugelblitz geradeaus (Zielrichtung), langsam (`skills.lemon.speed` 3,5 m/s), sichtbar ca. 18 cm groß (`ballRadius` 0,09 m), Flugweite `range` 6 m. Kein Zielsuchen mehr.
 - Im Flug trifft der Kugelblitz alle 0,25 s (`tickInterval`) den nächsten Gegner in 0,5 m Umkreis (`tickRadius`) mit 25 % Schaden (`tickDamage`), sichtbar als kurzer Blitz von der Kugel zum Gegner.
-- Trifft die Kugel einen Gegner direkt, bekommt er 100 % Schaden und die Kugel vergeht. Danach springt der Blitz auf x weitere Gegner (Upgrade „Kettenziele“ 1/2/3/4/5, je 60 % = `chainDamage`), immer zum nächsten noch nicht getroffenen Gegner in 2,5 m (`chainRadius`) um den zuletzt getroffenen.
-- Upgrade „Rückblitz“ (20/40/60/80/100 %): Für jedes Kettenziel wird einzeln gewürfelt, ob der Blitz zusätzlich zurück aufs Hauptziel springt (60 % Schaden). Ausgelevelt bekommt das Hauptziel also 100 % + 5 × 60 %.
+- Trifft die Kugel einen Gegner direkt, bekommt er 100 % Schaden und die Kugel vergeht. Danach springt der Blitz auf x weitere Gegner (Upgrade „Kettenziele“ 1/2/3/4/5, je `chainDamage`), immer zum nächsten noch nicht getroffenen Gegner in 2,5 m (`chainRadius`) um den zuletzt getroffenen.
+- Upgrade „Rückblitz“ (20/40/60/80/100 %): Für jedes Kettenziel wird einzeln gewürfelt, ob der Blitz zusätzlich zurück aufs Hauptziel springt (Ketten-Schaden). Ausgelevelt bekommt das Hauptziel also 100 % + 5 × Ketten-Schaden.
 - Das direkt getroffene Tier lässt seine Beute fallen (wie bisher das erste Ziel).
 - Alte Werte `transfer`, `branch` und `upgrades.lemonTargets.order` entfallen.
+- Nachtrag (17.11.2026): Ketten- und Rückblitz-Schaden starten bei 50 % (`chainDamage`) statt 60 %. Neues Spezial-Upgrade „Schadenseffizienz“ (`upgrades.lemonEfficiency`): +10 Prozentpunkte je Stufe bis 100 %. Karte: „Schadenseffizienz“, alter Wert, golden „+10 %“.
+- Standard-Upgrades der Zitrone: Schaden, Radius, Abklingzeit. Das Reichweite-Upgrade vergrößert beim Citrateaser die Kugel und ihren Tick-Radius (+20 % je Stufe, Karte zeigt den Kugeldurchmesser in cm); die Flugweite bleibt 6 m.
 - Kombiwaffen mit Zitrone (Sourbow, Shockgun, Chillightning) bleiben in ihrer Wirkung gleich; sie lesen weiterhin die Stufen der beiden Zitronen-Upgrades (+1 Pfeil / +1 Blitz je Beere / größerer Stromradius bzw. mehr Strom). Nur die Obergrenzen der übernommenen Stufen sind jetzt 5 statt 3+2 bzw. 4.
 
 ## Kombiwaffen (17.11.2026)

@@ -117,7 +117,7 @@ export function animProj(kind: number, m: THREE.Object3D, x: number, y: number, 
   else if (kind === 2) { if (Math.random() < dt * 14) PART.spawn(V(x, y, z), V(0, -.3, 0), 0xff2040, .05, .3, { g: 4 }); }
   else if (kind === 8) { m.rotation.y += dt * 9; }
   else if (kind === 9) { // ball lightning: pulsing, arcs spin and flicker, sparks fall off
-    m.scale.setScalar(1 + .12 * Math.sin(now * 31) + .06 * Math.sin(now * 53));
+    m.scale.setScalar((w || 1) * (1 + .12 * Math.sin(now * 31) + .06 * Math.sin(now * 53)));
     const a = m.userData.arcs as THREE.Object3D | undefined; if (a) { a.rotation.set(now * 7, now * 11, now * 5); a.visible = Math.random() < .8; }
     if (Math.random() < dt * 40) PART.spawn(V(x + rand(-.06, .06), y + rand(-.06, .06), z + rand(-.06, .06)), V(rand(-.6, .6), rand(-.2, .6), rand(-.6, .6)), Math.random() < .5 ? 0xfff6a0 : 0xffffff, rand(.03, .06), rand(.12, .25), { a: .95 });
   }

@@ -307,6 +307,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Salve (neu, 5 Stufen): statt 3 Bolzen 4 / 5 / 7 / 9 / 12, als Kette hintereinander in derselben Zeit wie die 3er-Salve (Abstand wird kürzer). Jeder Bolzen kostet weiterhin 1 Spargel (12er-Salve = 12 Spargel). Zählt bei Kombiwaffen wie andere nicht übernommene Spezial-Upgrades als Schadensbonus.
 - Goldene Hervorhebung auf Karten: Text in `[[...]]` wird golden dargestellt.
 
+## Beeren-Schrotflinte: Spezial-Upgrades (17.11.2026, abends)
+- Mehr Beeren pro Schuss: 6 → 8/10/12/14/16 (`upgrades.cranPellets`, +2, 5 Stufen). Munition pro Schuss bleibt 6.
+- Durchbohren (neu): Chance pro Beere, einmal durch einen Gegner durchzufliegen, 0 → 20/40/60/80/100 % (`upgrades.cranPierce`). Gewürfelt wird beim Abschuss je Beere; die durchbohrende Beere macht beim zweiten Gegner vollen Schaden und Blutung.
+- Platzschaden liegender Beeren startet bei 25 % statt 50 % und steigt auf 40/55/70/85/100 % (`skills.cran.splashDamage`, `upgrades.cranSplash` +15 Prozentpunkte). Die Hotgun nutzt denselben Grundwert.
+- Alle drei Karten zeigen den bisherigen Wert und dahinter golden das Plus, wie beim Spargel.
+- Kombiwaffen: Wo „mehr Beeren“ übernommen wird, zählt jede Stufe wie bisher (Hotgun bekommt dadurch +2 statt +1 Beere vor dem Faktor). Durchbohren wird in Kombiwaffen nicht übernommen und zählt als Schadensbonus.
+
 ## Kombiwaffen (17.11.2026)
 - Quelle: Bastis Tabelle „PathOfGardening – Waffenkombinationen“ (Claude Doc). Umsetzungs-Prompt: `Kombiwaffen-Prompt.md`. Zahlen in `balancing.yaml` unter `combos`.
 - Zehn Kombiwaffen aus je zwei Fruchtwaffen, die Harke ist nicht kombinierbar.

@@ -39,7 +39,7 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 | Karte | Effekt | Bedingung | Parameter |
 |---|---|---|---|
 | Spargel-Armbrust | Salve aus 3 durchbohrenden Spargel-Bolzen (0,1 s Abstand), dann Pause: 15 Schaden, 7,5 m, **0,75 s pro Salve** (Ø 4 Bolzen/s), 30 cm breit, 1 Spargel pro Bolzen | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
-| Preiselbeer-Schrotflinte | **6 Beeren, zufällig gestreut (normalverteilt, max. 80°-Kegel, ca. 2/3 in den inneren 40°)**, je 5 Schaden + Blutung 1/s für 3 s, 7 m, **0,625 s**, 6 Beeren pro Schuss. Verfehlte Beeren bleiben 2 s liegen und platzen zu einem roten Fleck (50 % Schaden, 0,6 m Radius) | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
+| Preiselbeer-Schrotflinte | **6 Beeren, zufällig gestreut (normalverteilt, max. 80°-Kegel, ca. 2/3 in den inneren 40°)**, je 5 Schaden + Blutung 1/s für 3 s, 7 m, **0,625 s**, 6 Beeren pro Schuss. Verfehlte Beeren bleiben 2 s liegen und platzen zu einem roten Fleck (25 % Schaden, 0,6 m Radius) | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
 | Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
 | Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer: 1 Sofortschaden + 1 Brand-Stapel (max. 6). Brennen: alle 0,5 s Stapel × 0,5 Schaden, erlischt 3 s nach dem letzten Treffer. Flächenbrand: stirbt ein brennender Gegner, springen die Hälfte seiner Stapel (mind. 1) auf Gegner im Umkreis von 1,5 m über | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
 | Kohlbombe | Aufladewurf: Gedrückthalten 1 s lädt auf, Weite 1,5–8 m; Explosion beim Aufkommen: 5 Schaden, 1,9 m Radius, danach **vergiftet** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
@@ -76,8 +76,9 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 ### Preiselbeer-Schrotflinte
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| +1 Projektil | 1 Beere mehr pro Schuss (Streuung bleibt gleich) | 3 Stufen | `upgrades.cranPellets` |
-| Platzschaden | +10 Prozentpunkte Schaden liegender Beeren (50 → 100 %) | 5 Stufen | `upgrades.cranSplash` |
+| Mehr Beeren | +2 Beeren pro Schuss: 6 → 8/10/12/14/16 (Streuung bleibt gleich); Karte: alter Wert, goldenes +2 | 5 Stufen | `upgrades.cranPellets` |
+| Durchbohren | Chance pro Beere, einmal durchzubohren: 0 → 20/40/60/80/100 %; Karte: alter Wert, goldenes +20 % | 5 Stufen | `upgrades.cranPierce` |
+| Platzschaden | Schaden liegender Beeren 25 → 40/55/70/85/100 %; Karte: alter Wert, goldenes +15 % | 5 Stufen | `upgrades.cranSplash` |
 
 ### Citrateaser
 | Karte | Effekt | Max. | Parameter |

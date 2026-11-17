@@ -62,7 +62,7 @@ export interface Balancing {
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
-    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranSplash: Lim; cabMini: Lim; doubleHarvest: Lim;
+    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; doubleHarvest: Lim;
     rakeDiameter: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: { maxLevel: number; order: number[] }; lemonTransfer: Lim;
     chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };

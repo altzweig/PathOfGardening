@@ -52,7 +52,7 @@ export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const triPlant = (x: number, z: number, H: number, k: number): [number, number] => { const a = cornerAngle(k) + Math.PI / 6, r = H * .577; return [x + Math.cos(a) * r, z + Math.sin(a) * r]; };
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
+interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; cranPierceLv: number; mineLv: number; minis: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -114,7 +114,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; splash: number; minis: number; throwDist: number; width: number; size: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string }
@@ -166,7 +166,7 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
+    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
@@ -370,7 +370,7 @@ export class Sim {
       need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
-      pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
+      pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
       minis: s.minis, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
@@ -743,7 +743,7 @@ export class Sim {
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
         [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
       if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
-      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
+      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.cranPierceLv', g, 'Durchbohr-Chance', s.cranPierceLv], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
       if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
@@ -813,7 +813,7 @@ export class Sim {
       for (let i = 0; i < st.pellets; i++) {
         let g = 0; for (let k = 0; k < 8; k++) { g = gauss() * sig; if (Math.abs(g) <= half) break; g = clamp(g, -half, half); } // normal, cut at the cone edge
         const a = base + g * Math.PI / 180;
-        this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 0, mine: st.splash, w: .1, hit: new Set() });
+        this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: Math.random() < st.cranPierce ? 1 : 0, pf: 1, mine: st.splash, w: .1, hit: new Set() }); // pierce chance: flies through one enemy
       }
     } else if (id === 'lemon') {
       this.lemonZap(p, dx, dz, st, s);
@@ -873,11 +873,11 @@ export class Sim {
   pierceUp(s: SkillState) { const U = this.cfg.upgrades.aspPierce; s.pierce = s.pierce >= (U.max ?? 4) ? PIERCE_ALL : s.pierce + U.step; }
   /** upgrades taken for one weapon (all kinds) */
   upCount(id: SkillId, s: SkillState) {
-    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.mineLv + s.minis + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
+    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.cranPierceLv + s.mineLv + s.minis + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
   }
   /** special upgrade levels of a weapon by upgrade key (asp_pierce, cran_pel, ...) */
   private specials(id: SkillId, s: SkillState): Record<string, number> {
-    const all: Record<string, number> = { asp_pierce: this.pierceLv(s), asp_pb: s.pierceBonus, asp_size: s.sizeLv, asp_salvo: s.salvoLv, cran_pel: s.extraPel, cran_mine: s.mineLv, cab_mini: s.minis, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
+    const all: Record<string, number> = { asp_pierce: this.pierceLv(s), asp_pb: s.pierceBonus, asp_size: s.sizeLv, asp_salvo: s.salvoLv, cran_pel: s.extraPel, cran_pierce: s.cranPierceLv, cran_mine: s.mineLv, cab_mini: s.minis, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
     const out: Record<string, number> = {}; for (const k in all) if (k.startsWith(id + '_')) out[k] = Math.max(0, all[k]); return out;
   }
   /** combo weapon owned by this main weapon state: every upgrade of both weapons folded into one set of numbers */
@@ -1696,6 +1696,7 @@ export class Sim {
           this.hurtEnemy(e, pr.dmg, { bleed: true, color: 'p', src: 'cran' });
           this.emit({ k: 'decal', x: r2(e.x), z: r2(e.z), c: 0x7a0a14, r: r2(rand(.08, .16)), l: 5, op: .7 });
           this.burst(e.x, .35, e.z, 0xff2040, 5, 1.5, .1, .3, { g: 5 }); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 1 });
+          if (pr.pierceLeft > 0) { pr.pierceLeft--; continue; } // pierce upgrade: this berry flies on through one enemy
           done = true; break;
         }
       }
@@ -1804,8 +1805,9 @@ export class Sim {
         if (s.sizeLv < (U.aspSize.maxLevel || 4)) mk('asp_size', x => x.sizeLv++, b => `{size} ${nf(a.size * 100)} % [[+${nf((b.size - a.size) * 100)} %]]`);
       }
       if (id === 'cran') {
-        if (s.extraPel < (U.cranPellets.maxLevel || 3)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} → ${b.pellets}`);
-        if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} → ${nf(b.splash * 100)} %`);
+        if (s.extraPel < (U.cranPellets.maxLevel || 5)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} [[+${b.pellets - a.pellets}]]`);
+        if (s.cranPierceLv < (U.cranPierce.maxLevel || 5) && a.cranPierce < 1) mk('cran_pierce', x => x.cranPierceLv++, b => `{pierce} ${nf(a.cranPierce * 100)} % [[+${nf((b.cranPierce - a.cranPierce) * 100)} %]]`);
+        if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} % [[+${nf((b.splash - a.splash) * 100)} %]]`);
       }
       if (id === 'lemon') {
         const tierName = ['Hauptziel', '2. Glied', '3. Glied'];
@@ -1878,7 +1880,7 @@ export class Sim {
     card(id + '_dmg', m => m.lvDmg++);
     card(id + '_rng', m => m.lvRange++);
     card(id + '_cd', m => m.lvCd++);
-    const lim: Record<string, [string, number]> = { asp_pierce: ['pierce', PIERCE_ALL], asp_pb: ['pierceBonus', U.aspPierceBonus.maxLevel || 5], asp_size: ['sizeLv', U.aspSize.maxLevel || 4], cran_pel: ['extraPel', U.cranPellets.maxLevel || 3], cran_mine: ['mineLv', U.cranSplash.maxLevel || 5],
+    const lim: Record<string, [string, number]> = { asp_pierce: ['pierce', PIERCE_ALL], asp_pb: ['pierceBonus', U.aspPierceBonus.maxLevel || 5], asp_size: ['sizeLv', U.aspSize.maxLevel || 4], cran_pel: ['extraPel', U.cranPellets.maxLevel || 5], cran_mine: ['mineLv', U.cranSplash.maxLevel || 5],
       cab_mini: ['minis', U.cabMini.maxLevel || 5], lemon_tgt: ['tgtLv', U.lemonTargets.maxLevel + 2], lemon_xfer: ['xferLv', U.lemonTransfer.maxLevel || 4], chili_sweep: ['sweepLv', 8], chili_tick: ['tickLv', 8] };
     for (const key of C.keep || []) {
       const [sk] = key.split('_') as [SkillId], L = lim[key]; if (!L) continue;
@@ -1914,6 +1916,7 @@ export class Sim {
       case 'asp_size': s.sizeLv++; break;
       case 'asp_salvo': s.salvoLv++; break;
       case 'cran_pel': s.extraPel++; break;
+      case 'cran_pierce': s.cranPierceLv++; break;
       case 'cran_mine': s.mineLv++; break;
       case 'cab_mini': s.minis += U.cabMini.step; break;
     }

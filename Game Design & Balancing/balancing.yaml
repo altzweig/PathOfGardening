@@ -205,15 +205,19 @@ skills:
     splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
     splashDamage: 0.25     # Platzschaden = Anteil des Beerenschadens (ohne Blutung); 17.11.2026: 50 -> 25 %, Upgrade bis 100 %
     splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
-  lemon:                   # Citrateaser: Kettenblitz, trifft immer genau 1 Ziel direkt
-    damage: 20             # Grundschaden am ersten Ziel
-    cooldown: 1.0          # 1 Angriff pro Sekunde
+  lemon:                   # Citrateaser (17.11.2026): Zauberstab, schießt einen langsamen Kugelblitz geradeaus
+    damage: 20             # Grundschaden: Direkttreffer = 100 %
+    cooldown: 1.0          # 1 Kugelblitz pro Sekunde
     ammoPerShot: 1
-    range: 6               # m bis zum ersten Ziel
-    chainRadius: 2.5       # m, so weit springt der Blitz weiter
-    transfer: 0.5          # Weiterleitung je Kettenglied (50 % -> 25 %)
-    branch: [1, 2, 2]      # Ziele: Hauptziel, je Glied 2 weitere, je davon 2 weitere = max 100 % + 2x50 % + 4x25 % = 300 %
-    dropLoot: true         # das erste getroffene Tier lässt seine Beute fallen
+    range: 6               # m Flugweite des Kugelblitzes
+    speed: 3.5             # m/s, langsam (6 m in ca. 1,7 s)
+    ballRadius: 0.09       # m, Kugel ca. 18 cm groß (Optik + Kollision)
+    tickInterval: 0.25     # s, im Flug trifft der Blitz alle 0,25 s ...
+    tickRadius: 0.5        # m ... den nächsten Gegner in 0,5 m Umkreis ...
+    tickDamage: 0.25       # ... mit 25 % Schaden
+    chainRadius: 2.5       # m, so weit springt der Kettenblitz nach einem Direkttreffer zum nächsten Gegner
+    chainDamage: 0.6       # Kettenziele (Upgrade) und Rückblitz aufs Hauptziel: je 60 % Schaden
+    dropLoot: true         # das direkt getroffene Tier lässt seine Beute fallen
   chili:                   # Flammenwerfer: Flammenkegel, der hin und her schwenkt und Gegner anzündet
     range: 3.5             # m, Flammenlänge
     cooldown: 0.125        # s pro Flammenstoß -> 8 Chilis pro Sekunde
@@ -261,8 +265,8 @@ upgrades:
   rakeDamage:     { step: 0.20 }               # Harke +20 % Grundschaden (additiv), ohne Obergrenze
   rakeSpeed:      { step: 0.10 }               # Harke Abklingzeit x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
-  lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
-  lemonTransfer:  { step: 0.10, maxLevel: 4 }            # +10 % Weiterleitung (50 -> 60 %, 2. Glied 36 %)
+  lemonTargets:   { step: 1,    maxLevel: 5 }  # Kettenziele nach Direkttreffer: 0 -> 1/2/3/4/5 (je 60 % Schaden) (17.11.2026)
+  lemonTransfer:  { step: 0.20, maxLevel: 5 }  # Rückblitz: Chance je Kettenziel, dass der Blitz zurück aufs Hauptziel springt (60 %): 20/40/60/80/100 % (17.11.2026)
   chiliSweep:                # Flammenwerfer "Zirkel": Schwenk und Flamme wachsen gemeinsam
     sweepStep: 30            # +30 Grad Schwenk je Stufe (Tempo steigt mit: ein Schwenk dauert immer sweepPeriod)
     coneStep: 5              # +5 Grad Flammenbreite je Stufe

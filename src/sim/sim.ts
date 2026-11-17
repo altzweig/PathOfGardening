@@ -95,11 +95,13 @@ interface Enemy {
   hx: number; hz: number; cx: number; cz: number; y: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
-export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock'] as const;
+export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball'] as const;
 type ProjKind = typeof PK[number];
 interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy>;
   /** combo extras: blast radius / share (jam, rocket), burn stacks + tick (lance, hot), shock share (sour), stats of the shot */
-  r?: number; b?: number; burn?: number; tick?: number; dmgPct?: number; shk?: number; cs?: ComboStats }
+  r?: number; b?: number; burn?: number; tick?: number; dmgPct?: number; shk?: number; cs?: ComboStats;
+  /** lemon ball lightning: s to the next zap tick, chain targets, chance per chain target to jump back to the main target */
+  zt?: number; ch?: number; rc?: number }
 export const BK = ['cab', 'cole', 'cabboom', 'kimchi'] as const;
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean; gas?: number; pm?: number;
   kind: typeof BK[number]; gen: number; cs?: ComboStats; tickT?: number }
@@ -115,7 +117,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; splash: number; minis: number; throwDist: number; width: number; size: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string }
@@ -372,7 +374,7 @@ export class Sim {
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
-      minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
+      minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv), poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
   /** flamethrower geometry for a sweep level: oscillating sweep (+30 deg / +5 deg cone per level, one sweep always takes sweepPeriod),
@@ -649,34 +651,47 @@ export class Sim {
     }
     if (e.carry.length) { e.carry = []; e.fleeing = false; e.target = null; }
   }
-  /** Citrateaser chain: branch[0] main targets, each passes on to branch[d] neighbours at transfer^d damage */
-  lemonZap(p: Player, dx: number, dz: number, st: SkillStats, s: SkillState) {
-    const L = this.cfg.skills.lemon, U = this.cfg.upgrades;
-    const branch = [...L.branch]; for (let i = 0; i < s.tgtLv; i++) { const k = U.lemonTargets.order[i]; if (k !== undefined) branch[k] = (branch[k] || 0) + 1; }
-    const t = L.transfer + U.lemonTransfer.step * s.xferLv;
-    const hit = new Set<Enemy>(), segs: number[][] = [];
-    // main target(s): closest to the aim line within range
-    const cand = this.enemies.filter(e => !e.dead && Math.hypot(e.x - p.x, e.z - p.z) <= st.range + e.r)
-      .map(e => { const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez) || 1; return { e, score: Math.acos(clamp((ex * dx + ez * dz) / d, -1, 1)) * 3 + d / st.range }; })
-      .sort((a, b) => a.score - b.score).slice(0, branch[0]).map(c => c.e);
-    let frontier: Enemy[] = [];
-    for (const e of cand) {
-      hit.add(e); segs.push([r2(p.x + dx * .4), r2(p.z + dz * .4), r2(e.x), r2(e.z), 0]);
-      if (L.dropLoot) this.dropCarry(e);
-      this.hurtEnemy(e, st.dmg, { color: 'z', silent: true, src: 'lemon' }); frontier.push(e);
-    }
-    if (!cand.length) segs.push([r2(p.x + dx * .4), r2(p.z + dz * .4), r2(p.x + dx * 1.6), r2(p.z + dz * 1.6), 2]); // miss: short fizzle
-    for (let d = 1; d < branch.length; d++) {
-      const next: Enemy[] = [];
-      for (const src of frontier) {
-        const near = this.enemies.filter(e => !e.dead && !hit.has(e) && Math.hypot(e.x - src.x, e.z - src.z) <= L.chainRadius + e.r)
-          .sort((a, b) => Math.hypot(a.x - src.x, a.z - src.z) - Math.hypot(b.x - src.x, b.z - src.z)).slice(0, branch[d]);
-        for (const e of near) { hit.add(e); segs.push([r2(src.x), r2(src.z), r2(e.x), r2(e.z), d]); this.hurtEnemy(e, st.dmg * Math.pow(t, d), { color: 'z', silent: true, src: 'lemon' }); next.push(e); }
-      }
-      frontier = next; if (!frontier.length) break;
-    }
-    this.emit({ k: 'zap', s: segs, p: p.id, a: r2(Math.atan2(dx, dz)) });
+  /** Citrateaser (17.11.2026): the lemon wand shoots a slow glowing ball lightning straight ahead */
+  lemonBall(p: Player, dx: number, dz: number, st: SkillStats) {
+    const L = this.cfg.skills.lemon;
+    this.projs.push({ id: this.nid++, kind: 'ball', x: p.x + dx * .45, y: .6, z: p.z + dz * .45, dx, dz, speed: L.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 1, mine: 0,
+      w: L.ballRadius, hit: new Set(), zt: L.tickInterval, ch: st.chains, rc: st.chainReturn });
     this.sfx('weapons.lemon', p.x, p.z);
+  }
+  /** on its way the ball zaps the nearest enemy within tickRadius every tickInterval for tickDamage x damage */
+  private ballTick(pr: Proj, dt: number) {
+    const L = this.cfg.skills.lemon; pr.zt = (pr.zt ?? L.tickInterval) - dt;
+    while (pr.zt <= 0) {
+      pr.zt += L.tickInterval;
+      let best: Enemy | null = null, bd = Infinity;
+      for (const e of this.enemies) { if (e.dead || this.airborne(e)) continue; const d = Math.hypot(e.x - pr.x, e.z - pr.z) - e.r; if (d <= L.tickRadius && d < bd) { bd = d; best = e; } }
+      if (!best) continue;
+      this.hurtEnemy(best, pr.dmg * L.tickDamage, { color: 'z', silent: true, src: 'lemon' });
+      this.emit({ k: 'zap', s: [[r2(pr.x), r2(pr.z), r2(best.x), r2(best.z), 1]], t: 1 });
+    }
+  }
+  /** direct hit: full damage on the main target, then the lightning jumps on to `ch` further enemies (chainDamage each,
+   *  always to the nearest one not hit yet within chainRadius of the last one); per chain target it jumps back to the
+   *  main target with chance `rc` (chainDamage there again) */
+  private ballHit(pr: Proj, main: Enemy) {
+    const L = this.cfg.skills.lemon, segs: number[][] = [], hit = new Set<Enemy>([main]);
+    if (L.dropLoot) this.dropCarry(main);
+    this.hurtEnemy(main, pr.dmg, { color: 'z', src: 'lemon' });
+    let last = main; const mx = main.x, mz = main.z;
+    for (let i = 0; i < (pr.ch || 0); i++) {
+      let nx: Enemy | null = null, bd = Infinity;
+      for (const e of this.enemies) { if (e.dead || hit.has(e) || this.airborne(e)) continue; const d = Math.hypot(e.x - last.x, e.z - last.z); if (d <= L.chainRadius + e.r && d < bd) { bd = d; nx = e; } }
+      if (!nx) break;
+      hit.add(nx); segs.push([r2(last.x), r2(last.z), r2(nx.x), r2(nx.z), 1]);
+      this.hurtEnemy(nx, pr.dmg * L.chainDamage, { color: 'z', silent: true, src: 'lemon' });
+      if (Math.random() < (pr.rc || 0)) { // back to the main target
+        segs.push([r2(nx.x), r2(nx.z), r2(main.dead ? mx : main.x), r2(main.dead ? mz : main.z), 2]);
+        if (!main.dead) this.hurtEnemy(main, pr.dmg * L.chainDamage, { color: 'z', silent: true, src: 'lemon' });
+      }
+      last = nx;
+    }
+    this.emit({ k: 'zap', s: [[r2(pr.x), r2(pr.z), r2(main.x), r2(main.z), 1], ...segs], t: 1 });
+    this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 14, 2.4, .1, .3);
   }
   /** flamethrower burst: everything the cone swept over since the last burst catches fire (+1 stack) */
   flame(p: Player, dx: number, dz: number, st: SkillStats) {
@@ -747,7 +762,7 @@ export class Sim {
       if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
       if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.cranPierceLv', g, 'Durchbohr-Chance', s.cranPierceLv], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis], ['cab.gasLv', g, 'Kohlgas', s.gasLv], ['cab.poisLv', g, 'Giftschaden', s.poisLv]);
-      if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
+      if (sid === 'lemon') rows.push(['lemon.tgtLv', g, 'Kettenziele', s.tgtLv], ['lemon.xferLv', g, 'Rückblitz', s.xferLv]);
       if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
     }
     for (const f of FRUITS) {
@@ -818,7 +833,7 @@ export class Sim {
         this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: Math.random() < st.cranPierce ? 1 : 0, pf: 1, mine: st.splash, w: .1, hit: new Set() }); // pierce chance: flies through one enemy
       }
     } else if (id === 'lemon') {
-      this.lemonZap(p, dx, dz, st, s);
+      this.lemonBall(p, dx, dz, st);
     } else if (id === 'chili') {
       this.flame(p, dx, dz, st);
     } else {
@@ -1693,6 +1708,7 @@ export class Sim {
     for (let i = this.projs.length - 1; i >= 0; i--) {
       const pr = this.projs[i]; const step = Math.min(pr.speed * dt, pr.left);
       const ax = pr.x, az = pr.z; let done = false; const hits: [number, Enemy][] = [];
+      if (pr.kind === 'ball') this.ballTick(pr, dt);
       if (pr.kind !== 'shock') for (const e of this.enemies) { // Shockgun berries fly through enemies
         if (e.dead || pr.hit.has(e)) continue;
         const ex = e.x - ax, ez = e.z - az; const tp = clamp(ex * pr.dx + ez * pr.dz, 0, step);
@@ -1704,6 +1720,8 @@ export class Sim {
         if (pr.kind === 'asp') {
           this.hurtEnemy(e, pr.dmg, { color: 'g', src: 'asp' }); this.burst(e.x, .4, e.z, 0x9cff60, 6, 2, .1, .3); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 0 });
           if (pr.pierceLeft > 0) { pr.pierceLeft--; pr.dmg *= pr.pf; } else { done = true; break; }
+        } else if (pr.kind === 'ball') {
+          this.ballHit(pr, e); done = true; break;
         } else if (pr.kind !== 'cran') {
           if (this.comboHit(pr, e)) { done = true; break; }
         } else {
@@ -1721,7 +1739,8 @@ export class Sim {
         done = true;
         if (pr.kind === 'cran') {
           this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg * pr.mine, t: this.cfg.skills.cran.splashDelay }); // missed: lies, then pops
-        } else this.comboLand(pr);
+        } else if (pr.kind === 'ball') this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 10, 1.6, .08, .3); // fizzles out
+        else this.comboLand(pr);
       }
       if (done) this.projs.splice(i, 1);
     }
@@ -1824,9 +1843,8 @@ export class Sim {
         if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} % [[+${nf((b.splash - a.splash) * 100)} %]]`);
       }
       if (id === 'lemon') {
-        const tierName = ['Hauptziel', '2. Glied', '3. Glied'];
-        if (s.tgtLv < U.lemonTargets.maxLevel) { const k = U.lemonTargets.order[s.tgtLv]; mk('lemon_tgt', x => x.tgtLv++, () => `{chain} +1 · ${tierName[k] ?? ''}`); }
-        if (s.xferLv < (U.lemonTransfer.maxLevel || 4)) { const t0 = this.cfg.skills.lemon.transfer + U.lemonTransfer.step * s.xferLv, t1 = t0 + U.lemonTransfer.step; mk('lemon_xfer', x => x.xferLv++, () => `{chain} ${nf(t0 * 100)} → ${nf(t1 * 100)} %`); }
+        if (s.tgtLv < (U.lemonTargets.maxLevel || 5)) mk('lemon_tgt', x => x.tgtLv++, b => `{chain} ${a.chains} [[+${b.chains - a.chains}]]`);
+        if (s.xferLv < (U.lemonTransfer.maxLevel || 5) && a.chainReturn < 1) { const b = this.stats('lemon', { ...s, xferLv: s.xferLv + 1 }); pool.push({ key: 'lemon_xfer', cat: 'skill', w: 1, pic: 'skill_lemon', title: N.skills.lemon, lines: ['Rückblitz', `{chain} ${nf(a.chainReturn * 100)} % [[+${nf((b.chainReturn - a.chainReturn) * 100)} %]]`] }); }
       }
       if (id === 'cab' && s.minis < (U.cabMini.maxLevel || 5)) mk('cab_mini', x => x.minis += U.cabMini.step, b => `{mini} ${a.minis} → ${b.minis}`);
       if (id === 'cab' && s.gasLv < (U.cabGas.maxLevel || 5)) { const b = this.stats('cab', { ...s, gasLv: s.gasLv + 1 }); pool.push({ key: 'cab_gas', cat: 'skill', w: 1, pic: 'skill_cab', title: N.skills.cab, lines: ['Kohlgas', `{poison} ${nf(a.gas * 100)} % [[+${nf((b.gas - a.gas) * 100)} %]]`] }); }
@@ -1897,7 +1915,7 @@ export class Sim {
     card(id + '_rng', m => m.lvRange++);
     card(id + '_cd', m => m.lvCd++);
     const lim: Record<string, [string, number]> = { asp_pierce: ['pierce', PIERCE_ALL], asp_pb: ['pierceBonus', U.aspPierceBonus.maxLevel || 5], asp_size: ['sizeLv', U.aspSize.maxLevel || 4], cran_pel: ['extraPel', U.cranPellets.maxLevel || 5], cran_mine: ['mineLv', U.cranSplash.maxLevel || 5],
-      cab_mini: ['minis', U.cabMini.maxLevel || 5], lemon_tgt: ['tgtLv', U.lemonTargets.maxLevel + 2], lemon_xfer: ['xferLv', U.lemonTransfer.maxLevel || 4], chili_sweep: ['sweepLv', 8], chili_tick: ['tickLv', 8] };
+      cab_mini: ['minis', U.cabMini.maxLevel || 5], lemon_tgt: ['tgtLv', U.lemonTargets.maxLevel || 5], lemon_xfer: ['xferLv', U.lemonTransfer.maxLevel || 5], chili_sweep: ['sweepLv', 8], chili_tick: ['tickLv', 8] };
     for (const key of C.keep || []) {
       const [sk] = key.split('_') as [SkillId], L = lim[key]; if (!L) continue;
       const st = sk === C.main ? s : s.partner!; if ((st as any)[L[0]] >= L[1]) continue;

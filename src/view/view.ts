@@ -670,9 +670,9 @@ export class GameView {
         break;
       }
       case 'shot': {
-        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : 0xc8ff90;
+        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
         burst(V(e.x, .75, e.z), col, 10, 2.2, .2, .22); PART.spawn(V(e.x, .75, e.z), V(0, 0, 0), col, .9, .12);
-        const pv = this.players.get(e.p); if (pv) pv.recoil = .12;
+        const pv = this.players.get(e.p); if (pv) { pv.recoil = e.w === 'lemon' ? .04 : .12; if (e.w === 'lemon') pv.lemonMat.emissiveIntensity = .55; } // wand: the lemon flares up
         break;
       }
       case 'boom': {

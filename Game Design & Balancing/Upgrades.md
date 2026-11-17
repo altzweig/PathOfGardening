@@ -40,7 +40,7 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 |---|---|---|---|
 | Spargel-Armbrust | Salve aus 3 durchbohrenden Spargel-Bolzen (0,1 s Abstand), dann Pause: 15 Schaden, 7,5 m, **0,75 s pro Salve** (Ø 4 Bolzen/s), 30 cm breit, 1 Spargel pro Bolzen | Spargelfeld + 15 Spargel gesammelt | `skills.asp.*`, `plants.asp.unlockAt` |
 | Preiselbeer-Schrotflinte | **6 Beeren, zufällig gestreut (normalverteilt, max. 80°-Kegel, ca. 2/3 in den inneren 40°)**, je 5 Schaden + Blutung 1/s für 3 s, 7 m, **0,625 s**, 6 Beeren pro Schuss. Verfehlte Beeren bleiben 2 s liegen und platzen zu einem roten Fleck (25 % Schaden, 0,6 m Radius) | Preiselbeerfeld + 60 gesammelt | `skills.cran.*`, `plants.cran.unlockAt` |
-| Citrateaser | Kettenblitz: trifft genau 1 Ziel (16 Schaden, 6 m, 1/s, 1 Zitrone), springt auf 2 Nachbarn (50 %), die je auf 2 weitere (25 %): max. 300 %. Das erste Ziel lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
+| Citrateaser | Zauberstab: schießt einen langsamen Kugelblitz (ca. 18 cm, 3,5 m/s, 6 m, 1/s, 1 Zitrone) geradeaus. Im Flug trifft er alle 0,25 s den nächsten Gegner in 0,5 m Umkreis mit 25 % Schaden. Direkttreffer: 20 Schaden (100 %), dann Kettenziele (Upgrade) mit je 60 %. Das direkt getroffene Tier lässt seine Beute fallen | Zitronenbäumchen + 10 Zitronen | `skills.lemon.*` |
 | Flammenwerfer | Chili-förmig. 30°-Flamme, 3,5 m, schwenkt 40° hin und her (links → rechts → zurück in 1,5 s). 8 Chilis/s. Jeder Treffer: 1 Sofortschaden + 1 Brand-Stapel (max. 6). Brennen: alle 0,5 s Stapel × 0,5 Schaden, erlischt 3 s nach dem letzten Treffer. Flächenbrand: stirbt ein brennender Gegner, springen die Hälfte seiner Stapel (mind. 1) auf Gegner im Umkreis von 1,5 m über | Chilifeld (wird beim nächsten Level-up garantiert angeboten) | `skills.chili.*` |
 | Kohlbombe | Aufladewurf: Gedrückthalten 1 s lädt auf, Weite 1,5–8 m; Explosion beim Aufkommen: 5 Schaden, 1,9 m Radius, danach **vergiftet** (siehe unten), 1 Kohl pro Wurf | Kohlfeld + 8 gesammelt | `skills.cab.*`, `plants.cab.unlockAt` |
 
@@ -83,8 +83,8 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 ### Citrateaser
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| +1 Ziel | erst 3. Glied (je 3 statt 2), dann 2. Glied, dann 2 Hauptziele | 3 | `upgrades.lemonTargets` |
-| Weiterleitung | +10 % (50 → 60 %, 2. Glied 25 → 36 %) | 4 | `upgrades.lemonTransfer` |
+| Kettenziele | nach einem Direkttreffer springt der Blitz auf 1/2/3/4/5 weitere Gegner (je 60 %, immer zum nächsten in 2,5 m); Karte: alter Wert, goldenes +1 | 5 | `upgrades.lemonTargets` |
+| Rückblitz | Chance je Kettenziel, dass der Blitz zurück aufs Hauptziel springt (je 60 % Schaden): 20/40/60/80/100 %; Karte: „Rückblitz“, alter Wert, goldenes +20 % | 5 | `upgrades.lemonTransfer` |
 
 ### Flammenwerfer
 Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf Sofort- und Brandschaden (1 → 1,2 und 0,5 → 0,6), Reichweite wie üblich.

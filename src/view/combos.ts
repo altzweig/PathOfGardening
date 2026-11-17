@@ -69,7 +69,7 @@ export function animHeld(h: Held, k: number) {
 }
 
 // ---------- projectiles / bombs / ground ----------
-/** PK index (sim): 0 asp, 1 cran, 2 jam, 3 spike, 4 sour, 5 lance, 6 hot, 7 rocket, 8 shock */
+/** PK index (sim): 0 asp, 1 cran, 2 jam, 3 spike, 4 sour, 5 lance, 6 hot, 7 rocket, 8 shock, 9 lemon ball lightning */
 export function projMesh(kind: number): THREE.Object3D {
   const g = new THREE.Group();
   switch (kind) {
@@ -90,6 +90,14 @@ export function projMesh(kind: number): THREE.Object3D {
       break;
     }
     case 8: part(g, BERRY_GEO.cran, glow(0xffe23a, 0xffd000, 2.6, .3), .075, .075, .075, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff4a0, .4), .12, .12, .12, 0, 0, 0, false); break;
+    case 9: { // ball lightning (lemon wand): white-hot core, yellow plasma shell, flickering arcs
+      part(g, GEO.sph, glow(0xffffff, 0xfff6c0, 4), .045, .045, .045, 0, 0, 0, false);
+      part(g, GEO.ico, ADD(0xffd830, .75), .085, .085, .085, 0, 0, 0, false);
+      part(g, GEO.sph, ADD(0xffe050, .25), .16, .16, .16, 0, 0, 0, false);
+      const arcs = new THREE.Group(); g.add(arcs);
+      for (let i = 0; i < 4; i++) { const d = V(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); seg(arcs, ADD(0xfffbe0, .9), .006, [0, 0, 0], [d.x * .12, d.y * .12, d.z * .12]); }
+      g.userData.arcs = arcs; g.userData.pulse = true; break;
+    }
     default: part(g, GEO.sph, PROJ_CRAN, .07, .07, .07, 0, 0, 0, false);
   }
   return g;
@@ -108,6 +116,11 @@ export function animProj(kind: number, m: THREE.Object3D, x: number, y: number, 
   } else if (kind === 4) { if (Math.random() < dt * 25) PART.spawn(V(x, y, z), V(rand(-.3, .3), rand(-.1, .3), rand(-.3, .3)), 0xfff6a0, rand(.05, .09), rand(.12, .25), { a: .9 }); }
   else if (kind === 2) { if (Math.random() < dt * 14) PART.spawn(V(x, y, z), V(0, -.3, 0), 0xff2040, .05, .3, { g: 4 }); }
   else if (kind === 8) { m.rotation.y += dt * 9; }
+  else if (kind === 9) { // ball lightning: pulsing, arcs spin and flicker, sparks fall off
+    m.scale.setScalar(1 + .12 * Math.sin(now * 31) + .06 * Math.sin(now * 53));
+    const a = m.userData.arcs as THREE.Object3D | undefined; if (a) { a.rotation.set(now * 7, now * 11, now * 5); a.visible = Math.random() < .8; }
+    if (Math.random() < dt * 40) PART.spawn(V(x + rand(-.06, .06), y + rand(-.06, .06), z + rand(-.06, .06)), V(rand(-.6, .6), rand(-.2, .6), rand(-.6, .6)), Math.random() < .5 ? 0xfff6a0 : 0xffffff, rand(.03, .06), rand(.12, .25), { a: .95 });
+  }
 }
 /** BK index: 1 cole (spiked time bomb), 2 cabboom (berry cabbage), 3 kimchi (red cabbage, splits) */
 export function bombMesh(kind: number, gen: number): THREE.Object3D {

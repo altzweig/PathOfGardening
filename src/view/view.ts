@@ -341,7 +341,7 @@ export class GameView {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
-    setForestClearings(this.slots.filter(sl => sl.forest).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
+    setForestClearings(this.slots.filter(sl => sl.forest && !cfg.plants.nut?.disabled).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     this.aimInd = {

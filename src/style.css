@@ -190,6 +190,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 .crow button{width:30px;height:30px;border-radius:7px;border:1px solid #ffffff33;background:#222b33;color:var(--parch);font:700 18px var(--f-body);cursor:pointer}
 /* boss health */
 #bossbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 92px);transform:translateX(-50%);width:min(420px,60vw);height:12px;border-radius:6px;background:#100a1ccc;border:1px solid #8a4cff88;overflow:hidden;box-shadow:0 0 14px #6a3cff55}
+#bossbar::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent calc(33.33% - 1px),#100a1c calc(33.33% - 1px) calc(33.33% + 1px),transparent calc(33.33% + 1px) calc(66.67% - 1px),#100a1c calc(66.67% - 1px) calc(66.67% + 1px),transparent calc(66.67% + 1px))}
 #bossfill{position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#b090ff,#6a3cff 60%,#3a1a9a);transition:width .15s}
 #credView{width:min(560px,92vw);max-height:66vh;overflow:auto;text-align:center;color:var(--parch);font-family:var(--f-body)}
 #credView h3{font-family:var(--f-display);color:var(--gold);margin:6px 0;font-size:20px}

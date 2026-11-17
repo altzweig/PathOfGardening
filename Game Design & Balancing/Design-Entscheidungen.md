@@ -261,3 +261,12 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Vorschau beim Zeigen auf ein Feld: Auf freiem Platz erscheint das neue Feld halbtransparent mit seiner Produktion. Alle Felder, deren Produktion sich durch den Bau ändert, zeigen „alt → neu /s“ (grün mehr, rot weniger). Pfeile auf den gemeinsamen Kanten: grün = Nachbar gibt dem neuen Feld Bonus, gold = das Feld gibt dem Nachbarn Bonus, rot = Nachbar verliert Bonus (Überbauen eines höherstufigen Feldes).
 - Handy: erstes Tippen zeigt die Vorschau, zweites Tippen auf dasselbe Feld baut (beim Überbauen danach noch die Bestätigung). Maus baut weiter mit einem Klick.
 - 17.11.2026: Die weißen Marker, die am Feldrand wanderten (Ernte-Impuls), sind entfernt. Herumliegende Blaubeeren leuchten wieder dezent von Anfang an (am Tag besser zu sehen) und schwellen zum Level-up hin etwas an.
+
+## Gegner und Boss schwerer (17.11.2026)
+- Leben: Waschbär ×1,8 (7 → 12,6), alle anderen Tiere +20 % (Panda 13,2, Kröte 7,2, Igel 7,2, Schaf 3,6 + Schild 7,2, Eichhörnchen 4,8).
+- Schaden aller Tiere ×2: Nahkampf 1 → 2, Kröten-Gift 1 → 2, Igel-Stacheln 2 → 4, Schaf-Rammen 4 → 8, Boss-Nahkampf 3 → 6, Boss-Bomben 8 → 16.
+- Gegneranzahl +30 % in allen Wellen (`waves.countMultiplier`, wirkt nach `sizeMax`, auch auf Welle 1); Obergrenze gleichzeitig 60 → 78.
+- Boss kommt nicht mehr nach Wellen, sondern nach Spieler-Level (`enemies.boss.levels`): zu Beginn der ersten Welle, nachdem Level 20 erreicht ist, dann ab Level 30, 40, 50 usw. Immer nur ein Boss gleichzeitig. Annahme: „Level“ = Spieler-Level (oben links), nicht die Welle. Das Spielende bleibt vorerst bei Welle 48.
+- Boss hält 3× so viel aus wie vorher (≈ 33,3 Waschbären à 12,6 statt 20 à 7). Sein Leben ist in 3 Stufen geteilt (zwei Striche im Boss-Balken). Nach jeder verlorenen Stufe lacht er und greift 20 % schneller an (×1,2, dann ×1,44): Sammeln, Aufladen, Bomben-Takt und Nahkampf laufen schneller; die Ausweichzeit der Bomben bleibt gleich.
+- Nussbaum vorerst ausgebaut (`plants.nut.disabled: true`): wird im Level-up nicht mehr angeboten, keine Waldlichtungen; damit kommen auch keine Eichhörnchen. Code bleibt, kommt mit einer Nuss-Waffe wieder.
+- Preiselbeer-Schrotflinte streut weniger: Kegel 80° → 45°, Standardabweichung 20° → 11°.

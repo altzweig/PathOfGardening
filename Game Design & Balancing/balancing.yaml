@@ -143,7 +143,8 @@ plants:
   cab:  { interval: 15, unlockAt: 0 }
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false }
+  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true }
+  # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 
@@ -175,8 +176,8 @@ skills:
     cooldown: 0.625        # -20 % Feuerrate (vorher 0.5)
     ammoPerShot: 6
     pellets: 6             # Beeren pro Schuss
-    cone: 80               # Grad, maximaler Streukegel (±40 Grad), nichts fliegt weiter raus
-    spreadSigma: 20        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 40 Grad
+    cone: 45               # Grad, maximaler Streukegel (±22,5 Grad), nichts fliegt weiter raus (17.11.2026: 80 -> 45, streut weniger)
+    spreadSigma: 11        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 22 Grad (17.11.2026: 20 -> 11, passend zum Kegel)
     bleedDuration: 3       # s
     bleedDps: 1
     splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
@@ -261,8 +262,9 @@ upgrades:
 
 enemies:
   aggroRadius: 5           # m, ab hier greifen Gegner Spieler statt Felder an
-  maxAlive: 60             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor), verdoppelt
-  meleeDamage: 1
+  maxAlive: 78             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor); 17.11.2026 60 -> 78 (+30 % wie die Gegneranzahl)
+  # 17.11.2026: Schaden aller Tiere und des Bosses x2 (Nahkampf, Gift, Stacheln, Rammen, Boss-Nahkampf, Boss-Bomben)
+  meleeDamage: 2           # vorher 1
   meleeInterval: 1         # s
   xpDrop: 1                # jeder besiegte Gegner lässt so viele Blaubeeren (XP) fallen
   scaling:                 # Gegner werden über die Wellen stärker, gleiche Kurvenform wie XP:  Faktor = growth^(w-1) + linear*(w-1)
@@ -279,17 +281,20 @@ enemies:
     damage: 2              # x Angriffsstärke
     xpMultiplier: 5        # x XP-Drop
   boss:                    # Waschbär-Boss (vorerst der einzige Boss)
-    every: 24              # nur ohne dayNight: alle N Wellen. Mit dayNight kommt der Boss in der letzten Nachtwelle (zu Beginn der Welle)
+    levels: { first: 20, every: 10 }   # 17.11.2026: kommt zu Beginn der ersten Welle, nachdem die Spieler Level 20 erreicht haben, dann Level 30, 40, 50 ...
+    every: 24              # nur ohne "levels": alle N Wellen (mit dayNight: in der letzten Nachtwelle)
     scale: 2.4
-    hpEnemies: 20          # Leben = so viel wie 20 normale Waschbären ...
+    hpEnemies: 33.33       # Leben = so viel wie 33,3 normale Waschbären (17.11.2026: Boss x3 Leben; vorher 20 Waschbären à 7 HP = 140, jetzt 33,33 x 12,6 = 420) ...
+    phases: 3              # Leben in 3 Stufen geteilt (Striche im Boss-Balken)
+    phaseSpeedup: 0.2      # nach jeder verlorenen Stufe greift er 20 % schneller an (x1,2, dann x1,44): Sammeln, Aufladen, Bomben-Takt, Nahkampf
     hpGrowthPerWave: 0     # ... zusätzlich +x je Welle ab der ersten Boss-Welle (0: Boss wächst nur über enemies.scaling)
     speed: 2.2
-    meleeDamage: 3
+    meleeDamage: 6         # vorher 3
     xpDrop: 30
     collectTime: 5         # s Blaubeeren sammeln
     chargeTime: 2          # s aufladen (Warnung), dann Spezialattacke
     berryBonus: 0.03       # +3 % mehr Bomben je gesammelter Blaubeere
-    bombDamage: 8
+    bombDamage: 16         # vorher 8
     bombRadius: 1.1        # m
     bombFuse: 0.7          # s leuchtender Kreis am Boden, dann Explosion
     trail:                 # Attacke 1: verfolgende Spur
@@ -314,7 +319,7 @@ enemies:
   # Gilt für Spieler und Gegner gleich.
   resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
   raccoon:                 # greift nie an, streunt umher, sammelt 5 XP (Blaubeeren) und haut damit ab
-    hp: 7
+    hp: 12.6               # 17.11.2026 x1,8 (vorher 7)
     speed: 2.75
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
@@ -324,7 +329,7 @@ enemies:
     fleeSpeed: 6.2
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
   panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
-    hp: 11
+    hp: 13.2               # 17.11.2026 +20 % (vorher 11)
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
@@ -333,7 +338,7 @@ enemies:
     fleeSpeed: 3.2
     resist: [chili, cran]
   toad:                    # Frosch: leuchtet am Boden, Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
-    hp: 6
+    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
     speed: 2.1
     radius: 0.30
     hopPeriod: 1           # s pro Sprung (halbe Zeit in der Luft = unverwundbar)
@@ -341,37 +346,37 @@ enemies:
     tongueRange: 1.5
     poisonTicks: 3
     poisonInterval: 2
-    poisonDamage: 1
+    poisonDamage: 2        # vorher 1
     prefersFields: [cab, lemon]
     resist: [cab, lemon]
   sheep:
     maxAlive: 5            # höchstens so viele Schafe gleichzeitig
-    hp: 3
+    hp: 3.6                # 17.11.2026 +20 % (vorher 3)
     speed: 1.7
     radius: 0.44
-    shield: 6
+    shield: 7.2            # 17.11.2026 +20 % (vorher 6)
     shieldRegen: 3         # s bis Schild wieder voll
     chargeRange: 4.5       # m, ab hier holt es Anlauf (Richtung wird zu Beginn festgelegt und nicht mehr nachgeführt)
     windup: 1              # s Anlauf (vorher 2)
     chargeSpeed: 9
     chargeTime: 0.8
-    ramDamage: 4
+    ramDamage: 8           # vorher 4
     ramStun: 1             # s Betäubung (kein Rückstoß mehr)
     rest: 2
     resist: [asp]
   hedgehog:                # Igel: kommen in Gruppen, plustern sich regelmäßig auf (Stachel-Schaden), fressen Beeren
-    hp: 6
+    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
     speed: 1.8
     radius: 0.30
     eats: [blue, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
     puffEvery: 2           # s pro Aufplustern
     puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
     puffScale: 0.3         # +30 % Größe
-    puffDamage: 2          # Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
+    puffDamage: 4          # vorher 2; Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
     puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
     resist: [blue, cran]
   squirrel:                # Eichhörnchen: kommt von der gegenüberliegenden Seite, hüpft im Zickzack zu seinem Nussbaum, klaut Nüsse und verschwindet damit im Baum
-    hp: 4
+    hp: 4.8                # 17.11.2026 +20 % (vorher 4)
     speed: 4.2             # m/s, flink (Zickzack: der Weg ist länger)
     wanderSpeed: 2.6       # m/s, flitzt um seinen Baum, solange keine Nuss liegt
     radius: 0.22
@@ -396,7 +401,8 @@ waves:
   total: 48                # Wellen bis zum Sieg (= 2 volle Tag-Nacht-Zyklen, endet mit dem 2. Boss)
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
-  firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären)
+  firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
+  countMultiplier: 1.3     # 17.11.2026: Gegneranzahl aller Wellen +30 % (auf Gruppengröße, nach sizeMax)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 2.5     # s länger je Welle
   endKilled: 0.9           # Anteil der Gegner der Welle, die weg sein müssen, damit die Welle endet

@@ -44,7 +44,7 @@ export interface Balancing {
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; deathXpShare?: number; deathRemoveDelay?: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean }>;
+  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>;
   rake: { damage: number; range: number; width: number; tilt?: number; cooldown: number; swingTime: number; knockback: number };
   skills: {
     readySeconds: number;
@@ -67,7 +67,7 @@ export interface Balancing {
     /** per-wave growth of enemy HP / attack: growth^(w-1) + linear*(w-1) */
     scaling?: { hp: { growth: number; linear: number }; damage: { growth: number; linear: number } };
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
-    boss: { every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
+    boss: { levels?: { first: number; every: number }; phases?: number; phaseSpeedup?: number; every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };
       carousel: { duration: number; every: number; trails: number; count: number; spacing: number };
       rain: { count: number; interval: number; warn: number; radius: number } } } & Record<EnemyType, EnemyCfg>;
@@ -85,7 +85,7 @@ export interface Balancing {
     gapStart: number; gapPerWave: number; gapMin: number; gapJitter: number;
     sizeStart: number; sizePerWave: number; sizeMax: number; rampFrom: number; rampTo: number; finalMultiplier: number;
     directionsStart: number; directionsMax: number; directionEveryWaves: number; directionSpread: number;
-    staggerMin: number; staggerMax: number; warnTime: number;
+    staggerMin: number; staggerMax: number; warnTime: number; countMultiplier?: number;
     types: Record<EnemyType, { from: number; weight: number; early?: number; group?: [number, number]; needs?: FruitType }>;
   };
 }

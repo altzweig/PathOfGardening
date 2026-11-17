@@ -66,7 +66,7 @@ export interface Player {
   nuts: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean; goneT?: number }
-interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number }
+interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number }
 interface Fruit {
@@ -992,7 +992,7 @@ export class Sim {
     const e = this.enemies[this.enemies.length - 1];
     const firstBoss = this.bossEvery(), G = this.waveScale(), hp = this.cfg.enemies.raccoon.hp * B.hpEnemies * G.hp * (1 + (B.hpGrowthPerWave ?? 0) * Math.max(0, this.wave - firstBoss)) * this.f(this.cfg.coop.enemyHpExponent);
     e.hp = e.maxHp = hp; e.r = this.cfg.enemies.raccoon.radius * B.scale; e.speed = B.speed; e.dmgMul = B.meleeDamage / this.cfg.enemies.meleeDamage * G.damage;
-    e.boss = { st: 'collect', t: B.collectTime, berries: 0, atk: 0, spawned: 0, next: 0, hx: 0, hz: 0, hdx: 0, hdz: 1 };
+    e.boss = { st: 'collect', t: B.collectTime, berries: 0, atk: 0, spawned: 0, next: 0, hx: 0, hz: 0, hdx: 0, hdz: 1, ph: 0 };
     this.emit({ k: 'boss', id: e.id }); this.sfx('raccoon.laugh', e.x, e.z);
   }
   private spitBomb(e: Enemy, x: number, z: number, rain = false) {
@@ -1000,7 +1000,12 @@ export class Sim {
     this.berryBombs.push({ id: this.nid++, fx: e.x, fz: e.z, x, z, flight: rain ? 0 : .35, t: 0, fuse: rain ? B.rain.warn : B.bombFuse, rain, dmg: B.bombDamage * this.waveScale().damage, r: B.bombRadius });
   }
   private bossAI(e: Enemy, dt: number) {
-    const B = this.cfg.enemies.boss, S = e.boss!; S.t -= dt;
+    const B = this.cfg.enemies.boss, S = e.boss!;
+    // HP is split into B.phases stages; after each lost stage the boss attacks phaseSpeedup faster (multiplicative)
+    const nPh = Math.max(1, B.phases ?? 1), ph = Math.min(nPh - 1, Math.floor((1 - e.hp / e.maxHp) * nPh + 1e-6));
+    if (ph > S.ph) { S.ph = ph; this.sfx('raccoon.laugh', e.x, e.z); this.emit({ k: 'poof', x: r2(e.x), z: r2(e.z) }); }
+    const tdt = dt * Math.pow(1 + (B.phaseSpeedup ?? 0), S.ph); // attack timers run faster
+    S.t -= tdt;
     const target = this.players.filter(p => p.alive).sort((a, b) => dist(a, e) - dist(b, e))[0];
     const mult = 1 + B.berryBonus * S.berries;
     if (S.st === 'collect') {
@@ -1008,7 +1013,7 @@ export class Sim {
       for (const fr of this.fruits) if (fr.state === 'ground' && fr.type === 'blue') { const d = dist(e, fr); if (d < bd) { bd = d; best = fr; } }
       if (best) { this.steer(e, best.x, best.z, e.speed, dt); if (bd < e.r + .25) { this.fruits.splice(this.fruits.indexOf(best), 1); S.berries += best.val; this.emit({ k: 'bossEat', x: r2(best.x), z: r2(best.z) }); } }
       else if (target) this.steer(e, target.x, target.z, e.speed, dt, e.r + .6);
-      if (target && dist(e, target) < e.r + .6) { e.atkT -= dt; if (e.atkT <= 0) { e.atkT = this.cfg.enemies.meleeInterval; e.lunge = .2; this.hurtPlayer(target, this.cfg.enemies.meleeDamage * e.dmgMul); } }
+      if (target && dist(e, target) < e.r + .6) { e.atkT -= tdt; if (e.atkT <= 0) { e.atkT = this.cfg.enemies.meleeInterval; e.lunge = .2; this.hurtPlayer(target, this.cfg.enemies.meleeDamage * e.dmgMul); } }
       if (S.t <= 0) { S.st = 'charge'; S.t = B.chargeTime; this.sfx('raccoon.attack', e.x, e.z); }
     } else if (S.st === 'charge') {
       if (target) e.face = Math.atan2(target.x - e.x, target.z - e.z);
@@ -1018,7 +1023,7 @@ export class Sim {
         S.t = S.atk === 1 ? B.carousel.duration : 30; // trail and rain end when all bombs are out
       }
     } else {
-      S.next -= dt;
+      S.next -= tdt;
       if (S.atk === 0) { // chasing trail: a head that is fast when far away but turns slowly
         const T = B.trail, n = Math.round(T.count * mult);
         if (target) {
@@ -1031,7 +1036,7 @@ export class Sim {
         if (S.next <= 0 && S.spawned < n) { S.next = T.interval; S.spawned++; this.spitBomb(e, S.hx, S.hz); this.sfx('boss.spit', e.x, e.z); }
         if (S.spawned >= n) S.t = 0;
       } else if (S.atk === 1) { // carousel: spinning, 3 trails in random directions every second
-        const C = B.carousel; e.face += dt * 9;
+        const C = B.carousel; e.face += tdt * 9;
         if (S.next <= 0) {
           S.next = C.every; const n = Math.round(C.count * mult);
           for (let k = 0; k < C.trails; k++) { const a = rand(0, Math.PI * 2); for (let i = 1; i <= n; i++) this.spitBomb(e, e.x + Math.sin(a) * (e.r + i * C.spacing), e.z + Math.cos(a) * (e.r + i * C.spacing)); }
@@ -1065,7 +1070,7 @@ export class Sim {
   // A wave is a schedule of groups (bursts). It ends when its last group has started and at least
   // waves.endKilled of its enemies are gone (killed or fled); then a fixed pause follows. Groups grow during a wave and the wave
   // closes with one big group.
-  wave = 0; wavePause = true; won = false; private waveSpawned = 0;
+  wave = 0; wavePause = true; won = false; private waveSpawned = 0; private bossCount = 0;
   private waveGroups: { at: number; size: number; planned?: PlannedWave }[] = [];
   private pickType(): EnemyType {
     const W = this.cfg.waves, w = this.wave, table: [EnemyType, number][] = [];
@@ -1117,21 +1122,24 @@ export class Sim {
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
     this.wave = w; this.wavePause = false; this.waveGroups = []; this.waveSpawned = 0;
-    const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf * this.nightMul(w).size;
+    const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf * this.nightMul(w).size * (W.countMultiplier ?? 1);
     const gap = Math.max(W.gapMin, W.gapStart - W.gapPerWave * (w - 1));
     const round = (v: number) => Math.max(1, Math.floor(v) + (Math.random() < v % 1 ? 1 : 0));
     let t = 0;
     while (t < D - gap * .5) { const x = t / D; this.waveGroups.push({ at: this.time + t, size: round(base * (W.rampFrom + (W.rampTo - W.rampFrom) * x)) }); t += gap * rand(1 - W.gapJitter, 1 + W.gapJitter); }
     this.waveGroups.push({ at: this.time + D, size: round(base * W.finalMultiplier) }); // big closing group
     if (w === 1) { // wave 1: exactly firstWaveEnemies raccoons, spread over the groups (growing)
-      let left = Math.round(W.firstWaveEnemies * cf);
+      let left = Math.round(W.firstWaveEnemies * cf * (W.countMultiplier ?? 1));
       const gs = this.waveGroups, n = Math.min(gs.length, left);
       this.waveGroups = gs.slice(gs.length - n);
       this.waveGroups.forEach((g, i) => { g.size = i === n - 1 ? left : 1; left -= g.size; });
     }
     this.waveT = 0; this.waveT0 = this.time; this.waveDur = D + 4;
     this.emit({ k: 'waveStart', w });
-    const be = this.bossEvery(); if (be > 0 && w % be === 0) this.spawnBoss(); // boss wave: last wave of every night
+    const BL = this.cfg.enemies.boss.levels;
+    if (BL) { // boss by player level: first wave after reaching level first, first+every, ... (one boss at a time)
+      if (this.level >= BL.first + BL.every * this.bossCount && !this.enemies.some(e => e.boss && !e.dead)) { this.bossCount++; this.spawnBoss(); }
+    } else { const be = this.bossEvery(); if (be > 0 && w % be === 0) this.spawnBoss(); } // boss wave: last wave of every night
   }
   /** test mode: jump to wave w */
   jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
@@ -1386,7 +1394,7 @@ export class Sim {
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
     const owned = new Set([...this.fields.map(f => f.type), ...this.lost]), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
-      if (this.closedType(p, id)) continue;
+      if (this.closedType(p, id) || PL[id].disabled) continue; // disabled: field type switched off for now (nut tree)
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];
       if (isWeaponFruit(id) && !p.skills[id].learned) lines.push(`Unlock: ${N.skills[id]}`);
       const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };

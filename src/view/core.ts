@@ -180,7 +180,8 @@ export const rakeTines = (w: number) => Math.max(4, Math.round(w / TINE_GAP));
 /** flat rectangle in the XZ plane: width along X, length along +Z from the origin (rotate with rotation.y = aim angle) */
 export function rectGeo(w: number, l: number) { const g = new THREE.PlaneGeometry(w, l); g.rotateX(-Math.PI / 2); g.translate(0, 0, l / 2); return g; }
 /** rake stroke: scratch marks of the tines in the ground, one per tine (same spacing as the rake head), each slightly
- *  wavy, tapered and with ragged start/end (random length, short side scratches where the tines bite in and lift off) */
+ *  wavy, tapered and with ragged start/end (random length, short side scratches where the tines bite in and lift off).
+ *  They fill the hit circle: diameter w, far edge `len` ahead; each tine scratches the chord of the circle it crosses. */
 export function rakeSweep(x: number, z: number, angle: number, len: number, w: number) {
   const pos: number[] = [], n = rakeTines(w);
   const strip = (cx: number, z0: number, z1: number, hw: number, wob: number) => {
@@ -195,7 +196,8 @@ export function rakeSweep(x: number, z: number, angle: number, len: number, w: n
     }
   };
   for (let i = 0; i < n; i++) {
-    const cx = -w / 2 + w * (i + .5) / n, z0 = len * rand(0, .14), z1 = len * rand(.8, 1);
+    const r = w / 2, c = len - r, cx = -r + w * (i + .5) / n, h = Math.sqrt(Math.max(0, r * r - cx * cx));
+    const z0 = c - h + 2 * h * rand(0, .12), z1 = c + h - 2 * h * rand(0, .15);
     strip(cx, z0, z1, .011, .012);
     // frayed ends: short skewed scratches where the tine bit in (far end) and lifted off (near end)
     if (Math.random() < .55) { const s = rand(-.03, .03); strip(cx + s, z1 - rand(.06, .16), z1 + rand(0, .05), .006, .01); }

@@ -89,5 +89,6 @@ export function pic(name: string) {
 /** replaces {token} with inline mini icons */
 export function iconText(s: string) {
   const esc = s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  return esc.replace(/\{(\w+)\}/g, (_, n) => `<i class="ic">${mini(n)}</i>`);
+  // {name} = icon, [[text]] = golden highlight (e.g. the increase on a level-up card)
+  return esc.replace(/\{(\w+)\}/g, (_, n) => `<i class="ic">${mini(n)}</i>`).replace(/\[\[(.+?)\]\]/g, '<b class="gold">$1</b>');
 }

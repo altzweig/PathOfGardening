@@ -350,7 +350,7 @@ const ENEMY_NAMES: Record<EnemyType, string> = { raccoon: 'Waschbär', panda: 'P
 /** short labels for the weapon values (test room only) */
 const SB_LABEL: Record<string, string> = {
   damage: 'Schaden', range: 'Reichweite', cooldown: 'Abklingzeit', ammoPerShot: 'Munition/Schuss', radius: 'Radius', speed: 'Tempo', pierce: 'Durchschuss', pierceFactor: 'Durchschuss-Faktor',
-  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite max',
+  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', diameter: 'Durchmesser', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite max',
   fuse: 'Zünder', bleedDuration: 'Blutung Dauer', bleedDps: 'Blutung/s', splashDelay: 'Platzen nach', splashDamage: 'Platzschaden', splashRadius: 'Platzradius', chainRadius: 'Kettenradius',
   transfer: 'Weitergabe', burnDamage: 'Brandschaden', burnStacks: 'Brand-Stapel', burnDuration: 'Brand Dauer', burnTick: 'Brand-Tick', spreadRadius: 'Brand-Sprung', spreadShare: 'Brand-Sprunganteil',
   sweep: 'Schwenk °', sweepPeriod: 'Schwenkdauer', poolDuration: 'Lache Dauer',

@@ -286,11 +286,26 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 
 ## Harkenzug: Zug und Stoß (17.11.2026)
 - Jeder Harkenzug ist gleich, nicht mehr abwechselnd links/rechts (`rake.tilt` entfällt). Zuerst wird die Harke in einer flüssigen Bewegung mit Schwung von vorne nach links hinten gezogen (`rake.pullTime`), dann zügig nach vorne geschoben (`rake.pushTime`).
-- Schaden gibt es beim Aufprall am Ende des Stoßes. Getroffen wird das Rechteck vor dem Spieler (wie bisher `rake.range` × `rake.width`), im selben Moment werden die Felder darin beackert und die Kratzspuren erscheinen.
+- Schaden gibt es beim Aufprall am Ende des Stoßes. Getroffen wird ~~das Rechteck vor dem Spieler~~ seit dem Abend der Trefferkreis (siehe „Harke: Trefferkreis“), im selben Moment werden die Felder darin beackert und die Kratzspuren erscheinen.
 - Getroffene Gegner werden 0,5 s gestunnt (`rake.stun`, Stun-Definition wie überall) und 0,3 m vom Spieler weggestoßen (`rake.knockback`). Bosse bekommen nur Schaden, sonst wären sie bei jedem Zug dauerhaft festgesetzt.
 - Richtungswechsel greifen sofort, auch mitten im Zug: Figur und Harke drehen sich mit, der Aufprall geht in die Richtung, in die der Spieler in diesem Moment schaut. Richtung: Zielen (Maus bzw. Zielstick) > nächster Gegner in Reichweite > Laufrichtung > letzte Richtung.
 - Mit dem Tempo-Upgrade wird der Zug entsprechend schneller, damit er immer vor dem nächsten fertig ist (höchstens 90 % der Abklingzeit).
 
+
+## Harke: Trefferkreis (17.11.2026, abends, ersetzt Rechteck und Breite)
+- Die Harke ist nur Animation. Schaden kommt aus einem Hit-Collider: Immer wenn die Harke voll ausgefahren ist (Ende des Stoßes), gibt es einen Sphere-Overlap. Alle Gegner, deren Kreis ihn berührt, bekommen Schaden, Stun und Rückstoß.
+- Der Kreis liegt zwischen dem Punkt, an dem der Zug vorne endet, und der maximalen Ausdehnung. Sein Durchmesser ist diese Distanz: `rake.diameter` 0,7 m, vordere Kante bei `rake.range` 1,2 m, Mitte also 0,85 m vor dem Spieler. Die Animation zieht immer genau bis zur hinteren Kante des Kreises zurück (mindestens 25 cm vor dem Spieler).
+- Die Breite entfällt. Das Upgrade heißt jetzt Durchmesser (`upgrades.rakeDiameter`, +20 cm); der Harkenkopf bekommt entsprechend mehr Zinken. Wird der Kreis größer als die Reichweite, reicht er auch hinter den Spieler.
+- Beackern nutzt denselben Kreis: Jedes Feld bekommt Ertrag anteilig zur überdeckten Fläche, Bezug ist die Fläche des Grund-Kreises (Grund-Ertrag pro Zug bleibt damit gleich). Die Kratzspuren füllen den Kreis.
+- Alle Harken-Upgrades (Durchmesser, Reichweite, Schaden, Tempo) haben keine Obergrenze mehr.
+- Hinweis Balancing: Der Grund-Kreis (0,38 m²) ist kleiner als das alte Rechteck (1,08 m²), die Harke trifft also anfangs weniger Gegner auf einmal.
+
+## Spargel-Spezial-Upgrades (17.11.2026, abends)
+- Durchbohren: +1, +1, +1 Ziel, als letzte Stufe „alle Ziele“ (Karte: „4 → alle“). Bei der Coleateral Bomb wirkt „alle“ auch auf die Stacheln.
+- Piercing Damage: +10 Prozentpunkte (50 → 100 %). Die Karte zeigt „Piercing Damage“, den bisherigen Wert und dahinter golden „+10 %“.
+- Geschossgröße: +100 % additiv je Stufe bis 500 % (4 Stufen). Die Karte zeigt den bisherigen Wert und dahinter golden „+100 %“. Kombiwaffen, die die Geschossgröße behalten, wachsen genauso mit.
+- Salve (neu, 5 Stufen): statt 3 Bolzen 4 / 5 / 7 / 9 / 12, als Kette hintereinander in derselben Zeit wie die 3er-Salve (Abstand wird kürzer). Jeder Bolzen kostet weiterhin 1 Spargel (12er-Salve = 12 Spargel). Zählt bei Kombiwaffen wie andere nicht übernommene Spezial-Upgrades als Schadensbonus.
+- Goldene Hervorhebung auf Karten: Text in `[[...]]` wird golden dargestellt.
 
 ## Kombiwaffen (17.11.2026)
 - Quelle: Bastis Tabelle „PathOfGardening – Waffenkombinationen“ (Claude Doc). Umsetzungs-Prompt: `Kombiwaffen-Prompt.md`. Zahlen in `balancing.yaml` unter `combos`.

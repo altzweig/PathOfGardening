@@ -343,7 +343,7 @@ export class GameView {
 
   private rakeW = 0;
   setConfig(cfg: Balancing) {
-    this.rakeW = cfg.rake.width;
+    this.rakeW = cfg.rake.diameter;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
@@ -381,11 +381,11 @@ export class GameView {
       const look = this.lookFor(ps.id, ps.c), lk = lookKey(look);
       if (v && v.lookKey !== lk) { // look changed (co-op: arrived after the figure was built) -> rebuild the figure
         this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.label) this.dyn.remove(v.label);
-        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
+        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.diameter); this.dyn.add(b.g);
         Object.assign(v, b, { lookKey: lk, xbow: undefined, label: undefined, cw: undefined });
       }
       if (!v) {
-        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.width); this.dyn.add(b.g);
+        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.diameter); this.dyn.add(b.g);
         const ring = new THREE.Mesh(GEO.ring, addMat(PLAYER_RING[ps.c % 4], .4)); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(.5); ring.position.y = .035; this.dyn.add(ring);
         v = { ...b, ring, bar: makeBar(.7, .07, 0x6fcf4a), s: ps, x: ps.x, z: ps.z, rot: ps.f, recoil: 0, lookKey: lk, walk: 0 };
         this.players.set(ps.id, v);
@@ -666,7 +666,7 @@ export class GameView {
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
       case 'impact': punchStar(e.x, e.z, .45); break;
       case 'swipe': {
-        rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.width);
+        rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.diameter);
         break;
       }
       case 'shot': {
@@ -809,12 +809,13 @@ export class GameView {
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
     // rake model: handle from the hands (pivot .62 m up) to the head; head distance d and height y set length + tilt
     const R = this.cfg.rake, reach = s.rr || R.range, L0 = R.range - .12, HY = .62;
-    const rw = s.ra || R.width; // width upgrade: rebuild the head with more tines (nothing stretched)
+    const rw = s.ra || R.diameter; // diameter upgrade: rebuild the head with more tines (nothing stretched)
     if (v.head.userData.w !== rw) { const h = rakeHead(rw); h.position.copy(v.head.position); v.rake.remove(v.head); v.rake.add(h); v.head = h; }
     v.rake.position.z = 0;
     const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
     if (swinging) { // one stroke, always the same: pull from the front to the left back in one swing, then shove forward
-      const RC = this.cfg.rake, P = RC.pullTime / (RC.pullTime + RC.pushTime), k = s.sw, BACK = 1.75, NEAR = .5;
+      // the pull ends at the near edge of the hit circle, the push goes out to the full reach (far edge)
+      const RC = this.cfg.rake, P = RC.pullTime / (RC.pullTime + RC.pushTime), k = s.sw, BACK = 1.75, NEAR = Math.max(.25, reach - rw);
       let yaw: number, d: number, y: number, lean: number;
       if (k < P) { // pull: head drags over the ground, sweeps round to the left back and lifts off at the end (swing)
         const t = k / P, e = t * t * (3 - 2 * t);

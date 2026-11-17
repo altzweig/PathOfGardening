@@ -142,6 +142,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 .card .pic svg{width:72%;height:72%;filter:drop-shadow(0 3px 3px #000)}
 .card h3{margin:2px 0 0;font-family:var(--f-display);font-size:18px;color:var(--gold);text-align:center;text-wrap:balance}
 .card .ln{font-size:17px;font-weight:700;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.card .gold{color:var(--gold);text-shadow:0 0 8px #e3b96466}
 .ic{display:inline-block;width:22px;height:22px;vertical-align:middle}
 .ic svg{width:100%;height:100%;display:block}
 .cards-done .card{opacity:.4;pointer-events:none}

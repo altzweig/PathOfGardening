@@ -52,10 +52,10 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Breite | +20 cm breitere Harke (Karte zeigt cm) | 10 | `upgrades.rakeWidth` |
-| Reichweite | +20 cm weiter vor sich harken (Länge des Rechtecks, Karte zeigt cm) | 10 | `upgrades.rakeRange` |
-| Schaden | +20 % Grundschaden | 10 | `upgrades.rakeDamage` |
-| Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | 5 | `upgrades.rakeSpeed` |
+| Durchmesser | Trefferkreis +20 cm Durchmesser (Karte zeigt cm) | unbegrenzt | `upgrades.rakeDiameter` |
+| Reichweite | +20 cm maximale Ausdehnung (Karte zeigt cm) | unbegrenzt | `upgrades.rakeRange` |
+| Schaden | +20 % Grundschaden | unbegrenzt | `upgrades.rakeDamage` |
+| Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | unbegrenzt | `upgrades.rakeSpeed` |
 
 ## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)
 
@@ -68,9 +68,10 @@ Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skill
 ### Spargel-Armbrust
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Durchbohren | +1 durchbohrtes Ziel | 4 Ziele gesamt | `upgrades.aspPierce` |
-| Durchbohr-Schaden | +10 Prozentpunkte Restschaden (Start 50 %, max. 100 %) | 5 Stufen | `upgrades.aspPierceBonus` |
-| Geschossgröße | Geschoss +30 % breiter | 5 Stufen | `upgrades.aspSize`, `skills.asp.width` |
+| Durchbohren | +1, +1, +1 durchbohrtes Ziel, letzte Stufe: alle Ziele | 4 Stufen | `upgrades.aspPierce` |
+| Piercing Damage | +10 Prozentpunkte Restschaden (Start 50 %, max. 100 %); Karte: „Piercing Damage“, alter Wert, goldenes +10 % | 5 Stufen | `upgrades.aspPierceBonus` |
+| Geschossgröße | +100 % additiv (100 → 500 %); Karte: alter Wert, goldenes +100 % | 4 Stufen | `upgrades.aspSize`, `skills.asp.width` |
+| Salve | 4 / 5 / 7 / 9 / 12 Bolzen statt 3, in derselben Salvenzeit wie 3 Bolzen | 5 Stufen | `upgrades.aspSalvo` |
 
 ### Preiselbeer-Schrotflinte
 | Karte | Effekt | Max. | Parameter |
@@ -118,5 +119,5 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 5 Schaden, Rechteck 1,2 m lang × 0,9 m breit vor dem Spieler, 0,5 s. Zug nach links hinten, dann Stoß nach vorne: beim Aufprall Schaden, 0,5 s Stun, 0,3 m Rückstoß, beackert alle Felder im Rechteck anteilig zur Fläche | `rake.*`, `fields.till*` |
+| Harke | 5 Schaden, Trefferkreis 0,7 m Durchmesser, vordere Kante 1,2 m vor dem Spieler, 0,5 s. Zug nach links hinten, dann Stoß nach vorne: beim Aufprall Schaden, 0,5 s Stun, 0,3 m Rückstoß, beackert alle Felder im Kreis anteilig zur Fläche | `rake.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

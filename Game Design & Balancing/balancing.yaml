@@ -171,8 +171,8 @@ plants:
 
 rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
-  range: 1.2               # m, so weit vor sich legt man die Harke an und zieht sie bis zu sich zurück (Länge des Rechtecks)
-  width: 0.9               # m, Breite des geharkten Rechtecks (Treffer + Beackern)
+  range: 1.2               # m, maximale Ausdehnung der Harke (vordere Kante des Trefferkreises)
+  diameter: 0.7            # m, Trefferkreis (Sphere-Overlap) zwischen Zug-Ende vorne und maximaler Ausdehnung, Durchmesser = diese Distanz (17.11.2026, ersetzt die Breite); Treffer + Beackern
   cooldown: 0.5            # s
   pullTime: 0.22           # s, Zug: Harke in einem Schwung von vorne nach links hinten ziehen (17.11.2026, immer gleich, nicht mehr abwechselnd)
   pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
@@ -251,13 +251,14 @@ upgrades:
   damagePerLevel: 0.20     # +10 % Schaden je Stufe (additiv)
   rangePerLevel: 0.20      # +10 % Reichweite / Radius je Stufe (additiv)
   cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
-  aspPierce:      { step: 1,    max: 4 }       # max = Gesamtzahl Ziele
-  aspPierceBonus: { step: 0.10, maxLevel: 5 }  # +10 Prozentpunkte Durchbohr-Schaden (50 -> 100 %)
-  aspSize:        { step: 0.30, maxLevel: 5 }  # Spargel-Geschoss +30 % größer (Breite)
-  rakeWidth:      { step: 0.20, maxLevel: 10 } # Harke +20 cm breiter
-  rakeRange:      { step: 0.20, maxLevel: 10 } # Harke +20 cm weiter (Länge des Rechtecks, absolut, in m)
-  rakeDamage:     { step: 0.20, maxLevel: 10 } # Harke +20 % Grundschaden (additiv)
-  rakeSpeed:      { step: 0.10, maxLevel: 5 }  # Harke Abklingzeit x 0.9 je Stufe (multiplikativ) -> schneller schlagen UND mehr Ertrag beim Harken
+  aspPierce:      { step: 1,    max: 4 }       # Durchbohren +1, +1, +1 bis max, letzte Stufe danach: alle Ziele (17.11.2026)
+  aspPierceBonus: { step: 0.10, maxLevel: 5 }  # Piercing Damage +10 Prozentpunkte (50 -> 100 %), Karte: alter Wert + goldenes +10 %
+  aspSize:        { step: 1.00, maxLevel: 4 }  # Geschossgröße +100 % additiv je Stufe, max 500 % (17.11.2026), Karte: alter Wert + goldenes +100 %
+  aspSalvo:       { shots: [4, 5, 7, 9, 12] }  # Salve: Bolzen je Stufe statt 3, in derselben Salvenzeit wie 3 Bolzen (17.11.2026)
+  rakeDiameter:   { step: 0.20 }               # Harke Trefferkreis +20 cm Durchmesser, ohne Obergrenze (17.11.2026)
+  rakeRange:      { step: 0.20 }               # Harke +20 cm weiter (maximale Ausdehnung), ohne Obergrenze
+  rakeDamage:     { step: 0.20 }               # Harke +20 % Grundschaden (additiv), ohne Obergrenze
+  rakeSpeed:      { step: 0.10 }               # Harke Abklingzeit x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
   tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { maxLevel: 3, order: [2, 1, 0] }      # +1 Ziel: erst 3. Glied, dann 2. Glied, dann Hauptziel
   lemonTransfer:  { step: 0.10, maxLevel: 4 }            # +10 % Weiterleitung (50 -> 60 %, 2. Glied 36 %)

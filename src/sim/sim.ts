@@ -9,6 +9,8 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 const SQ3 = Math.sqrt(3);
+/** asparagus pierce level "every target" */
+const PIERCE_ALL = 999;
 const FRUIT_BURST: Record<FruitType, number> = { blue: 0x4a6cff, asp: 0x9cff60, cran: 0xd0203a, cab: 0x6fbf3a, lemon: 0xffe040, chili: 0xff3a10, nut: 0xb07a3a };
 // ---------- hex field grid (pointy-top axial, fields touch each other) ----------
 /** forest: slot outside the garden (in the forest), only for forest field types (nut tree) */
@@ -50,7 +52,7 @@ export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const triPlant = (x: number, z: number, H: number, k: number): [number, number] => { const a = cornerAngle(k) + Math.PI / 6, r = H * .577; return [x + Math.cos(a) * r, z + Math.sin(a) * r]; };
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
+interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; mineLv: number; minis: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -59,7 +61,7 @@ export interface Player {
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
-  fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; wid: number; cd: number };
+  fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; dia: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
   xbT: number; handT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
   /** collected nuts (nut trees in the forest) */
@@ -164,13 +166,13 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
+    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, mineLv: 0, minis: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, wid: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.players.push(p);
@@ -358,13 +360,14 @@ export class Sim {
     const B = S[id] as any;
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
     const range = (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: range to the first target
-    const shots = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1; // crossbow: cd = one whole salvo
+    // crossbow: cd = one whole salvo; the salvo upgrade adds bolts that fit into the time the base salvo takes
+    const shots0 = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1, shots = id === 'asp' && s.salvoLv > 0 ? U.aspSalvo.shots[Math.min(s.salvoLv, U.aspSalvo.shots.length) - 1] : shots0;
     const size = 1 + U.aspSize.step * s.sizeLv;
     const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
       ...fl, tick,
       dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
-      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown,
+      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
@@ -383,7 +386,9 @@ export class Sim {
   /** rake stats per player (rake upgrades) */
   rakeStats(p: Player) {
     const R = this.cfg.rake, U = this.cfg.upgrades;
-    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range: R.range + U.rakeRange.step * p.rakeLv.rng, width: R.width + (U.rakeWidth?.step ?? 0) * (p.rakeLv.wid || 0), kb: R.knockback, cd: R.cooldown * Math.pow(1 - (U.rakeSpeed?.step ?? 0), p.rakeLv.cd || 0) };
+    const range = R.range + U.rakeRange.step * p.rakeLv.rng, dia = R.diameter + U.rakeDiameter.step * (p.rakeLv.dia || 0);
+    // hit circle: its far edge is the full reach, its near edge where the pull ends -> centre (range - dia/2) ahead
+    return { dmg: R.damage * (1 + U.rakeDamage.step * p.rakeLv.dmg), range, dia, centre: range - dia / 2, kb: R.knockback, cd: R.cooldown * Math.pow(1 - (U.rakeSpeed?.step ?? 0), p.rakeLv.cd || 0) };
   }
   /** can fire whenever there is ammo for one shot ("ready" is only the HUD/weapon-cycle threshold) */
   /** at most weaponSlots.max weapons besides the rake; once reached, no other weapons, their fields or upgrades are offered */
@@ -529,41 +534,37 @@ export class Sim {
     if (n) { const dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; }
     return [p.aimX, p.aimZ];
   }
-  /** the rake is laid down `range` m ahead and pulled back to the feet: it sweeps a rectangle (length range, width width) */
-  private inRakeRect(p: Player, e: Enemy, dx: number, dz: number) {
-    const RS = this.rakeStats(p), ex = e.x - p.x, ez = e.z - p.z;
-    const u = ex * dx + ez * dz, v = ex * dz - ez * dx; // along / across the pull
-    return u >= -e.r && u <= RS.range + e.r * .5 && Math.abs(v) <= RS.width / 2 + e.r * .5;
+  /** rake hit: a sphere overlap at the end of the push. The rake model is only the animation; the damage comes from a
+   *  circle between the point where the pull ends and the full reach (diameter = that distance, upgradable) */
+  private inRakeCircle(p: Player, e: Enemy, dx: number, dz: number) {
+    const RS = this.rakeStats(p), cx = p.x + dx * RS.centre, cz = p.z + dz * RS.centre;
+    return Math.hypot(e.x - cx, e.z - cz) <= RS.dia / 2 + e.r;
   }
-  /** rake rectangle in world space (counter-clockwise): near edge at the player, far edge `range` ahead */
-  rakeRect(p: Player, dx: number, dz: number): [number, number][] {
-    const RS = this.rakeStats(p), L = RS.range, w = RS.width / 2, nx = -dz, nz = dx;
-    return [[p.x + nx * w, p.z + nz * w], [p.x - nx * w, p.z - nz * w], [p.x - nx * w + dx * L, p.z - nz * w + dz * L], [p.x + nx * w + dx * L, p.z + nz * w + dz * L]];
-  }
-  /** area of the rake rectangle on each of the 6 triangles of a hex field (triangle k: centre, corner k, corner k+1;
-   *  one plant stands in each). Each triangle is clipped by the 4 rectangle edges (Sutherland-Hodgman + shoelace). */
+  /** area of the rake circle on each of the 6 triangles of a hex field (triangle k: centre, corner k, corner k+1;
+   *  one plant stands in each). The circle is a 32-gon; each triangle is clipped by its edges (Sutherland-Hodgman + shoelace). */
   rakeOverlap(f: Field, p: Player, dx: number, dz: number): number[] {
-    const RS = this.rakeStats(p), H = hexR(this.cfg), out = [0, 0, 0, 0, 0, 0];
-    if (Math.hypot(f.x - p.x, f.z - p.z) > RS.range + RS.width + H) return out;
-    // points in rake space: u along the pull (0..range), v across (-w/2..w/2)
-    const toR = (x: number, z: number): [number, number] => { x -= p.x; z -= p.z; return [x * dx + z * dz, x * dz - z * dx]; };
-    const c = toR(f.x, f.z), cs: [number, number][] = [];
-    for (let k = 0; k < 6; k++) { const a = cornerAngle(k); cs.push(toR(f.x + Math.cos(a) * H, f.z + Math.sin(a) * H)); }
-    for (let k = 0; k < 6; k++) out[k] = this.clipArea([c, cs[k], cs[(k + 1) % 6]], RS.range, RS.width);
+    const RS = this.rakeStats(p), H = hexR(this.cfg), out = [0, 0, 0, 0, 0, 0], r = RS.dia / 2;
+    const cx = p.x + dx * RS.centre, cz = p.z + dz * RS.centre;
+    if (Math.hypot(f.x - cx, f.z - cz) > r + H) return out;
+    // points relative to the circle centre
+    const c: [number, number] = [f.x - cx, f.z - cz], cs: [number, number][] = [];
+    for (let k = 0; k < 6; k++) { const a = cornerAngle(k); cs.push([c[0] + Math.cos(a) * H, c[1] + Math.sin(a) * H]); }
+    for (let k = 0; k < 6; k++) out[k] = this.clipCircle([c, cs[k], cs[(k + 1) % 6]], r);
     return out;
   }
-  private clipArea(tri: [number, number][], L: number, W: number) {
+  private clipCircle(tri: [number, number][], r: number) {
+    const N = 32; // edges touch the circle from outside (area +0.3 %)
     let poly = tri;
-    const clip = (pl: [number, number][], ax: 0 | 1, lim: number, keepBelow: boolean) => {
-      const out: [number, number][] = [], inside = (q: [number, number]) => keepBelow ? q[ax] <= lim : q[ax] >= lim;
-      for (let i = 0; i < pl.length; i++) {
-        const a = pl[i], b = pl[(i + 1) % pl.length], ia = inside(a), ib = inside(b);
-        if (ia) out.push(a);
-        if (ia !== ib) { const t = (lim - a[ax]) / (b[ax] - a[ax]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    for (let i = 0; i < N && poly.length; i++) { // half plane: x*nx + z*nz <= r (tangent edge with outward normal n)
+      const t = (i + .5) / N * Math.PI * 2, nx = Math.cos(t), nz = Math.sin(t), out: [number, number][] = [];
+      const d = (q: [number, number]) => q[0] * nx + q[1] * nz - r;
+      for (let j = 0; j < poly.length; j++) {
+        const a = poly[j], b = poly[(j + 1) % poly.length], da = d(a), db = d(b);
+        if (da <= 0) out.push(a);
+        if ((da <= 0) !== (db <= 0)) { const k = da / (da - db); out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]); }
       }
-      return out;
-    };
-    poly = clip(poly, 0, 0, false); poly = clip(poly, 0, L, true); poly = clip(poly, 1, -W / 2, false); poly = clip(poly, 1, W / 2, true);
+      poly = out;
+    }
     let A = 0; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; A += a[0] * b[1] - b[0] * a[1]; }
     return Math.abs(A) / 2;
   }
@@ -585,12 +586,12 @@ export class Sim {
     const ml = Math.hypot(it.mx, it.mz); if (ml > .05) return [it.mx / ml, it.mz / ml];
     return [p.aimX, p.aimZ];
   }
-  /** impact at the end of the push: the rake lands `range` m ahead and covers the rectangle (length range, width width):
+  /** impact at the end of the push (rake fully extended): sphere overlap of the hit circle (see inRakeCircle):
    *  hits every enemy in it (damage, stun, knockback) and tills every field it covers (in proportion to the covered area) */
   rakeImpact(p: Player, dx: number, dz: number) {
     const R = this.cfg.rake, RS = this.rakeStats(p);
-    const targets = this.enemies.filter(e => !e.dead && this.inRakeRect(p, e, dx, dz));
-    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(Math.atan2(dx, dz)), p: p.id, r: r2(RS.range), w: r2(RS.width) });
+    const targets = this.enemies.filter(e => !e.dead && this.inRakeCircle(p, e, dx, dz));
+    this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(Math.atan2(dx, dz)), p: p.id, r: r2(RS.range), w: r2(RS.dia) });
     this.till(p, dx, dz);
     let hits = 0;
     for (const e of targets) {
@@ -601,11 +602,11 @@ export class Sim {
     }
     if (hits) this.emit({ k: 'punches', n: hits, x: r2(p.x), z: r2(p.z) });
   }
-  /** tilling: every field under the rake rectangle advances its harvest by tillStroke s x (covered area / area of the
-   *  base rake). Raking a field with the base rake: harvest every (interval x rake cooldown); wider/longer rake and
+  /** tilling: every field under the rake circle advances its harvest by tillStroke s x (covered area / area of the
+   *  base rake circle). Raking a field with the base rake: harvest every (interval x rake cooldown); wider/longer rake and
    *  faster cooldown = more yield. A harvest completed by a stroke falls out of the bushes. */
   till(p: Player, dx: number, dz: number) {
-    const F = this.cfg.fields, R = this.cfg.rake, A0 = R.range * R.width;
+    const F = this.cfg.fields, R = this.cfg.rake, A0 = Math.PI * R.diameter * R.diameter / 4;
     let best: Field | null = null, bestA = 0, any = false;
     for (const f of this.fields) {
       if (!f.alive) continue;
@@ -626,8 +627,8 @@ export class Sim {
     for (const o of this.fields) if (o !== best && o.tilledBy === p.id) o.tilledBy = -1;
     if (best) best.tilledBy = p.id;
     const RS = this.rakeStats(p);
-    this.sfx('player.till', p.x + dx * RS.range * .5, p.z + dz * RS.range * .5);
-    this.burst(p.x + dx * RS.range * .4, .1, p.z + dz * RS.range * .4, 0x8a6a3a, 10, 1.2, .14, .4, { g: 4 });
+    this.sfx('player.till', p.x + dx * RS.centre, p.z + dz * RS.centre);
+    this.burst(p.x + dx * RS.centre, .1, p.z + dz * RS.centre, 0x8a6a3a, 10, 1.2, .14, .4, { g: 4 });
   }
   /** while a field is being tilled it heals (also back up from 0 HP), and so do the tilling player and team mates standing on it */
   tillHeal(f: Field, dt: number) {
@@ -736,12 +737,12 @@ export class Sim {
     const p = this.player(id); if (!p) return [];
     const N = this.cfg.names, rows: [string, string, string, number][] = [];
     rows.push(['level', 'Spieler', 'Stufe', this.level], ['hp', 'Spieler', 'Leben (− = 10 Schaden, + = voll)', Math.ceil(p.hp)]);
-    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.wid', N.skills.rake, 'Breite', p.rakeLv.wid], ['rake.cd', N.skills.rake, 'Tempo', p.rakeLv.cd]);
+    rows.push(['rake.dmg', N.skills.rake, 'Schaden', p.rakeLv.dmg], ['rake.rng', N.skills.rake, 'Reichweite', p.rakeLv.rng], ['rake.dia', N.skills.rake, 'Durchmesser', p.rakeLv.dia], ['rake.cd', N.skills.rake, 'Tempo', p.rakeLv.cd]);
     for (const sid of SKILLS) {
       const s = p.skills[sid], g = N.skills[sid];
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
         [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
-      if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv]);
+      if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
       if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, '+1 Ziel', s.tgtLv], ['lemon.xferLv', g, 'Weiterleitung', s.xferLv]);
@@ -867,13 +868,16 @@ export class Sim {
   }
   // ---------- combo weapons ----------
   get CB() { return this.cfg.combos!; }
+  /** asparagus pierce upgrade: +step up to `max` targets, the last level pierces every target (PIERCE_ALL) */
+  pierceLv(s: SkillState) { const U = this.cfg.upgrades.aspPierce, b = this.cfg.skills.asp.pierce, n = Math.round(((U.max ?? 4) - b) / U.step); return s.pierce >= PIERCE_ALL ? n + 1 : Math.round((s.pierce - b) / U.step); }
+  pierceUp(s: SkillState) { const U = this.cfg.upgrades.aspPierce; s.pierce = s.pierce >= (U.max ?? 4) ? PIERCE_ALL : s.pierce + U.step; }
   /** upgrades taken for one weapon (all kinds) */
   upCount(id: SkillId, s: SkillState) {
-    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? s.pierce - this.cfg.skills.asp.pierce : 0) + s.pierceBonus + s.sizeLv + s.extraPel + s.mineLv + s.minis + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
+    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.mineLv + s.minis + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
   }
   /** special upgrade levels of a weapon by upgrade key (asp_pierce, cran_pel, ...) */
   private specials(id: SkillId, s: SkillState): Record<string, number> {
-    const all: Record<string, number> = { asp_pierce: s.pierce - this.cfg.skills.asp.pierce, asp_pb: s.pierceBonus, asp_size: s.sizeLv, cran_pel: s.extraPel, cran_mine: s.mineLv, cab_mini: s.minis, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
+    const all: Record<string, number> = { asp_pierce: this.pierceLv(s), asp_pb: s.pierceBonus, asp_size: s.sizeLv, asp_salvo: s.salvoLv, cran_pel: s.extraPel, cran_mine: s.mineLv, cab_mini: s.minis, lemon_tgt: s.tgtLv, lemon_xfer: s.xferLv, chili_sweep: s.sweepLv, chili_tick: s.tickLv };
     const out: Record<string, number> = {}; for (const k in all) if (k.startsWith(id + '_')) out[k] = Math.max(0, all[k]); return out;
   }
   /** combo weapon owned by this main weapon state: every upgrade of both weapons folded into one set of numbers */
@@ -889,7 +893,7 @@ export class Sim {
       links: 0, linkRange: 0, minis: 0, berryDmg: 0, spikeDmg: 0, splash: 0 };
     switch (cid) {
       case 'jam': o.shots = C.burstShots + k('cran_pel'); o.gap = C.burstGap * cm; o.width = C.width * (1 + U.aspSize.step * k('asp_size')); o.radius = C.blastRadius * (1 + .1 * k('cran_mine')); o.blast = C.blastDamage; break;
-      case 'cole': o.range = C.throwDistance; o.count = C.spikes + 4 * k('cab_mini'); o.pierce = C.spikePierce + k('asp_pierce'); o.pf = Math.min(1, .7 + U.aspPierceBonus.step * k('asp_pb')); o.width = .22 * (1 + U.aspSize.step * k('asp_size')); o.spikeDmg = C.spikeDamage * dm; o.linkRange = C.spikeRange * rm; break;
+      case 'cole': o.range = C.throwDistance; o.count = C.spikes + 4 * k('cab_mini'); o.pierce = keep.includes('asp_pierce') && (C.main === 'asp' ? m : u).pierce >= PIERCE_ALL ? PIERCE_ALL : C.spikePierce + k('asp_pierce'); o.pf = Math.min(1, .7 + U.aspPierceBonus.step * k('asp_pb')); o.width = .22 * (1 + U.aspSize.step * k('asp_size')); o.spikeDmg = C.spikeDamage * dm; o.linkRange = C.spikeRange * rm; break;
       case 'sour': o.count = C.arrows + k('lemon_tgt'); o.width = C.width * (1 + U.aspSize.step * k('asp_size')); o.shock = C.shockDamage + .1 * k('lemon_xfer'); break;
       case 'lance': o.radius = C.radius * (1 + .3 * k('asp_size')); o.tick = chTick(S.chili.burnTick); break;
       case 'cabboom': o.range = C.throwDistance; o.count = C.berries + 2 * k('cran_pel'); o.berryDmg = C.berryDamage * dm * (1 + .1 * k('cran_mine')); o.minis = k('cab_mini'); break;
@@ -1545,7 +1549,7 @@ export class Sim {
     const xa = p.skills.asp; // crossbow salvo: remaining bolts follow at burstGap, re-aimed each time
     if (xa.burst > 0) {
       xa.burstT -= dt * sf;
-      if (xa.burstT <= 0) {
+      while (xa.burst > 0 && xa.burstT <= 0) { // several bolts per frame if the gap is shorter than a frame (big salvos)
         if (!p.alive || !this.canFire(p, 'asp')) xa.burst = 0;
         else if (xa.combo === 'jam') { const cs = this.comboStats(xa), d = this.aimDir(p, cs.range); this.jamBolt(p, d[0], d[1], cs, true); xa.burst--; xa.burstT += cs.gap; }
         else { const st = this.stats('asp', xa), d = this.aimDir(p, st.range); this.aspBolt(p, d[0], d[1], st, true); xa.burst--; xa.burstT += st.gap; }
@@ -1793,9 +1797,11 @@ export class Sim {
         if (a.tick > T.min + 1e-6) mk('chili_tick', x => x.tickLv++, b => `{fire} {cd} ${nf(a.tick, 2)} → ${nf(b.tick, 2)} s`);
       }
       if (id === 'asp') {
-        if (s.pierce < (U.aspPierce.max || 4)) mk('asp_pierce', x => x.pierce += U.aspPierce.step, b => `{pierce} ${a.pierce} → ${b.pierce}`);
-        if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) mk('asp_pb', x => x.pierceBonus++, b => `{pierce} ${nf(a.pf * 100)} → ${nf(b.pf * 100)} %`);
-        if (s.sizeLv < (U.aspSize.maxLevel || 5)) mk('asp_size', x => x.sizeLv++, b => `{size} ${nf(a.width * 100)} → ${nf(b.width * 100)} cm`);
+        // [[...]] = golden increase on the card
+        if (s.pierce < PIERCE_ALL) mk('asp_pierce', x => this.pierceUp(x), b => `{pierce} ${a.pierce} → ${b.pierce >= PIERCE_ALL ? 'alle' : b.pierce}`);
+        if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) { const b = this.stats('asp', { ...s, pierceBonus: s.pierceBonus + 1 }); pool.push({ key: 'asp_pb', cat: 'skill', w: 1, pic: 'skill_asp', title: N.skills.asp, lines: ['Piercing Damage', `{pierce} ${nf(a.pf * 100)} % [[+${nf((b.pf - a.pf) * 100)} %]]`] }); }
+        if (s.salvoLv < U.aspSalvo.shots.length) mk('asp_salvo', x => x.salvoLv++, b => `{pellet} ${a.shots} → ${b.shots}`);
+        if (s.sizeLv < (U.aspSize.maxLevel || 4)) mk('asp_size', x => x.sizeLv++, b => `{size} ${nf(a.size * 100)} % [[+${nf((b.size - a.size) * 100)} %]]`);
       }
       if (id === 'cran') {
         if (s.extraPel < (U.cranPellets.maxLevel || 3)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} → ${b.pellets}`);
@@ -1808,13 +1814,13 @@ export class Sim {
       }
       if (id === 'cab' && s.minis < (U.cabMini.maxLevel || 5)) mk('cab_mini', x => x.minis += U.cabMini.step, b => `{mini} ${a.minis} → ${b.minis}`);
     }
-    // starting weapon (rake) upgrades: always available until maxed
-    { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, lv: number, max: number | undefined, line: string) => { if (lv < (max || 10)) pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] }); };
+    // starting weapon (rake) upgrades: always available, no limit
+    { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, line: string) => pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] });
       const nx = { ...p, rakeLv: { ...RL } } as Player;
-      nx.rakeLv = { ...RL, wid: RL.wid + 1 }; if (U.rakeWidth) mkR('rake_wid', RL.wid, U.rakeWidth.maxLevel, `{arc} ${nf(RS.width * 100)} → ${nf(this.rakeStats(nx).width * 100)} cm`);
-      nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', RL.rng, U.rakeRange.maxLevel, `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
-      nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', RL.dmg, U.rakeDamage.maxLevel, `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
-      nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', RL.cd, U.rakeSpeed.maxLevel, `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
+      nx.rakeLv = { ...RL, dia: RL.dia + 1 }; mkR('rake_dia', `{radius} ${nf(RS.dia * 100)} → ${nf(this.rakeStats(nx).dia * 100)} cm`);
+      nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
+      nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
+      nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
     // field care: tilling heals the tilled field
     if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; fieldPool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
     for (const f of FRUITS) if (this.fieldOf(f) && !this.closedType(p, f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
@@ -1861,22 +1867,23 @@ export class Sim {
     const cid = s.combo as ComboId, C = this.CB.list[cid], U = this.cfg.upgrades, title = this.cfg.names.combos?.[cid] ?? cid, a = this.comboStats(s);
     const icon: [keyof ComboStats, string, number, string][] = [['dmg', '{dmg}', 1, ''], ['spikeDmg', '{dmg}', 1, ''], ['berryDmg', '{dmg}', 1, ''], ['count', '{pellet}', 0, ''], ['shots', '{pellet}', 0, ''], ['pierce', '{pierce}', 0, ''], ['pf', '{pierce}', 0, ' %'],
       ['radius', '{radius}', 1, ' m'], ['width', '{size}', 0, ' cm'], ['links', '{chain}', 0, ''], ['linkRange', '{chain}', 1, ' m'], ['shock', '{chain}', 0, ' %'], ['shockR', '{radius}', 0, ' cm'], ['minis', '{mini}', 0, ''], ['tick', '{fire} {cd}', 2, ' s'], ['shockTick', '{chain} {cd}', 2, ' s'], ['range', '{range}', 1, ' m'], ['cd', '{cd}', 2, ' s']];
-    const show = (k: keyof ComboStats, v: number) => k === 'pf' || k === 'shock' ? v * 100 : k === 'width' || k === 'shockR' ? v * 100 : v;
+    const show = (k: keyof ComboStats, v: number): number | string => k === 'pierce' && v >= PIERCE_ALL ? 'alle' : k === 'pf' || k === 'shock' ? v * 100 : k === 'width' || k === 'shockR' ? v * 100 : v;
     const card = (key: string, mut: (m: SkillState, u: SkillState) => void) => {
+      const fmt = (v: number | string) => typeof v === 'string' ? v : nf(v, d);
       const m2 = { ...s }, u2 = { ...s.partner! }; m2.partner = u2; mut(m2, u2); const b = this.comboStats(m2);
       const diff = icon.find(([k]) => Math.abs((b[k] as number) - (a[k] as number)) > 1e-6); if (!diff) return;
       const [k, ic, d, unit] = diff;
-      pool.push({ key, cat: 'skill', w: 1, pic: 'combo_' + cid, title, lines: [`${ic} ${nf(show(k, a[k] as number), d)} → ${nf(show(k, b[k] as number), d)}${unit}`] });
+      pool.push({ key, cat: 'skill', w: 1, pic: 'combo_' + cid, title, lines: [`${ic} ${fmt(show(k, a[k] as number))} → ${fmt(show(k, b[k] as number))}${unit}`] });
     };
     card(id + '_dmg', m => m.lvDmg++);
     card(id + '_rng', m => m.lvRange++);
     card(id + '_cd', m => m.lvCd++);
-    const lim: Record<string, [string, number]> = { asp_pierce: ['pierce', (U.aspPierce.max || 4) + 4], asp_pb: ['pierceBonus', U.aspPierceBonus.maxLevel || 5], asp_size: ['sizeLv', U.aspSize.maxLevel || 5], cran_pel: ['extraPel', U.cranPellets.maxLevel || 3], cran_mine: ['mineLv', U.cranSplash.maxLevel || 5],
+    const lim: Record<string, [string, number]> = { asp_pierce: ['pierce', PIERCE_ALL], asp_pb: ['pierceBonus', U.aspPierceBonus.maxLevel || 5], asp_size: ['sizeLv', U.aspSize.maxLevel || 4], cran_pel: ['extraPel', U.cranPellets.maxLevel || 3], cran_mine: ['mineLv', U.cranSplash.maxLevel || 5],
       cab_mini: ['minis', U.cabMini.maxLevel || 5], lemon_tgt: ['tgtLv', U.lemonTargets.maxLevel + 2], lemon_xfer: ['xferLv', U.lemonTransfer.maxLevel || 4], chili_sweep: ['sweepLv', 8], chili_tick: ['tickLv', 8] };
     for (const key of C.keep || []) {
       const [sk] = key.split('_') as [SkillId], L = lim[key]; if (!L) continue;
       const st = sk === C.main ? s : s.partner!; if ((st as any)[L[0]] >= L[1]) continue;
-      card(key, (m, u) => { const t: any = sk === C.main ? m : u; t[L[0]] += key === 'asp_pierce' ? U.aspPierce.step : key === 'cab_mini' ? U.cabMini.step : 1; });
+      card(key, (m, u) => { const t: any = sk === C.main ? m : u; if (key === 'asp_pierce') this.pierceUp(t); else t[L[0]] += key === 'cab_mini' ? U.cabMini.step : 1; });
     }
   }
   applyOffer(p: Player, key: string) {
@@ -1888,7 +1895,7 @@ export class Sim {
     if (a === 'field') { p.placing = b as FruitType; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
-    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'wid') p.rakeLv.wid++; else if (b === 'cd') p.rakeLv.cd++; return; }
+    if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'dia') p.rakeLv.dia++; else if (b === 'cd') p.rakeLv.cd++; return; }
     if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
@@ -1902,9 +1909,10 @@ export class Sim {
       case 'chili_cd': s.lvCd++; break;
       case 'chili_sweep': s.sweepLv++; break;
       case 'chili_tick': s.tickLv++; break;
-      case 'asp_pierce': s.pierce += U.aspPierce.step; break;
+      case 'asp_pierce': this.pierceUp(s); break;
       case 'asp_pb': s.pierceBonus++; break;
       case 'asp_size': s.sizeLv++; break;
+      case 'asp_salvo': s.salvoLv++; break;
       case 'cran_pel': s.extraPel++; break;
       case 'cran_mine': s.mineLv++; break;
       case 'cab_mini': s.minis += U.cabMini.step; break;
@@ -1929,7 +1937,7 @@ export class Sim {
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
-        sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).width),
+        sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
         ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw

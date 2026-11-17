@@ -99,7 +99,7 @@ arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
   fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
   fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
-  startFields: 3           # Blaubeerfelder zu Beginn
+  startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (das erste liegt in der Gartenmitte)
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
@@ -112,7 +112,7 @@ fields:
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
-  # Die 3 Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
+  # Die Startfelder sind unzerstörbar, solange noch ein anderes Feld lebt.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
   tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)

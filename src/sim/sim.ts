@@ -115,8 +115,8 @@ export class Sim {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
-    // start fields: every second slot of the first ring around the centre, then outwards
-    const ring1 = [[1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
+    // start fields: the centre first, then every second slot of the first ring around it, then outwards
+    const ring1 = [[0, 0], [1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
     for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
   }

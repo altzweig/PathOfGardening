@@ -40,11 +40,34 @@ function groundControl() {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
 }
 
+/** weapon test room: plain earth everywhere, bright inside the room, dark far outside */
+function bareControl() {
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  g.fillStyle = 'rgb(255,0,0)'; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 90; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(3, 9); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,90,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  const b = g.createRadialGradient(S / 2, S / 2, S * 15 / 64, S / 2, S / 2, S * 30 / 64);
+  b.addColorStop(0, 'rgba(0,0,255,1)'); b.addColorStop(1, 'rgba(0,0,40,1)');
+  g.fillStyle = b; g.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
+}
+let ground: THREE.Mesh, post: THREE.Group, gardenMat: THREE.Material, bareMat: THREE.Material | null = null, bare = false;
+/** weapon test room on/off: only earth, no forest, deco, lantern, fog banks or wisps */
+export function setBareRoom(on: boolean) {
+  bare = on;
+  if (on && !bareMat) bareMat = groundMaterial(bareControl());
+  ground.material = on ? bareMat! : gardenMat;
+  for (const o of [post, natureGroup, gardenDeco, mistMesh, ...spirits.map(w => w.s)]) if (o) o.visible = !on;
+  if (on) clearEyes();
+}
+export const isBareRoom = () => bare;
+
 export function buildWorld() {
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), groundMaterial(groundControl()));
+  gardenMat = groundMaterial(groundControl());
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), gardenMat);
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   buildFog(); buildWisps();
-  const post = new THREE.Group(); part(post, GEO.cyl, M(0x3a2a1c), .06, 2.2, .06, 0, 1.1, 0); part(post, GEO.box, M(0x2a2a2a, { m: .6, r: .4 }), .22, .3, .22, 0, 2.3, 0);
+  post = new THREE.Group(); part(post, GEO.cyl, M(0x3a2a1c), .06, 2.2, .06, 0, 1.1, 0); part(post, GEO.box, M(0x2a2a2a, { m: .6, r: .4 }), .22, .3, .22, 0, 2.3, 0);
   part(post, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffc070 }), .09, .12, .09, 0, 2.3, 0, false);
   post.position.copy(LANT); scene.add(post);
   loadNature().then(buildNature).catch(e => console.error('nature models', e));
@@ -72,7 +95,7 @@ export function setGardenSlots(free: (x: number, z: number) => boolean) { freeSp
 function buildGardenDeco() {
   if (!freeSpot) return;
   if (gardenDeco) scene.remove(gardenDeco);
-  const G = gardenDeco = new THREE.Group(); scene.add(G);
+  const G = gardenDeco = new THREE.Group(); G.visible = !bare; scene.add(G);
   const ok = (x: number, z: number) => [0, 1, 2, 3, 4, 5].every(k => freeSpot!(x + Math.cos(k * 1.047) * .45, z + Math.sin(k * 1.047) * .45)) && freeSpot!(x, z) && (x - LANT.x) ** 2 + (z - LANT.z) ** 2 > 1.2;
   const pts = (n: number, r0: number, r1: number) => ringPts(n * 3, r0, r1).filter(p => ok(p.x, p.z)).slice(0, n);
   const pebbles = pts(26, 6, 9.8).map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.6, 1.2), tilt: .3, shade: rand(.85, 1.1) }));
@@ -99,7 +122,7 @@ export function setForestClearings(list: { x: number; z: number; r: number }[]) 
   if (natureReady && natureGroup) { scene.remove(natureGroup); natureGroup = null; buildNature(); } // models already there: rebuild with the clearings
 }
 function buildNature() {
-  const W = natureGroup = new THREE.Group(); W.name = 'nature'; scene.add(W);
+  const W = natureGroup = new THREE.Group(); W.name = 'nature'; W.visible = !bare; scene.add(W);
   const dens = gfx.quality === 'niedrig' ? .45 : gfx.quality === 'mittel' ? .7 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
   const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list.filter(p => !inClearing(p.x, p.z)), o);
 
@@ -211,6 +234,7 @@ let eyeCount = BASE_BUSHES;
 /** night share 0..1: idle eyes in the bushes mostly at night */
 export function setEyeNight(n: number) { eyeCount = Math.round(BASE_BUSHES * (.2 + .8 * n)); }
 export function updateEyes(dt: number) {
+  if (bare) return;
   if (BUSHES.length && eyeBushes.length < eyeCount) activateBush(Math.floor(Math.random() * BUSHES.length), rand(7, 16));
   for (let i = eyeBushes.length - 1; i >= 0; i--) {
     const E = eyeBushes[i]; E.t += dt;

@@ -29,10 +29,11 @@ import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flam
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU,
+  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { loadNature, natureMesh } from './nature';
+import { setBareRoom } from './world';
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
@@ -1032,6 +1033,9 @@ export class GameView {
     }
   }
 
+  /** weapon test room: bare earth, no lantern, player on the left side of the screen */
+  sandbox = false; sbSheet = false;
+  setSandbox(on: boolean) { this.sandbox = on; setBareRoom(on); lantern.visible = !on; }
   private camX = 0; private camZ = 0;
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;
@@ -1039,7 +1043,13 @@ export class GameView {
     const me = this.players.get(this.me);
     let tx = me ? me.x : 0, tz = me ? me.z : 0;
     if (DBG_CAM) { tx = DBG_CAM[0]; tz = DBG_CAM[1]; } // dev only: ?cam=x,z looks at that spot (screenshots)
-    this.camX = lerp(this.camX, tx * .92, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
+    let follow = .92;
+    if (this.sandbox) { // look a bit to the right of the player, so the room in front of him (where enemies come from) is in view
+      const halfW = off.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+      tx += Math.min(9, halfW * .48); follow = 1;
+      if (this.sbSheet && portrait) tz += off.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * .62; // settings sheet covers the lower half: player moves up
+    }
+    this.camX = lerp(this.camX, tx * follow, 1 - Math.pow(.001, dt)); this.camZ = lerp(this.camZ, tz * .92 + (portrait ? 0 : .6), 1 - Math.pow(.001, dt));
     this.shake = Math.max(0, this.shake - dt * 1.2);
     const sx = this.shake ? rand(-1, 1) * this.shake * .5 : 0, sz = this.shake ? rand(-1, 1) * this.shake * .5 : 0;
     // build mode: blend to a top-down view of the whole garden
@@ -1049,8 +1059,11 @@ export class GameView {
     const topH = ext / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
     camera.position.set(lerp(this.camX + off.x + sx, 0, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, .01, k));
     camera.lookAt(lerp(this.camX + sx, 0, k), 0, lerp(this.camZ + sz, 0, k));
-    torch.position.set(tx, 3, tz + .6); setListener(tx, tz);
-    this.aggro.position.set(tx, .03, tz); this.aggro.visible = !!(me && me.s.al);
+    if (this.sandbox) gardenLight.position.set(this.camX - 2, 6, this.camZ + 1); // test room: the night light hangs over the action
+    else gardenLight.position.set(0, 6, 1);
+    const px = me ? me.x : tx, pz = me ? me.z : tz;
+    torch.position.set(px, 3, pz + .6); setListener(px, pz);
+    this.aggro.position.set(px, .03, pz); this.aggro.visible = !!(me && me.s.al) && !this.sandbox;
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
   }
   /** screen position (px) of a point above the local player's head, or null */

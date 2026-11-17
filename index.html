@@ -40,7 +40,11 @@
     <div id="ammoPop"></div>
     <div id="bossbar" hidden><div id="bossfill"></div></div>
     <button class="ibtn" id="cheatBtn" hidden aria-label="Cheat">E</button>
+    <!-- weapon test room: every weapon, enemies per minute -->
+    <div id="sbBar" hidden><div id="sbWeps"></div><div class="sbRate"><button data-r="-1" aria-label="Weniger Gegner">−</button><b class="sbRateV">0</b><button data-r="1" aria-label="Mehr Gegner">+</button></div></div>
   </div>
+  <!-- weapon test room: settings (Escape), the game keeps running behind as live preview -->
+  <div id="sbPanel" hidden></div>
 
   <!-- main menu -->
   <div class="ov" id="menu">
@@ -48,6 +52,7 @@
     <div class="col">
       <button class="btn" id="soloBtn">Spielen</button>
       <button class="btn sec" id="testBtn">Testmodus</button>
+      <button class="btn sec" id="wtestBtn">Waffentest</button>
       <button class="btn sec" id="coopBtn">Koop</button>
       <button class="btn sec" id="optBtn">Optionen</button>
     </div>

@@ -112,6 +112,10 @@ interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
+export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string }
+/** enemies the weapon test room can send (the squirrel needs its nut tree) */
+export const SB_ENEMIES: EnemyType[] = ENEMIES.filter(t => t !== 'squirrel');
+
 export class Sim {
   cfg: Balancing;
   time = 0; lvRound = 0; level = 1; xp = 0; pendingLv = 0; kills = 0; collectedXP = 0;
@@ -128,11 +132,14 @@ export class Sim {
   private mergeT = 0;
   private waveT: number; private planned: PlannedWave | null = null; private spawnQueue: PendingSpawn[] = [];
   private slots: Slot[];
+  /** weapon test room (no garden, no waves): enemies per minute from the right edge, free daytime, endless ammo, player can't die */
+  sb: Sandbox | null = null;
 
-  constructor(cfg: Balancing) {
+  constructor(cfg: Balancing, opts: { sandbox?: boolean } = {}) {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
+    if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake' }; return; }
     // start fields: the centre first, then every second slot of the first ring around it, then outwards
     const ring1 = [[0, 0], [1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
@@ -162,6 +169,7 @@ export class Sim {
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, wid: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
+    if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.players.push(p);
     if (this.phase === 'lvl') { p.offers = this.offers(p); p.picked = false; }
     return p;
@@ -322,6 +330,7 @@ export class Sim {
 
   // ---------- xp & level ----------
   addXP(v: number) {
+    if (this.sb) return;
     this.xp += v;
     while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.level++; this.pendingLv++; }
     if (this.pendingLv > 0 && this.phase === 'play') this.openLevelUp();
@@ -514,7 +523,7 @@ export class Sim {
     }
     e.carry = [];
     // every enemy drops XP (blueberries), elites more
-    const E = this.cfg.enemies, n = e.boss ? E.boss.xpDrop : Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
+    const E = this.cfg.enemies, n = this.sb ? 0 : e.boss ? E.boss.xpDrop : Math.round(E.xpDrop * (e.elite ? E.elite.xpMultiplier : 1));
     if (e.boss) this.emit({ k: 'bossDead', x: r2(e.x), z: r2(e.z) });
     if (n > 0) this.sfx('plants.produce.blue', e.x, e.z); // blueberries drop: same plop as from the bush
     for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit('blue', 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1); }
@@ -1079,7 +1088,7 @@ export class Sim {
       if (w.d >= w.len) this.lwaves.splice(i, 1);
     }
   }
-  clampArena(x: number, z: number): [number, number] { const R = this.cfg.arena.radius, r = Math.hypot(x, z); return r > R ? [x * R / r, z * R / r] : [x, z]; }
+  clampArena(x: number, z: number): [number, number] { if (this.sb) return [clamp(x, -this.sb.W, this.sb.W), clamp(z, -this.sb.D, this.sb.D)]; const R = this.cfg.arena.radius, r = Math.hypot(x, z); return r > R ? [x * R / r, z * R / r] : [x, z]; }
 
   // ---------- enemies ----------
   spawnEnemy(type: EnemyType, angle: number, elite = false) {
@@ -1101,7 +1110,7 @@ export class Sim {
     if (e.fleeing) return { kind: 'flee' };
     const D = this.cfg.enemies[e.type];
     if (!D.peaceful) {
-      let bp: Player | null = null, bd = this.cfg.enemies.aggroRadius;
+      let bp: Player | null = null, bd = this.sb ? 1e9 : this.cfg.enemies.aggroRadius; // test room: everyone goes for the player
       for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
       if (bp) return { kind: 'player', p: bp };
     }
@@ -1139,6 +1148,7 @@ export class Sim {
     dmg *= this.f(this.cfg.coop.enemyDamageExponent);
     p.hp -= dmg; p.flash = .35; this.emit({ k: 'hurt', p: p.id });
     this.num(p.x, p.z, dmg, color);
+    if (this.sb) { p.hp = this.cfg.player.hp; return; } // test room: hits show, nobody dies
     if (p.hp <= 0) {
       const P = this.cfg.player;
       p.hp = 0; p.alive = false; p.deaths++; p.respawnT = P.respawnBase + P.respawnPerDeath * (p.deaths - 1); p.poison = []; p.stun = 0; p.kb = null; p.swing = 0; p.rakeHit = false;
@@ -1396,7 +1406,7 @@ export class Sim {
   /** share of the current wave "hour" that has passed (0..1): fighting covers the first 75 %, the pause the rest */
   private dayFrac() { return this.wavePause ? this.dayEnd + (1 - this.dayEnd) * (1 - Math.max(0, this.waveT) / Math.max(.1, this.pauseLen)) : .75 * Math.min(1, (this.time - this.waveT0) / Math.max(1, this.waveDur)); }
   /** hour of the cycle: 0 .. cycleLen (one hour per wave); 0 = morning of day 1 */
-  dayHour() { if (this.wave < 1 || !this.cycleLen()) return 0; return (this.wave - 1) % this.cycleLen() + this.dayFrac(); }
+  dayHour() { if (this.sb) return this.sb.hour; if (this.wave < 1 || !this.cycleLen()) return 0; return (this.wave - 1) % this.cycleLen() + this.dayFrac(); }
   /** start wave w now: builds the group schedule */
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
@@ -1420,6 +1430,32 @@ export class Sim {
       if (this.level >= BL.first + BL.every * this.bossCount && !this.enemies.some(e => e.boss && !e.dead)) { this.bossCount++; this.spawnBoss(); }
     } else { const be = this.bossEvery(); if (be > 0 && w % be === 0) this.spawnBoss(); } // boss wave: last wave of every night
   }
+  // ---------- weapon test room ----------
+  private sbUpdate(dt: number) {
+    const B = this.sb!;
+    if (B.rate <= 0) return;
+    B.acc += dt * B.rate / 60;
+    while (B.acc >= 1) {
+      B.acc -= 1;
+      if (this.enemies.length >= this.cfg.enemies.maxAlive) continue;
+      const type = B.type === 'random' ? SB_ENEMIES[Math.floor(Math.random() * SB_ENEMIES.length)] : B.type, n = this.enemies.length;
+      this.spawnEnemy(type, 0);
+      const e = this.enemies[n]; if (!e) continue;
+      e.x = B.W + .6; e.z = rand(-B.D + .8, B.D - .8); e.face = -Math.PI / 2; // right edge of the room
+    }
+  }
+  /** test room: put weapon w in the hand (rake, a fruit weapon or a combo id); everything else is put away */
+  sbSelect(id: number, w: string) {
+    const p = this.player(id); if (!p || !this.sb) return;
+    this.sb.weapon = w;
+    for (const sid of SKILLS) { const s = p.skills[sid]; Object.assign(s, { combo: '', partner: undefined, merged: false, learned: false, burst: 0, firing: false, cdT: 0 }); }
+    p.slots = []; p.flOn = 0; p.active = 'rake'; for (const sid of SKILLS) p.ammo[sid] = 9999;
+    if ((SKILLS as string[]).includes(w)) { this.learn(p, w as SkillId); p.active = w as SkillId; }
+    else if ((COMBOS as string[]).includes(w) && this.cfg.combos) { const C = this.CB.list[w as ComboId]; this.learn(p, C.main); this.learn(p, C.sub); this.mergeCombo(p, w as ComboId); p.active = C.main; }
+  }
+  /** test room: remove every enemy (e.g. after switching the enemy type) */
+  sbClear() { for (const e of [...this.enemies]) this.removeEnemy(e); this.berryBombs.length = 0; }
+
   /** test mode: jump to wave w */
   jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
   private waves(dt: number) {
@@ -1540,6 +1576,7 @@ export class Sim {
     if (scale <= 0) return;
     const dt = rdt * scale;
     this.time += dt;
+    if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) this.updatePlayer(p, dt);
     // fields
     for (const f of this.fields) {
@@ -1580,7 +1617,7 @@ export class Sim {
       }
     }
     // enemies
-    this.waves(dt);
+    if (this.sb) this.sbUpdate(dt); else this.waves(dt);
     for (const e of [...this.enemies]) if (!e.dead) this.updateEnemy(e, dt);
     const en = this.enemies;
     for (let i = 0; i < en.length; i++) for (let j = i + 1; j < en.length; j++) {

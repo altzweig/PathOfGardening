@@ -1,12 +1,12 @@
 import './style.css';
-import { Balancing, FRUITS, FruitType, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
-import { Sim } from './sim/sim';
+import { Balancing, COMBOS, ComboId, EnemyType, FRUITS, FruitType, SKILLS, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
+import { SB_ENEMIES, Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
 import { applyQuality, gfx, isTouch } from './view/core';
 import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
-import { mini, pic } from './ui/icons';
+import { comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
@@ -78,10 +78,15 @@ class Game {
   }
   private wire() {
     const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
-    addEventListener('wheel', e => { if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY); }, { passive: true });
+    addEventListener('wheel', e => {
+      if (this.sandbox) { if (!this.sbOpen && this.mode === 'solo') this.sbWheel(e.deltaY); return; } // test room: the wheel switches weapons
+      if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY);
+    }, { passive: true });
     this.editor.onSound = k => sfx(k);
     click('#soloBtn', () => this.openEditor(() => this.startSolo(false)));
     click('#testBtn', () => this.startSolo(true));
+    click('#wtestBtn', () => this.startSandbox());
+    this.wireSandbox();
     click('#cheatBtn', () => this.toggleCheat());
     click('#cheatClose', () => this.toggleCheat());
     this.input.onCheat = () => this.toggleCheat();
@@ -162,7 +167,7 @@ class Game {
     document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
   }
-  private enterGame() {
+  enterGame() {
     only(null); show('#hud'); this.hud.reset(); this.view.reset(); this.view.me = this.me;
     this.input.enabled = true; this.luShownFor = ''; this.overShown = false;
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
@@ -171,8 +176,9 @@ class Game {
 
   // ---------- modes ----------
   testMode = false;
-  startSolo(test = this.testMode) { this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); }
+  startSolo(test = this.testMode) { this.endSandbox(); this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); }
   restart() {
+    if (this.mode === 'solo' && this.sandbox) return this.startSandbox();
     if (this.mode === 'solo') return this.startSolo();
     if (this.mode === 'host' && this.host) { this.startHost(); }
   }
@@ -215,7 +221,7 @@ class Game {
   leave() {
     if (this.host) { this.host.close(); this.host = null; }
     if (this.client) { const c = this.client; this.client = null; c.onClose = () => {}; c.close(); }
-    this.testMode = false; show('#cheatBtn', false);
+    this.testMode = false; show('#cheatBtn', false); this.endSandbox();
     this.idle(); this.view.setConfig(this.cfg); only('#menu');
   }
   private renderLobby() {
@@ -246,6 +252,7 @@ class Game {
     $('#cheatRows').querySelectorAll<HTMLElement>('button').forEach(b => b.addEventListener('click', () => { sim.cheat(this.me, b.dataset.k!, +b.dataset.d!); this.renderCheat(); }));
   }
   togglePause() {
+    if (this.sandbox && this.mode === 'solo') return this.toggleSb();
     if (this.mode === 'idle' || !$('#levelup').hidden || !$('#over').hidden) return;
     const p = $('#pause');
     if (p.hidden && !$('#controls').hidden) { only(null); }
@@ -259,13 +266,15 @@ class Game {
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
-    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden;
+    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden || this.sbOpen;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl';
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
     } else if (this.mode === 'solo' || this.mode === 'host') {
       const sim = this.sim!;
-      sim.setIntent(this.me, this.input.intent(this.activeWeapon()));
+      const it = this.input.intent(this.activeWeapon());
+      if (this.sandbox && this.sbOpen) this.sbAutoAim(it); // settings open: the player keeps firing as live preview
+      sim.setIntent(this.me, it);
       sim.update(dt);
       const snap = sim.snapshot();
       if (!headless) this.view.apply(snap);
@@ -335,6 +344,160 @@ class Game {
     if (s.ph !== 'over' && this.overShown) { this.overShown = false; show('#over', false); }
   }
 }
+
+// ---------- weapon test room ----------
+type SbWeapon = Weapon | ComboId;
+const SB_LIST: SbWeapon[] = [...WEAPONS, ...COMBOS];
+const SB_RATES = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];
+const ENEMY_NAMES: Record<EnemyType, string> = { raccoon: 'Waschbär', panda: 'Panda', toad: 'Kröte', sheep: 'Schaf', hedgehog: 'Igel', squirrel: 'Eichhörnchen' };
+/** short labels for the weapon values (test room only) */
+const SB_LABEL: Record<string, string> = {
+  damage: 'Schaden', range: 'Reichweite', cooldown: 'Abklingzeit', ammoPerShot: 'Munition/Schuss', radius: 'Radius', speed: 'Tempo', pierce: 'Durchschuss', pierceFactor: 'Durchschuss-Faktor',
+  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite',
+  fuse: 'Zünder', bleedDuration: 'Blutung Dauer', bleedDps: 'Blutung/s', splashDelay: 'Platzen nach', splashDamage: 'Platzschaden', splashRadius: 'Platzradius', chainRadius: 'Kettenradius',
+  transfer: 'Weitergabe', burnDamage: 'Brandschaden', burnStacks: 'Brand-Stapel', burnDuration: 'Brand Dauer', burnTick: 'Brand-Tick', spreadRadius: 'Brand-Sprung', spreadShare: 'Brand-Sprunganteil',
+  sweep: 'Schwenk °', sweepPeriod: 'Schwenkdauer', poolDuration: 'Lache Dauer', poolTicksPerSecond: 'Lache Ticks/s', poolTickDamage: 'Lache Schaden', poolSlow: 'Lache Bremse',
+  miniRadiusFactor: 'Mini-Radius', miniDamageFactor: 'Mini-Schaden', pullTime: 'Zug', pushTime: 'Stoß', stun: 'Stun', knockback: 'Rückstoß', size: 'Größe', edge: 'Randschaden',
+  links: 'Blitze je Beere', linkRange: 'Blitz-Reichweite', linkWidth: 'Blitz-Breite', ticks: 'Ticks', tickInterval: 'Tick-Abstand', splitScale: 'Splitter-Größe', poolTick: 'Lache Tick', poolDamage: 'Lache Schaden',
+  shots: 'Schüsse', gap: 'Abstand', bleed: 'Blutung', burn: 'Brand', arrows: 'Pfeile', arc: 'Fächer °', shockDamage: 'Strom-Schaden', berries: 'Beeren', berryDamage: 'Beeren-Schaden',
+  berryDelay: 'Beeren platzen nach', berryRadius: 'Beeren-Radius', blastDamage: 'Explosionsschaden', blastRadius: 'Explosionsradius', branch: 'Verzweigung', directions: 'Richtungen',
+  pelletFactor: 'Beeren-Faktor', rangeFactor: 'Reichweiten-Faktor', scatter: 'Streuweite', spikeDamage: 'Stachel-Schaden', spikePierce: 'Stachel-Durchschuss', spikeRange: 'Stachel-Reichweite',
+  spikeSpeed: 'Stachel-Tempo', spikes: 'Stacheln', splitDistance: 'Splitter-Weite', splits: 'Splitter',
+};
+const nice = (v: number) => Math.abs(v) >= 100 ? String(Math.round(v)) : Math.abs(v) >= 10 ? (Math.round(v * 10) / 10).toString() : (Math.round(v * 100) / 100).toString();
+function deepAssign(t: any, src: any) { for (const k in src) { const v = src[k]; if (v && typeof v === 'object' && !Array.isArray(v) && t[k] && typeof t[k] === 'object') deepAssign(t[k], v); else t[k] = Array.isArray(v) ? [...v] : v; } }
+
+interface Game {
+  sandbox: boolean; sbOpen: boolean; sbDefaults: any; sbWeapon: SbWeapon; sbWheelAcc: number; sbWheelT: number;
+  startSandbox(): void; endSandbox(): void; wireSandbox(): void; toggleSb(): void; sbPick(w: SbWeapon): void; sbWheel(dy: number): void; sbRate(d: number): void;
+  sbAutoAim(it: Intent): void; renderSbBar(): void; renderSbPanel(): void; sbBlock(w: SbWeapon, src?: any): Record<string, any> | null; sbPath(w: SbWeapon): string;
+}
+Object.assign(Game.prototype, {
+  sandbox: false, sbOpen: false, sbDefaults: null, sbWeapon: 'rake', sbWheelAcc: 0, sbWheelT: 0,
+  startSandbox(this: Game) {
+    this.testMode = false; show('#cheatBtn', false);
+    if (!this.sbDefaults) this.sbDefaults = JSON.parse(JSON.stringify(this.cfg)); // slider changes are undone when leaving the room
+    const old = this.sim?.sb;
+    this.sandbox = true; this.mode = 'solo'; this.me = 0;
+    this.sim = new Sim(this.cfg, { sandbox: true }); this.sim.addPlayer(0, 0);
+    if (old) Object.assign(this.sim.sb!, { rate: old.rate, type: old.type, hour: old.hour }); // restart keeps the room settings
+    this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.view.setSandbox(true);
+    document.body.classList.add('sandbox'); show('#sbBar', true);
+    this.enterGame(); this.sbOpen = false; this.view.sbSheet = false; show('#sbPanel', false);
+    this.sbPick(this.sbWeapon);
+  },
+  endSandbox(this: Game) {
+    if (!this.sandbox) return;
+    this.sandbox = false; this.sbOpen = false; this.view.sbSheet = false; show('#sbPanel', false); show('#sbBar', false);
+    document.body.classList.remove('sandbox'); this.view.setSandbox(false);
+    if (this.sbDefaults) deepAssign(this.cfg, this.sbDefaults);
+  },
+  wireSandbox(this: Game) {
+    $('#sbBar').addEventListener('click', e => {
+      const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (!b) return;
+      if (b.dataset.w) this.sbPick(b.dataset.w as SbWeapon); else if (b.dataset.r) this.sbRate(+b.dataset.r);
+    });
+    addEventListener('keydown', e => {
+      if (!this.sandbox || this.mode !== 'solo' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (e.key === '+' || e.code === 'NumpadAdd') this.sbRate(1);
+      else if (e.key === '-' || e.code === 'NumpadSubtract') this.sbRate(-1);
+    });
+  },
+  toggleSb(this: Game) {
+    this.sbOpen = !this.sbOpen; this.input.releaseAll();
+    sfx(this.sbOpen ? 'ui.pauseIn' : 'ui.pauseOut');
+    if (this.sbOpen) this.renderSbPanel();
+    show('#sbPanel', this.sbOpen); this.view.sbSheet = this.sbOpen;
+  },
+  sbPick(this: Game, w: SbWeapon) {
+    this.sbWeapon = w; this.sim?.sbSelect(this.me, w);
+    this.renderSbBar(); if (this.sbOpen) this.renderSbPanel();
+  },
+  sbWheel(this: Game, dy: number) {
+    const now = performance.now(); this.sbWheelAcc += dy;
+    if (Math.abs(this.sbWheelAcc) < 40 && now - this.sbWheelT < 400) return;
+    const d = Math.sign(this.sbWheelAcc || dy); this.sbWheelAcc = 0;
+    if (now - this.sbWheelT < 90) return; // one step per notch, even on smooth touchpads
+    this.sbWheelT = now;
+    const i = SB_LIST.indexOf(this.sbWeapon);
+    this.sbPick(SB_LIST[(i + d + SB_LIST.length) % SB_LIST.length]); sfx('ui.hover');
+  },
+  sbRate(this: Game, d: number) {
+    const B = this.sim?.sb; if (!B) return;
+    let i = SB_RATES.findIndex(r => r >= B.rate); if (i < 0) i = SB_RATES.length - 1;
+    if (SB_RATES[i] !== B.rate && d < 0) i++; // between two steps
+    B.rate = SB_RATES[Math.max(0, Math.min(SB_RATES.length - 1, i + d))];
+    sfx('ui.click'); this.renderSbBar(); if (this.sbOpen) this.renderSbPanel();
+  },
+  /** live preview: aim at the nearest enemy (or straight right) and keep firing */
+  sbAutoAim(this: Game, it: Intent) {
+    const sim = this.sim!, p = sim.player(this.me); if (!p) return;
+    const e = sim.nearestEnemy(p.x, p.z, 40);
+    let dx = 1, dz = 0; if (e) { const l = Math.hypot(e.x - p.x, e.z - p.z) || 1; dx = (e.x - p.x) / l; dz = (e.z - p.z) / l; }
+    it.aim = true; it.ax = dx; it.az = dz; it.fire = 'active'; it.mx = it.mz = 0;
+  },
+  renderSbBar(this: Game) {
+    const N = this.cfg.names;
+    $('#sbWeps').innerHTML = SB_LIST.map(w => {
+      const c = (COMBOS as string[]).includes(w), name = c ? N.combos?.[w as ComboId] ?? w : N.skills[w as Weapon];
+      return `<button class="sbW${c ? ' combo' : ''}${w === this.sbWeapon ? ' on' : ''}" data-w="${w}" title="${esc(name)}" aria-label="${esc(name)}">${c ? comboIcon(w) : skillIcon(w)}</button>`;
+    }).join('');
+    $('#sbBar .sbRateV').innerHTML = `${this.sim?.sb?.rate ?? 0}<small>/min</small>`;
+  },
+  sbPath(w: SbWeapon) { return w === 'rake' ? 'rake' : (SKILLS as string[]).includes(w) ? 'skills.' + w : 'combos.list.' + w; },
+  sbBlock(this: Game, w: SbWeapon, src: any = this.cfg) {
+    let o: any = src; for (const k of this.sbPath(w).split('.')) o = o?.[k];
+    return o && typeof o === 'object' ? o : null;
+  },
+  renderSbPanel(this: Game) {
+    const N = this.cfg.names, w = this.sbWeapon, B = this.sim?.sb, P = $('#sbPanel');
+    const isC = (COMBOS as string[]).includes(w), name = isC ? N.combos?.[w as ComboId] ?? w : N.skills[w as Weapon];
+    const cur = this.sbBlock(w), def = this.sbBlock(w, this.sbDefaults) ?? {};
+    // one slider per number (and per entry of number lists); range 0 .. 3x the balancing value
+    const rows: string[] = [];
+    const row = (key: string, label: string, v: number, d: number) => {
+      const int = Number.isInteger(d) && Math.abs(d) >= 1 && !/cooldown|gap|fuse|tick|time|duration|delay|dps/i.test(key);
+      let max = d > 0 ? d * 3 : d < 0 ? 0 : (int ? 10 : 1); if (int) max = Math.max(max, d + 5); max = Math.max(max, v);
+      const min = d < 0 ? d * 3 : 0, step = int ? 1 : Math.max(.001, +(max / 200).toPrecision(1));
+      rows.push(`<div class="sbRow"><span class="${v !== d ? 'chg' : ''}" title="${key}">${esc(label)}</span><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${v}"><b>${nice(v)}</b></div>`);
+    };
+    if (cur) for (const k of Object.keys(cur)) {
+      const v = cur[k], d = def[k];
+      if (typeof v === 'number') row(k, SB_LABEL[k] ?? k, v, typeof d === 'number' ? d : v);
+      else if (Array.isArray(v) && v.every(x => typeof x === 'number')) v.forEach((x: number, i: number) => row(`${k}.${i}`, `${SB_LABEL[k] ?? k} ${i + 1}`, x, Array.isArray(d) && typeof d[i] === 'number' ? d[i] : x));
+    }
+    const hour = B?.hour ?? 5, clock = (h: number) => { const c = (h + 6) % 24; return `${String(Math.floor(c)).padStart(2, '0')}:${String(Math.round((c % 1) * 60) % 60).padStart(2, '0')}`; };
+    P.innerHTML = `
+      <div id="sbHead"><b>Waffentest</b><button class="btn" id="sbGo">Weiter</button><button class="btn sec" id="sbMenu">Menü</button></div>
+      <div class="sbSec"><h4>Waffe</h4><div class="sbWepsP">${$('#sbWeps').innerHTML}</div><div class="sbName">${esc(name)}</div></div>
+      <div class="sbSec"><h4>Werte</h4>${rows.join('') || '<div class="sbRow"><span>–</span></div>'}
+        <div class="sbBtns"><button id="sbReset">Zurücksetzen</button><button id="sbCopy">Werte kopieren</button></div></div>
+      <div class="sbSec"><h4>Gegner</h4><div class="sbChips">${(['random', ...SB_ENEMIES] as const).map(t => `<button class="sbChip${B?.type === t ? ' on' : ''}" data-e="${t}">${t === 'random' ? 'Zufall' : ENEMY_NAMES[t]}</button>`).join('')}</div>
+        <div class="sbRate"><button data-r="-1">−</button><b>${B?.rate ?? 0}<small>/min</small></b><button data-r="1">+</button></div></div>
+      <div class="sbSec"><h4>Tageszeit</h4><div class="sbRow"><span>${hour < 16 ? '☀' : '☾'}</span><input type="range" id="sbHour" min="0" max="24" step=".25" value="${hour}"><b>${clock(hour)}</b></div></div>`;
+    P.querySelector('#sbGo')!.addEventListener('click', () => this.toggleSb());
+    P.querySelector('#sbMenu')!.addEventListener('click', () => this.leave());
+    P.querySelectorAll<HTMLElement>('.sbW').forEach(b => b.addEventListener('click', () => this.sbPick(b.dataset.w as SbWeapon)));
+    P.querySelectorAll<HTMLElement>('[data-r]').forEach(b => b.addEventListener('click', () => this.sbRate(+b.dataset.r!)));
+    P.querySelectorAll<HTMLElement>('[data-e]').forEach(b => b.addEventListener('click', () => { if (B) { B.type = b.dataset.e as EnemyType | 'random'; this.sim!.sbClear(); } sfx('ui.click'); this.renderSbPanel(); }));
+    P.querySelectorAll<HTMLInputElement>('input[data-k]').forEach(inp => inp.addEventListener('input', () => {
+      const [k, i] = inp.dataset.k!.split('.'), v = +inp.value;
+      if (cur) { if (i !== undefined) cur[k][+i] = v; else cur[k] = v; }
+      const r = inp.parentElement!; r.querySelector('b')!.textContent = nice(v);
+      const d = i !== undefined ? def[k]?.[+i] : def[k]; r.querySelector('span')!.classList.toggle('chg', v !== d);
+    }));
+    const hi = P.querySelector('#sbHour') as HTMLInputElement;
+    hi.addEventListener('input', () => { const h = +hi.value; if (B) B.hour = h; const r = hi.parentElement!; r.querySelector('b')!.textContent = clock(h); r.querySelector('span')!.textContent = h < 16 ? '☀' : '☾'; });
+    P.querySelector('#sbReset')!.addEventListener('click', () => { if (cur) deepAssign(cur, def); sfx('ui.click'); this.renderSbPanel(); });
+    P.querySelector('#sbCopy')!.addEventListener('click', e => {
+      // changed values as balancing.yaml lines, to carry them over
+      const lines = [`# ${this.sbPath(w)}`];
+      if (cur) for (const k of Object.keys(cur)) if ((typeof cur[k] === 'number' || Array.isArray(cur[k])) && JSON.stringify(cur[k]) !== JSON.stringify(def[k])) lines.push(`${k}: ${Array.isArray(cur[k]) ? '[' + cur[k].map(nice).join(', ') + ']' : nice(cur[k])}`);
+      const b = e.currentTarget as HTMLElement;
+      navigator.clipboard?.writeText(lines.join('\n')).then(() => { b.textContent = '✓'; setTimeout(() => (b.textContent = 'Werte kopieren'), 1200); }).catch(() => {});
+    });
+  },
+});
 
 const esc = (t: string) => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 

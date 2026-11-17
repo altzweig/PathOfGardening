@@ -289,3 +289,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **„Unter Strom“** (Sourbow, Chillightning): Gegner knistert 2 s, alle 0,5 s Schaden an sich und an Nachbarn in 0,5 m, mit kleinen Blitzbögen.
 - Annahmen, wo die Tabelle offen war: Kimchi hat Kohl als Hauptwaffe, Chillightning Chili. Die Coleateral Bomb hinterlässt keine Giftlache (nicht erwähnt), die Cabboomberry schon. Die Rakete explodiert beim ersten Gegner oder am Ende ihrer 20 m, am Rand der Explosion 50 % Schaden. Shockgun-Blitze verbinden auch Beeren aus verschiedenen Schüssen.
 - Test-Menü: Gruppe „Kombiwaffen“ schaltet jede Kombi direkt frei (inkl. 60 Munition).
+
+## Waffentest-Modus (17.11.2026)
+- Eigener Menüpunkt „Waffentest“ (der bisherige Testmodus mit Cheat-Menü bleibt).
+- Karger Raum ohne Landschaft: nur Erdboden, kein Wald, keine Deko, keine Laterne, kein Nebel. Keine Felder, keine Wellen, keine Level-ups, keine Blaubeeren.
+- Spieler startet links (Kamera schaut rechts an ihm vorbei), Gegner kommen am rechten Raumrand und greifen ihn sofort an. Spieler kann nicht sterben, Treffer werden aber angezeigt.
+- Waffenleiste oben: alle Waffen (Harke, 5 Fruchtwaffen, 10 Kombiwaffen), Munition unendlich. Wechsel per Klick/Tippen oder Mausrad.
+- Gegner pro Minute mit Plus/Minus (Tasten + und − oder Knöpfe), Stufen 0 bis 240.
+- Escape (Handy: Pause-Knopf) öffnet die Einstellungen als Seitenleiste (Handy: unten). Das Spiel läuft dahinter als Live-Vorschau weiter, der Spieler zielt automatisch auf den nächsten Gegner und feuert dauernd.
+- Einstellungen: Waffe, Slider für jeden Zahlenwert der gewählten Waffe aus `balancing.yaml` (0 bis 3× Standard, geänderte Werte golden), Zurücksetzen, „Werte kopieren“ (geänderte Werte als YAML-Zeilen in die Zwischenablage), Gegnerart (Zufall oder eine Art; Eichhörnchen fehlt, es braucht seinen Nussbaum), Gegner pro Minute, Tageszeit.
+- Slider-Änderungen gelten nur im Waffentest und werden beim Verlassen zurückgesetzt.

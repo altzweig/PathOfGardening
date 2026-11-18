@@ -192,6 +192,7 @@ function makeKit() {
     chiliGold: std(painted(256, 256, chiliPaint(0xd88a22, 0x9a4a10, 0xf4c45a)), { r: .3, bs: 1, cc: .8 }),
     calyx: std(painted(128, 128, chiliPaint(0x4a6a2e, 0x24381a, 0x7a9a4a)), { r: .6, bs: 1 }),
     berry: std(painted(128, 128, berryPaint), { r: .3, bs: .6, cc: 1, e: 0x5a0a14, ei: .35 }),
+    blueberry: std(null, { color: 0x3a4aa8, r: .35, cc: .6, e: 0x10183a, ei: .3 }),
     berryDark: std(null, { color: 0x2a0a0e, r: .7 }),
     glass: std(null, { color: 0xcfe6e0, r: .08, m: 0, op: .28 }), jam: std(null, { color: 0x7a0e1a, r: .2, e: 0x3a0408, ei: .6, op: .9 }),
     soot: std(null, { color: 0x1c1a18, r: .9 }), white: std(null, { color: 0xeae4d0, r: .5 }), ink: std(null, { color: 0x1a1612, r: .6 }),
@@ -359,36 +360,33 @@ export function aspCrossbow() {
 }
 
 // ================= base weapons =================
-/** rake handle: turned ash pole (along +z, length L) with a leather grip zone and a brass ferrule */
-export function rakeHandle(L: number) {
-  const K = kit(), g = new THREE.Group();
-  mesh(g, lathe([[.018, 0], [.024, .01], [.025, L * .5], [.023, L - .02], [.02, L]], 14), K.ash);
-  wrapZ(g, K.leather, .0265, L * .3, L * .48);
-  band(g, K.brass, .029, .05, L - .02); band(g, K.brass, .028, .015, .012);
+/** hoe (Hacke, 18.11.2026; the old rake is in archiv/harke/): lengths of the ash handle in front of / behind the hands,
+ *  blade length and its tilt from the handle's "down" towards the front (rad) */
+export const HOE = { front: .62, back: .5, blade: .15, tilt: .5 };
+/** hoe: `g` = the handle (hands at z = 0, blade end at +z), slides through the hands via g.position.z; the forged iron
+ *  blade hangs from a short goose neck at the front end, its edge `blade` m below the handle, tilted forward by `tilt` */
+export function hoeModel() {
+  const K = kit(), g = new THREE.Group(), L = HOE.front + HOE.back;
+  mesh(g, lathe([[.019, 0], [.024, .012], [.025, L * .45], [.023, L - .03], [.021, L]], 14), K.ash, 0, 0, -HOE.back);
+  wrapZ(g, K.leather, .0265, -.2, .06);
+  band(g, K.brass, .029, .045, HOE.front - .03); band(g, K.brass, .028, .015, -HOE.back + .01);
+  const head = new THREE.Group(); head.position.z = HOE.front; head.rotation.x = -HOE.tilt; g.add(head); // blade plane: local -y = edge direction
+  mesh(head, sweep([V3(0, .01, -.04), V3(0, -.015, .005), V3(0, -.05, .01)], t => .013 * (1 - t * .35), { radial: 8, steps: 10, caps: true }), K.iron);
+  const bl = mesh(head, rbox(.17, .11, .012, .005), K.iron, 0, -HOE.blade + .055, .012);
+  bl.scale.set(1, 1, 1);
+  mesh(head, rbox(.172, .02, .006, .002), K.brass, 0, -HOE.blade + .006, .012); // bright ground-worn cutting edge
+  rivet(head, K.brass, .009, 0, -.05, .02);
   return g;
 }
-/** forged rake head: bevelled back bar, tapered and slightly curved tines, brass collar */
-export function rakeHeadModel(n: number, gap: number, w: number) {
-  const K = kit(), g = new THREE.Group();
-  mesh(g, rbox(n * gap + .02, .036, .045, .012), K.iron, 0, 0, 0);
-  mesh(g, rbox(.07, .05, .07, .015), K.iron, 0, .005, -.03);
-  band(g, K.brass, .03, .02, -.065);
-  for (let i = 0; i < n; i++) {
-    const x = -w / 2 + w * (i + .5) / n;
-    mesh(g, sweep([V3(x, -.01, .01), V3(x, -.07, .03), V3(x, -.13, .06)], t => .009 * (1 - t * .7), { radial: 8, steps: 10, caps: true }), K.iron);
-  }
-  for (const sd of [-1, 1]) rivet(g, K.brass, .008, sd * (n * gap / 2 - .005), .02, 0);
-  return g;
-}
-/** cranberry blunderbuss: cherry stock, aged copper barrel with a flared bell, glass hopper with berries on top */
+/** berry blunderbuss (shoots blueberries and cranberries): walnut stock, plain iron barrel with a flared bell, glass hopper with both berries on top */
 export function cranGun() {
   const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
-  mesh(a, profile([[-.3, .02], [-.05, .03], [.05, .025], [.05, -.03], [-.09, -.034], [-.12, -.07], [-.14, -.13], [-.18, -.135], [-.19, -.12], [-.18, -.05], [-.31, -.04], [-.32, -.005]], .06, .01), K.cherry);
-  mesh(a, lathe([[.026, -.04], [.028, .1], [.026, .25], [.03, .3], [.045, .36], [.06, .395], [.056, .4], [.04, .39], [.022, .36]], 26), K.copper, 0, .012, 0);
+  mesh(a, profile([[-.3, .02], [-.05, .03], [.05, .025], [.05, -.03], [-.09, -.034], [-.12, -.07], [-.14, -.13], [-.18, -.135], [-.19, -.12], [-.18, -.05], [-.31, -.04], [-.32, -.005]], .06, .01), K.walnut);
+  mesh(a, lathe([[.026, -.04], [.028, .1], [.026, .25], [.03, .3], [.045, .36], [.06, .395], [.056, .4], [.04, .39], [.022, .36]], 26), K.iron, 0, .012, 0);
   for (const z of [.02, .16, .29]) band(a, K.brass, .033, .018, z, 0, .012);
   const hop = new THREE.Group(); hop.position.set(0, .07, -.02); a.add(hop); // glass hopper of berries
   mesh(hop, sph(18, 12), K.glass, 0, 0, 0, .045, .04, .055);
-  for (let i = 0; i < 7; i++) berryM(hop, .016, R(-.022, .022), R(-.025, .01), R(-.03, .03));
+  for (let i = 0; i < 8; i++) berryM(hop, .016, R(-.022, .022), R(-.025, .01), R(-.03, .03), i % 2 ? K.blueberry : undefined); // both berries: cranberries and blueberries
   mesh(hop, lathe([[.012, -.01], [.02, -.005], [.02, .005], [.012, .01]], 14), K.brass, 0, -.045, 0).rotation.x = Math.PI / 2;
   mesh(hop, lathe([[.01, 0], [.03, .006], [.028, .014], [0, .016]], 16), K.brass, 0, .04, 0).rotation.x = -Math.PI / 2;
   const tg = mesh(a, new THREE.TorusGeometry(.026, .005, 8, 18, Math.PI), K.brass, 0, -.034, -.1); tg.rotation.set(Math.PI, Math.PI / 2, 0);

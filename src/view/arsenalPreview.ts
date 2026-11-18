@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { COMBOS } from '../config';
-import { aspCrossbow, cabHeld, chiliThrower, comboModel, cranGun, lemonWand, rakeHandle, rakeHeadModel, setArsenalEnv, setArsenalLight } from './arsenal';
+import { aspCrossbow, cabHeld, chiliThrower, comboModel, cranGun, hoeModel, lemonWand, setArsenalEnv, setArsenalLight } from './arsenal';
 
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(2, devicePixelRatio)); r.setSize(innerWidth, innerHeight);
 r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
@@ -13,7 +13,7 @@ const rim = new THREE.DirectionalLight(0x9ab8ff, 1.2); rim.position.set(-4, 3, -
 scene.add(new THREE.HemisphereLight(0xc8d8ff, 0x3a2a1a, .6));
 const items: { name: string; o: THREE.Object3D }[] = [];
 const add = (name: string, o: THREE.Object3D) => items.push({ name, o });
-{ const g = new THREE.Group(); const h = rakeHandle(1.1); g.add(h); const hd = rakeHeadModel(7, .07, .45); hd.position.z = 1.1; g.add(hd); g.scale.setScalar(.6); g.position.z = -.3; add('rake', g); }
+{ const g = new THREE.Group(); g.add(hoeModel()); g.scale.setScalar(.6); g.position.z = -.1; add('rake', g); }
 add('asp', aspCrossbow().g); add('cran', cranGun().g); add('cab', cabHeld());
 { const s = new THREE.Group(); s.position.z = -.2; lemonWand(s); const g = new THREE.Group(); g.add(s); add('lemon', g); }
 add('chili', chiliThrower());

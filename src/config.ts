@@ -1,7 +1,7 @@
 import YAML from 'yaml';
 
 export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
-/** tools every player has from the start (rake, watering can) + fruit weapons */
+/** tools every player has from the start (rake = the hoe "Hacke" since 18.11.2026, watering can) + fruit weapons */
 export type Weapon = 'rake' | 'can' | SkillId;
 export const isTool = (w: Weapon): w is 'rake' | 'can' => w === 'rake' || w === 'can';
 export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut';
@@ -9,8 +9,12 @@ export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 's
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export const WEAPONS: Weapon[] = ['rake', 'can', 'asp', 'cran', 'cab', 'lemon', 'chili'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
-/** fruit that is ammo for a weapon (nut and blueberry are not) */
+/** fruit that is ammo for a weapon (nut and blueberry are not; blueberries feed the berry shotgun, see ammoOf) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
+/** weapon a fruit is ammo for: blueberries and cranberries both feed the berry shotgun (18.11.2026) */
+export const ammoOf = (t: FruitType): SkillId | null => t === 'blue' ? 'cran' : isWeaponFruit(t) ? t : null;
+/** hoe action: chop (into the ground, farming) or slash (sword swing, fighting) */
+export type HoeAct = 'chop' | 'slash';
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
 export type ComboId = 'jam' | 'cole' | 'sour' | 'lance' | 'cabboom' | 'shock' | 'hot' | 'rocket' | 'kimchi' | 'chilight';
 export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'shock', 'hot', 'rocket', 'kimchi', 'chilight'];
@@ -52,7 +56,7 @@ export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
-  xp: { base: number; growth: number; linear: number; gain?: number };
+  xp: { base: number; growth: number; linear: number; gain?: number; fruit?: Partial<Record<FruitType, number>> };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; startSlots?: [number, number, FruitType][] };
   /** shed in the middle: HP (game lost at 0), collision radius in m */
   lager?: { hp: number; radius: number };
@@ -68,7 +72,10 @@ export interface Balancing {
     tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean; months?: number[] }>;
-  rake: { damage: number; range: number; diameter: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
+  /** hoe (Hacke, weapon id 'rake'): chop = hit the ground at the toe point (tills exactly one field, small hit circle),
+   *  slash = sword-like swing (cone slashArc deg, slashRange m) for fighting */
+  hoe: { chopTime: number; chopCooldown: number; toe: number; chopDamage: number; chopDiameter: number; chopStun: number;
+    slashTime: number; slashCooldown: number; slashArc: number; slashRange: number; damage: number; stun: number; knockback: number };
   /** watering can: sweeps arc deg from left to right in sweepTime s, water lands reach m in front, circle of radius m, wetness per s */
   can: { arc: number; sweepTime: number; reach: number; radius: number; wetPerSecond: number };
   skills: {

@@ -5,8 +5,8 @@ import type { Weapon } from '../config';
 export interface Intent {
   mx: number; mz: number;           // movement, length <= 1
   ax: number; az: number; aim: boolean; // aim direction (world xz), aim=false -> auto-aim
-  fire: Weapon | 'active' | null;   // weapon held down ('active' = the player's selected weapon, PC)
-  tapSeq: number; tapW: Weapon | null; // one-shot fire with auto-aim (quick tap on touch)
+  fire: Weapon | 'active' | 'slash' | null;   // weapon held down ('active' = the player's selected weapon, PC; 'slash' = hoe swing, right mouse button)
+  tapSeq: number; tapW: Weapon | 'slash' | null; // one-shot fire with auto-aim (quick tap on touch)
   cycle: number;                    // increments on every "switch skill" press
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: false, fire: null, tapSeq: 0, tapW: null, cycle: 0 });
@@ -14,7 +14,7 @@ export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: fal
 export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
-  sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
+  sw: number; sd: number; hk?: 0 | 1; /* hoe action progress 0..1, its direction, hk: 1 = slash (sword swing), 0 = chop */ wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
   xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped

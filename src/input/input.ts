@@ -14,11 +14,12 @@ export class Input {
   private mouse: { x: number; y: number } | null = null;
   private mouseDown = false;
   private clickLatch = false; // a click shorter than a frame still fires once
+  private rightDown = false; private rightLatch = false; // right mouse button: hoe swing (slash)
   private mode: 'pc' | 'touch';
-  private cycle = 0; private tapSeq = 0; private tapW: Weapon | null = null;
+  private cycle = 0; private tapSeq = 0; private tapW: Weapon | 'slash' | null = null;
   private move = newStick();
   private aim = newStick();
-  private aimW: Weapon | null = null; private aimT0 = 0; private aimEl: HTMLElement | null = null; private aimLong = false;
+  private aimW: Weapon | 'slash' | null = null; private aimT0 = 0; private aimEl: HTMLElement | null = null; private aimLong = false;
   private moveEl = document.getElementById('moveStick')!;
   private aimStickEl = document.getElementById('aimStick')!;
 
@@ -29,7 +30,7 @@ export class Input {
     addEventListener('pointermove', e => this.pmove(e));
     addEventListener('pointerup', e => this.up(e)); addEventListener('pointercancel', e => this.up(e));
     addEventListener('contextmenu', e => e.preventDefault());
-    addEventListener('mouseup', () => { this.mouseDown = false; });
+    addEventListener('mouseup', e => { if (e.button === 2) this.rightDown = false; else this.mouseDown = false; });
     addEventListener('keydown', e => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       this.keys[e.code] = true; this.setMode('pc');
@@ -47,6 +48,7 @@ export class Input {
     if (e.pointerType === 'mouse') {
       this.setMode('pc'); this.mouse = { x: e.clientX, y: e.clientY };
       if (this.enabled && e.button === 0 && (e.target as HTMLElement).id === 'c') { this.mouseDown = true; this.clickLatch = true; }
+      if (this.enabled && e.button === 2 && (e.target as HTMLElement).id === 'c') { this.rightDown = true; this.rightLatch = true; }
       return;
     }
     this.setMode('touch');
@@ -57,7 +59,7 @@ export class Input {
     if (sk && !sk.hidden) {
       if (this.aim.id !== null) return;
       const r = sk.getBoundingClientRect();
-      this.startAim(e, sk.dataset.skill as Weapon, r.left + r.width / 2, r.top + r.height / 2, 56, sk);
+      this.startAim(e, sk.dataset.skill as Weapon | 'slash', r.left + r.width / 2, r.top + r.height / 2, 56, sk);
       e.preventDefault(); return;
     }
     if (e.clientX < innerWidth * .45) {
@@ -66,12 +68,12 @@ export class Input {
       this.showStick(this.moveEl, e.clientX, e.clientY);
     } else {
       if (this.aim.id !== null) return;
-      this.startAim(e, 'rake', e.clientX, e.clientY, 52, null);
+      this.startAim(e, 'slash', e.clientX, e.clientY, 52, null); // free right side: aim + swing the hoe (fighting)
       this.showStick(this.aimStickEl, e.clientX, e.clientY);
     }
     e.preventDefault();
   }
-  private startAim(e: PointerEvent, w: Weapon, ox: number, oy: number, R: number, el: HTMLElement | null) {
+  private startAim(e: PointerEvent, w: Weapon | 'slash', ox: number, oy: number, R: number, el: HTMLElement | null) {
     Object.assign(this.aim, { id: e.pointerId, ox, oy, R, x: 0, y: 0, mag: 0 });
     this.aimW = w; this.aimT0 = performance.now(); this.aimEl = el; this.aimLong = false;
     if (el) el.classList.add('held');
@@ -103,7 +105,7 @@ export class Input {
   }
   releaseAll() {
     this.releaseAim(false); Object.assign(this.move, newStick()); this.moveEl.style.display = 'none';
-    this.mouseDown = false; this.keys = {};
+    this.mouseDown = false; this.rightDown = false; this.keys = {};
   }
 
   /** builds the intent for this frame; activeWeapon comes from the latest snapshot */
@@ -121,7 +123,8 @@ export class Input {
       const d = this.mouse ? this.view.groundDir(this.mouse.x, this.mouse.y) : null;
       if (d) { it.ax = d[0]; it.az = d[1]; it.aim = true; Object.assign(this.view.localAim, { weapon: activeWeapon, x: d[0], z: d[1], show: true }); }
       if (this.mouseDown || this.clickLatch) it.fire = 'active';
-      this.clickLatch = false;
+      if (this.rightDown || this.rightLatch) { it.fire = 'slash'; this.view.localAim.weapon = 'slash'; } // right mouse button: hoe swing
+      this.clickLatch = false; this.rightLatch = false;
     } else if (this.aimW) {
       const long = performance.now() - this.aimT0 > 140 || this.aim.mag > .25;
       if (long) { this.aimLong = true; it.fire = this.aimW; }

@@ -166,7 +166,7 @@ export function burst(p: { x: number; y: number; z: number }, color: number, n: 
 }
 
 // ---------------- pooled ground decals / swipes ----------------
-interface Fx { m: THREE.Mesh; t: number; life: number; r0: number; r1: number; op: number; own: boolean; sprite?: boolean; rot?: number }
+interface Fx { m: THREE.Object3D; t: number; life: number; r0: number; r1: number; op: number; own: boolean; sprite?: boolean; rot?: number; upd?: (k: number) => void }
 const fx: Fx[] = [];
 export function decal(x: number, z: number, color: number, r: number, life: number, o: { ring?: boolean; add?: boolean; grow?: number; op?: number } = {}) {
   const mat = o.add ? addMat(color, o.op ?? .7) : new THREE.MeshBasicMaterial({ color, transparent: true, opacity: o.op ?? .75, depthWrite: false });
@@ -174,38 +174,45 @@ export function decal(x: number, z: number, color: number, r: number, life: numb
   m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 7); m.position.set(x, .03 + Math.random() * .008, z); m.scale.setScalar(r); scene.add(m);
   fx.push({ m, t: 0, life, r0: r, r1: o.grow ?? r, op: o.op ?? .75, own: false });
 }
-/** rake tines: fixed spacing, a wider rake gets more tines (and leaves more scratches), nothing is stretched */
+/** furrow spacing of the garden beds (was the old rake's tine spacing) */
 export const TINE_GAP = .075;
-export const rakeTines = (w: number) => Math.max(4, Math.round(w / TINE_GAP));
 /** flat rectangle in the XZ plane: width along X, length along +Z from the origin (rotate with rotation.y = aim angle) */
 export function rectGeo(w: number, l: number) { const g = new THREE.PlaneGeometry(w, l); g.rotateX(-Math.PI / 2); g.translate(0, 0, l / 2); return g; }
-/** rake stroke: scratch marks of the tines in the ground, one per tine (same spacing as the rake head), each slightly
- *  wavy, tapered and with ragged start/end (random length, short side scratches where the tines bite in and lift off).
- *  They fill the hit circle: diameter w, far edge `len` ahead; each tine scratches the chord of the circle it crosses. */
-export function rakeSweep(x: number, z: number, angle: number, len: number, w: number) {
-  const pos: number[] = [], n = rakeTines(w);
-  const strip = (cx: number, z0: number, z1: number, hw: number, wob: number) => {
-    const S = 10, ph = rand(0, 7), pts: [number, number, number][] = [];
-    for (let i = 0; i <= S; i++) {
-      const t = i / S, zz = lerp(z0, z1, t), taper = Math.pow(Math.sin(Math.PI * Math.min(1, .15 + t * .85)), .6);
-      pts.push([cx + Math.sin(ph + t * 5) * wob + rand(-.004, .004), zz, hw * taper * rand(.6, 1.15)]);
-    }
-    for (let i = 0; i < S; i++) {
-      const [ax, az, aw] = pts[i], [bx, bz, bw] = pts[i + 1];
-      pos.push(ax - aw, 0, az, bx - bw, 0, bz, bx + bw, 0, bz, ax - aw, 0, az, bx + bw, 0, bz, ax + aw, 0, az);
-    }
-  };
-  for (let i = 0; i < n; i++) {
-    const r = w / 2, c = len - r, cx = -r + w * (i + .5) / n, h = Math.sqrt(Math.max(0, r * r - cx * cx));
-    const z0 = c - h + 2 * h * rand(0, .12), z1 = c + h - 2 * h * rand(0, .15);
-    strip(cx, z0, z1, .011, .012);
-    // frayed ends: short skewed scratches where the tine bit in (far end) and lifted off (near end)
-    if (Math.random() < .55) { const s = rand(-.03, .03); strip(cx + s, z1 - rand(.06, .16), z1 + rand(0, .05), .006, .01); }
-    if (Math.random() < .45) { const s = rand(-.03, .03); strip(cx + s, Math.max(0, z0 - rand(0, .04)), z0 + rand(.05, .14), .006, .01); }
+/** hoe chop: small crack in the ground where the blade went in (dark gash across the direction + crumbs) */
+export function chopMark(x: number, z: number, angle: number) {
+  const pos: number[] = [], S = 8, len = .2, w = .03;
+  for (let i = 0; i < S; i++) {
+    const t0 = i / S, t1 = (i + 1) / S, x0 = -len / 2 + len * t0, x1 = -len / 2 + len * t1;
+    const h0 = w * Math.sin(Math.PI * t0) + .004, h1 = w * Math.sin(Math.PI * t1) + .004, j0 = rand(-.008, .008), j1 = rand(-.008, .008);
+    pos.push(x0, 0, j0 - h0, x1, 0, j1 - h1, x1, 0, j1 + h1, x0, 0, j0 - h0, x1, 0, j1 + h1, x0, 0, j0 + h0);
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x24170d, transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide }));
-  m.rotation.y = angle; m.position.set(x, .05, z); scene.add(m); fx.push({ m, t: 0, life: 1.2, r0: 1, r1: 1, op: .5, own: true });
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x1e1309, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide }));
+  m.rotation.y = angle; m.position.set(x, .05, z); scene.add(m); fx.push({ m, t: 0, life: 1.4, r0: 1, r1: 1, op: .7, own: true });
+}
+/** hoe slash: comic white swing arc (black outline) at hand height. It is drawn from left to right over `dur` s
+ *  (+angle = left of the facing direction), thick at the leading end, then fades. Radius = slash range, arc = hit cone. */
+export function slashSmear(x: number, z: number, angle: number, radius: number, arc: number, dur: number) {
+  const N = 28, W = Math.min(.42, radius * .38), a = arc * Math.PI / 180 * 1.15; // arc in degrees
+  const build = (r: number, ww: number) => {
+    const pos: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const seg = (t: number) => { const b = a / 2 - a * t, th = ww * Math.pow(Math.sin(Math.PI * Math.min(1, .08 + t * .95)), .55) * (.25 + .75 * t); return [Math.sin(b), Math.cos(b), r, r - th] as const; };
+      const [s0, c0, o0, i0] = seg(i / N), [s1, c1, o1, i1] = seg((i + 1) / N);
+      pos.push(s0 * i0, 0, c0 * i0, s0 * o0, 0, c0 * o0, s1 * o1, 0, c1 * o1, s0 * i0, 0, c0 * i0, s1 * o1, 0, c1 * o1, s1 * i1, 0, c1 * i1);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g;
+  };
+  const grp = new THREE.Group(); grp.rotation.y = angle; grp.position.set(x, .72, z);
+  const ink = new THREE.Mesh(build(radius + .03, W + .06), new THREE.MeshBasicMaterial({ color: 0x14100c, transparent: true, opacity: .85, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  const white = new THREE.Mesh(build(radius, W), new THREE.MeshBasicMaterial({ color: 0xf2f2ee, transparent: true, opacity: .95, depthWrite: false, side: THREE.DoubleSide }));
+  ink.renderOrder = 5; white.renderOrder = 6; white.position.y = .004; grp.add(ink, white); scene.add(grp);
+  const life = dur + .2;
+  fx.push({ m: grp, t: 0, life, r0: 1, r1: 1, op: .95, own: true, upd: k => { // reveal from left to right, the tail catches up afterwards
+    const t = k * life, head = Math.min(1, t / Math.max(.01, dur)), tail = Math.max(0, (t - dur * .45) / (life - dur * .45));
+    const a0 = Math.floor(tail * N), a1 = Math.ceil(head * N);
+    for (const m of [ink, white]) m.geometry.setDrawRange(a0 * 6, Math.max(0, a1 - a0) * 6);
+  } });
 }
 /** rake swipe: exactly the hit cone (radius = range, arc) */
 export function swipe(x: number, z: number, angle: number, radius: number, arc: number, color = 0xffe3a0) {
@@ -267,6 +274,7 @@ export function updateFx(dt: number) {
       f.m.traverse((o: any) => { if (o.material) o.material.dispose(); if (f.own && o.geometry) o.geometry.dispose(); });
       fx.splice(i, 1); continue;
     }
+    if (f.upd) f.upd(k);
     if (f.sprite) { const s = k < .25 ? lerp(f.r0, f.r1, k / .25) : f.r1 * (1 - (k - .25) * .25); f.m.scale.setScalar(s); }
     else if (f.r0 !== f.r1) f.m.scale.setScalar(lerp(f.r0, f.r1, 1 - Math.pow(1 - k, 3)));
     const op = f.op * (k < .7 ? 1 : 1 - (k - .7) / .3);

@@ -70,10 +70,12 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-skill=rake]{width:96px;height:96px;right:24px;bottom:24px}
 .skill[data-skill=rake] .charge{display:none}
 .skill:not([data-skill=rake]){width:70px;height:70px;right:155px;bottom:37px}
-.skill[data-skill=can]{width:64px;height:64px;right:40px;bottom:150px;--glow:#7fd0ff}
+.skill[data-skill=slash]{width:72px;height:72px;right:36px;bottom:136px}
+.skill[data-skill=slash] .charge{display:none}
+.skill[data-skill=can]{width:60px;height:60px;right:42px;bottom:226px;--glow:#7fd0ff}
 .skill[data-skill=can] .charge{display:none}
 .skill[data-skill=asp]{--glow:#8fe36a}
-.skill[data-skill=cran]{--glow:#ff4d5e}
+.skill[data-skill=cran]{--glow:#e8dcc4}
 .skill[data-skill=cab]{--glow:#b8f070}
 .skill[data-skill=lemon]{--glow:#ffe44a}
 .skill[data-skill=chili]{--glow:#ff6a2a}
@@ -82,7 +84,7 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-pos="1"]{right:120px;bottom:120px}
 .skill[data-pos="2"]{right:172px;bottom:170px}
 .skill[data-pos="3"]{right:240px;bottom:100px}
-.skill[data-pos="4"]{right:100px;bottom:230px}
+.skill[data-pos="4"]{right:118px;bottom:250px}
 /* PC: buttons only show state, the active weapon is marked */
 body[data-input=pc] .skill{pointer-events:none}
 body[data-input=pc] .skill.active{transform:scale(1.12)}
@@ -134,7 +136,7 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
   background:linear-gradient(160deg,#ffffff14,#ffffff00 38%),linear-gradient(180deg,#222b33,#0d1216);
   box-shadow:0 0 22px 2px var(--glowA),inset 0 0 18px var(--glowA),0 8px 24px #000c}
 .card.wpn:hover,.card.wpn:focus-visible,.card.wpn.tilt{border-color:var(--glow);box-shadow:0 0 34px 6px var(--glowA),inset 0 0 22px var(--glowA),0 16px 32px #000c}
-.card.wpn[data-skill=asp]{--glow:#8fe36a;--glowA:#8fe36a66}.card.wpn[data-skill=cran]{--glow:#ff4d5e;--glowA:#ff4d5e66}.card.wpn[data-skill=cab]{--glow:#b8f070;--glowA:#b8f07066}
+.card.wpn[data-skill=asp]{--glow:#8fe36a;--glowA:#8fe36a66}.card.wpn[data-skill=cran]{--glow:#e8dcc4;--glowA:#e8dcc466}.card.wpn[data-skill=cab]{--glow:#b8f070;--glowA:#b8f07066}
 .card.wpn[data-skill=lemon]{--glow:#ffe44a;--glowA:#ffe44a66}.card.wpn[data-skill=chili]{--glow:#ff6a2a;--glowA:#ff6a2a66}
 .card.wpn::before{content:"";position:absolute;top:-20%;left:-60%;width:40%;height:140%;pointer-events:none;background:linear-gradient(90deg,#fff0,#ffffff2e,#fff0);transform:translateX(0) rotate(18deg);animation:gloss 3.6s ease-in-out infinite;will-change:transform}
 @keyframes gloss{0%,55%{transform:translateX(0) rotate(18deg)}100%{transform:translateX(480%) rotate(18deg)}}

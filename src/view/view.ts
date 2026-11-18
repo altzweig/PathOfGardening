@@ -29,7 +29,7 @@ import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flam
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
+  part, punchStar, dustCloud, pxScale, rand, chopMark, slashSmear, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
@@ -38,13 +38,13 @@ import { setBareRoom } from './world';
 import { Lager } from './lager';
 import { resetSeasons, seasonNow, updateSeasons } from './seasons';
 import { buildWorld, setForestGaps, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
-import { GROUND_MAT, rakeHead } from './models';
+import { GROUND_MAT } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
-import { aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
+import { HOE, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
@@ -109,7 +109,7 @@ function leafMat(c: THREE.Color) { const k = c.getHex(); let m = leafMats.get(k)
 // common, uncommon, rare, epic, legendary
 export const RARITY_COL = [0x9a9488, 0x5fd35f, 0x4a8cff, 0xb05cff, 0xffa020];
 
-export interface LocalAim { weapon: Weapon | null; x: number; z: number; show: boolean }
+export interface LocalAim { weapon: Weapon | 'slash' | null; x: number; z: number; show: boolean }
 
 export class GameView {
   cfg!: Balancing;
@@ -346,7 +346,6 @@ export class GameView {
     }
   }
 
-  private rakeW = 0;
   /** shed in the middle (18.11.2026) */
   lager: Lager | null = null;
   /** month 1..12 of the current wave (0 = no seasons) */
@@ -354,7 +353,6 @@ export class GameView {
   /** a plant shows fruit only in its harvest months */
   inSeason(t: FruitType) { const M = this.cfg?.plants[t]?.months; return !M || !this.month || this.sandbox || M.includes(this.month); }
   setConfig(cfg: Balancing) {
-    this.rakeW = cfg.rake.diameter;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
@@ -365,7 +363,7 @@ export class GameView {
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     this.aimInd = {
       rake: new THREE.Mesh(rectGeo(1, 1), addMat(0xffe3a0, .12)),
-      cran: new THREE.Mesh(sectorGeo(1, cfg.skills.cran.cone * Math.PI / 180), addMat(0xff8090, .12)),
+      cran: new THREE.Mesh(sectorGeo(1, cfg.skills.cran.cone * Math.PI / 180), addMat(0xfff0dc, .1)),
       asp: new THREE.Mesh(GEO.plane, addMat(0x9cff70, .2)),
       cab: new THREE.Mesh(GEO.circle, addMat(0xb8f070, .14)),
       chili: new THREE.Mesh(sectorGeo(1, 1), addMat(0xff7a30, .12)),
@@ -396,11 +394,11 @@ export class GameView {
       const look = this.lookFor(ps.id, ps.c), lk = lookKey(look);
       if (v && v.lookKey !== lk) { // look changed (co-op: arrived after the figure was built) -> rebuild the figure
         this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.label) this.dyn.remove(v.label);
-        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.diameter); this.dyn.add(b.g);
+        const b = buildPlayer(look); this.dyn.add(b.g);
         Object.assign(v, b, { lookKey: lk, xbow: undefined, label: undefined, cw: undefined });
       }
       if (!v) {
-        const b = buildPlayer(look, this.cfg.rake.range, ps.ra || this.cfg.rake.diameter); this.dyn.add(b.g);
+        const b = buildPlayer(look); this.dyn.add(b.g);
         const ring = new THREE.Mesh(GEO.ring, addMat(PLAYER_RING[ps.c % 4], .4)); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(.5); ring.position.y = .035; this.dyn.add(ring);
         v = { ...b, ring, bar: makeBar(.7, .07, 0x6fcf4a), s: ps, x: ps.x, z: ps.z, rot: ps.f, recoil: 0, lookKey: lk, walk: 0 };
         this.players.set(ps.id, v);
@@ -496,7 +494,7 @@ export class GameView {
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], (p) => {
       if (p[1] >= 2) return projMesh(p[1]);
-      if (p[1] !== 0) return fruitMesh('cran', .9, false, true);
+      if (p[1] !== 0) return fruitMesh(p[6] === 2 ? 'blue' : 'cran', .9, false, true); // berry shotgun: blueberry (2) or cranberry pellet
       const m = new THREE.Group();
       const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
@@ -509,9 +507,9 @@ export class GameView {
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
     // missed cranberries lying on the ground: swell and pulse faster until they pop
-    this.sync(this.mines, s.mi, id, m => m[0], (m) => { const m2 = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: m[5] ? 0xff7a20 : 0xff2040, emissive: m[5] ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 })); return m2; },
+    this.sync(this.mines, s.mi, id, m => m[0], (m) => { const m2 = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: m[5] === 1 ? 0xff7a20 : m[5] === 2 ? 0x5a6cff : 0xff2040, emissive: m[5] === 1 ? 0xff4a00 : m[5] === 2 ? 0x2a3cff : 0xff1030, emissiveIntensity: 1.6 })); return m2; },
       (v, m) => { const k = m[3] || 0, mat = (v.m as THREE.Mesh).material as THREE.MeshStandardMaterial; v.tx = m[1]; v.ty = .06 + (m[4] || 0); v.tz = m[2];
-        if (m[5] && Math.random() < .2) PART.spawn(V(v.x, .12, v.z), V(rand(-.1, .1), .7, rand(-.1, .1)), 0xff8a20, .08, .3, { a: .9 }); v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
+        if (m[5] === 1 && Math.random() < .2) PART.spawn(V(v.x, .12, v.z), V(rand(-.1, .1), .7, rand(-.1, .1)), 0xff8a20, .08, .3, { a: .9 }); v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
     // Shockgun berries lying on the ground
     this.sync(this.snodes, s.sn || [], id, n => n[0], () => nodeMesh(), (v, n) => { v.tx = n[1]; v.ty = .08; v.tz = n[2]; animNode(v.m, n[1], n[2], n[3]); });
     for (const e of s.ev) this.event(e);
@@ -715,12 +713,10 @@ export class GameView {
       }
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
       case 'impact': punchStar(e.x, e.z, .45); break;
-      case 'swipe': {
-        rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.diameter);
-        break;
-      }
+      case 'chop': chopMark(e.x, e.z, e.a); decal(e.x, e.z, 0x3a2614, .14, 1.2, { op: .45 }); break; // hoe blade went into the ground
+      case 'slash': slashSmear(e.x, e.z, e.a, e.r, e.c, e.t); break; // comic white swing arc of the hoe
       case 'shot': {
-        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
+        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xfff0dc : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
         burst(V(e.x, .75, e.z), col, 10, 2.2, .2, .22); PART.spawn(V(e.x, .75, e.z), V(0, 0, 0), col, .9, .12);
         const pv = this.players.get(e.p); if (pv) { pv.recoil = e.w === 'lemon' ? .04 : .12; if (e.w === 'lemon') pv.lemonMat.emissiveIntensity = .55; } // wand: the lemon flares up
         break;
@@ -740,11 +736,12 @@ export class GameView {
         for (let k = 0; k < 4; k++) decal(e.x + rand(-.15, .15), e.z + rand(-.15, .15), 0xa01020, rand(.03, .06), 5, { op: .8 });
         break;
       }
-      case 'berryPop': { // lying cranberry pops into a red stain
-        burst(V(e.x, .15, e.z), 0xff2040, 12, 1.8, .12, .35, { g: 5 });
-        decal(e.x, e.z, 0xff3050, .05, .25, { ring: true, add: true, grow: e.r, op: .7 });
-        decal(e.x, e.z, 0x8a0a1a, e.r * rand(.55, .7), 3.5, { op: .6 });
-        for (let k = 0; k < 4; k++) decal(e.x + rand(-1, 1) * e.r * .8, e.z + rand(-1, 1) * e.r * .8, 0xa01020, rand(.04, .08), 3.5, { op: .7 });
+      case 'berryPop': { // lying berry pops into a stain: red cranberry, blue blueberry (b)
+        const C = e.b ? [0x4a5cff, 0x5a6cff, 0x1a1a6a, 0x2a2a8a] : [0xff2040, 0xff3050, 0x8a0a1a, 0xa01020];
+        burst(V(e.x, .15, e.z), C[0], 12, 1.8, .12, .35, { g: 5 });
+        decal(e.x, e.z, C[1], .05, .25, { ring: true, add: true, grow: e.r, op: .7 });
+        decal(e.x, e.z, C[2], e.r * rand(.55, .7), 3.5, { op: .6 });
+        for (let k = 0; k < 4; k++) decal(e.x + rand(-1, 1) * e.r * .8, e.z + rand(-1, 1) * e.r * .8, C[3], rand(.04, .08), 3.5, { op: .7 });
         break;
       }
       case 'bleed': PART.spawn(V(e.x, .4, e.z), V(rand(-.3, .3), 1, rand(-.3, .3)), 0xff2030, .12, .5, { g: 5 }); break;
@@ -848,6 +845,19 @@ export class GameView {
     (document.getElementById('hurt') as HTMLElement).style.opacity = (this.hurtT * 1.2).toFixed(2);
     composer.render();
   }
+  private chopCache: [number, number, number] = [-1, 0, 0];
+  /** pitch of the hoe and handle length in front of the hands so the blade edge lands on the ground at the toe point
+   *  (hands at .6 m height, .06 m in front of the centre) */
+  private chopPose(toe: number): [number, number] {
+    if (this.chopCache[0] === toe) return [this.chopCache[1], this.chopCache[2]];
+    let best: [number, number] = [.8, HOE.front], be = 1e9;
+    for (let th = .3; th <= 1.5; th += .01) {
+      const bz = HOE.blade * Math.sin(HOE.tilt - th), by = -HOE.blade * Math.cos(th - HOE.tilt), a = (toe - .06 - bz) / Math.cos(th);
+      const err = Math.abs(.6 - a * Math.sin(th) + by - .02) + Math.max(0, a - HOE.front - .25) + Math.max(0, .3 - a);
+      if (err < be) { be = err; best = [th, a]; }
+    }
+    this.chopCache = [toe, best[0], best[1]]; return best;
+  }
   private animPlayer(v: PView, dt: number, k: number) {
     const s = v.s, ox = v.x, oz = v.z;
     v.x = lerp(v.x, s.x, k); v.z = lerp(v.z, s.z, k);
@@ -860,29 +870,30 @@ export class GameView {
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
-    // rake model: handle from the hands (pivot .62 m up) to the head; head distance d and height y set length + tilt
-    const R = this.cfg.rake, reach = s.rr || R.range, L0 = R.range - .12, HY = .62;
-    const rw = s.ra || R.diameter; // diameter upgrade: rebuild the head with more tines (nothing stretched)
-    if (v.head.userData.w !== rw) { const h = rakeHead(rw); h.position.copy(v.head.position); v.rake.remove(v.head); v.rake.add(h); v.head = h; }
-    v.rake.position.z = 0;
-    const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
-    if (swinging) { // one stroke, always the same: pull from the front to the left back in one swing, then shove forward
-      // the pull ends at the near edge of the hit circle, the push goes out to the full reach (far edge)
-      const RC = this.cfg.rake, P = RC.pullTime / (RC.pullTime + RC.pushTime), k = s.sw, BACK = 1.75, NEAR = Math.max(.25, reach - rw);
-      let yaw: number, d: number, y: number, lean: number;
-      if (k < P) { // pull: head drags over the ground, sweeps round to the left back and lifts off at the end (swing)
-        const t = k / P, e = t * t * (3 - 2 * t);
-        yaw = BACK * e; d = lerp(reach, NEAR, e); y = .02 + .3 * Math.pow(t, 4); lean = .2 * (1 - e);
-      } else { // push: swings round to the front and shoots forward, accelerating, slams down at the impact
-        const t = (k - P) / (1 - P), e = t * t, r = 1 - Math.pow(1 - Math.min(1, t * 1.5), 2);
-        yaw = BACK * (1 - r); d = lerp(NEAR, reach, e); y = .32 * (1 - e) + .02; lean = .28 * e;
+    // hoe (weapon id 'rake'): v.rake = pivot in the hands, v.head = the hoe sliding through them (position.z)
+    // chop: raise over the head, strike down so the blade edge lands at the toe point; slash: sword swing from left to right
+    const HC = this.cfg.hoe, P = v.rake.position, ks = s.sw;
+    const REST = { x: .16, y: .74, z: .14, pitch: .62, yaw: -.45 }, UP = { x: .04, y: 1.08, z: .02, pitch: -1.95 };
+    if (swinging && !s.hk) {
+      const [thI, aI] = this.chopPose(HC.toe), HIT = { x: .03, y: .6, z: .06 };
+      if (ks < .6) { const t = ks / .6, e = t * t * (3 - 2 * t);
+        P.set(lerp(REST.x, UP.x, e), lerp(REST.y, UP.y, e), lerp(REST.z, UP.z, e)); v.rake.rotation.set(lerp(REST.pitch, UP.pitch, e), lerp(REST.yaw, 0, e), 0, 'YXZ');
+        v.head.position.z = 0; v.body.rotation.x = -.1 * e; v.twist = 0;
+      } else { const t = (ks - .6) / .4, e = t * t;
+        P.set(lerp(UP.x, HIT.x, e), lerp(UP.y, HIT.y, e), lerp(UP.z, HIT.z, e)); v.rake.rotation.set(lerp(UP.pitch, thI, e), 0, 0, 'YXZ');
+        v.head.position.z = (aI - HOE.front) * e; v.body.rotation.x = lerp(-.1, .32, e); v.twist = 0;
       }
-      v.rake.rotation.y = yaw; aimRake(d, y); v.body.rotation.x = lean; v.twist = yaw * .3;
-    } else {
-      v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2); v.twist = lerp(v.twist || 0, 0, .2);
-      const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
+    } else if (swinging) { // slash: handle almost level, blade edge leading, sweeps the cone from left to right
+      const e = 1 - Math.pow(1 - ks, 2), yaw = lerp(1.25, -1.25, e), reach = Math.max(.5, (s.rr || HC.slashRange) - .2);
+      P.set(.04, .86, .14); v.rake.rotation.set(.1, yaw, 0, 'YXZ'); v.head.rotation.z = lerp(v.head.rotation.z, Math.PI / 2, .6);
+      v.head.position.z = Math.min(.3, reach - HOE.front); v.body.rotation.x = .12; v.twist = yaw * .35;
+    } else { // resting: held diagonally in front, blade down
+      const q = .2;
+      P.set(lerp(P.x, REST.x, q), lerp(P.y, REST.y, q), lerp(P.z, REST.z, q));
+      v.rake.rotation.x = lerp(v.rake.rotation.x, REST.pitch, q); v.rake.rotation.y = lerp(v.rake.rotation.y, REST.yaw, q);
+      v.head.position.z = lerp(v.head.position.z, 0, q); v.body.rotation.x = lerp(v.body.rotation.x, 0, q); v.twist = lerp(v.twist || 0, 0, q);
     }
-    v.head.scale.z = 1 / Math.max(.05, v.rake.scale.z); // the handle stretches with the reach, the head keeps its shape
+    if (!(swinging && s.hk)) v.head.rotation.z = lerp(v.head.rotation.z, 0, .4);
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.lowHpWarn(v, s.hp / s.mhp);
@@ -921,9 +932,8 @@ export class GameView {
     else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.can && v.can.g.visible) { v.can.g.updateMatrixWorld(true); t0 = v.can.grip.getWorldPosition(V()); }
-    else if (v.rake.visible) {
-      const sz = Math.max(.05, v.rake.scale.z);
-      t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
+    else if (v.rake.visible) { // hoe: front hand at the pivot, back hand further down the handle
+      t0 = v.rake.localToWorld(V(0, 0, 0)); t1 = v.rake.localToWorld(V(0, 0, -.3));
     }
     if (v.wand.visible && !(F && F.gun.visible) && !(v.xbow && v.xbow.g.visible) && !(v.cw && v.cw.g.visible)) t1 = v.wandGrip.localToWorld(V(0, -.01, .0));
     animateArms(R, dt, s.wk, [t0, t1]);
@@ -1124,15 +1134,15 @@ export class GameView {
     if (!me || !me.s.al || !a.show || !a.weapon || !this.snap) return;
     const w = a.weapon, ang = Math.atan2(a.x, a.z), px = me.x, pz = me.z, priv = this.snap.me[this.me];
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
-    if (w === 'can') return; // no marker: the water shows where it lands
+    if (w === 'can' || w === 'slash') return; // no marker: the water shows where it lands, the swing arc where the hoe hits
     const cid = w !== 'rake' && priv ? comboOf(priv.cb?.[SKILLS.indexOf(w)] ?? -1) : '';
     if (cid === 'chilight') { // lightning wave: long strip as wide as the wave
       const m = this.aimInd.asp, r = rng('chili'), C = this.cfg.combos!.list.chilight;
       m.visible = true; m.scale.set(C.width, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI); return;
     }
-    if (w === 'rake' || w === 'cran') {
-      const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
-      if (w === 'rake') return; // no marker: the scratches of the stroke show where the rake worked
+    if (w === 'rake') return; // no marker: the hoe works where the player stands
+    if (w === 'cran') {
+      const m = this.aimInd[w], r = rng('cran');
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp' || w === 'lemon') {
       const m = this.aimInd.asp, r = rng(w);

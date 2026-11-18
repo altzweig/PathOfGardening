@@ -82,7 +82,8 @@ player:
   hurt:   { synth: hurt, gap: 0.2 }
   die:    { synth: playerDie, gap: 1 }
   spawn:  { synth: respawn, gap: 0.5 }
-  till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Feld beackern (Harke im Boden)
+  till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Hacke schlägt in den Boden (Harken-Geräusch, bei jedem Hackschlag)
+  slash:  { synth: whoosh, gap: 0.08 }                                                                            # Schwung mit der Hacke (comicartiges Wusch)
 
 plants:
   produce:

@@ -11,6 +11,8 @@ export const PLAYER_CSS = ['#ffd890', '#8fc8ff', '#ff9a8a', '#d0a0ff'];
 
 export class Hud {
   btn = {} as Record<Weapon, HTMLElement>;
+  /** hoe swing (slash) button next to the hoe: touch only (PC: right mouse button) */
+  slashBtn!: HTMLElement;
   private cache: Record<string, string> = {};
   private wasReady: Record<string, boolean> = {};
   private resKey = '';
@@ -28,7 +30,7 @@ export class Hud {
       if (secs > A.lowSeconds) st.armed = true; // refilled: warn again next time
       else if (st.armed) { st.armed = false; st.vis = Math.max(st.vis, A.lowShow); }
       const key = w + am + (secs <= A.lowSeconds ? 'l' : '');
-      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
+      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w === 'cran' ? 'mix' : w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
       target = st.vis > 0 ? 1 : 0;
     }
     st.vis = Math.max(0, st.vis - dt);
@@ -44,6 +46,9 @@ export class Hud {
       if (!isTool(w)) b.hidden = true;
       box.appendChild(b); this.btn[w] = b;
     }
+    const sb = document.createElement('div'); sb.className = 'skill'; sb.dataset.skill = 'slash';
+    sb.innerHTML = `<div class="charge"></div><div class="face">${skillIcon('slash')}</div><div class="kn"></div>`;
+    box.appendChild(sb); this.slashBtn = sb;
   }
   // wave countdown + announcement
   private cd = { sec: -1, ann: -1, wp: -1 };
@@ -94,10 +99,10 @@ export class Hud {
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
-    const have = s.fi.map(f => FRUITS[f[1]]).filter(t => t !== 'blue');
+    const have = s.fi.map(f => FRUITS[f[1]]).map(t => t === 'blue' ? 'cran' : t); // blueberries are berry shotgun ammo too
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
-      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
+      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t === 'cran' ? 'mix' : t)}<span data-r="${t}">0</span></div>`).join('');
       for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
     }
     document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const i = SKILLS.indexOf(el.dataset.r as any); const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : pr.am[i]); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
@@ -127,7 +132,7 @@ export class Hud {
       b.style.setProperty('--cd', String(pr.cd[i])); b.style.setProperty('--ch', Math.min(1, pr.am[i] / pr.nd[i]).toFixed(3));
       const t = `${pr.am[i]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
     });
-    this.btn.rake.style.setProperty('--cd', String(pr.rk));
+    this.btn.rake.style.setProperty('--cd', String(pr.rk)); this.slashBtn.style.setProperty('--cd', String(pr.rk));
   }
 }
 

@@ -350,9 +350,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Spieler startet links (Kamera schaut rechts an ihm vorbei), Gegner kommen am rechten Raumrand und greifen ihn sofort an. Spieler kann nicht sterben, Treffer werden aber angezeigt.
 - Waffenleiste oben: alle Waffen (Harke, 5 Fruchtwaffen, 10 Kombiwaffen), Munition unendlich. Wechsel per Klick/Tippen oder Mausrad.
 - Gegner pro Minute mit Plus/Minus (Tasten + und − oder Knöpfe), Stufen 0 bis 240.
-- Escape (Handy: Pause-Knopf) öffnet die Einstellungen als Seitenleiste (Handy: unten). Das Spiel läuft dahinter als Live-Vorschau weiter, der Spieler zielt automatisch auf den nächsten Gegner und feuert dauernd.
-- Einstellungen: Waffe, Slider für jeden Zahlenwert der gewählten Waffe aus `balancing.yaml` (0 bis 3× Standard, geänderte Werte golden), Zurücksetzen, „Werte kopieren“ (geänderte Werte als YAML-Zeilen in die Zwischenablage), Gegnerart (Zufall oder eine Art; Eichhörnchen fehlt, es braucht seinen Nussbaum), Gegner pro Minute, Tageszeit.
-- Slider-Änderungen gelten nur im Waffentest und werden beim Verlassen zurückgesetzt.
+- Escape (Handy: Pause-Knopf) öffnet die Einstellungen als Seitenleiste (Handy: unten). Dahinter läuft eine Live-Vorschau: der Spieler zielt automatisch auf den nächsten Gegner und feuert dauernd; die Gegner stehen still, es kommen keine neuen, nur Schaden über Zeit (Brand, Gift, Schock) tickt weiter (18.11.2026).
+- Einstellungen: Waffe, Upgrades der gewählten Waffe mit − / + und aktueller Stufe (18.11.2026, statt Slidern für balancing.yaml-Werte), Zurücksetzen, Gegnerart (Zufall oder eine Art; Eichhörnchen fehlt, es braucht seinen Nussbaum), Gegner pro Minute, Tageszeit.
+- Upgrades: alle Upgrades wie auf den Level-up-Karten (Schaden, Reichweite, Abklingzeit + Spezial-Upgrades). Hinter der Stufe steht das reguläre Maximum („3/5“); darüber ist die Zahl rot. Wo mehr Stufen nichts mehr ändern (z. B. Durchbohren „alle“, Salve, 100 %-Chancen, Flammen-Zirkel, Brand-Tick), endet + am Maximum. Harke und Grund-Upgrades haben kein Maximum. Kombiwaffen zeigen die Upgrades beider Waffen (mit Waffensymbol), weil die Kombi sie zusammenrechnet. Der Flammenwerfer hat kein Abklingzeit-Upgrade.
+- Upgrade-Stufen gelten nur im Waffentest und sind beim Neustart/Verlassen weg.
 
 ## Felder gehen nicht kaputt, Ertrag nach HP (17.11.2026)
 - Felder werden nie zerstört. Bei 0 HP welkt die Pflanze (braun, gestaucht, keine Früchte) und produziert nichts. Der Platz bleibt belegt.

@@ -120,9 +120,11 @@ interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
-export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string }
+export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string; freeze: boolean }
 /** enemies the weapon test room can send (the squirrel needs its nut tree) */
 export const SB_ENEMIES: EnemyType[] = ENEMIES.filter(t => t !== 'squirrel');
+
+export interface SbUp { key: string; w: SkillId | 'rake'; label: string; lv: number; max: number; cap: number }
 
 export class Sim {
   cfg: Balancing;
@@ -147,7 +149,7 @@ export class Sim {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
-    if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake' }; return; }
+    if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake', freeze: false }; return; }
     // start fields: the centre first, then every second slot of the first ring around it, then outwards
     const ring1 = [[0, 0], [1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
@@ -1206,6 +1208,13 @@ export class Sim {
       if (s.t <= 0) { s.t += T.poisonInterval!; s.ticks--; hurt(T.poisonDamage!); if (s.ticks <= 0 && obj.poison[i] === s) obj.poison.splice(i, 1); }
     }
   }
+  /** test room with the settings open: enemies stand still, only damage over time keeps ticking */
+  private frozenEnemy(e: Enemy, dt: number) {
+    e.flash -= dt; e.lunge = 0; e.tongueT = 0;
+    this.tickBurn(e, dt); if (e.dead) return;
+    this.tickShock(e, dt); if (e.dead) return;
+    this.tickEnemyPoison(e, dt);
+  }
   updateEnemy(e: Enemy, dt: number) {
     const D = this.cfg.enemies[e.type], E = this.cfg.enemies;
     e.flash -= dt; e.lunge -= dt; e.tongueT -= dt;
@@ -1509,6 +1518,45 @@ export class Sim {
   /** test room: remove every enemy (e.g. after switching the enemy type) */
   sbClear() { for (const e of [...this.enemies]) this.removeEnemy(e); this.berryBombs.length = 0; }
 
+  /** test room: every upgrade of weapon w (rake, fruit weapon, or both weapons of a combo) with its level,
+   *  the regular maximum from the level-up cards (0 = none) and a hard cap where more levels change nothing */
+  sbUps(id: number, w: string): SbUp[] {
+    const p = this.player(id); if (!p) return [];
+    const U = this.cfg.upgrades, out: SbUp[] = [];
+    if (w === 'rake') {
+      const L = p.rakeLv as any;
+      for (const [k, label] of [['dmg', 'Schaden'], ['rng', 'Reichweite'], ['dia', 'Durchmesser'], ['cd', 'Tempo']]) out.push({ key: 'rake.' + k, w: 'rake', label, lv: L[k] || 0, max: 0, cap: 0 });
+      return out;
+    }
+    const ids: SkillId[] = (SKILLS as string[]).includes(w) ? [w as SkillId] : this.cfg.combos && (COMBOS as string[]).includes(w) ? [this.CB.list[w as ComboId].main, this.CB.list[w as ComboId].sub] : [];
+    let sweepMax = 0; while (sweepMax < 60 && !this.chiliGeom(sweepMax).sweepMax) sweepMax++;
+    let tickMax = 0; while (tickMax < 60 && this.cfg.skills.chili.burnTick * Math.pow(U.chiliTick.factor, tickMax) > U.chiliTick.min + 1e-6) tickMax++;
+    const pierceN = Math.round(((U.aspPierce.max ?? 4) - this.cfg.skills.asp.pierce) / U.aspPierce.step) + 1;
+    for (const sid of ids) {
+      const s = p.skills[sid], add = (k: string, label: string, lv: number, max: number, cap = 0) => out.push({ key: `${sid}.${k}`, w: sid, label, lv, max, cap });
+      add('lvDmg', 'Schaden', s.lvDmg, 0);
+      add('lvRange', sid === 'cab' ? 'Radius' : sid === 'lemon' ? 'Kugelgröße' : 'Reichweite', s.lvRange, 0);
+      if (sid !== 'chili') add('lvCd', 'Abklingzeit', s.lvCd, 0); // flamethrower: fixed rate, no cooldown card
+      if (sid === 'asp') { add('pierce', 'Durchbohren', this.pierceLv(s), pierceN, pierceN); add('pierceBonus', 'Durchbohr-Schaden', s.pierceBonus, U.aspPierceBonus.maxLevel || 5, U.aspPierceBonus.maxLevel || 5); add('sizeLv', 'Geschossgröße', s.sizeLv, U.aspSize.maxLevel || 4); add('salvoLv', 'Salve', s.salvoLv, U.aspSalvo.shots.length, U.aspSalvo.shots.length); }
+      if (sid === 'cran') { add('extraPel', 'Projektile', s.extraPel, U.cranPellets.maxLevel || 5); add('cranPierceLv', 'Durchbohr-Chance', s.cranPierceLv, U.cranPierce.maxLevel || 5, Math.ceil(1 / U.cranPierce.step - 1e-9)); add('mineLv', 'Platzschaden', s.mineLv, U.cranSplash.maxLevel || 5, Math.ceil((1 - this.cfg.skills.cran.splashDamage) / U.cranSplash.step - 1e-9)); }
+      if (sid === 'cab') { add('minis', 'Mini-Kohl', Math.round(s.minis / (U.cabMini.step || 1)), U.cabMini.maxLevel || 5); add('gasLv', 'Kohlgas', s.gasLv, U.cabGas.maxLevel || 5, Math.ceil(1 / U.cabGas.step - 1e-9)); add('poisLv', 'Giftschaden', s.poisLv, U.cabPoison.maxLevel || 5); }
+      if (sid === 'lemon') { add('tgtLv', 'Kettenziele', s.tgtLv, U.lemonTargets.maxLevel || 5); add('xferLv', 'Rückblitz', s.xferLv, U.lemonTransfer.maxLevel || 5, Math.ceil(1 / U.lemonTransfer.step - 1e-9)); add('effLv', 'Schadenseffizienz', s.effLv, U.lemonEfficiency.maxLevel || 5, Math.ceil((1 - this.cfg.skills.lemon.chainDamage) / U.lemonEfficiency.step - 1e-9)); }
+      if (sid === 'chili') { add('sweepLv', 'Schwenk + Flamme', s.sweepLv, sweepMax, sweepMax); add('tickLv', 'Brand-Tick', s.tickLv, tickMax, tickMax); }
+    }
+    return out;
+  }
+  /** test room: one upgrade level up (d = 1) or down (d = -1); stays between 0 and the hard cap */
+  sbUp(id: number, w: string, key: string, d: number) {
+    const p = this.player(id); if (!p) return;
+    const r = this.sbUps(id, w).find(x => x.key === key); if (!r) return;
+    const lv = Math.max(0, r.cap > 0 ? Math.min(r.cap, r.lv + d) : r.lv + d);
+    const [a, b] = key.split('.');
+    if (a === 'rake') { (p.rakeLv as any)[b] = lv; return; }
+    const s = p.skills[a as SkillId] as any, U = this.cfg.upgrades;
+    if (b === 'pierce') { const B = this.cfg.skills.asp.pierce; s.pierce = lv >= r.cap ? PIERCE_ALL : B + lv * U.aspPierce.step; }
+    else if (b === 'minis') s.minis = lv * (U.cabMini.step || 1);
+    else s[b] = lv;
+  }
   /** test mode: jump to wave w */
   jumpToWave(w: number) { this.spawnQueue.length = 0; this.time = Math.max(this.time, 0); this.startWave(Math.max(1, Math.round(w))); }
   private waves(dt: number) {
@@ -1681,8 +1729,8 @@ export class Sim {
       }
     }
     // enemies
-    if (this.sb) this.sbUpdate(dt); else this.waves(dt);
-    for (const e of [...this.enemies]) if (!e.dead) this.updateEnemy(e, dt);
+    if (this.sb) { if (!this.sb.freeze) this.sbUpdate(dt); } else this.waves(dt);
+    for (const e of [...this.enemies]) if (!e.dead) { if (this.sb?.freeze) this.frozenEnemy(e, dt); else this.updateEnemy(e, dt); }
     const en = this.enemies;
     for (let i = 0; i < en.length; i++) for (let j = i + 1; j < en.length; j++) {
       const a = en[i], b = en[j]; if (this.inTree(a) || this.inTree(b)) continue;

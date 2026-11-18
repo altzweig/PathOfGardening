@@ -413,6 +413,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
   - Im Winter gibt es nur Kohl und Zitronen, im März nur Zitronen. Man muss im Sommer und Herbst Munition für den Winter sammeln.
   - ~~Blaubeeren sind XP~~ Seit 18.11.2026 geben alle Früchte XP (siehe „Hacke statt Harke“).
 - Optik: Herbst färbt Laub orange-rot und den Rasen strohig, fallende Blätter. Winter: Schnee auf Boden, Bäumen, Büschen und dem Hüttendach, kahle braune Kronen, Schneeflocken, kühleres Licht. Frühling: treibende Blütenblätter. Sommer: wärmeres Licht. Regen: Regenstreifen, Spritzer, graueres Licht, Regenrauschen. Übergänge weich über ein paar Sekunden.
+- Regen-Sound (18.11.2026): Jeder Schauer schwillt zum Gewitter an. Erst leiser Regen auf Dach und Blättern, dann über ca. 12 s dichter Gewitterregen, ab gut der Hälfte Donner alle 5–10 s von einer zufälligen Seite; nach dem Schauer klingt er über ca. 6 s aus. Deutlich lauter als das alte Rauschen. Schauer dauern dafür 20–32 s statt 8–16 s (der Regenanteil der Jahreszeit bleibt gleich, Schauer kommen also seltener). Werte in `sounds.yaml` → `rain`.
 - HUD: oben mittig unter dem Countdown Jahreszeit-Symbol + Monatsname. Die Wellen-Ansage zeigt unter „Welle N“ den neuen Monat.
 
 ## Lager und Lichtung (18.11.2026, Bastis Skizze)

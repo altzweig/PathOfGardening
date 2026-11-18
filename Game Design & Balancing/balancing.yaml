@@ -189,7 +189,7 @@ seasons:                   # 18.11.2026: statt Tag und Nacht nur noch Tag, dafü
   autumn: { months: [9, 10, 11], wetLoss: 1,  rain: 0.25 }   # mehr Regen
   winter: { months: [12, 1, 2], wetLoss: 0.5, rain: 0 }      # kalt: Boden trocknet kaum, Schnee statt Regen
   rain:
-    duration: [8, 16]      # s pro Regenschauer
+    duration: [20, 32]     # s pro Regenschauer (lang genug, dass er zum Gewitter anschwillt; Regenanteil der Jahreszeit bleibt gleich)
     wetPerSecond: 3        # Nässe pro s auf jedem Feld, solange es regnet
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.

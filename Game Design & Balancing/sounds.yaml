@@ -23,6 +23,13 @@ ambient:                                              # Loops, über die Tagesze
   night: { file: amb_night, vol: 0.18, at: night }    # Grillen-Teppich nachts (Loop)
   fire:  { file: amb_fire, vol: 0.10, at: night }     # leises Feuerknistern der Fackeln, nur nachts (Loop)
 
+rain:                                                 # Regenschauer (Frühling/Herbst) schwillt zum Gewitter an. Dateien mit Endung = MP3
+  light:   { file: rain_light.mp3, vol: 0.5 }         # leiser Regen auf Dach und Blättern (Loop), kommt zuerst
+  heavy:   { file: rain_heavy.mp3, vol: 0.6 }         # dichter Gewitterregen (Loop), blendet sich über "swell" dazu
+  thunder: { files: [thunder_1.mp3, thunder_2.mp3, thunder_3.mp3, thunder_4.mp3, thunder_5.mp3, thunder_6.mp3], vol: 0.75, pitch: [0.9, 1.05], every: [5, 10], from: 0.55 }   # Donner ab "from" (Anteil des vollen Gewitters), alle every s
+  swell: 12                                           # s vom ersten Tropfen bis zum vollen Gewitter
+  fade: 6                                             # s Ausklingen nach dem Schauer
+
 calls:                                                # einzelne Rufe aus dem Wald
   day:   { files: [crow_1, crow_2, crow_3], vol: 0.11, pitch: [0.95, 1.1], every: [20, 45] }   # tagsüber ab und zu Krähen
   night: { files: [owl_1, owl_1, crow_2], vol: 0.16, pitch: [0.9, 1.05], every: [12, 28] }   # nachts Eule (und mal eine Krähe)

@@ -31,6 +31,7 @@ Von **Kenney** – https://kenney.nl/assets/particle-pack (Particle Pack 1.1), L
 ## Sounds (Freesound)
 
 Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
+Regen/Gewitter (`rain_light.mp3`, `rain_heavy.mp3` als nahtlose 24-s-Stereo-Loops, `thunder_1–6.mp3`) sind mit `tools/build-rain.py` aus den vier Regen-Aufnahmen gemischt (Lizenzen laut Basti, Freesound-Seiten aus der Cloud nicht erreichbar).
 
 | Datei im Spiel | Quelle | Autor | Lizenz |
 |---|---|---|---|
@@ -38,6 +39,10 @@ Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
 | flame_start_4 | [Flamethrower](https://freesound.org/s/831929/) | 1bob | CC0 |
 | flame_loop | [Flamethrower loop](https://freesound.org/s/867029/) | raphavpires | CC0 |
 | bb_collect_1–4, bb_drop_1–4 | „blueberry“ (aus Bastis Sound-Sammlung, `sfx/collect/blueberry.mp3`; geschnitten, tiefpassgefiltert, tiefer) | – | CC0 |
+| rain_heavy, thunder_6 | [ambience_rain_thunder 2](https://freesound.org/s/877124/) | adamdavidsmith | CC0 |
+| rain_light | [Rooftop Rain Perspective A](https://freesound.org/s/869487/) | thelittlecrow | CC0 |
+| rain_light | [Rain and Drips](https://freesound.org/s/853565/) | hoshisato | CC0 |
+| rain_heavy, thunder_1–5 | [ThunderRain_SFX](https://freesound.org/s/867416/) | kbro935 | CC0 |
 | amb_day | „calm birds“ (Freesound, aus Bastis Sound-Sammlung, Ausschnitt als Loop) | – | CC0 |
 
 (Nicht verwendet: [Flamethrower weapon long bursts](https://freesound.org/s/395039/) von aslakhostaker.)

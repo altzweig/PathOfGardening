@@ -151,7 +151,7 @@ function loadSamples() {
   const walk = (o: any) => { if (!o || typeof o !== 'object') return; if (Array.isArray(o.files)) o.files.forEach((f: string) => names.add(f)); if (typeof o.file === 'string') names.add(o.file); for (const k in o) walk(o[k]); };
   walk(SC);
   loading = Promise.all([...names].map(async n => {
-    try { const r = await fetch('./audio/' + n + '.wav'); bufs.set(n, await AC!.decodeAudioData(await r.arrayBuffer())); } catch { /* missing clip: stay silent */ }
+    try { const r = await fetch('./audio/' + (n.includes('.') ? n : n + '.wav')); bufs.set(n, await AC!.decodeAudioData(await r.arrayBuffer())); } catch { /* missing clip: stay silent */ }
   })).then(() => { if (ambWanted) startAmbient(); });
   return loading;
 }
@@ -261,18 +261,42 @@ export function tickAmbient(dt: number) {
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });
 
-// rain (seasons, 18.11.2026): looped filtered noise, plus a few random drops; level 0..1
-let rainSrc: AudioBufferSourceNode | null = null, rainGain: GainNode | null = null;
-export function setRain(level: number) {
-  if (!AC || !noiseBuf) return;
-  const v = audio.on ? Math.max(0, Math.min(1, level)) : 0;
-  if (!rainSrc && v > .01) {
-    rainSrc = AC.createBufferSource(); rainSrc.buffer = noiseBuf; rainSrc.loop = true;
-    const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
-    const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 350;
-    rainGain = AC.createGain(); rainGain.gain.value = 0;
-    rainSrc.connect(hp); hp.connect(lp); lp.connect(rainGain); rainGain.connect(master); rainSrc.start();
+// rain (seasons): a shower swells into a thunderstorm (sounds.yaml "rain"): light patter first, then the heavy
+// downpour, thunder once the storm is up; after the shower it dies away over "fade" s. Loops are sample-based.
+let rainLvl = 0, thunderT = 0, rainAt = 0;
+const rainLoops: Record<string, { src: AudioBufferSourceNode; g: GainNode }> = {};
+const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** loops start inside the encoded data: MP3 encoder padding (digital silence) at both ends is skipped */
+function loopBounds(b: AudioBuffer): [number, number] {
+  const d = b.getChannelData(0), eps = 1e-4; let a = 0, e = d.length - 1;
+  while (a < e && Math.abs(d[a]) < eps) a++; while (e > a && Math.abs(d[e]) < eps) e--;
+  return [a / b.sampleRate, (e + 1) / b.sampleRate];
+}
+function rainLoop(key: string, vol: number) {
+  const R = SC?.rain, e = R?.[key]; if (!AC || !e?.file) return;
+  let L = rainLoops[key];
+  if (!L && vol > .001) {
+    const b = bufs.get(e.file); if (!b) return;
+    const src = AC.createBufferSource(); src.buffer = b; src.loop = true; const [a, z] = loopBounds(b); src.loopStart = a; src.loopEnd = z;
+    const g = AC.createGain(); g.gain.value = 0; src.connect(g); g.connect(master); src.start(0, a + Math.random() * (z - a));
+    L = rainLoops[key] = { src, g };
   }
-  if (rainGain) rainGain.gain.setTargetAtTime(v * .16, AC.currentTime, .3);
-  if (v > .2 && Math.random() < v * .25) noise({ t: rand(.02, .05), vol: rand(.02, .05) * v, type: 'bandpass', f: rand(2500, 6000), q: rand(2, 5), at: .002 });
+  if (!L) return;
+  L.g.gain.setTargetAtTime(vol * (e.vol ?? .5) * (SC.master ?? 1), AC.currentTime, .15);
+  if (vol <= .001 && rainLvl <= 0) { try { L.src.stop(AC.currentTime + .6); } catch { /* ignore */ } delete rainLoops[key]; }
+}
+/** raining: a shower is going on right now; reset = jump straight to silence (new game) */
+export function setRain(raining: boolean, reset = false) {
+  if (!AC || !SC?.rain) return;
+  const now = AC.currentTime, dt = reset ? 99 : Math.min(.5, Math.max(0, now - rainAt)); rainAt = now; // audio clock: same swell at any frame rate
+  const R = SC.rain, on = raining && audio.on;
+  rainLvl = Math.max(0, Math.min(1, rainLvl + (on ? dt / (R.swell ?? 12) : -dt / (R.fade ?? 5))));
+  rainLoop('light', smooth(0, .3, rainLvl));
+  rainLoop('heavy', smooth(.25, 1, rainLvl));
+  const T = R.thunder; if (!T || !on) return;
+  if (rainLvl < (T.from ?? .5)) { thunderT = Math.min(thunderT, 1.5); return; }
+  thunderT -= dt; if (thunderT > 0) return;
+  const ev = T.every || [6, 12]; thunderT = ev[0] + Math.random() * (ev[1] - ev[0]);
+  const a = Math.random() * Math.PI * 2; // from a random side, within "full" distance so it is never quieted
+  sfx('rain.thunder', lx + Math.cos(a) * 4, lz + Math.sin(a) * 4, rainLvl);
 }

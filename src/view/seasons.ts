@@ -37,7 +37,7 @@ export function updateSeasons(dt: number, month: number, raining: boolean, enabl
   moon.color.multiply(tint); moon.intensity *= 1 - cur.rain * .35 - cur.snow * .1;
   hemi.intensity *= 1 + cur.snow * .25 - cur.rain * .1;
   (scene.background as THREE.Color).lerp(grey, cur.rain * .5);
-  setRain(cur.rain);
+  setRain(enabled && raining);
   // camera target on the ground: weather around what you see
   camera.getWorldDirection(dir); const t = dir.y < -.05 ? -camera.position.y / dir.y : 10;
   target.copy(camera.position).addScaledVector(dir, t);
@@ -66,4 +66,4 @@ export function updateSeasons(dt: number, month: number, raining: boolean, enabl
 }
 /** current smoothed look (e.g. snow on the shed roof) */
 export const seasonNow = () => cur;
-export function resetSeasons() { first = true; cur.rain = 0; setRain(0); }
+export function resetSeasons() { first = true; cur.rain = 0; setRain(false, true); }

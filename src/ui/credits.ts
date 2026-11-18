@@ -19,6 +19,10 @@ export const CREDITS: Group[] = [
   { title: 'Sounds', author: { name: 'aslakhostaker', url: 'https://freesound.org/people/aslakhostaker/' }, license: CC0, items: [{ name: 'Flamethrower short and medium length bursts', url: 'https://freesound.org/s/395038/' }] },
   { title: 'Sounds', author: { name: '1bob', url: 'https://freesound.org/people/1bob/' }, license: CC0, items: [{ name: 'Flamethrower', url: 'https://freesound.org/s/831929/' }] },
   { title: 'Sounds', author: { name: 'raphavpires', url: 'https://freesound.org/people/raphavpires/' }, license: CC0, items: [{ name: 'Flamethrower loop', url: 'https://freesound.org/s/867029/' }] },
+  { title: 'Sounds', author: { name: 'adamdavidsmith', url: 'https://freesound.org/people/adamdavidsmith/' }, license: CC0, items: [{ name: 'ambience_rain_thunder 2', url: 'https://freesound.org/s/877124/' }] },
+  { title: 'Sounds', author: { name: 'thelittlecrow', url: 'https://freesound.org/people/thelittlecrow/' }, license: CC0, items: [{ name: 'Rooftop Rain Perspective A', url: 'https://freesound.org/s/869487/' }] },
+  { title: 'Sounds', author: { name: 'hoshisato', url: 'https://freesound.org/people/hoshisato/' }, license: CC0, items: [{ name: 'Rain and Drips', url: 'https://freesound.org/s/853565/' }] },
+  { title: 'Sounds', author: { name: 'kbro935', url: 'https://freesound.org/people/kbro935/' }, license: CC0, items: [{ name: 'ThunderRain_SFX', url: 'https://freesound.org/s/867416/' }] },
 ];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));

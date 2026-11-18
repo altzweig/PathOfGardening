@@ -27,6 +27,24 @@ names:
     lemon: Zitronenbäumchen
     chili: Chilipflanze
     nut: Nussbaum
+    ramsons: Bärlauch
+    bean: Stangenbohne
+    pea: Erbse
+    straw: Erdbeere
+    potato: Kartoffel
+    garlic: Knoblauch
+    lettuce: Kopfsalat
+    pumpkin: Kürbis
+    leek: Lauch
+    dandel: Löwenzahn
+    corn: Mais
+    carrot: Möhre
+    pepper: Paprika
+    radish: Radieschen
+    rhubarb: Rhabarber
+    goose: Stachelbeere
+    tomato: Tomate
+    onion: Zwiebel
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     asp: Spargelfeld
@@ -35,6 +53,24 @@ names:
     lemon: Zitronenbäumchen
     chili: Chilifeld
     nut: Nussbaum
+    ramsons: Bärlauchbeet
+    bean: Bohnenbeet
+    pea: Erbsenbeet
+    straw: Erdbeerbeet
+    potato: Kartoffelacker
+    garlic: Knoblauchbeet
+    lettuce: Salatbeet
+    pumpkin: Kürbisbeet
+    leek: Lauchbeet
+    dandel: Löwenzahnwiese
+    corn: Maisfeld
+    carrot: Möhrenbeet
+    pepper: Paprikabeet
+    radish: Radieschenbeet
+    rhubarb: Rhabarberbeet
+    goose: Stachelbeerstrauch
+    tomato: Tomatenbeet
+    onion: Zwiebelbeet
   combos:           # Kombiwaffen (Bastis Namen)
     jam: Jam-Bow
     cole: Coleateral Bomb
@@ -117,7 +153,10 @@ xp:
   gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
   # 18.11.2026: ALLE Früchte geben XP (vorher nur Blaubeeren). XP pro Frucht = Fruchtwert x gain x Faktor hier (fehlt = 1).
   # Munition geben die Waffenfrüchte weiterhin zusätzlich; Heidelbeeren sind jetzt auch Munition der Beeren-Schrotflinte.
-  fruit: { blue: 1, asp: 1, cran: 1, cab: 1, lemon: 1, chili: 1, nut: 1 }
+  fruit: { blue: 1, asp: 1, cran: 1, cab: 1, lemon: 1, chili: 1, nut: 1,
+          ramsons: 1.5, bean: 1, pea: 1, straw: 1, potato: 2, garlic: 3, lettuce: 3, pumpkin: 7.5, leek: 3, dandel: 1, corn: 3, carrot: 2, pepper: 2, radish: 1, rhubarb: 2, goose: 0.75, tomato: 1.5, onion: 2.5 }
+  # Gemüse/Beeren aus dem Erntekalender (18.11.2026, zweite Zeile): Faktor so, dass ein Feld in der Erntezeit so viel XP bringt wie ein Heidelbeerfeld
+  # (0,5 Früchte/s): Faktor = 0,5 x interval / amount. Wer seltener erntet, bekommt größere Früchte.
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
@@ -194,15 +233,39 @@ plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
  # months: echte Erntemonate in Mitteleuropa (18.11.2026). Nur dann tragen die Felder Früchte (auch beim Harken)
   blue: { interval: 2, months: [7, 8] }                    # Heidelbeeren: Startfrucht, Ernte Juli-August (18.11.2026)                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
-  asp:  { interval: 10, unlockAt: 0, amount: 2, months: [4, 5, 6] }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  asp:  { interval: 10, unlockAt: 0, amount: 2, months: [4, 5] }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
   cran: { interval: 5, unlockAt: 0, amount: 4, months: [9, 10] }      # Preiselbeeren: Startfrucht, Ernte September-Oktober (18.11.2026); 3x Ertrag
-  cab:  { interval: 15, unlockAt: 0, months: [6, 7, 8, 9, 10, 11, 12, 1, 2] }   # Weiß-/Rotkohl Jun-Nov, Grün-/Rosenkohl Nov-Feb
+  cab:  { interval: 15, unlockAt: 0, months: [11, 12, 1, 2] }   # Grünkohl Nov-Feb (Erntekalender 18.11.2026; vorher Jun-Feb)
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10, months: [11, 12, 1, 2, 3] }   # Sonderfall Kübelpflanze, Haupternte Mittelmeer Nov-Mär; Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10, months: [8, 9, 10] } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
+  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10, months: [8, 9] } # Erntekalender 18.11.2026: Aug-Sep; Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
   nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true, months: [9, 10] }
+  # Gemüse, Beeren, Kräuter aus Bastis Erntekalender (18.11.2026). Keine Waffe: die Früchte geben nur XP (Faktor in xp.fruit).
+  ramsons: { interval: 3, amount: 1, months: [3, 4, 5] }   # Bärlauch
+  bean:    { interval: 4, amount: 2, months: [7, 8, 9] }   # Stangenbohne
+  pea:     { interval: 4, amount: 2, months: [6, 7] }   # Erbse
+  straw:   { interval: 2, amount: 1, months: [5, 6, 7] }   # Erdbeere
+  potato:  { interval: 8, amount: 2, months: [6, 7, 8, 9, 10] }   # Kartoffel
+  garlic:  { interval: 6, amount: 1, months: [7, 8] }   # Knoblauch
+  lettuce: { interval: 6, amount: 1, months: [5, 6, 7, 8, 9, 10] }   # Kopfsalat
+  pumpkin: { interval: 15, amount: 1, months: [9, 10] }   # Kürbis
+  leek:    { interval: 6, amount: 1, months: [9, 10, 11, 12, 1, 2, 3] }   # Lauch
+  dandel:  { interval: 2, amount: 1, months: [3, 4, 5] }   # Löwenzahn
+  corn:    { interval: 6, amount: 1, months: [8, 9] }   # Mais
+  carrot:  { interval: 4, amount: 1, months: [6, 7, 8, 9, 10, 11] }   # Möhre
+  pepper:  { interval: 4, amount: 1, months: [8, 9, 10] }   # Paprika
+  radish:  { interval: 2, amount: 1, months: [4, 5, 6, 7, 8, 9, 10] }   # Radieschen
+  rhubarb: { interval: 8, amount: 2, months: [4, 5, 6] }   # Rhabarber
+  goose:   { interval: 3, amount: 2, months: [6, 7] }   # Stachelbeere
+  tomato:  { interval: 3, amount: 1, months: [7, 8, 9, 10] }   # Tomate
+  onion:   { interval: 5, amount: 1, months: [7, 8, 9] }   # Zwiebel
   # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
+
+startPool:                 # 18.11.2026: Startpool je Partie (Basti)
+  count: 3                 # so viele zufällige Pflanzen kommen in einer Partie als neue Felder vor ...
+  exclude: [blue, cran]    # ... außer diesen (die Startfelder gibt es immer)
+  minMonths: 6             # die gezogenen Pflanzen decken zusammen mindestens so viele verschiedene Erntemonate ab
 
 hoe:                       # Hacke (18.11.2026, ersetzt die Harke; alte Harke: archiv/harke/). Intern heißt das Werkzeug weiter "rake".
   # Linksklick / großer Knopf: Hacken = Hacke in den Boden schlagen. Beackert genau EIN Feld: das unter der Fußspitze

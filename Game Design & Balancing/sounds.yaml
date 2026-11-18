@@ -94,6 +94,24 @@ plants:
     lemon: { files: [shield_zap], vol: 0.12, pitch: [1.7, 2.0], gap: 0.2 }          # Blitz zwischen den Zitronen
     chili: { synth: ember, gap: 0.4 }                                               # Lava-Atmen unter dem Chilifeld
     nut:  { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.22, pitch: [1.4, 1.7], gap: 0.12 }   # Nuss plumpst aus der Krone
+    ramsons: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }   # Gemüse aus dem Erntekalender (18.11.2026)
+    bean:    { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    pea:     { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    straw:   { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    potato:  { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [1.0, 1.25], gap: 0.15 }
+    garlic:  { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [1.0, 1.25], gap: 0.15 }
+    lettuce: { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [1.0, 1.25], gap: 0.15 }
+    pumpkin: { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [1.0, 1.25], gap: 0.15 }
+    leek:    { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.25, pitch: [0.9, 1.1], gap: 0.15 }
+    dandel:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    corn:    { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.25, pitch: [0.9, 1.1], gap: 0.15 }
+    carrot:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    pepper:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    radish:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    rhubarb: { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.25, pitch: [0.9, 1.1], gap: 0.15 }
+    goose:   { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    tomato:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.18, pitch: [1.1, 1.4], gap: 0.12 }
+    onion:   { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [1.0, 1.25], gap: 0.15 }
   eaten:   # Gegner frisst an einem Feld
     blue: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.25], gap: 0.3 }
     asp:  { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.75, 0.9], gap: 0.3 }
@@ -102,6 +120,24 @@ plants:
     lemon: { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.9, 1.05], gap: 0.3 }
     chili: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.1, 1.3], gap: 0.3 }
     nut:  { files: [wood_1, wood_3, wood_5], vol: 0.3, pitch: [0.7, 0.85], gap: 0.3 }
+    ramsons: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }   # Gemüse aus dem Erntekalender (18.11.2026)
+    bean:    { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    pea:     { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    straw:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    potato:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    garlic:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    lettuce: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    pumpkin: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    leek:    { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    dandel:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    corn:    { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    carrot:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    pepper:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    radish:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    rhubarb: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    goose:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    tomato:  { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
+    onion:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.3, pitch: [1.0, 1.3], gap: 0.3 }
   die:     # Feld zerstört
     blue: { files: [rip_2, rip_3], vol: 0.6, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }
     asp:  { files: [wood_1, wood_4], vol: 0.6, pitch: [0.5, 0.6], gap: 0.3, synth: wilt }
@@ -110,6 +146,24 @@ plants:
     lemon: { files: [wood_2, wood_4], vol: 0.6, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }
     chili: { files: [rip_4, rip_5], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
     nut:  { files: [wood_2, wood_4], vol: 0.6, pitch: [0.45, 0.55], gap: 0.3, synth: wilt }
+    ramsons: { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }   # Gemüse aus dem Erntekalender (18.11.2026)
+    bean:    { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    pea:     { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    straw:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    potato:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    garlic:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    lettuce: { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    pumpkin: { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    leek:    { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    dandel:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    corn:    { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    carrot:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    pepper:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    radish:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    rhubarb: { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    goose:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    tomato:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+    onion:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
 
 ui:
   click:       { files: [ui_click], vol: 0.35, pitch: [0.95, 1.05] }            # Knöpfe im Menü

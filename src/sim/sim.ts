@@ -1,6 +1,6 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { ammoOf, Balancing, HoeAct, SEASONS, SeasonKey, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { ammoOf, Balancing, HoeAct, SEASONS, SeasonKey, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, fruitSize, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { emptyIntent, EF, ESnap, Ev, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -12,7 +12,7 @@ const SQ3 = Math.sqrt(3);
 /** asparagus pierce level "every target" */
 const PIERCE_ALL = 999;
 const LAGER_POS = { x: 0, z: 0 };
-const FRUIT_BURST: Record<FruitType, number> = { blue: 0x4a6cff, asp: 0x9cff60, cran: 0xd0203a, cab: 0x6fbf3a, lemon: 0xffe040, chili: 0xff3a10, nut: 0xb07a3a };
+const FRUIT_BURST: Partial<Record<FruitType, number>> = { blue: 0x4a6cff, asp: 0x9cff60, cran: 0xd0203a, cab: 0x6fbf3a, lemon: 0xffe040, chili: 0xff3a10, nut: 0xb07a3a };
 // ---------- hex field grid (pointy-top axial, fields touch each other) ----------
 /** forest: slot outside the garden (in the forest), only for forest field types (nut tree) */
 export interface Slot { q: number; r: number; x: number; z: number; forest?: boolean }
@@ -145,7 +145,9 @@ export class Sim {
   ramp = 1;
   players: Player[] = [];
   fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = []; snodes: SNode[] = []; lwaves: LWave[] = [];
-  yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, nut: 0 };
+  yieldLv = Object.fromEntries(FRUITS.map(t => [t, 0])) as Record<FruitType, number>;
+  /** 18.11.2026 Startpool: plant types that can come up as new fields in this game (null = all) */
+  pool: Set<FruitType> | null = null;
   events: Ev[] = [];
   private nid = 1;
   private mergeT = 0;
@@ -159,6 +161,7 @@ export class Sim {
     this.slots = slotPositions(cfg);
     if (cfg.lager) this.lagerHp = this.lagerMax = cfg.lager.hp;
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
+    this.pool = Sim.drawPool(cfg);
     if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake', freeze: false }; return; }
     // start fields: given hex positions (next to the shed), otherwise the centre first, then the first ring, then outwards
     const SF = cfg.arena.startSlots;
@@ -167,6 +170,22 @@ export class Sim {
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
     for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
   }
+
+  /** Startpool (18.11.2026): startPool.count random plant types besides the excluded ones (start fields), together covering at least
+   *  startPool.minMonths different harvest months; switched-off types (disabled) never come up */
+  static drawPool(cfg: Balancing): Set<FruitType> | null {
+    const SP = cfg.startPool; if (!SP || !SP.count) return null;
+    const cand = FRUITS.filter(t => cfg.plants[t] && !SP.exclude.includes(t) && !cfg.plants[t].disabled);
+    const cover = (ts: FruitType[]) => new Set(ts.flatMap(t => cfg.plants[t].months ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])).size;
+    let best: FruitType[] = [], bestN = -1;
+    for (let k = 0; k < 400; k++) { // random draws until the months are covered (keeps the best draw if it never works out)
+      const pick = [...cand].sort(() => Math.random() - .5).slice(0, SP.count), n = cover(pick);
+      if (n >= SP.minMonths) return new Set([...SP.exclude, ...pick]);
+      if (n > bestN) { bestN = n; best = pick; }
+    }
+    return new Set([...SP.exclude, ...best]);
+  }
+  inPool(t: FruitType) { return !this.pool || this.pool.has(t); }
 
   // ---------- coop scaling ----------
   get n() { return Math.max(1, this.players.length); }
@@ -308,7 +327,7 @@ export class Sim {
     const fr: Fruit = {
       id: this.nid++, type, tier, val: this.cfg.fruit.tierValue[tier], x: fx, y: fy, z: fz,
       vx: (tx - fx) / T, vy: (0 - fy + .5 * 9.8 * T * T) / T, vz: (tz - fz) / T,
-      state: 'fly', src, born: this.time, bounce: 0, r: (type === 'cab' ? .14 : type === 'nut' ? .07 : .08) * this.cfg.fruit.tierScale[tier],
+      state: 'fly', src, born: this.time, bounce: 0, r: fruitSize(type) * this.cfg.fruit.tierScale[tier],
       ct: 0, fx: 0, fy: 0, fz: 0, collector: null, tx: 0, tz: 0, mt: 0,
     };
     this.fruits.push(fr); return fr;
@@ -1306,7 +1325,7 @@ export class Sim {
       const fr = t.fr; e.target = null;
       if (D.eats && D.eats.includes(fr.type)) { // eaten on the spot: gone for good
         fr.state = 'carried'; const i = this.fruits.indexOf(fr); if (i >= 0) this.fruits.splice(i, 1);
-        this.sfx(e.type + '.steal', e.x, e.z); this.burst(fr.x, .2, fr.z, FRUIT_BURST[fr.type], 6, 1.2, .08, .3); e.lunge = .15;
+        this.sfx(e.type + '.steal', e.x, e.z); this.burst(fr.x, .2, fr.z, FRUIT_BURST[fr.type] ?? 0x8fe36a, 6, 1.2, .08, .3); e.lunge = .15;
       } else {
         fr.state = 'carried'; e.carry.push(fr); this.sfx(e.type + '.steal', e.x, e.z);
         if (e.carry.length >= (D.carryMax || 5)) { e.fleeing = true; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); }
@@ -1947,6 +1966,7 @@ export class Sim {
     const owned = new Set(this.fields.map(f => f.type)), fieldPool: (Offer & { w: number })[] = [], newTypes: Offer[] = [];
     for (const id of FRUITS) {
       if (this.closedType(p, id) || PL[id].disabled) continue; // disabled: field type switched off for now (nut tree)
+      if (!this.inPool(id) && !owned.has(id)) continue; // Startpool: only the plants drawn for this game
       const lines = [`${PL[id].amount || 1} {${id}} / ${nf(PL[id].interval, PL[id].interval % 1 ? 1 : 0)} s`];
       if (isWeaponFruit(id) && !p.skills[id].learned && !p.skills[id].merged) lines.push(`Unlock: ${N.skills[id]}`);
       const card = { key: 'field_' + id, cat: 'field' as const, w: 1, pic: 'field_' + id, title: N.fields[id], lines };
@@ -2138,7 +2158,7 @@ export class Sim {
         if (e.type === 'hedgehog') aux = r2(e.puff / (this.cfg.enemies.hedgehog.puffEvery || 2));
         if (e.type === 'squirrel') { aux = e.state === 'climb' ? 1 : 0; aux2 = r2(e.y); }
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }
-        return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => FRUITS.indexOf(f.type)).join(''), aux, aux2] as ESnap;
+        return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => String.fromCharCode(97 + FRUITS.indexOf(f.type))).join(''), aux, aux2] as ESnap;
       }),
       fr: this.fruits.filter(f => f.state !== 'carried').map(f => [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
       pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? (p.bb ? 2 : 1) : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),

@@ -4,11 +4,17 @@ export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 /** tools every player has from the start (rake = the hoe "Hacke" since 18.11.2026, watering can) + fruit weapons */
 export type Weapon = 'rake' | 'can' | SkillId;
 export const isTool = (w: Weapon): w is 'rake' | 'can' => w === 'rake' || w === 'can';
-export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut';
+/** 18.11.2026 (Bastis Erntekalender): Gemüse, Beeren und Kräuter ohne Waffe, ihre Früchte geben nur XP */
+export type CropId = 'ramsons' | 'bean' | 'pea' | 'straw' | 'potato' | 'garlic' | 'lettuce' | 'pumpkin' | 'leek' | 'dandel' | 'corn' | 'carrot' | 'pepper' | 'radish' | 'rhubarb' | 'goose' | 'tomato' | 'onion';
+export const CROPS: CropId[] = ['ramsons', 'bean', 'pea', 'straw', 'potato', 'garlic', 'lettuce', 'pumpkin', 'leek', 'dandel', 'corn', 'carrot', 'pepper', 'radish', 'rhubarb', 'goose', 'tomato', 'onion'];
+export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | CropId;
+export const isCrop = (t: FruitType): t is CropId => (CROPS as string[]).includes(t);
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export const WEAPONS: Weapon[] = ['rake', 'can', 'asp', 'cran', 'cab', 'lemon', 'chili'];
-export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
+export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', ...CROPS];
+/** fruit radius on the ground (m) */
+export const fruitSize = (t: FruitType) => t === 'cab' || t === 'pumpkin' ? .14 : t === 'nut' ? .07 : t === 'lettuce' ? .12 : .08;
 /** fruit that is ammo for a weapon (nut and blueberry are not; blueberries feed the berry shotgun, see ammoOf) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
 /** weapon a fruit is ammo for: blueberries and cranberries both feed the berry shotgun (18.11.2026) */
@@ -72,6 +78,8 @@ export interface Balancing {
     tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean; months?: number[] }>;
+  /** 18.11.2026: Startpool je Partie: so viele zufällige Pflanzen (ohne exclude), die zusammen mindestens minMonths Erntemonate abdecken. Nur diese (+ exclude) kommen als neue Felder. */
+  startPool?: { count: number; exclude: FruitType[]; minMonths: number };
   /** hoe (Hacke, weapon id 'rake'): chop = hit the ground at the toe point (tills exactly one field, small hit circle),
    *  slash = sword-like swing (cone slashArc deg, slashRange m) for fighting */
   hoe: { chopTime: number; chopCooldown: number; toe: number; chopDamage: number; chopDiameter: number; chopStun: number;

@@ -289,7 +289,9 @@ export function makeBar(w: number, h: number, color: number) {
   const g = new THREE.Group();
   const bg = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .65, depthTest: false, toneMapped: false }));
   bg.scale.set(w + .04, h + .04, 1);
-  const fg = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color, depthTest: false, toneMapped: false }));
+  // fg also transparent: opaque meshes are drawn BEFORE all transparent ones (renderOrder only sorts inside a pass),
+  // so transparent ground layers (beds, wet earth) painted over an opaque fill and only the dark background stayed
+  const fg = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false, toneMapped: false, transparent: true }));
   fg.scale.set(w, h, 1); fg.position.z = .001;
   const sh = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: 0x7fd8ff, depthTest: false, toneMapped: false, transparent: true, opacity: .9 }));
   sh.scale.set(w, h * .45, 1); sh.position.set(0, h * .8, .002); sh.visible = false;

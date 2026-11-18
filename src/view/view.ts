@@ -575,7 +575,7 @@ export class GameView {
     // wetness bar under the HP bar: blue, no number, marks at 60 % (wet: grows + heals) and 10 % (below: drought)
     const wbar = makeBar(1.1, .05, 0x3a9cff), FC = this.cfg.fields;
     for (const [t, col] of [[FC.wetGrow / 100, 0xffffff], [FC.wetDrought / 100, 0xff7a50]] as [number, number][]) {
-      const tick = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: col, depthTest: false, toneMapped: false }));
+      const tick = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: col, depthTest: false, depthWrite: false, toneMapped: false, transparent: true }));
       tick.scale.set(.018, .1, 1); tick.position.set(-.55 + 1.1 * t, 0, .003); tick.renderOrder = 1000; wbar.add(tick);
     }
     wbar.position.set(p.x, 1.1, p.z); wbar.children.forEach(c => c.position.y -= .1);

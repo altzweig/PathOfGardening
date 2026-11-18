@@ -347,33 +347,16 @@ type SbWeapon = Weapon | ComboId;
 const SB_LIST: SbWeapon[] = [...WEAPONS, ...COMBOS];
 const SB_RATES = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];
 const ENEMY_NAMES: Record<EnemyType, string> = { raccoon: 'Waschbär', panda: 'Panda', toad: 'Kröte', sheep: 'Schaf', hedgehog: 'Igel', squirrel: 'Eichhörnchen' };
-/** short labels for the weapon values (test room only) */
-const SB_LABEL: Record<string, string> = {
-  damage: 'Schaden', range: 'Reichweite', cooldown: 'Abklingzeit', ammoPerShot: 'Munition/Schuss', radius: 'Radius', speed: 'Tempo', pierce: 'Durchschuss', pierceFactor: 'Durchschuss-Faktor',
-  burstShots: 'Salve', burstGap: 'Salvenabstand', pellets: 'Geschosse', cone: 'Streuung °', spreadSigma: 'Streuung σ', width: 'Breite', diameter: 'Durchmesser', subAmmo: 'Umrechnung Nebenfrucht', throwDistance: 'Wurfweite max',
-  fuse: 'Zünder', bleedDuration: 'Blutung Dauer', bleedDps: 'Blutung/s', splashDelay: 'Platzen nach', splashDamage: 'Platzschaden', splashRadius: 'Platzradius', chainRadius: 'Kettenradius',
-  transfer: 'Weitergabe', burnDamage: 'Brandschaden', burnStacks: 'Brand-Stapel', burnDuration: 'Brand Dauer', burnTick: 'Brand-Tick', spreadRadius: 'Brand-Sprung', spreadShare: 'Brand-Sprunganteil',
-  sweep: 'Schwenk °', sweepPeriod: 'Schwenkdauer', poolDuration: 'Lache Dauer',
-  miniRadiusFactor: 'Mini-Radius', miniDamageFactor: 'Mini-Schaden', pullTime: 'Zug', pushTime: 'Stoß', stun: 'Stun', knockback: 'Rückstoß', size: 'Größe', edge: 'Randschaden',
-  links: 'Blitze je Beere', linkRange: 'Blitz-Reichweite', linkWidth: 'Blitz-Breite', ticks: 'Ticks', tickInterval: 'Tick-Abstand', splitScale: 'Splitter-Größe', poolTick: 'Lache Tick', poolDamage: 'Lache Schaden',
-  shots: 'Schüsse', gap: 'Abstand', bleed: 'Blutung', burn: 'Brand', arrows: 'Pfeile', arc: 'Fächer °', shockDamage: 'Strom-Schaden', berries: 'Beeren', berryDamage: 'Beeren-Schaden',
-  berryDelay: 'Beeren platzen nach', berryRadius: 'Beeren-Radius', blastDamage: 'Explosionsschaden', blastRadius: 'Explosionsradius', branch: 'Verzweigung', directions: 'Richtungen',
-  pelletFactor: 'Beeren-Faktor', rangeFactor: 'Reichweiten-Faktor', scatter: 'Streuweite', spikeDamage: 'Stachel-Schaden', spikePierce: 'Stachel-Durchschuss', spikeRange: 'Stachel-Reichweite',
-  spikeSpeed: 'Stachel-Tempo', chargeTime: 'Aufladezeit', throwMin: 'Wurfweite min', throwMax: 'Wurfweite max', poisonDuration: 'Gift Dauer', poisonTick: 'Gift-Tick', poisonTickDamage: 'Gift Schaden', poisonSlow: 'Gift Bremse', spikes: 'Stacheln', splitDistance: 'Splitter-Weite', splits: 'Splitter',
-};
-const nice = (v: number) => Math.abs(v) >= 100 ? String(Math.round(v)) : Math.abs(v) >= 10 ? (Math.round(v * 10) / 10).toString() : (Math.round(v * 100) / 100).toString();
-function deepAssign(t: any, src: any) { for (const k in src) { const v = src[k]; if (v && typeof v === 'object' && !Array.isArray(v) && t[k] && typeof t[k] === 'object') deepAssign(t[k], v); else t[k] = Array.isArray(v) ? [...v] : v; } }
 
 interface Game {
-  sandbox: boolean; sbOpen: boolean; sbDefaults: any; sbWeapon: SbWeapon; sbWheelAcc: number; sbWheelT: number;
+  sandbox: boolean; sbOpen: boolean; sbWeapon: SbWeapon; sbWheelAcc: number; sbWheelT: number;
   startSandbox(): void; endSandbox(): void; wireSandbox(): void; toggleSb(): void; sbPick(w: SbWeapon): void; sbWheel(dy: number): void; sbRate(d: number): void;
-  sbAutoAim(it: Intent): void; renderSbBar(): void; renderSbPanel(): void; sbBlock(w: SbWeapon, src?: any): Record<string, any> | null; sbPath(w: SbWeapon): string;
+  sbAutoAim(it: Intent): void; renderSbBar(): void; renderSbPanel(): void;
 }
 Object.assign(Game.prototype, {
-  sandbox: false, sbOpen: false, sbDefaults: null, sbWeapon: 'rake', sbWheelAcc: 0, sbWheelT: 0,
+  sandbox: false, sbOpen: false, sbWeapon: 'rake', sbWheelAcc: 0, sbWheelT: 0,
   startSandbox(this: Game) {
     this.testMode = false; show('#cheatBtn', false);
-    if (!this.sbDefaults) this.sbDefaults = JSON.parse(JSON.stringify(this.cfg)); // slider changes are undone when leaving the room
     const old = this.sim?.sb;
     this.sandbox = true; this.mode = 'solo'; this.me = 0;
     this.sim = new Sim(this.cfg, { sandbox: true }); this.sim.addPlayer(0, 0);
@@ -387,7 +370,6 @@ Object.assign(Game.prototype, {
     if (!this.sandbox) return;
     this.sandbox = false; this.sbOpen = false; this.view.sbSheet = false; show('#sbPanel', false); show('#sbBar', false);
     document.body.classList.remove('sandbox'); this.view.setSandbox(false);
-    if (this.sbDefaults) deepAssign(this.cfg, this.sbDefaults);
   },
   wireSandbox(this: Game) {
     $('#sbBar').addEventListener('click', e => {
@@ -405,6 +387,7 @@ Object.assign(Game.prototype, {
     sfx(this.sbOpen ? 'ui.pauseIn' : 'ui.pauseOut');
     if (this.sbOpen) this.renderSbPanel();
     show('#sbPanel', this.sbOpen); this.view.sbSheet = this.sbOpen;
+    if (this.sim?.sb) this.sim.sb.freeze = this.sbOpen; // settings open: enemies stand still
   },
   sbPick(this: Game, w: SbWeapon) {
     this.sbWeapon = w; this.sim?.sbSelect(this.me, w);
@@ -441,34 +424,21 @@ Object.assign(Game.prototype, {
     }).join('');
     $('#sbBar .sbRateV').innerHTML = `${this.sim?.sb?.rate ?? 0}<small>/min</small>`;
   },
-  sbPath(w: SbWeapon) { return w === 'rake' ? 'rake' : (SKILLS as string[]).includes(w) ? 'skills.' + w : 'combos.list.' + w; },
-  sbBlock(this: Game, w: SbWeapon, src: any = this.cfg) {
-    let o: any = src; for (const k of this.sbPath(w).split('.')) o = o?.[k];
-    return o && typeof o === 'object' ? o : null;
-  },
   renderSbPanel(this: Game) {
     const N = this.cfg.names, w = this.sbWeapon, B = this.sim?.sb, P = $('#sbPanel');
     const isC = (COMBOS as string[]).includes(w), name = isC ? N.combos?.[w as ComboId] ?? w : N.skills[w as Weapon];
-    const cur = this.sbBlock(w), def = this.sbBlock(w, this.sbDefaults) ?? {};
-    // one slider per number (and per entry of number lists); range 0 .. 3x the balancing value
-    const rows: string[] = [];
-    const row = (key: string, label: string, v: number, d: number) => {
-      const int = Number.isInteger(d) && Math.abs(d) >= 1 && !/cooldown|gap|fuse|tick|time|duration|delay|dps/i.test(key);
-      let max = d > 0 ? d * 3 : d < 0 ? 0 : (int ? 10 : 1); if (int) max = Math.max(max, d + 5); max = Math.max(max, v);
-      const min = d < 0 ? d * 3 : 0, step = int ? 1 : Math.max(.001, +(max / 200).toPrecision(1));
-      rows.push(`<div class="sbRow"><span class="${v !== d ? 'chg' : ''}" title="${key}">${esc(label)}</span><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${v}"><b>${nice(v)}</b></div>`);
-    };
-    if (cur) for (const k of Object.keys(cur)) {
-      const v = cur[k], d = def[k];
-      if (typeof v === 'number') row(k, SB_LABEL[k] ?? k, v, typeof d === 'number' ? d : v);
-      else if (Array.isArray(v) && v.every(x => typeof x === 'number')) v.forEach((x: number, i: number) => row(`${k}.${i}`, `${SB_LABEL[k] ?? k} ${i + 1}`, x, Array.isArray(d) && typeof d[i] === 'number' ? d[i] : x));
-    }
+    // upgrades of the weapon in the hand: level with - / +, "/ max" = regular maximum from the level-up cards, red above it
+    const ups = this.sim?.sbUps(this.me, w) ?? [], multi = new Set(ups.map(u => u.w)).size > 1;
+    const rows = ups.map(u => `<div class="sbUp${u.lv > 0 ? ' chg' : ''}">${multi ? `<i>${skillIcon(u.w)}</i>` : ''}<span>${esc(u.label)}</span>`
+      + `<button data-u="${u.key}" data-d="-1"${u.lv <= 0 ? ' disabled' : ''}>−</button>`
+      + `<b class="${u.max > 0 && u.lv > u.max ? 'over' : ''}">${u.lv}${u.max > 0 ? `<small>/${u.max}</small>` : ''}</b>`
+      + `<button data-u="${u.key}" data-d="1"${u.cap > 0 && u.lv >= u.cap ? ' disabled' : ''}>+</button></div>`);
     const hour = B?.hour ?? 5, clock = (h: number) => { const c = (h + 6) % 24; return `${String(Math.floor(c)).padStart(2, '0')}:${String(Math.round((c % 1) * 60) % 60).padStart(2, '0')}`; };
     P.innerHTML = `
       <div id="sbHead"><b>Waffentest</b><button class="btn" id="sbGo">Weiter</button><button class="btn sec" id="sbMenu">Menü</button></div>
       <div class="sbSec"><h4>Waffe</h4><div class="sbWepsP">${$('#sbWeps').innerHTML}</div><div class="sbName">${esc(name)}</div></div>
-      <div class="sbSec"><h4>Werte</h4>${rows.join('') || '<div class="sbRow"><span>–</span></div>'}
-        <div class="sbBtns"><button id="sbReset">Zurücksetzen</button><button id="sbCopy">Werte kopieren</button></div></div>
+      <div class="sbSec"><h4>Upgrades</h4>${rows.join('')}
+        <div class="sbBtns"><button id="sbReset">Zurücksetzen</button></div></div>
       <div class="sbSec"><h4>Gegner</h4><div class="sbChips">${(['random', ...SB_ENEMIES] as const).map(t => `<button class="sbChip${B?.type === t ? ' on' : ''}" data-e="${t}">${t === 'random' ? 'Zufall' : ENEMY_NAMES[t]}</button>`).join('')}</div>
         <div class="sbRate"><button data-r="-1">−</button><b>${B?.rate ?? 0}<small>/min</small></b><button data-r="1">+</button></div></div>
       <div class="sbSec"><h4>Tageszeit</h4><div class="sbRow"><span>${hour < 16 ? '☀' : '☾'}</span><input type="range" id="sbHour" min="0" max="24" step=".25" value="${hour}"><b>${clock(hour)}</b></div></div>`;
@@ -477,22 +447,10 @@ Object.assign(Game.prototype, {
     P.querySelectorAll<HTMLElement>('.sbW').forEach(b => b.addEventListener('click', () => this.sbPick(b.dataset.w as SbWeapon)));
     P.querySelectorAll<HTMLElement>('[data-r]').forEach(b => b.addEventListener('click', () => this.sbRate(+b.dataset.r!)));
     P.querySelectorAll<HTMLElement>('[data-e]').forEach(b => b.addEventListener('click', () => { if (B) { B.type = b.dataset.e as EnemyType | 'random'; this.sim!.sbClear(); } sfx('ui.click'); this.renderSbPanel(); }));
-    P.querySelectorAll<HTMLInputElement>('input[data-k]').forEach(inp => inp.addEventListener('input', () => {
-      const [k, i] = inp.dataset.k!.split('.'), v = +inp.value;
-      if (cur) { if (i !== undefined) cur[k][+i] = v; else cur[k] = v; }
-      const r = inp.parentElement!; r.querySelector('b')!.textContent = nice(v);
-      const d = i !== undefined ? def[k]?.[+i] : def[k]; r.querySelector('span')!.classList.toggle('chg', v !== d);
-    }));
+    P.querySelectorAll<HTMLElement>('[data-u]').forEach(b => b.addEventListener('click', () => { this.sim?.sbUp(this.me, w, b.dataset.u!, +b.dataset.d!); sfx('ui.click'); this.renderSbPanel(); }));
     const hi = P.querySelector('#sbHour') as HTMLInputElement;
     hi.addEventListener('input', () => { const h = +hi.value; if (B) B.hour = h; const r = hi.parentElement!; r.querySelector('b')!.textContent = clock(h); r.querySelector('span')!.textContent = h < 16 ? '☀' : '☾'; });
-    P.querySelector('#sbReset')!.addEventListener('click', () => { if (cur) deepAssign(cur, def); sfx('ui.click'); this.renderSbPanel(); });
-    P.querySelector('#sbCopy')!.addEventListener('click', e => {
-      // changed values as balancing.yaml lines, to carry them over
-      const lines = [`# ${this.sbPath(w)}`];
-      if (cur) for (const k of Object.keys(cur)) if ((typeof cur[k] === 'number' || Array.isArray(cur[k])) && JSON.stringify(cur[k]) !== JSON.stringify(def[k])) lines.push(`${k}: ${Array.isArray(cur[k]) ? '[' + cur[k].map(nice).join(', ') + ']' : nice(cur[k])}`);
-      const b = e.currentTarget as HTMLElement;
-      navigator.clipboard?.writeText(lines.join('\n')).then(() => { b.textContent = '✓'; setTimeout(() => (b.textContent = 'Werte kopieren'), 1200); }).catch(() => {});
-    });
+    P.querySelector('#sbReset')!.addEventListener('click', () => { for (const u of ups) this.sim?.sbUp(this.me, w, u.key, -u.lv); sfx('ui.click'); this.renderSbPanel(); });
   },
 });
 

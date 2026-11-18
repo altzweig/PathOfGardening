@@ -290,6 +290,16 @@ body.sandbox #topbar{justify-content:flex-end}
 .sbRow span.chg{color:var(--gold)}
 .sbRow b{text-align:right;font-variant-numeric:tabular-nums}
 .sbRow input{width:100%;accent-color:var(--gold);touch-action:none}
+.sbUp{display:flex;align-items:center;gap:6px;padding:3px 0}
+.sbUp i{flex:none;width:22px;height:22px;display:flex}
+.sbUp i svg{width:100%;height:100%}
+.sbUp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbUp.chg span{color:var(--gold)}
+.sbUp button{flex:none;width:36px;height:36px;border-radius:8px;border:1px solid #ffffff33;background:#222b33;color:var(--parch);font:700 20px var(--f-body);cursor:pointer;touch-action:manipulation}
+.sbUp button:disabled{opacity:.3;cursor:default}
+.sbUp b{flex:none;min-width:48px;text-align:center;font:700 16px var(--f-body);font-variant-numeric:tabular-nums}
+.sbUp b small{font-weight:500;font-size:12px;color:var(--mut)}
+.sbUp b.over,.sbUp b.over small{color:#ff5a4a}
 .sbBtns{display:flex;gap:8px;margin-top:8px}
 .sbBtns button,.sbChip{border:1px solid #ffffff33;background:#222b33;color:var(--parch);font:700 13px var(--f-body);border-radius:8px;padding:6px 10px;cursor:pointer}
 .sbChips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}

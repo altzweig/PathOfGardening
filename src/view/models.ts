@@ -83,10 +83,18 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
   g.scale.setScalar(scale); return g;
 }
 
+/** ground footprint (m, before the field scales the plant) every vegetable is scaled up to: about a blueberry bush */
+const CROP_EXTENT = 1.45, CROP_HEIGHT = 1.6;
 export interface PlantMats { leaf: THREE.MeshStandardMaterial; head: THREE.MeshStandardMaterial }
 export function buildPlant(type: FruitType, mats: PlantMats) {
   const g = new THREE.Group(); const fruits: THREE.Mesh[] = [];
-  if (isCrop(type)) CROP_VIS[type].plant(g, mats.leaf, mats.head, BUSH_MAT[type], fruits);
+  if (isCrop(type)) {
+    CROP_VIS[type].plant(g, mats.leaf, mats.head, BUSH_MAT[type], fruits);
+    // vegetables fill about as much ground as a blueberry bush, so the fields look equally full (Basti 18.11.2026)
+    const bb = new THREE.Box3().setFromObject(g), ext = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+    const k = Math.min(2.2, Math.max(1, CROP_EXTENT / Math.max(.1, ext))), hy = bb.max.y - bb.min.y;
+    g.scale.set(k, Math.max(1, Math.min(k, CROP_HEIGHT / Math.max(.1, hy))), k); // tall plants (corn) grow wider, not taller than CROP_HEIGHT
+  }
   else if (type === 'blue') {
     for (let i = 0; i < 7; i++) { const a = i / 7 * 7, r = i ? .38 : 0; part(g, GEO.ico, mats.leaf, rand(.32, .42), rand(.3, .4), rand(.32, .42), Math.cos(a) * r, .38 + (i ? 0 : .22), Math.sin(a) * r); }
     for (let i = 0; i < 16; i++) { const a = rand(0, 7), y = rand(.25, .8), r = .62 - Math.abs(y - .5) * .3; { const b = part(g, BERRY_GEO.blue, BUSH_MAT.blue, .055, .055, .055, Math.cos(a) * r, y, Math.sin(a) * r, false); b.rotation.set(rand(-1.2, 1.2), rand(0, 7), rand(-1.2, 1.2)); fruits.push(b); } }

@@ -35,24 +35,36 @@ function canes(g: THREE.Group, L: Mat, h: number, leaves: number, lw = .12) {
 
 export const CROP_VIS: Record<CropId, CropVis> = {
   // Bärlauch: breite, spitze Blätter dicht am Waldboden, weiße Sternblüten-Dolden
-  ramsons: { col: 0x6ad050, leaf: 0x3f8a2a, head: 0x4f9a35, ground: gm(0x6ad050, 0x3aa020, .9, .5), bush: bm(0xf4f4ea, .6),
+  ramsons: { col: 0x6ad050, leaf: 0x205a16, head: 0x4f9a35, ground: gm(0x6ad050, 0x3aa020, .9, .5), bush: bm(0xf4f4ea, .6),
+    // Basti 18.11.2026: im Kreis wachsend wie Löwenzahn, dunklere Blätter, weiße kugelige Blütendolden
     plant(g, L, H, B, fr) {
-      ring(9, a => { const [x, z] = at(a, rand(.05, .3)); const lf = part(g, GEO.lo, L, .07, .32, .02, x, .18, z); lf.rotation.set(rand(-.3, .3), a, (x > 0 ? -1 : 1) * rand(.1, .4)); });
-      for (let i = 0; i < 4; i++) { const [x, z] = at(rand(0, 7), rand(.05, .25)); part(g, GEO.cyl, H, .01, .42, .01, x, .21, z); for (let k = 0; k < 5; k++) fr.push(part(g, GEO.sph, B, .03, .02, .03, x + rand(-.05, .05), .44 + rand(-.02, .03), z + rand(-.05, .05), false)); }
+      ring(9, (a, i) => { const up = i % 2 ? rand(.6, .9) : rand(.2, .4), lg = new THREE.Group(); lg.rotation.y = -a; g.add(lg);
+        const lf = part(lg, GEO.lo, L, .26, .015, .075, Math.cos(up) * .2, Math.sin(up) * .2 + .02, 0); lf.rotation.z = up; });
+      for (let i = 0; i < 3; i++) { const [x, z] = at(i / 3 * Math.PI * 2 + rand(-.3, .3), rand(.03, .1)), h = rand(.34, .46);
+        const st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.set(rand(-.12, .12), 0, rand(-.12, .12)); g.add(st);
+        part(st, GEO.cyl, H, .01, h, .01, 0, h / 2, 0);
+        fr.push(part(st, GEO.sph, B, .065, .06, .065, 0, h + .04, 0, false)); // Blütenkugel
+        for (let k = 0; k < 9; k++) { const t = rand(0, 7), p = rand(.3, 2.4); fr.push(part(st, GEO.sph, B, .022, .022, .022, Math.sin(p) * Math.cos(t) * .065, h + .04 + Math.cos(p) * .06, Math.sin(p) * Math.sin(t) * .065, false)); }
+      }
     },
     fruit(g, m) { const lf = part(g, GEO.lo, m, .05, .015, .17, 0, 0, 0); lf.rotation.y = .3; part(g, GEO.cyl, STEM, .008, .1, .008, 0, 0, -.18).rotation.x = Math.PI / 2; } },
   // Bohne: Stangenbohne an drei Stangen, grüne Hülsen hängen
   bean: { col: 0x7ac840, leaf: 0x3f7a2a, head: 0x7a5a30, ground: gm(0x7ac840, 0x4aa020), bush: bm(0x6aac38, .5),
     plant(g, L, H, B, fr) {
-      canes(g, L, 1.0, 16);
-      for (let i = 0; i < 10; i++) { const a = rand(0, 7), y = rand(.25, .85); const [x, z] = at(a, .2); const p = part(g, GEO.capsule, B, .022, .14, .022, x, y, z, false); p.rotation.z = rand(-.2, .2); fr.push(p); }
+      canes(g, L, 2.0, 30, .11); // sehr hoch an langen Stangen (Basti 18.11.2026)
+      for (let i = 0; i < 14; i++) { const a = rand(0, 7), y = rand(.3, 1.8), r = .2 - y / 2 * .08; const [x, z] = at(a, r + .03); const p = part(g, GEO.capsule, B, .022, .16, .02, x, y, z, false); p.rotation.z = rand(-.2, .2); fr.push(p); }
     },
     fruit(g, m) { const p = part(g, GEO.capsule, m, .03, .2, .028, 0, 0, 0); p.rotation.z = Math.PI / 2 + .2; } },
   // Erbse: niedriger rankender Busch mit Ranken, prall gefüllte Schoten
-  pea: { col: 0x9ae060, leaf: 0x5a9a3a, head: 0x6aa84a, ground: gm(0x9ae060, 0x60b020), bush: bm(0x8ad050, .45),
+  pea: { col: 0x9ae060, leaf: 0x3f7a2a, head: 0x5a8a3a, ground: gm(0x9ae060, 0x60b020), bush: bm(0x9ee050, .4),
+    // Schoten groß und hell, hängen außen an der Pflanze, Erbsen zeichnen sich ab (Basti 18.11.2026)
     plant(g, L, H, B, fr) {
-      canes(g, L, .7, 18, .1);
-      for (let i = 0; i < 9; i++) { const a = rand(0, 7), y = rand(.2, .6); const [x, z] = at(a, .22); const p = part(g, GEO.capsule, B, .035, .1, .025, x, y, z, false); p.rotation.set(0, a, rand(-.5, .5)); fr.push(p); }
+      canes(g, L, .7, 14, .1);
+      ring(7, a => { const [x, z] = at(a, rand(.3, .36)), y = rand(.22, .55), pod = new THREE.Group(); pod.position.set(x, y, z); pod.rotation.set(0, -a, 0); g.add(pod);
+        const hang = new THREE.Group(); hang.rotation.z = -.55 + rand(-.2, .2); pod.add(hang); // hängt schräg nach unten
+        const b = part(hang, GEO.capsule, B, .042, .17, .03, 0, -.12, 0, false); fr.push(b);
+        for (let k = -1; k <= 1; k++) fr.push(part(hang, GEO.sph, B, .036, .036, .036, 0, -.12 + k * .055, .016, false));
+        part(hang, GEO.cyl, STEM, .006, .04, .006, 0, .0, 0, false); });
     },
     fruit(g, m) { const p = part(g, GEO.capsule, m, .04, .12, .03, 0, 0, 0); p.rotation.z = Math.PI / 2; for (let k = -1; k <= 1; k++) part(g, GEO.sph, m, .03, .03, .03, k * .05, .02, .012); } },
   // Erdbeere: Rosette aus dreiteiligen Blättern, rote Früchte mit gelben Nüsschen liegen außen
@@ -93,29 +105,55 @@ export const CROP_VIS: Record<CropId, CropVis> = {
     },
     fruit(g, m) { for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(g, GEO.sph, m, .08, .13, .08, Math.cos(a) * .07, 0, Math.sin(a) * .07); } part(g, GEO.cyl, STEM, .02, .07, .02, 0, .14, 0); } },
   // Lauch: weißer Schaft, blaugrüne Blattfächer
-  leek: { col: 0xd8f0b0, leaf: 0x3a7a5a, head: 0x4a8a6a, ground: gm(0xdaf0c0, 0x9ad070, .6, .5), bush: bm(0xf0f2e0, .55),
+  leek: { col: 0xd8f0b0, leaf: 0x3a7a4a, head: 0xa8d878, ground: gm(0xe8f2d8, 0x9ad070, .5, .5), bush: bm(0xf4f4ea, .55),
+    // klassische Porreestangen (Basti 18.11.2026): dicker weißer Schaft, hellgrüner Übergang, oben ein flacher Fächer aus dunkelgrünen Blättern
     plant(g, L, H, B, fr) {
-      ring(5, a => { const [x, z] = at(a, rand(.15, .35)); fr.push(part(g, GEO.cyl, B, .045, .28, .045, x, .14, z, false));
-        for (let k = 0; k < 4; k++) { const b = a + k * 1.6, lf = part(g, GEO.lo, L, .03, .3, .012, x + Math.cos(b) * .03, .4, z + Math.sin(b) * .03); lf.rotation.set(Math.sin(b) * .5, b, Math.cos(b) * .5); } });
+      ring(5, a => {
+        const [x, z] = at(a, rand(.12, .32)), st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.set(rand(-.06, .06), rand(0, 7), rand(-.06, .06)); g.add(st);
+        fr.push(part(st, GEO.cyl, B, .05, .34, .05, 0, .17, 0, false)); // weißer Schaft
+        part(st, GEO.cyl, H, .046, .14, .046, 0, .41, 0); // hellgrün
+        for (let k = 0; k < 5; k++) { // Fächer in einer Ebene, abwechselnd links/rechts, außen schräger und hängend
+          const sd = k % 2 ? 1 : -1, o = Math.floor(k / 2), lg = new THREE.Group(); lg.position.set(0, .46 + k * .025, 0); lg.rotation.z = sd * (.25 + o * .3); st.add(lg);
+          const len = .34 - o * .05; part(lg, GEO.lo, L, .045, len / 2, .012, 0, len / 2, 0);
+          if (o === 2) { const tip = new THREE.Group(); tip.position.y = len; tip.rotation.z = sd * .9; lg.add(tip); part(tip, GEO.lo, L, .04, .08, .01, 0, .08, 0); }
+        }
+      });
     },
-    fruit(g, m) { const s = part(g, GEO.cyl, m, .04, .3, .04, 0, 0, 0); s.rotation.z = Math.PI / 2; const t = part(g, GEO.cone, bm(0x3a7a5a), .05, .14, .03, .21, 0, 0); t.rotation.z = -Math.PI / 2; } },
+    fruit(g, m) { const s = part(g, GEO.cyl, m, .045, .3, .045, 0, 0, 0); s.rotation.z = Math.PI / 2; const t = part(g, GEO.cyl, bm(0xa8d878), .042, .12, .042, .21, 0, 0); t.rotation.z = Math.PI / 2;
+      for (const sd of [-1, 1]) { const l = part(g, GEO.lo, bm(0x3a7a4a), .12, .04, .01, .38, 0, sd * .03); l.rotation.y = sd * .25; } } },
   // Löwenzahn: gezackte Rosette, gelbe Blüten und Pusteblumen
-  dandel: { col: 0xffd828, leaf: 0x4a8a2a, head: 0x5a9a35, ground: gm(0xffd020, 0xffb810, 1.0, .5), bush: bm(0xf8d020, .5),
+  dandel: { col: 0xffd828, leaf: 0x4a8a2a, head: 0x5a9a35, ground: gm(0xffc000, 0xffa800, 1.0, .5), bush: bm(0xffbe00, .5),
+    // Basti 18.11.2026: Blätter teils steil nach oben, drei Stiele mit gelber Blüte, keine Pusteblume
     plant(g, L, H, B, fr) {
-      ring(10, a => { const [x, z] = at(a, .2); const lf = part(g, GEO.lo, L, .05, .02, .22, x, .04, z); lf.rotation.set(.15, -a + Math.PI / 2, 0); });
-      for (let i = 0; i < 5; i++) { const [x, z] = at(rand(0, 7), rand(0, .15)), h = rand(.25, .4); part(g, GEO.cyl, H, .008, h, .008, x, h / 2, z);
-        if (i === 4) part(g, GEO.sph, WHITE, .06, .06, .06, x, h, z, false); else fr.push(part(g, GEO.sph, B, .05, .025, .05, x, h, z, false)); }
+      ring(10, (a, i) => { const up = i % 3 === 0 ? rand(.9, 1.2) : i % 3 === 1 ? rand(.45, .7) : rand(.1, .3), lg = new THREE.Group(); lg.rotation.set(0, -a, 0); g.add(lg);
+        const lf = part(lg, GEO.lo, L, .05, .02, .2, 0, .02, 0); lf.position.set(Math.cos(up) * .2, Math.sin(up) * .2 + .02, 0); lf.rotation.set(0, Math.PI / 2, up); lf.rotation.order = 'YXZ'; lf.rotation.set(-up, Math.PI / 2, 0); });
+      for (let i = 0; i < 3; i++) { const [x, z] = at(i / 3 * Math.PI * 2 + rand(-.3, .3), rand(.04, .12)), h = rand(.32, .45), lean = rand(-.15, .15);
+        const st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.set(lean, rand(0, 7), -lean); g.add(st);
+        part(st, GEO.cyl, H, .009, h, .009, 0, h / 2, 0);
+        fr.push(part(st, GEO.sph, B, .055, .022, .055, 0, h, 0, false));
+        for (let k = 0; k < 10; k++) { const b = k / 10 * Math.PI * 2, p = part(st, GEO.lo, B, .022, .008, .05, Math.cos(b) * .055, h - .005, Math.sin(b) * .055, false); p.rotation.y = -b + Math.PI / 2; fr.push(p); }
+        part(st, GEO.lo, L, .035, .015, .035, 0, h - .03, 0);
+      }
     },
-    fruit(g, m) { part(g, GEO.sph, m, .07, .035, .07, 0, 0, 0); part(g, GEO.lo, STEM, .05, .015, .05, 0, -.03, 0); } },
+    fruit(g, m) { part(g, GEO.sph, m, .06, .03, .06, 0, 0, 0); for (let k = 0; k < 10; k++) { const b = k / 10 * Math.PI * 2, p = part(g, GEO.lo, m, .026, .01, .055, Math.cos(b) * .065, -.005, Math.sin(b) * .065); p.rotation.y = -b + Math.PI / 2; } part(g, GEO.lo, STEM, .05, .015, .05, 0, -.03, 0); } },
   // Mais: hohe Stängel mit langen Blättern, Kolben mit Hüllblättern, Rispe oben
   corn: { col: 0xffd040, leaf: 0x4f8a2a, head: 0x6a9a3a, ground: gm(0xf8c838, 0xffb020, .8, .5), bush: bm(0xf0c040, .5),
     plant(g, L, H, B, fr) {
-      for (let i = 0; i < 3; i++) { const [x, z] = at(i / 3 * 7, .18), h = rand(1.1, 1.3);
-        part(g, GEO.cyl, H, .03, h, .03, x, h / 2, z);
-        for (let k = 0; k < 4; k++) { const b = rand(0, 7), lf = part(g, GEO.lo, L, .03, .02, .35, x + Math.cos(b) * .12, h * (.3 + k * .15), z + Math.sin(b) * .12); lf.rotation.set(-.5, b + Math.PI / 2, 0); }
-        part(g, GEO.cone, GOLD, .04, .18, .04, x, h + .08, z);
-        const c = part(g, GEO.capsule, B, .045, .12, .045, x + .06, h * .5, z, false); c.rotation.z = -.3; fr.push(c);
-        const hk = part(g, GEO.cone, L, .05, .2, .05, x + .07, h * .5 - .06, z); hk.rotation.z = Math.PI - .3; }
+      // Bastis Wunsch (18.11.2026): gerade Stängel, je ein Kolben oben seitlich, zwei leicht versetzte Blätter links/rechts schräg nach oben, eins abgeknickt
+      for (let i = 0; i < 3; i++) {
+        const [x, z] = at(i / 3 * Math.PI * 2 + .5, .2), h = rand(1.05, 1.25), yaw = rand(0, 7);
+        const st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.y = yaw; g.add(st);
+        part(st, GEO.cyl, H, .028, h, .028, 0, h / 2, 0);
+        const leaf = (side: number, y: number, bent: boolean) => {
+          const lg = new THREE.Group(); lg.position.set(0, y, 0); lg.rotation.set(0, side > 0 ? 0 : Math.PI, .75); st.add(lg); // schräg nach oben
+          const L1 = bent ? .2 : .38; part(lg, GEO.lo, L, L1 / 2, .012, .045, L1 / 2, 0, 0);
+          if (bent) { const kg = new THREE.Group(); kg.position.set(L1, 0, 0); kg.rotation.z = -1.9; lg.add(kg); part(kg, GEO.lo, L, .12, .012, .04, .12, 0, 0); } // abgeknickt
+        };
+        const bentRight = Math.random() < .5;
+        leaf(1, h * .42, bentRight); leaf(-1, h * .55, !bentRight);
+        const c = part(st, GEO.capsule, B, .045, .13, .045, .07, h * .78, 0, false); c.rotation.z = -.35; fr.push(c);
+        const hk = part(st, GEO.cone, L, .05, .16, .05, .05, h * .74, 0); hk.rotation.z = Math.PI - .35;
+      }
     },
     fruit(g, m) { const c = part(g, GEO.capsule, m, .05, .16, .05, 0, 0, 0); c.rotation.z = Math.PI / 2; const h = part(g, GEO.cone, bm(0x8ab84a, .7), .06, .18, .06, -.1, 0, 0); h.rotation.z = Math.PI / 2; } },
   // Möhre: fedriges Kraut, orange Schulter schaut aus der Erde

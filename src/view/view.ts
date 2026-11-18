@@ -1,7 +1,7 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, isCrop, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { Slot, cornerAngle, hexDist, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
@@ -33,6 +33,7 @@ import {
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
+import { CROP_VIS } from './crops';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
 import { Lager } from './lager';
@@ -543,7 +544,8 @@ export class GameView {
     const wetMats = g.children.flatMap(c => c.children.length ? c.children.map(x => (x as THREE.Mesh).material as THREE.MeshStandardMaterial) : [(c as THREE.Mesh).material as THREE.MeshStandardMaterial]);
     // rim kept only as data holder for the rarity colour (no visible UI line any more)
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
-    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
+    const cv = isCrop(type) ? CROP_VIS[type] : null;
+    const mats = cv ? { leaf: M(cv.leaf), head: M(cv.head) } : { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     if (type === 'nut') { // one broadleaf tree from the nature pack in the middle (loaded async), nuts hanging in its crown
       const tree = new THREE.Group(); tree.rotation.y = rand(0, 7); plant.add(tree);
@@ -690,7 +692,7 @@ export class GameView {
   }
   private setCarry(v: EView, carry: string) {
     v.carry = carry; const c = v.P.carry; for (const ch of [...c.children]) c.remove(ch);
-    for (let i = 0; i < carry.length; i++) { const m = fruitMesh(FRUITS[+carry[i]], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
+    for (let i = 0; i < carry.length; i++) { const m = fruitMesh(FRUITS[carry.charCodeAt(i) - 97], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
   }
 
   // ---------------- events ----------------

@@ -1,4 +1,4 @@
-import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon, isTool } from '../config';
+import { COMBOS, FRUITS, isCrop, SKILLS, SkillId, WEAPONS, Weapon, isTool } from '../config';
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -99,7 +99,7 @@ export class Hud {
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
-    const have = s.fi.map(f => FRUITS[f[1]]).map(t => t === 'blue' ? 'cran' : t); // blueberries are berry shotgun ammo too
+    const have = s.fi.map(f => FRUITS[f[1]]).filter(t => !isCrop(t)).map(t => t === 'blue' ? 'cran' : t); // vegetables from the harvest calendar only give XP // blueberries are berry shotgun ammo too
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
       this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t === 'cran' ? 'mix' : t)}<span data-r="${t}">0</span></div>`).join('');

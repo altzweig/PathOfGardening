@@ -660,14 +660,14 @@ export class Sim {
     this.sfx('weapons.lemon', p.x, p.z);
   }
   /** on its way the ball zaps the nearest enemy within tickRadius every tickInterval for tickDamage x damage */
-  private ballTick(pr: Proj, dt: number) {
-    const L = this.cfg.skills.lemon; pr.zt = (pr.zt ?? L.tickInterval) - dt;
+  private ballTick(pr: Proj, dt: number, every = this.cfg.skills.lemon.tickInterval, share = this.cfg.skills.lemon.tickDamage) {
+    const L = this.cfg.skills.lemon; pr.zt = (pr.zt ?? every) - dt;
     while (pr.zt <= 0) {
-      pr.zt += L.tickInterval;
+      pr.zt += every;
       let best: Enemy | null = null, bd = Infinity;
       for (const e of this.enemies) { if (e.dead || this.airborne(e)) continue; const d = Math.hypot(e.x - pr.x, e.z - pr.z) - e.r; if (d <= (pr.tr ?? L.tickRadius) && d < bd) { bd = d; best = e; } }
       if (!best) continue;
-      this.hurtEnemy(best, pr.dmg * L.tickDamage, { color: 'z', silent: true, src: 'lemon' });
+      this.hurtEnemy(best, pr.dmg * share, { color: 'z', silent: true, src: 'lemon' });
       this.emit({ k: 'zap', s: [[r2(pr.x), r2(pr.z), r2(best.x), r2(best.z), 1]], t: 1 });
     }
   }
@@ -985,7 +985,7 @@ export class Sim {
         for (let i = 0; i < cs.count; i++) {
           let g = 0; for (let k = 0; k < 8; k++) { g = gauss() * sig; if (Math.abs(g) <= half) break; g = clamp(g, -half, half); }
           const an = a + g * Math.PI / 180, rr = cs.range * rand(.6, 1);
-          if (cs.cid === 'shock') proj('shock', an, { speed: rand(9, 11), left: rr, total: rr });
+          if (cs.cid === 'shock') proj('shock', an, { speed: C.speed * rand(.9, 1.1), left: rr, total: rr, zt: C.flightTick * rand(.4, 1), tr: C.flightRadius });
           else proj('hot', an, { speed: rand(10, 12), left: rr, total: rr, pierceLeft: cs.pierce, mine: cs.splash, burn: cs.burn, tick: cs.tick, dmgPct: cs.dmgPct });
         }
         break;
@@ -1710,6 +1710,7 @@ export class Sim {
       const pr = this.projs[i]; const step = Math.min(pr.speed * dt, pr.left);
       const ax = pr.x, az = pr.z; let done = false; const hits: [number, Enemy][] = [];
       if (pr.kind === 'ball') this.ballTick(pr, dt);
+      else if (pr.kind === 'shock') { const C = this.CB.list.shock; this.ballTick(pr, dt, C.flightTick, C.flightDamage); } // Shockgun berries zap on their way like the Citrateaser ball (18.11.2026)
       if (pr.kind !== 'shock') for (const e of this.enemies) { // Shockgun berries fly through enemies
         if (e.dead || pr.hit.has(e)) continue;
         const ex = e.x - ax, ez = e.z - az; const tp = clamp(ex * pr.dx + ez * pr.dz, 0, step);

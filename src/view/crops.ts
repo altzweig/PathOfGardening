@@ -124,7 +124,7 @@ export const CROP_VIS: Record<CropId, CropVis> = {
       ring(5, a => { const [x, z] = at(a, rand(.15, .35)); fr.push(part(g, GEO.cyl, B, .04, .05, .04, x, .02, z, false));
         for (let k = 0; k < 5; k++) { const b = rand(0, 7), h = rand(.2, .32), lf = part(g, GEO.cone, L, .04, h, .02, x + Math.cos(b) * .03, .04 + h / 2, z + Math.sin(b) * .03); lf.rotation.set(Math.sin(b) * .45, 0, Math.cos(b) * .45); } });
     },
-    fruit(g, m) { const c = part(g, GEO.cone, m, .045, .26, .045, 0, 0, 0); c.rotation.z = Math.PI / 2; for (let k = 0; k < 3; k++) { const t = part(g, GEO.cone, bm(0x4a9a30), .02, .12, .01, -.17, 0, (k - 1) * .02); t.rotation.z = Math.PI / 2 + (k - 1) * .3; } } },
+    fruit(g, m) { const c = part(g, GEO.cone, m, .045, .26, .045, 0, 0, 0); c.rotation.z = Math.PI / 2; for (let k = 0; k < 3; k++) { const t = part(g, GEO.cone, bm(0x4a9a30), .02, .12, .01, .17, 0, (k - 1) * .02); t.rotation.z = -Math.PI / 2 + (k - 1) * .3; } } },
   // Paprika: kompakter Busch, rote und gelbe Schoten hängen
   pepper: { col: 0xff4a20, leaf: 0x2f6a28, head: 0x3f7a2a, ground: gm(0xe83a18, 0xff3a10, .7, .3), bush: bm(0xd8301a, .3),
     plant(g, L, H, B, fr) {

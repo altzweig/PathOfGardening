@@ -158,18 +158,34 @@ function raccoon(R: Rig, boss: boolean) {
   }
   R.bone('head', 'neck', [0, .44, .3]);
   const face: Col = (p, d) => {
-    const base = fur(fT, fS, fB)(p, d, 0); if (d.z < .1) return base;
-    const ay = .47 - .32 * Math.abs(p.x) + .01, half = .032 + .015 * Math.abs(p.x) / .1;
-    if (p.z > .36 && Math.abs(p.y - ay) < half) return mul(dark, .9 + .2 * vn(p.x * 50, p.y * 50, 0));
-    if (p.z > .37 && p.y > ay + half && p.y < ay + half + .03) return white;
-    if (boss && p.x < -.02 && p.x > -.11 && Math.abs(p.y - (.53 - (p.x + .02) * .9)) < .008) return scar; // scar across the brow
-    return base;
+    // classic bandit mask: black patch around each eye that sweeps down-back onto the cheeks, joined over the
+    // nose bridge; white brows arching over it; dark stripe from the forehead down between the eyes
+    const base = fur(fT, fS, fB)(p, d, 0); if (d.z < -.1) return base;
+    const n = .9 + .2 * vn(p.x * 50, p.y * 50, 0), ax = Math.abs(p.x);
+    // soft edges (smoothstep) so the vertex colours blend instead of stair-stepping
+    const ex = (ax - .06) / .058, ey = (p.y - .472) / .042, e2 = ex * ex + ey * ey;
+    const front = sst(p.z, .36, .4), cy = .47 - Math.max(0, ax - .06) * .6, cw = .036 - Math.max(0, ax - .06) * .2;
+    const band = ax > .06 ? (1 - sst(Math.abs(p.y - cy), cw * .75, cw * 1.25)) * (1 - sst(ax, .13, .155)) * sst(p.z, .28, .32) : 0;
+    const bridge = (1 - sst(Math.abs(p.y - .47), .02, .03)) * (1 - sst(ax, .055, .07)) * front;
+    const mask = Math.max((1 - sst(e2, 1, 1.45)) * sst(p.z, .3, .34), band, bridge);
+    const top = .472 + .05 * Math.sqrt(Math.max(0, 1 - Math.min(1, ex * ex * .8)));
+    const brow = (1 - sst(Math.abs(p.y - top - .014), .008, .018)) * sst(ax, .01, .025) * (1 - sst(ax, .11, .13)) * front;
+    const below = sst(ax, .055, .075) * (1 - sst(p.y, .42, .44)) * front;
+    const stripe = (1 - sst(ax, .012, .022)) * sst(p.y, .49, .5) * (1 - sst(p.y, .55, .57)) * front;
+    let c = mix(base, mul(white, .95 + .1 * n), Math.max(brow, below * .92));
+    c = mix(c, mul(dark, n * 1.35), stripe * .85); c = mix(c, mul(dark, n), mask);
+    if (!boss) return c;
+    if (p.x < -.02 && p.x > -.11 && Math.abs(p.y - (.53 - (p.x + .02) * .9)) < .008) return scar; // boss: scar across the brow
+    return c;
   };
-  R.blob('head', [0, .46, .33], [.15, .125, .13], face, { deform: d => 1 + .12 * Math.max(0, -d.y) * Math.abs(d.x) });
-  for (const sx of [-1, 1]) R.blob('head', [sx * .105, .425, .36], [.075, .06, .07], (p, d) => mul(mix(white, C(0x8a847a), sst(-d.y, 0, .8)), .9 + .16 * vn(p.x * 60, p.y * 60, p.z * 60)), { deform: d => 1 + .14 * Math.max(0, d.x * sx) * vn(d.y * 9, d.z * 9, 0) }); // white cheek ruff
-  R.blob('head', [0, .425, .44], [.058, .05, .09], (p, d) => d.y > .45 && p.z < .5 ? dark : mul(white, .95), { rot: [.12, 0, 0] });
+  R.blob('head', [0, .46, .33], [.15, .125, .13], face, { seg: 40, deform: d => { // eye sockets pressed in, brow ridge above them
+    const sock = (sx: number) => Math.exp(-((d.x - sx * .46) ** 2 + (d.y - .12) ** 2 + (d.z - .87) ** 2) / .022);
+    const brow = (sx: number) => Math.exp(-((d.x - sx * .42) ** 2 + (d.y - .42) ** 2 + (d.z - .78) ** 2) / .03);
+    return 1 + .12 * Math.max(0, -d.y) * Math.abs(d.x) - .13 * (sock(-1) + sock(1)) + .06 * (brow(-1) + brow(1)); } });
+  for (const sx of [-1, 1]) R.blob('head', [sx * .12, .41, .335], [.06, .052, .06], (p, d) => mul(mix(white, C(0x8a847a), sst(-d.y, 0, .8)), .9 + .16 * vn(p.x * 60, p.y * 60, p.z * 60)), { deform: d => 1 + .14 * Math.max(0, d.x * sx) * vn(d.y * 9, d.z * 9, 0) }); // white cheek ruff
+  R.blob('head', [0, .425, .44], [.058, .05, .09], (p, d) => d.y > .55 && Math.abs(p.x) < .02 + (.5 - p.z) * .15 ? mul(dark, 1.3) : mul(white, .95), { rot: [.12, 0, 0], seg: 16 });
   R.blob('head', [0, .438, .525], [.026, .02, .02], () => C(0x121010));
-  R.bone('eyes', 'head', [0, .475, .425]).eyes([[-.058, .475, .425], [.058, .475, .425]], .023);
+  R.bone('eyes', 'head', [0, .474, .418]).eyes([[-.06, .474, .418], [.06, .474, .418]], .022);
   R.bone('jaw', 'head', [0, .41, .4]).blob('jaw', [0, .398, .445], [.045, .022, .06], () => mul(white, .9));
   for (const sx of [-1, 1]) {
     const n = sx < 0 ? 'earL' : 'earR'; R.bone(n, 'head', [sx * .085, .55, .3]);
@@ -422,6 +438,18 @@ const GAIT: Record<EnemyType, { stride: number; amp: number; bob: number; roll: 
 const OFF_TROT: Record<string, number> = { fl: 0, br: 0, fr: Math.PI, bl: Math.PI };
 const OFF_GALLOP: Record<string, number> = { fl: 0, fr: .45, bl: Math.PI, br: Math.PI + .45 };
 
+// bounding run, keyed over one stride (phase 0..2pi; flight = 0..pi): [phase/pi, angle]
+// hind legs push off stretched back, trail in the air, swing forward to gather under the body, push again;
+// front legs reach forward in the air, land, sweep back, fold up and swing forward again
+const RUN_HU: [number, number][] = [[0, .95], [.55, .75], [1, .15], [1.25, -.65], [1.6, -.15], [2, .95]];
+const RUN_HL: [number, number][] = [[0, 0], [.6, -.15], [1, -.5], [1.25, -.75], [1.6, -.3], [2, 0]];
+const RUN_FU: [number, number][] = [[0, -.15], [.4, -.95], [1, -.7], [1.4, .45], [1.7, .6], [2, -.15]];
+const RUN_FL: [number, number][] = [[0, .9], [.4, .2], [1, 0], [1.5, .1], [1.75, 1.1], [2, .9]];
+function key(ph: number, k: [number, number][]) {
+  const t = (ph / Math.PI % 2 + 2) % 2;
+  for (let i = 1; i < k.length; i++) if (t <= k[i][0]) { const [t0, a] = k[i - 1], [t1, b] = k[i], u = (t - t0) / (t1 - t0); return a + (b - a) * (.5 - .5 * Math.cos(u * Math.PI)); }
+  return k[0][1];
+}
 function rot(o: THREE.Object3D | undefined, x: number, y = 0, z = 0) { if (o) o.rotation.set(x, y, z); }
 
 export function animate(a: Animal, I: AnimIn) {
@@ -442,9 +470,12 @@ export function animate(a: Animal, I: AnimIn) {
   m.look += (m.lookTo - m.look) * Math.min(1, dt * (a.type === 'squirrel' ? 18 : 4));
   m.blinkT -= dt; if (m.blinkT < -.12) m.blinkT = 1.5 + Math.random() * 3.5;
   m.earT -= dt; if (m.earT <= 0) { m.earT = 1 + Math.random() * 3; m.earS = 1; } m.earS = Math.max(0, m.earS - dt * 6);
-  const stun = !!I.stun, sp = m.spd, w = clamp(sp / (G.ref * .5), 0, 1), run = clamp((sp - G.ref) / G.ref, 0, 1);
+  const stun = !!I.stun, sp = m.spd, w = clamp(sp / (G.ref * .5), 0, 1), run = a.type === 'hedgehog' ? 0 : sst(sp, G.ref * 1.05, G.ref * 1.9);
   const s = m.seed, breathe = Math.sin(now * (stun ? 1.4 : 2.3) + s);
-  m.ph += (sp / G.stride) * Math.PI * 2 * dt * (I.charge ? 1 : 1);
+  // running = longer flight phase + stronger push-off, NOT faster legs: above walking speed the stride grows,
+  // the cadence only rises a little (max +25 %)
+  const cad = sp <= G.ref ? sp / G.stride : G.ref / G.stride * (1 + .25 * run);
+  m.ph += cad * Math.PI * 2 * dt;
   const ph = m.ph;
   // reset pose
   a.body.position.set(0, 0, 0); a.body.rotation.set(0, 0, 0);
@@ -458,19 +489,23 @@ export function animate(a: Animal, I: AnimIn) {
   if (a.type === 'squirrel' && ((I.air ?? 0) > .02 || I.climb)) { animSquirrelHop(a, I); return; }
 
   // --- quadruped gait
-  const gallop = !!I.charge || (a.type === 'sheep' && run > .5);
-  const amp = G.amp * (1 + run * .35) * w;
+  // walk/trot, blended into a bounding run: hind legs kick off hard, the body flies (all feet off the ground),
+  // front legs reach far forward for the landing, hind legs gather under the body, push off again
+  const R = Math.max(run, I.charge ? 1 : 0), amp = G.amp * w, fl = Math.max(0, Math.sin(ph)); // fl: flight arc 0..1
   for (const n of LEGS) {
-    const front = n[0] === 'f', o = (gallop ? OFF_GALLOP : OFF_TROT)[n] + s, sw = Math.sin(ph + o), cw = Math.cos(ph + o);
+    const front = n[0] === 'f', o = OFF_TROT[n] + s, sw = Math.sin(ph + o), cw = Math.cos(ph + o);
     const up = b[n], lo = b[n + '2'];
     if (!up) continue;
-    up.rotation.x = -sw * amp;
-    lo.rotation.x = (front ? 1 : -1) * Math.max(0, cw) * amp * 1.1;
+    const wu = -sw * amp, wl = (front ? 1 : -1) * Math.max(0, cw) * amp * 1.1;
+    const q = ph + (n[1] === 'r' ? .18 : 0); // right legs slightly later (no robot symmetry)
+    const ru = key(q, front ? RUN_FU : RUN_HU), rl = key(q, front ? RUN_FL : RUN_HL);
+    up.rotation.x = wu + (ru - wu) * R; lo.rotation.x = wl + (rl - wl) * R;
   }
-  const bob = G.bob * (1 + run) * w;
-  a.body.position.y = (1 - Math.cos(ph * 2)) * .5 * bob;
-  b.torso.rotation.z = Math.sin(ph) * G.roll * w;
-  b.torso.rotation.x = Math.sin(ph * 2) * .03 * w + (gallop ? Math.sin(ph) * .08 : 0);
+  const bob = G.bob * w * (1 - R);
+  a.body.position.y = (1 - Math.cos(ph * 2)) * .5 * bob + R * Math.pow(fl, .8) * a.h * .42;
+  b.torso.rotation.z = Math.sin(ph) * G.roll * w * (1 - R);
+  b.torso.rotation.x = Math.sin(ph * 2) * .03 * w * (1 - R) - .2 * Math.cos(ph) * R; // nose up on push-off, down on landing
+  b.torso.scale.z = 1 + .07 * fl * R; // body stretches in the air, bunches on the ground
   if (b.neck) b.neck.rotation.x = -Math.sin(ph * 2) * .05 * w + Math.sin(now * 1.3 + s) * .04 * (1 - w);
   if (b.head) b.head.rotation.set(-Math.sin(ph * 2 + .6) * .05 * w, m.look * (1 - w * .8), -b.torso.rotation.z * .7);
   // tail: spring that lags behind turns, sways, lifts while fleeing

@@ -65,3 +65,7 @@ if (frozen) { const T = +frozen; for (let t = 0; t < T; t += 1 / 60) step(1 / 60
 (window as any).__ready = true;
 let last = performance.now();
 r.setAnimationLoop(() => { const n = performance.now(), dt = Math.min(.05, (n - last) / 1000); last = n; if (!frozen) step(dt); r.render(scene, cam); });
+// ?face=<distance>: close-up of the first animal's face (use with only=<one>&yaw=0)
+if (Q.has('face')) { const d = +(Q.get('face') || .9), a = list[0].a, k = a.boss ? 1.6 : 1; cam.position.set(+(Q.get('fx') || 0), .62 * k, (.36 + d) * k); cam.lookAt(0, .45 * k, .36 * k); }
+// ?side=<distance>: low side view of a single animal (gait check)
+if (Q.has('side')) { const d = +(Q.get('side') || 2.2), k = list[0].a.boss ? 1.6 : 1; cam.position.set(d * k, .45 * k, 0); cam.lookAt(0, .32 * k, 0); }

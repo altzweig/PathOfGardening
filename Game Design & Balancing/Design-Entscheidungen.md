@@ -381,6 +381,8 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 ## Tiere: Modelle und Animationen (18.11.2026)
 - Alle Tiere (Waschbär, Waschbär-Boss, Roter Panda, Kröte, Schaf, Igel, Eichhörnchen) sind neu modelliert: weiche, prozedurale Formen mit mehrtonigen Fellfarben, Masken, Ringelschwänzen, Hörnern, Warzen. Spezifikation: `Tiere-Prompt.md`. Code: `src/view/animals.ts`.
 - Jedes Tier ist ein geriggtes Mesh (Knochen für Rumpf, Hals, Kopf, Kiefer, Ohren, Schwanz, Beine) plus Augen. Geometrie wird pro Art einmal gebaut; 2–3 Draw-Calls pro Tier statt bisher bis zu 80 (wichtig für Mobile mit vielen Gegnern).
+- Rennen (18.11.2026, Basti): kein schnelleres Beinwirbeln, sondern Sprunggalopp mit langer Flugphase. Die Schrittfrequenz steigt höchstens um 25 %, der Rest kommt über längere Sprünge: Hinterbeine drücken gestreckt ab, in der Luft greifen die Vorderbeine weit nach vorn, der Körper streckt sich.
+- Waschbär-Gesicht: eingedrückte Augenhöhlen mit Brauenwulst, schwarze Maske um die Augen bis auf die Wangen, über den Nasenrücken verbunden, schmale weiße Brauen, weiße Schnauze und weißes Fell unter der Maske, dunkler Strich auf der Stirn.
 - Animationen kommen aus den Simulationsdaten: Idle (Atmen, Umschauen, Blinzeln, Ohrzucken), Gangart je Tier an echte Geschwindigkeit gekoppelt, Angriff (Biss + Pfotenhieb, Zunge, Hufscharren, Einrollen, Boss richtet sich auf), Treffer-Rückstoß, Betäubt (Kopf hängt, Wanken), Flucht (Ohren angelegt, Schwanz hoch).
 - Tod: Tiere kippen auf die Seite (Kröte auf den Rücken), zucken kurz und sinken nach 1,6 s in den Boden. Höchstens 24 gleichzeitig, sonst verschwinden sie sofort.
 - Der Boss hat ein eingerissenes Ohr, eine Narbe und ein rotes Halstuch.

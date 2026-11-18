@@ -358,6 +358,14 @@ export function aspCrossbow() {
   const bolt = boltM(a, .34, .011, 'asp');
   return { g, bolt };
 }
+/** bean crossbow (Bohnen-Armbrust, 18.11.2026): same crossbow with green bean-pod limbs, three beans side by side on the rail */
+export function beanCrossbow() {
+  const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
+  crossbow(a, { stock: K.walnut, stockDk: K.darkWood, metal: K.brass, limb: K.leaf, accent: undefined });
+  const bolt = new THREE.Group(); bolt.position.set(0, .05, .12); a.add(bolt);
+  for (const i of [-1, 0, 1]) { const b = mesh(bolt, sph(12, 8), K.leaf, i * .022, 0, 0, .009, .009, .07); b.rotation.y = i * .17; }
+  return { g, bolt };
+}
 
 // ================= base weapons =================
 /** hoe (Hacke, 18.11.2026; the old rake is in archiv/harke/): lengths of the ash handle in front of / behind the hands,
@@ -379,14 +387,14 @@ export function hoeModel() {
   return g;
 }
 /** berry blunderbuss (shoots blueberries and cranberries): walnut stock, plain iron barrel with a flared bell, glass hopper with both berries on top */
-export function cranGun() {
+export function cranGun(blue = false) {
   const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
   mesh(a, profile([[-.3, .02], [-.05, .03], [.05, .025], [.05, -.03], [-.09, -.034], [-.12, -.07], [-.14, -.13], [-.18, -.135], [-.19, -.12], [-.18, -.05], [-.31, -.04], [-.32, -.005]], .06, .01), K.walnut);
   mesh(a, lathe([[.026, -.04], [.028, .1], [.026, .25], [.03, .3], [.045, .36], [.06, .395], [.056, .4], [.04, .39], [.022, .36]], 26), K.iron, 0, .012, 0);
   for (const z of [.02, .16, .29]) band(a, K.brass, .033, .018, z, 0, .012);
   const hop = new THREE.Group(); hop.position.set(0, .07, -.02); a.add(hop); // glass hopper of berries
   mesh(hop, sph(18, 12), K.glass, 0, 0, 0, .045, .04, .055);
-  for (let i = 0; i < 8; i++) berryM(hop, .016, R(-.022, .022), R(-.025, .01), R(-.03, .03), i % 2 ? K.blueberry : undefined); // both berries: cranberries and blueberries
+  for (let i = 0; i < 8; i++) berryM(hop, .016, R(-.022, .022), R(-.025, .01), R(-.03, .03), blue ? K.blueberry : undefined); // Preiselbeeren or (blue) Blaubeeren
   mesh(hop, lathe([[.012, -.01], [.02, -.005], [.02, .005], [.012, .01]], 14), K.brass, 0, -.045, 0).rotation.x = Math.PI / 2;
   mesh(hop, lathe([[.01, 0], [.03, .006], [.028, .014], [0, .016]], 16), K.brass, 0, .04, 0).rotation.x = -Math.PI / 2;
   const tg = mesh(a, new THREE.TorusGeometry(.026, .005, 8, 18, Math.PI), K.brass, 0, -.034, -.1); tg.rotation.set(Math.PI, Math.PI / 2, 0);

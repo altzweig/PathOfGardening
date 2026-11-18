@@ -15,7 +15,7 @@ export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
   sw: number; sd: number; hk?: 0 | 1; /* hoe action progress 0..1, its direction, hk: 1 = slash (sword swing), 0 = chop */ wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
-  xb: 0 | 1; // crossbow (asparagus) in hand
+  xb: 0 | 1 | 2; // crossbow in hand: 1 Spargel, 2 Bohne
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped
   aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
@@ -25,7 +25,7 @@ export interface PSnap {
   wa?: number | null; // watering can: pour angle (rad) while watering, null otherwise
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
-export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string }
+export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string; /** weapon rarity colour (unlock card gem) */ rar?: string }
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   sl: number[]; // learned weapons in learn order (SKILLS index)
@@ -49,7 +49,7 @@ export type PuSnap = [number, number, number, number, number, number]; // + burn
 /** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second, wetness 0..100, plant look (-1 wilted, 0 seedlings .. 1 grown) */
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, number];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768, frozen: 65536 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

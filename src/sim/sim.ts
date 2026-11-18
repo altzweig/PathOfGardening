@@ -1,6 +1,6 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { ammoOf, Balancing, HoeAct, SEASONS, SeasonKey, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, fruitSize, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { ammoOf, famOf, isGun, isXbow, Balancing, HoeAct, SEASONS, SeasonKey, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, fruitSize, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { emptyIntent, EF, ESnap, Ev, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -65,7 +65,7 @@ export interface Player {
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; dia: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
-  xbT: number; handT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
+  xbT: number; xbW: 'asp' | 'bean'; handT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
   /** collected nuts (nut trees in the forest) */
   nuts: number;
   /** combo weapon shown in the hand for cwT s after it fired */
@@ -91,7 +91,7 @@ interface Fruit {
 type Target = { kind: 'player'; p: Player } | { kind: 'lager' } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
 interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
-  stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number; /** s left until it is gone after the wave countdown ran out (0 = not leaving) */ leave: number;
+  stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; /** Preiselbeer bleeding: damage per tick; Blaubeer frozen: s left; moved last frame */ bleedDmg: number; frz: number; mov: boolean; lx: number; lz: number; /** flamethrower: s in the flame towards the next stack */ burnAcc: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number; /** s left until it is gone after the wave countdown ran out (0 = not leaving) */ leave: number;
   walk: number; hop: number; state: 'approach' | 'windup' | 'charge' | 'rest' | 'climb'; st: number; cdx: number; cdz: number; hitThisCharge: boolean;
   tongueT: number; tongueCd: number; tongueLen: number; lunge: number; dead: boolean; hurtOnce: boolean; kbx: number; kbz: number; kbLeft: number; laughT: number; elite: boolean; dmgMul: number; boss?: BossState; wv: number;
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
@@ -103,7 +103,7 @@ interface Enemy {
   hx: number; hz: number; cx: number; cz: number; y: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
-export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball'] as const;
+export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'bean', 'blue'] as const;
 type ProjKind = typeof PK[number];
 interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy>;
   /** combo extras: blast radius / share (jam, rocket), burn stacks + tick (lance, hot), shock share (sour), stats of the shot */
@@ -115,7 +115,7 @@ interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx
 export const BK = ['cab', 'cole', 'cabboom', 'kimchi'] as const;
 interface Bomb { id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean; gas?: number; pm?: number;
   kind: typeof BK[number]; gen: number; cs?: ComboStats; tickT?: number }
-interface Mine { id: number; x: number; z: number; dmg: number; t: number; r?: number; bleed?: boolean; fire?: { tick: number; dmgPct: number; n: number }; sx?: number; sz?: number; fl?: number; ft?: number; bb?: boolean } // missed cranberry lying on the ground until it pops (fl: flight time left of a scattered berry)
+interface Mine { id: number; x: number; z: number; dmg: number; t: number; r?: number; bleed?: boolean; frz?: boolean; fire?: { tick: number; dmgPct: number; n: number }; sx?: number; sz?: number; fl?: number; ft?: number; bb?: boolean } // missed cranberry lying on the ground until it pops (fl: flight time left of a scattered berry)
 /** Shockgun berry on the ground: every tickInterval lightning jumps to the nearest berries */
 interface SNode { id: number; x: number; z: number; t: number; ticks: number; dmg: number; links: number; lr: number; lw: number; tot: number }
 /** Chillightning wave rushing forward along the ground */
@@ -202,13 +202,13 @@ export class Sim {
   // ---------- players ----------
   addPlayer(id: number, color: number) {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
-    const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, gasLv: 0, poisLv: 0, effLv: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
+    const mk = (k: SkillId): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: (this.cfg.skills as any)[isXbow(k) ? k : 'asp'].pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, gasLv: 0, poisLv: 0, effLv: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
       id, color, x: this.spawnPoint(this.players.length)[0], z: this.spawnPoint(this.players.length)[1], face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, hoeAct: 'chop', walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
-      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0, canT: -1, canHold: false, canAng: 0, blueAmmo: 0,
+      ammo: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, collected: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, skills: Object.fromEntries(SKILLS.map(k => [k, mk(k)])) as Record<SkillId, SkillState>,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, xbW: 'asp', handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0, canT: -1, canHold: false, canAng: 0, blueAmmo: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.players.push(p);
@@ -376,12 +376,11 @@ export class Sim {
     // 18.11.2026: every fruit gives XP (xp.fruit = factor per type), weapon fruit gives ammo on top
     const xv = v * (this.cfg.xp.gain ?? 1) * (this.cfg.xp.fruit?.[fr.type] ?? 1) * this.f(this.cfg.coop.xpValueExponent);
     if (xv > 0) { this.collectedXP += v; this.addXP(xv); }
-    const am = ammoOf(fr.type); // blueberries feed the berry shotgun like cranberries
+    const am = ammoOf(fr.type);
     if (fr.type === 'nut') p.nuts += v;
     else if (am) {
       const o = this.comboOwner(p, am); if (o) p.ammo[o.id] += v * o.f; else p.ammo[am] += v; // merged sub weapon: its fruit feeds the combo
       p.collected[am] += v;
-      if (am === 'cran' && !o) { if (fr.type === 'blue') p.blueAmmo += v; p.blueAmmo = Math.min(p.blueAmmo, p.ammo.cran); }
     }
     this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: fr.tier, x: r2(p.x), z: r2(p.z) });
   }
@@ -438,18 +437,20 @@ export class Sim {
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
     const range = id === 'lemon' ? B.range : (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: the range upgrade grows the ball instead (ballR)
     // crossbow: cd = one whole salvo; the salvo upgrade adds bolts that fit into the time the base salvo takes
-    const shots0 = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1, shots = id === 'asp' && s.salvoLv > 0 ? U.aspSalvo.shots[Math.min(s.salvoLv, U.aspSalvo.shots.length) - 1] : shots0;
+    // crossbows (Spargel, Bohne) share the salvo / pierce / size upgrades, shotguns (Preiselbeere, Blaubeere) the pellet upgrades
+    const X = isXbow(id) ? S[id] : S.asp, G = isGun(id) ? S[id] : S.cran;
+    const shots0 = isXbow(id) ? Math.max(1, X.burstShots || 1) : 1, shots = isXbow(id) && s.salvoLv > 0 ? U.aspSalvo.shots[Math.min(s.salvoLv, U.aspSalvo.shots.length) - 1] : shots0;
     const size = 1 + U.aspSize.step * s.sizeLv;
     const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
       ...fl, tick,
       dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
-      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
-      pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
+      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: X.burstGap * cd / X.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
+      pierce: s.pierce, pf: Math.min(1, X.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
-      pellets: S.cran.pellets + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
+      pellets: G.pellets + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, (G.splashDamage || 0) + U.cranSplash.step * s.mineLv),
       minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv),
-      chainDmg: Math.min(1, S.lemon.chainDamage + U.lemonEfficiency.step * s.effLv), ballR: S.lemon.ballRadius * rm, tickR: S.lemon.tickRadius * rm, poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
+      chainDmg: Math.min(1, S.lemon.chainDamage + U.lemonEfficiency.step * s.effLv), ballR: S.lemon.ballRadius * rm, tickR: S.lemon.tickRadius * rm, poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: X.width * size, size,
     };
   }
   /** flamethrower geometry for a sweep level: oscillating sweep (+30 deg / +5 deg cone per level, one sweep always takes sweepPeriod),
@@ -494,7 +495,7 @@ export class Sim {
   }
   /** resistance: enemies take less damage from some weapon fruits */
   resistF(e: Enemy, src?: FruitType) { const R = this.cfg.enemies[e.type].resist; return src && R && R.includes(src) ? 1 - (this.cfg.enemies.resistance ?? .3) : 1; }
-  airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5; }
+  airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && e.frz <= 0 && (e.hop % 1) < .5; }
   /** squirrel climbing into its tree (gone soon) */
   inTree(e: Enemy) { return e.state === 'climb'; }
   /** squirrel spawn: a random spot on the far side of the garden (~90 deg opposite its nut tree); it hops in zigzag towards the tree */
@@ -568,7 +569,7 @@ export class Sim {
     }
     if (e.carry.length) { e.laughT -= dt; if (e.laughT <= 0) { e.laughT = rand(2.5, 4); this.sfx('squirrel.laugh', e.x, e.z); } }
   }
-  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean; stun?: number; punch?: boolean; silent?: boolean; dot?: boolean; src?: FruitType } = {}) {
+  hurtEnemy(e: Enemy, dmg: number, o: { color?: string; bleed?: boolean | number; freeze?: number; stun?: number; punch?: boolean; silent?: boolean; dot?: boolean; src?: FruitType } = {}) {
     if (e.dead) return false;
     dmg *= this.resistF(e, o.src);
     if (!o.dot && this.airborne(e)) { this.emit({ k: 'imm', x: r2(e.x), z: r2(e.z) }); return false; }
@@ -578,11 +579,17 @@ export class Sim {
     if (!o.dot) { e.flash = .1; this.num(e.x, e.z, dmg, o.color || 'w', dmg >= 10); } // damage over time: no flash, numbers summed up by the caller
     if (o.punch) this.emit({ k: 'punch', x: r2(e.x), z: r2(e.z), e: e.id });
     else if (!o.silent) this.snd('hit');
-    if (o.bleed) e.bleed = this.cfg.skills.cran.bleedDuration;
+    if (o.bleed) this.bleedEnemy(e, typeof o.bleed === 'number' ? o.bleed : this.cfg.skills.cran.damage);
+    if (o.freeze && !e.boss) e.frz = Math.max(e.frz, o.freeze); // Blaubeer-Schrotflinte: frozen (bosses do not freeze)
     if (o.stun) this.applyStun(e, o.stun);
     if (e.hp <= 0) this.killEnemy(e);
     else { const fb = this.cfg.enemies[e.type].fleeBelow; if (fb && !e.boss && !e.fleeing && e.hp < e.maxHp * fb) { e.fleeing = true; e.target = { kind: 'flee' }; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); } }
     return true;
+  }
+  /** Preiselbeer bleeding: lasts bleedDuration s (a new hit restarts it), ticks bleedShare x the hit's weapon damage while the enemy moves */
+  bleedEnemy(e: Enemy, weaponDmg: number) {
+    const C = this.cfg.skills.cran, d = weaponDmg * C.bleedShare;
+    e.bleedDmg = e.bleed > 0 ? Math.max(e.bleedDmg, d) : d; e.bleed = C.bleedDuration;
   }
   killEnemy(e: Enemy) {
     if (e.burn > 0) { if (e.burnSum > 0) { this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; } this.spreadFire(e); }
@@ -753,22 +760,34 @@ export class Sim {
       const ex = e.x - p.x, ez = e.z - p.z, dd = Math.hypot(ex, ez);
       if (dd > st.range + e.r * .5) continue;
       if (!all && dd > e.r + .2 && segDist(Math.atan2(ex, ez)) > cone2 + Math.atan2(e.r, Math.max(dd, .01)) * .5) continue;
-      this.ignite(e, st);
-      e.burnSum += st.dmg; this.hurtEnemy(e, st.dmg, { silent: true, dot: true, src: 'chili' }); // direct hit, shown together with the burn numbers
+      // 18.11.2026: every stackTime s in the flame = 1 fire stack (each burst counts as one flame interval of contact)
+      const C = this.cfg.skills.chili; e.burnAcc += st.cd; let n = 0;
+      while (e.burnAcc >= C.stackTime - 1e-6) { e.burnAcc -= C.stackTime; n++; }
+      if (n > 0) this.ignite(e, st, n, true);
+      else if (e.burn > 0) { e.burnLeft = C.burnDuration; e.burnTick = st.tick; } // still in the flame: the fire keeps burning
+      const hd = (C.hitDamage || 0) * st.dmgPct;
+      if (hd > 0) { e.burnSum += hd; this.hurtEnemy(e, hd, { silent: true, dot: true, src: 'chili' }); } // direct hit, shown together with the burn numbers
     }
     // sound: start burst / roar loop / tail are played by the view from the player snapshot (fo)
   }
-  ignite(e: Enemy, st: { tick: number; dmgPct: number }, stacks = 1) {
-    const C = this.cfg.skills.chili;
+  /** fire damage of one stack per tick: burnShare x weapon damage (x damage upgrades) */
+  burnPerStack(dmgPct: number) { const C = this.cfg.skills.chili; return C.damage * C.burnShare * dmgPct; }
+  /** adds fire stacks (max burnStacks) and refreshes the fire; it goes out burnDuration s after the last contact */
+  ignite(e: Enemy, st: { tick: number; dmgPct: number }, stacks = 1, own = false) {
+    // own = the flamethrower itself; combo weapons keep the old fire numbers (combos.burn) until they get reworked
+    const C = this.cfg.skills.chili, L = this.cfg.combos?.burn;
+    const per = own ? this.burnPerStack(st.dmgPct) : (L?.damage ?? .5) * st.dmgPct, max = own ? C.burnStacks : L?.stacks ?? 6, dur = own ? C.burnDuration : L?.duration ?? 3;
     if (e.dead) return;
-    if (e.burn <= 0) e.burnT = st.tick;
-    e.burn = Math.min(C.burnStacks, e.burn + stacks); e.burnTick = st.tick; e.burnDmg = C.burnDamage * st.dmgPct; e.burnLeft = C.burnDuration;
+    const on = e.burn > 0;
+    if (!on) { e.burnT = st.tick; e.burnAcc = 0; }
+    e.burn = Math.max(e.burn, Math.min(max, e.burn + stacks)); e.burnTick = on ? Math.min(e.burnTick, st.tick) : st.tick; e.burnDmg = on ? Math.max(e.burnDmg, per) : per; e.burnLeft = Math.max(on ? e.burnLeft : 0, dur);
   }
   /** wildfire: a burning enemy that dies passes part of its fire to enemies close by */
   private spreadFire(e: Enemy) {
+    if (!(this.cfg.skills.chili.spreadRadius > 0)) return; // wildfire switched off (18.11.2026)
     const C = this.cfg.skills.chili, n = Math.max(1, Math.round(e.burn * C.spreadShare));
     let any = false;
-    for (const o of this.enemies) if (o !== e && !o.dead && Math.hypot(o.x - e.x, o.z - e.z) < C.spreadRadius + o.r) { this.ignite(o, { tick: e.burnTick, dmgPct: e.burnDmg / C.burnDamage }, n); any = true; }
+    for (const o of this.enemies) if (o !== e && !o.dead && Math.hypot(o.x - e.x, o.z - e.z) < C.spreadRadius + o.r) { this.ignite(o, { tick: e.burnTick, dmgPct: e.burnDmg / this.burnPerStack(1) }, n, true); any = true; }
     this.emit({ k: 'wildfire', x: r2(e.x), z: r2(e.z), r: C.spreadRadius, a: any ? 1 : 0 });
   }
   /** fire ticks: stacks x burn damage of the weapon; goes out burnDuration s after the last hit */
@@ -799,8 +818,8 @@ export class Sim {
       const s = p.skills[sid], g = N.skills[sid];
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
         [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
-      if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
-      if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.cranPierceLv', g, 'Durchbohr-Chance', s.cranPierceLv], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
+      if (isXbow(sid)) rows.push([`${sid}.pierce`, g, 'Durchbohren (Ziele)', s.pierce], [`${sid}.pierceBonus`, g, 'Durchbohr-Schaden', s.pierceBonus], [`${sid}.sizeLv`, g, 'Geschossgröße', s.sizeLv], [`${sid}.salvoLv`, g, 'Salve', s.salvoLv]);
+      if (isGun(sid)) rows.push([`${sid}.extraPel`, g, '+Projektile', s.extraPel], [`${sid}.cranPierceLv`, g, 'Durchbohr-Chance', s.cranPierceLv], [`${sid}.mineLv`, g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis], ['cab.gasLv', g, 'Kohlgas', s.gasLv], ['cab.poisLv', g, 'Giftschaden', s.poisLv]);
       if (sid === 'lemon') rows.push(['lemon.tgtLv', g, 'Kettenziele', s.tgtLv], ['lemon.xferLv', g, 'Rückblitz', s.xferLv], ['lemon.effLv', g, 'Schadenseffizienz', s.effLv]);
       if (sid === 'chili') rows.push(['chili.sweepLv', g, 'Schwenk + Flamme', s.sweepLv], ['chili.tickLv', g, 'Brand-Tick', s.tickLv]);
@@ -858,19 +877,17 @@ export class Sim {
     p.ammo[id] -= st.cost; s.cdT = st.cd; p.face = Math.atan2(dx, dz); p.handT = .9; // another weapon in the hand: rake put away
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
     if (id !== 'chili') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot
-    if (id === 'asp') {
-      this.aspBolt(p, dx, dz, st, false);
+    if (isXbow(id)) {
+      this.aspBolt(p, dx, dz, st, false, id);
       s.burst = st.shots - 1; s.burstT = st.gap; // rest of the salvo follows in the player update
-    } else if (id === 'cran') {
+    } else if (isGun(id)) { // Preiselbeer- / Blaubeer-Schrotflinte
       this.snd('shot');
-      this.burst(fx, fy, fz, 0xff4060, 8, 2.5, .15, .25);
-      const half = S.cran.cone / 2, sig = S.cran.spreadSigma, base = Math.atan2(dx, dz);
-      // the shotgun fires both berries: share of blueberries in the ammo decides the colour of each pellet
-      const share = clamp(p.blueAmmo / Math.max(1, p.ammo.cran + st.cost), 0, 1); p.blueAmmo = Math.max(0, p.blueAmmo - st.cost * share);
+      this.burst(fx, fy, fz, id === 'blue' ? 0x5a74ff : 0xff4060, 8, 2.5, .15, .25);
+      const G = S[id], half = G.cone / 2, sig = G.spreadSigma, base = Math.atan2(dx, dz);
       for (let i = 0; i < st.pellets; i++) {
         let g = 0; for (let k = 0; k < 8; k++) { g = gauss() * sig; if (Math.abs(g) <= half) break; g = clamp(g, -half, half); } // normal, cut at the cone edge
         const a = base + g * Math.PI / 180;
-        this.projs.push({ id: this.nid++, kind: 'cran', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: Math.random() < st.cranPierce ? 1 : 0, pf: 1, mine: st.splash, w: .1, hit: new Set(), bb: Math.random() < share }); // pierce chance: flies through one enemy
+        this.projs.push({ id: this.nid++, kind: id, x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: Math.random() < st.cranPierce ? 1 : 0, pf: 1, mine: st.splash, w: .1, hit: new Set(), bb: id === 'blue' }); // pierce chance: flies through one enemy
       }
     } else if (id === 'lemon') {
       this.lemonBall(p, dx, dz, st);
@@ -882,13 +899,18 @@ export class Sim {
       this.spawnBomb(fx, fy, fz, t[0], t[1], st.range, st.dmg, st.minis, false, st.gas, st.poisonMul);
     }
   }
-  /** one asparagus bolt from the crossbow; follow = later bolt of a salvo (pays its own ammo, own muzzle event) */
-  aspBolt(p: Player, dx: number, dz: number, st: SkillStats, follow: boolean) {
-    if (follow) { p.ammo.asp -= st.cost; p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; }
+  /** one shot from a crossbow; follow = later shot of a salvo (pays its own ammo, own muzzle event).
+   *  Spargel: one asparagus bolt. Bohne: `beans` beans side by side at the same time, beanSpread deg apart (one bean of ammo per shot) */
+  aspBolt(p: Player, dx: number, dz: number, st: SkillStats, follow: boolean, id: 'asp' | 'bean' = 'asp') {
+    if (follow) { p.ammo[id] -= st.cost; p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; }
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
-    if (follow) this.emit({ k: 'shot', p: p.id, w: 'asp', x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) });
-    this.snd('asp'); p.xbT = .9;
-    this.projs.push({ id: this.nid++, kind: 'asp', x: fx, y: fy, z: fz, dx, dz, speed: this.cfg.skills.asp.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
+    if (follow) this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) });
+    this.snd('asp'); p.xbT = .9; p.xbW = id;
+    const X = this.cfg.skills[id], n = id === 'bean' ? Math.max(1, this.cfg.skills.bean.beans || 1) : 1, spr = id === 'bean' ? this.cfg.skills.bean.beanSpread * Math.PI / 180 : 0, base = Math.atan2(dx, dz);
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * spr;
+      this.projs.push({ id: this.nid++, kind: id, x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: X.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: st.pierce, pf: st.pf, mine: 0, w: st.width, hit: new Set() });
+    }
   }
   /** charge of the throw being held, 0..1 (full after skills.cab.chargeTime) */
   chargeK(p: Player) { return clamp(p.chT / Math.max(.05, this.cfg.skills.cab.chargeTime), 0, 1); }
@@ -938,11 +960,11 @@ export class Sim {
   // ---------- combo weapons ----------
   get CB() { return this.cfg.combos!; }
   /** asparagus pierce upgrade: +step up to `max` targets, the last level pierces every target (PIERCE_ALL) */
-  pierceLv(s: SkillState) { const U = this.cfg.upgrades.aspPierce, b = this.cfg.skills.asp.pierce, n = Math.round(((U.max ?? 4) - b) / U.step); return s.pierce >= PIERCE_ALL ? n + 1 : Math.round((s.pierce - b) / U.step); }
+  pierceLv(s: SkillState, id: SkillId = 'asp') { const U = this.cfg.upgrades.aspPierce, b = this.cfg.skills[isXbow(id) ? id : 'asp'].pierce, n = Math.round(((U.max ?? 4) - b) / U.step); return s.pierce >= PIERCE_ALL ? n + 1 : Math.round((s.pierce - b) / U.step); }
   pierceUp(s: SkillState) { const U = this.cfg.upgrades.aspPierce; s.pierce = s.pierce >= (U.max ?? 4) ? PIERCE_ALL : s.pierce + U.step; }
   /** upgrades taken for one weapon (all kinds) */
   upCount(id: SkillId, s: SkillState) {
-    return s.lvDmg + s.lvRange + s.lvCd + (id === 'asp' ? this.pierceLv(s) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.cranPierceLv + s.mineLv + s.minis + s.gasLv + s.poisLv + s.effLv + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
+    return s.lvDmg + s.lvRange + s.lvCd + (isXbow(id) ? this.pierceLv(s, id) : 0) + s.pierceBonus + s.sizeLv + s.salvoLv + s.extraPel + s.cranPierceLv + s.mineLv + s.minis + s.gasLv + s.poisLv + s.effLv + s.tgtLv + s.xferLv + s.sweepLv + s.tickLv;
   }
   /** special upgrade levels of a weapon by upgrade key (asp_pierce, cran_pel, ...) */
   private specials(id: SkillId, s: SkillState): Record<string, number> {
@@ -967,8 +989,8 @@ export class Sim {
       case 'lance': o.radius = C.radius * (1 + .3 * k('asp_size')); o.tick = chTick(S.chili.burnTick); break;
       case 'cabboom': o.range = C.throwDistance; o.count = C.berries + 2 * k('cran_pel'); o.berryDmg = C.berryDamage * dm * (1 + .1 * k('cran_mine')); o.minis = k('cab_mini'); break;
       case 'shock': o.count = C.pellets + k('cran_pel'); o.dmg *= 1 + .1 * k('cran_mine'); o.links = C.links + k('lemon_tgt'); o.linkRange = C.linkRange * (1 + .1 * k('lemon_xfer')); break;
-      case 'hot': o.count = Math.round((S.cran.pellets + U.cranPellets.step * k('cran_pel')) * C.pelletFactor); o.range = S.cran.range * C.rangeFactor * rm; o.pierce = C.pierce; o.tick = chTick(S.chili.burnTick);
-        o.splash = Math.min(1, S.cran.splashDamage + U.cranSplash.step * k('cran_mine')); break;
+      case 'hot': o.count = Math.round((S.cran.pellets + U.cranPellets.step * k('cran_pel')) * C.pelletFactor); o.range = (C.baseRange ?? S.cran.range) * C.rangeFactor * rm; o.pierce = C.pierce; o.tick = chTick(S.chili.burnTick);
+        o.splash = Math.min(1, (C.baseSplash ?? S.cran.splashDamage) + U.cranSplash.step * k('cran_mine')); break;
       case 'rocket': o.range = C.range * rm; o.minis = k('cab_mini'); o.width = C.size; break;
       case 'kimchi': o.range = C.throwDistance; o.tick = chTick(C.poolTick); break;
       case 'chilight': o.width = C.width * (1 + .2 * k('chili_sweep')); o.shock = C.shockDamage + .1 * k('lemon_xfer'); o.shockR = CB.shock.radius + .2 * k('lemon_tgt'); o.shockTick = chTick(CB.shock.tick); break;
@@ -1178,7 +1200,7 @@ export class Sim {
     const e: Enemy = {
       id: this.nid++, type, x: Math.cos(angle) * R, z: Math.sin(angle) * R, hp: D.hp * hpF, maxHp: D.hp * hpF,
       shield: (D.shield || 0) * hpF, shieldMax: (D.shield || 0) * hpF, shieldT: D.shieldRegen || 3, r: D.radius * (elite ? EL.scale : 1), speed: D.speed,
-      stun: 0, stunMax: 0, bleed: 0, bleedT: 1, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, leave: 0, face: angle + Math.PI,
+      stun: 0, stunMax: 0, bleed: 0, bleedT: .5, bleedDmg: 0, frz: 0, mov: false, lx: Math.cos(angle) * R, lz: Math.sin(angle) * R, burnAcc: 0, flash: 0, atkT: 1, think: 0, target: null, carry: [], fleeing: false, leave: 0, face: angle + Math.PI,
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, pois: 0, poisT: 0, poisDmg: 0, gasT: 0, gasCh: 0, gasDmg: 0, puff: rand(0, D.puffEvery || 2),
@@ -1257,13 +1279,15 @@ export class Sim {
     const D = this.cfg.enemies[e.type], E = this.cfg.enemies;
     e.flash -= dt; e.lunge -= dt; e.tongueT -= dt;
     if (D.shield) { e.shieldT -= dt; if (e.shieldT <= 0) { e.shieldT = D.shieldRegen!; if (e.shield < e.shieldMax) { e.shield = e.shieldMax; this.sfx('sheep.shield', e.x, e.z); this.burst(e.x, .45, e.z, 0x6fd0ff, 10, 1.2, .15, .4); } } }
-    if (e.bleed > 0) {
-      e.bleed -= dt; e.bleedT -= dt;
-      if (e.bleedT <= 0) { e.bleedT = 1; this.snd('bleed'); this.emit({ k: 'bleed', x: r2(e.x), z: r2(e.z) }); this.hurtEnemy(e, this.cfg.skills.cran.bleedDps, { color: 'b', src: 'cran' }); if (e.dead) return; }
-    } else e.bleedT = 1;
+    if (e.bleed > 0) { // Preiselbeer bleeding: ticks only while the enemy moves
+      const BT = this.cfg.skills.cran.bleedTick || .5;
+      e.bleed -= dt; if (e.mov) e.bleedT -= dt;
+      if (e.bleedT <= 0) { e.bleedT += BT; this.snd('bleed'); this.emit({ k: 'bleed', x: r2(e.x), z: r2(e.z) }); this.hurtEnemy(e, e.bleedDmg, { color: 'b', src: 'cran' }); if (e.dead) return; }
+    } else e.bleedT = this.cfg.skills.cran.bleedTick || .5;
     this.tickBurn(e, dt); if (e.dead) return;
     this.tickShock(e, dt); if (e.dead) return;
     this.tickEnemyPoison(e, dt); if (e.dead) return;
+    if (e.frz > 0) { e.frz -= dt; e.lunge = 0; e.tongueT = 0; e.kbLeft = 0; return; } // Blaubeer frozen: does nothing at all
     if (e.kbLeft > 0) { const s = Math.min(e.kbLeft, 9 * dt); e.x += e.kbx * s; e.z += e.kbz * s; e.kbLeft -= s; } // rake knockback
     if (e.leave > 0) { // wave over: turn round, walk back to the forest and vanish (no more attacks)
       e.leave -= dt; e.lunge = 0; e.tongueT = 0;
@@ -1610,8 +1634,8 @@ export class Sim {
       add('lvDmg', 'Schaden', s.lvDmg, 0);
       add('lvRange', sid === 'cab' ? 'Radius' : sid === 'lemon' ? 'Kugelgröße' : 'Reichweite', s.lvRange, 0);
       if (sid !== 'chili') add('lvCd', 'Abklingzeit', s.lvCd, 0); // flamethrower: fixed rate, no cooldown card
-      if (sid === 'asp') { add('pierce', 'Durchbohren', this.pierceLv(s), pierceN, pierceN); add('pierceBonus', 'Durchbohr-Schaden', s.pierceBonus, U.aspPierceBonus.maxLevel || 5, U.aspPierceBonus.maxLevel || 5); add('sizeLv', 'Geschossgröße', s.sizeLv, U.aspSize.maxLevel || 4); add('salvoLv', 'Salve', s.salvoLv, U.aspSalvo.shots.length, U.aspSalvo.shots.length); }
-      if (sid === 'cran') { add('extraPel', 'Projektile', s.extraPel, U.cranPellets.maxLevel || 5); add('cranPierceLv', 'Durchbohr-Chance', s.cranPierceLv, U.cranPierce.maxLevel || 5, Math.ceil(1 / U.cranPierce.step - 1e-9)); add('mineLv', 'Platzschaden', s.mineLv, U.cranSplash.maxLevel || 5, Math.ceil((1 - this.cfg.skills.cran.splashDamage) / U.cranSplash.step - 1e-9)); }
+      if (isXbow(sid)) { add('pierce', 'Durchbohren', this.pierceLv(s, sid), pierceN, pierceN); add('pierceBonus', 'Durchbohr-Schaden', s.pierceBonus, U.aspPierceBonus.maxLevel || 5, U.aspPierceBonus.maxLevel || 5); add('sizeLv', 'Geschossgröße', s.sizeLv, U.aspSize.maxLevel || 4); add('salvoLv', 'Salve', s.salvoLv, U.aspSalvo.shots.length, U.aspSalvo.shots.length); }
+      if (isGun(sid)) { add('extraPel', 'Projektile', s.extraPel, U.cranPellets.maxLevel || 5); add('cranPierceLv', 'Durchbohr-Chance', s.cranPierceLv, U.cranPierce.maxLevel || 5, Math.ceil(1 / U.cranPierce.step - 1e-9)); add('mineLv', 'Platzschaden', s.mineLv, U.cranSplash.maxLevel || 5, Math.ceil((1 - (this.cfg.skills[sid].splashDamage || 0)) / U.cranSplash.step - 1e-9)); }
       if (sid === 'cab') { add('minis', 'Mini-Kohl', Math.round(s.minis / (U.cabMini.step || 1)), U.cabMini.maxLevel || 5); add('gasLv', 'Kohlgas', s.gasLv, U.cabGas.maxLevel || 5, Math.ceil(1 / U.cabGas.step - 1e-9)); add('poisLv', 'Giftschaden', s.poisLv, U.cabPoison.maxLevel || 5); }
       if (sid === 'lemon') { add('tgtLv', 'Kettenziele', s.tgtLv, U.lemonTargets.maxLevel || 5); add('xferLv', 'Rückblitz', s.xferLv, U.lemonTransfer.maxLevel || 5, Math.ceil(1 / U.lemonTransfer.step - 1e-9)); add('effLv', 'Schadenseffizienz', s.effLv, U.lemonEfficiency.maxLevel || 5, Math.ceil((1 - this.cfg.skills.lemon.chainDamage) / U.lemonEfficiency.step - 1e-9)); }
       if (sid === 'chili') { add('sweepLv', 'Schwenk + Flamme', s.sweepLv, sweepMax, sweepMax); add('tickLv', 'Brand-Tick', s.tickLv, tickMax, tickMax); }
@@ -1626,7 +1650,7 @@ export class Sim {
     const [a, b] = key.split('.');
     if (a === 'rake') { (p.rakeLv as any)[b] = lv; return; }
     const s = p.skills[a as SkillId] as any, U = this.cfg.upgrades;
-    if (b === 'pierce') { const B = this.cfg.skills.asp.pierce; s.pierce = lv >= r.cap ? PIERCE_ALL : B + lv * U.aspPierce.step; }
+    if (b === 'pierce') { const B = this.cfg.skills[isXbow(a) ? a : 'asp'].pierce; s.pierce = lv >= r.cap ? PIERCE_ALL : B + lv * U.aspPierce.step; }
     else if (b === 'minis') s.minis = lv * (U.cabMini.step || 1);
     else s[b] = lv;
   }
@@ -1694,13 +1718,13 @@ export class Sim {
 
     p.rakeCd -= dt * sf; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt * sf);
     p.xbT = Math.max(0, p.xbT - dt); p.handT = Math.max(0, p.handT - dt); p.cwT = Math.max(0, p.cwT - dt);
-    const xa = p.skills.asp; // crossbow salvo: remaining bolts follow at burstGap, re-aimed each time
-    if (xa.burst > 0) {
+    for (const xid of ['asp', 'bean'] as const) { // crossbow salvo: remaining bolts follow at burstGap, re-aimed each time
+      const xa = p.skills[xid]; if (xa.burst <= 0) continue;
       xa.burstT -= dt * sf;
       while (xa.burst > 0 && xa.burstT <= 0) { // several bolts per frame if the gap is shorter than a frame (big salvos)
-        if (!p.alive || !this.canFire(p, 'asp')) xa.burst = 0;
+        if (!p.alive || !this.canFire(p, xid)) xa.burst = 0;
         else if (xa.combo === 'jam') { const cs = this.comboStats(xa), d = this.aimDir(p, cs.range); this.jamBolt(p, d[0], d[1], cs, true); xa.burst--; xa.burstT += cs.gap; }
-        else { const st = this.stats('asp', xa), d = this.aimDir(p, st.range); this.aspBolt(p, d[0], d[1], st, true); xa.burst--; xa.burstT += st.gap; }
+        else { const st = this.stats(xid, xa), d = this.aimDir(p, st.range); this.aspBolt(p, d[0], d[1], st, true, xid); xa.burst--; xa.burstT += st.gap; }
       }
     }
     if (p.flOn > 0) { // flame keeps sweeping while it burns
@@ -1841,7 +1865,10 @@ export class Sim {
     }
     // enemies
     if (this.sb) { if (!this.sb.freeze) this.sbUpdate(dt); } else this.waves(dt);
-    for (const e of [...this.enemies]) if (!e.dead) { if (this.sb?.freeze) this.frozenEnemy(e, dt); else this.updateEnemy(e, dt); }
+    for (const e of [...this.enemies]) if (!e.dead) {
+      if (this.sb?.freeze) this.frozenEnemy(e, dt); else this.updateEnemy(e, dt);
+      e.mov = Math.hypot(e.x - e.lx, e.z - e.lz) > .2 * dt; e.lx = e.x; e.lz = e.z; // moving (for bleeding)
+    }
     const en = this.enemies;
     for (let i = 0; i < en.length; i++) for (let j = i + 1; j < en.length; j++) {
       const a = en[i], b = en[j]; if (this.inTree(a) || this.inTree(b)) continue;
@@ -1879,15 +1906,21 @@ export class Sim {
       hits.sort((a, b) => a[0] - b[0]);
       for (const [, e] of hits) {
         pr.hit.add(e);
-        if (pr.kind === 'asp') {
-          this.hurtEnemy(e, pr.dmg, { color: 'g', src: 'asp' }); this.burst(e.x, .4, e.z, 0x9cff60, 6, 2, .1, .3); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 0 });
+        if (pr.kind === 'asp' || pr.kind === 'bean') {
+          this.hurtEnemy(e, pr.dmg, { color: 'g', src: pr.kind }); this.burst(e.x, .4, e.z, 0x9cff60, 6, 2, .1, .3); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 0 });
           if (pr.pierceLeft > 0) { pr.pierceLeft--; pr.dmg *= pr.pf; } else { done = true; break; }
         } else if (pr.kind === 'ball') {
           this.ballHit(pr, e); done = true; break;
-        } else if (pr.kind !== 'cran') {
+        } else if (pr.kind !== 'cran' && pr.kind !== 'blue') {
           if (this.comboHit(pr, e)) { done = true; break; }
+        } else if (pr.kind === 'blue') { // Blaubeere: freezes
+          this.hurtEnemy(e, pr.dmg, { freeze: this.cfg.skills.blue.freezeDuration, color: 'p', src: 'blue' });
+          this.emit({ k: 'decal', x: r2(e.x), z: r2(e.z), c: 0x1a2a7a, r: r2(rand(.08, .16)), l: 5, op: .7 });
+          this.burst(e.x, .35, e.z, 0xa8d8ff, 6, 1.5, .1, .35, { g: 3 }); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 1 });
+          if (pr.pierceLeft > 0) { pr.pierceLeft--; continue; }
+          done = true; break;
         } else {
-          this.hurtEnemy(e, pr.dmg, { bleed: true, color: 'p', src: 'cran' });
+          this.hurtEnemy(e, pr.dmg, { bleed: pr.dmg, color: 'p', src: 'cran' }); // bleeding: share of this berry's damage
           this.emit({ k: 'decal', x: r2(e.x), z: r2(e.z), c: 0x7a0a14, r: r2(rand(.08, .16)), l: 5, op: .7 });
           this.burst(e.x, .35, e.z, 0xff2040, 5, 1.5, .1, .3, { g: 5 }); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 1 });
           if (pr.pierceLeft > 0) { pr.pierceLeft--; continue; } // pierce upgrade: this berry flies on through one enemy
@@ -1895,12 +1928,12 @@ export class Sim {
         }
       }
       pr.x = ax + pr.dx * step; pr.z = az + pr.dz * step; pr.left -= step;
-      if (pr.kind === 'cran' || pr.kind === 'hot' || pr.kind === 'shock') { const k = 1 - pr.left / pr.total; pr.y = .75 * (1 - k) + Math.sin(k * Math.PI) * .25 + .03; }
+      if (pr.kind === 'cran' || pr.kind === 'blue' || pr.kind === 'hot' || pr.kind === 'shock') { const k = 1 - pr.left / pr.total; pr.y = .75 * (1 - k) + Math.sin(k * Math.PI) * .25 + .03; }
       if (pr.kind === 'rocket' && pr.left > 1e-4) { pr.speed += 30 * dt; } // rocket picks up speed
       if (!done && pr.left <= 1e-4) {
         done = true;
-        if (pr.kind === 'cran') {
-          this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg * pr.mine, t: this.cfg.skills.cran.splashDelay, bb: pr.bb }); // missed: lies, then pops
+        if (pr.kind === 'cran' || pr.kind === 'blue') {
+          if (pr.mine > 0) this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg * pr.mine, t: this.cfg.skills[pr.kind].splashDelay, bb: pr.bb, frz: pr.kind === 'blue' }); // missed: lies, then pops (only with the splash upgrade since 18.11.2026)
         } else if (pr.kind === 'ball') this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 10, 1.6, .08, .3); // fizzles out
         else this.comboLand(pr);
       }
@@ -1922,7 +1955,7 @@ export class Sim {
       if (mn.t > 0) continue;
       const C = this.cfg.skills.cran, mr = mn.r ?? C.splashRadius;
       for (const e of [...this.enemies]) if (!e.dead && !this.airborne(e) && dist(e, mn) < mr + e.r * .5) {
-        this.hurtEnemy(e, mn.dmg, { color: 'p', src: 'cran', bleed: mn.bleed });
+        this.hurtEnemy(e, mn.dmg, { color: 'p', src: mn.frz ? 'blue' : 'cran', bleed: mn.bleed, freeze: mn.frz ? this.cfg.skills.blue.freezeDuration : 0 });
         if (mn.fire) this.ignite(e, mn.fire, mn.fire.n);
       }
       this.emit({ k: 'berryPop', x: r2(mn.x), z: r2(mn.z), r: mr, f: mn.fire ? 1 : 0, b: mn.bb ? 1 : 0 });
@@ -1944,6 +1977,7 @@ export class Sim {
     const pool: (Offer & { w: number })[] = [], prio: Offer[] = [];
     // guaranteed openers: 1st level-up = new field, 2nd level-up = its weapon (or rake upgrades)
     const first = !!U.firstUpgradeNewField && this.lvRound === 1, second = !!U.secondUpgradeWeapon && this.lvRound === 2;
+    const lvNow = this.level - this.pendingLv + 1; // level this level-up reaches
     const nf = (n: number, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
     // combo weapons: both weapons with unlockUpgrades upgrades each -> big unlock card (before everything else)
     for (const cid of this.comboReady(p)) {
@@ -1953,13 +1987,15 @@ export class Sim {
     }
     for (const id of SKILLS) {
       const s = p.skills[id];
-      if (this.fieldOf(id) && !s.learned && !s.merged && !this.closedType(p, id) && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
-        // weapon unlock card: every stat as an icon chip, special effect named briefly
+      const B = (this.cfg.skills as any)[id] as { level?: number; rarity?: number };
+      if (this.fieldOf(id) && !s.learned && !s.merged && !this.closedType(p, id) && lvNow >= (B.level || 0) && (second || p.collected[id] >= (PL[id].unlockAt || 0))) {
+        // weapon unlock card: every stat as an icon chip, special effect named briefly; rarity = coloured gem (weaponRarity)
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
-        const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
+        const lines = id === 'chili' ? [`{fire} ${nf(this.burnPerStack(st.dmgPct), 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
           : id === 'cab' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.range * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, ammo]
-          : [`{dmg} ${nf(st.dmg)}${id === 'cran' ? ' × ' + st.pellets : ''}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
-        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
+          : [`{dmg} ${nf(st.dmg)}${isGun(id) ? ' × ' + st.pellets : id === 'bean' ? ' × ' + (C.bean.beans || 1) : ''}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(isXbow(id) ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
+        const rc = this.cfg.weaponRarity?.colors?.[B.rarity ?? -1];
+        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id], ...(rc ? { rar: rc } : {}) });
       }
     }
     // field cards: types already on the board (build / raise rarity) vs. new types (offered every newFieldTypeEvery levels)
@@ -1980,7 +2016,7 @@ export class Sim {
         const s2 = { ...s }; mut(s2); const b = this.stats(id, s2);
         pool.push({ key, cat: 'skill', w: 1, pic: 'skill_' + id, title: N.skills[id], lines: [line(b)] });
       };
-      mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} · {fire} ${nf(this.cfg.skills.chili.burnDamage * a.dmgPct, 1)} → ${nf(this.cfg.skills.chili.burnDamage * b.dmgPct, 1)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
+      mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{fire} ${nf(this.burnPerStack(a.dmgPct), 2)} → ${nf(this.burnPerStack(b.dmgPct), 2)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
       mk(id + '_rng', x => x.lvRange++, b => id === 'cab' ? `{radius} ${nf(a.range * 100)} → ${nf(b.range * 100)} cm` : id === 'lemon' ? `{radius} ${nf(a.ballR * 200)} → ${nf(b.ballR * 200)} cm` : `{range} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
       if (id !== 'chili') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s
       if (id === 'chili') {
@@ -1993,17 +2029,17 @@ export class Sim {
         const T = this.cfg.upgrades.chiliTick;
         if (a.tick > T.min + 1e-6) mk('chili_tick', x => x.tickLv++, b => `{fire} {cd} ${nf(a.tick, 2)} → ${nf(b.tick, 2)} s`);
       }
-      if (id === 'asp') {
+      if (isXbow(id)) { // Spargel + Bohne: same crossbow upgrades (keys with the weapon's own id)
         // [[...]] = golden increase on the card
-        if (s.pierce < PIERCE_ALL) mk('asp_pierce', x => this.pierceUp(x), b => `{pierce} ${a.pierce} → ${b.pierce >= PIERCE_ALL ? 'alle' : b.pierce}`);
-        if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) { const b = this.stats('asp', { ...s, pierceBonus: s.pierceBonus + 1 }); pool.push({ key: 'asp_pb', cat: 'skill', w: 1, pic: 'skill_asp', title: N.skills.asp, lines: ['Piercing Damage', `{pierce} ${nf(a.pf * 100)} % [[+${nf((b.pf - a.pf) * 100)} %]]`] }); }
-        if (s.salvoLv < U.aspSalvo.shots.length) mk('asp_salvo', x => x.salvoLv++, b => `{pellet} ${a.shots} → ${b.shots}`);
-        if (s.sizeLv < (U.aspSize.maxLevel || 4)) mk('asp_size', x => x.sizeLv++, b => `{size} ${nf(a.size * 100)} % [[+${nf((b.size - a.size) * 100)} %]]`);
+        if (s.pierce < PIERCE_ALL) mk(id + '_pierce', x => this.pierceUp(x), b => `{pierce} ${a.pierce} → ${b.pierce >= PIERCE_ALL ? 'alle' : b.pierce}`);
+        if (s.pierceBonus < (U.aspPierceBonus.maxLevel || 5)) { const b = this.stats(id, { ...s, pierceBonus: s.pierceBonus + 1 }); pool.push({ key: id + '_pb', cat: 'skill', w: 1, pic: 'skill_' + id, title: N.skills[id], lines: ['Piercing Damage', `{pierce} ${nf(a.pf * 100)} % [[+${nf((b.pf - a.pf) * 100)} %]]`] }); }
+        if (s.salvoLv < U.aspSalvo.shots.length) mk(id + '_salvo', x => x.salvoLv++, b => `{pellet} ${a.shots} → ${b.shots}`);
+        if (s.sizeLv < (U.aspSize.maxLevel || 4)) mk(id + '_size', x => x.sizeLv++, b => `{size} ${nf(a.size * 100)} % [[+${nf((b.size - a.size) * 100)} %]]`);
       }
-      if (id === 'cran') {
-        if (s.extraPel < (U.cranPellets.maxLevel || 5)) mk('cran_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} [[+${b.pellets - a.pellets}]]`);
-        if (s.cranPierceLv < (U.cranPierce.maxLevel || 5) && a.cranPierce < 1) mk('cran_pierce', x => x.cranPierceLv++, b => `{pierce} ${nf(a.cranPierce * 100)} % [[+${nf((b.cranPierce - a.cranPierce) * 100)} %]]`);
-        if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk('cran_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} % [[+${nf((b.splash - a.splash) * 100)} %]]`);
+      if (isGun(id)) { // Preiselbeere + Blaubeere: same shotgun upgrades
+        if (s.extraPel < (U.cranPellets.maxLevel || 5)) mk(id + '_pel', x => x.extraPel++, b => `{pellet} ${a.pellets} [[+${b.pellets - a.pellets}]]`);
+        if (s.cranPierceLv < (U.cranPierce.maxLevel || 5) && a.cranPierce < 1) mk(id + '_pierce', x => x.cranPierceLv++, b => `{pierce} ${nf(a.cranPierce * 100)} % [[+${nf((b.cranPierce - a.cranPierce) * 100)} %]]`);
+        if (s.mineLv < (U.cranSplash.maxLevel || 5) && a.splash < 1) mk(id + '_mine', x => x.mineLv++, b => `{mine} ${nf(a.splash * 100)} % [[+${nf((b.splash - a.splash) * 100)} %]]`);
       }
       if (id === 'lemon') {
         if (s.tgtLv < (U.lemonTargets.maxLevel || 5)) mk('lemon_tgt', x => x.tgtLv++, b => `{chain} ${a.chains} [[+${b.chains - a.chains}]]`);
@@ -2045,7 +2081,7 @@ export class Sim {
       if (out.length) return out;
     }
     // 1) field slot: every newFieldTypeEvery levels a choice of new field types, otherwise 1 field/plant card
-    const lvNow = this.level - this.pendingLv + 1, fieldOut: Offer[] = [];
+    const fieldOut: Offer[] = [];
     if (U.newFieldTypeEvery > 0 && lvNow % U.newFieldTypeEvery === 0 && newTypes.length) {
       const nt = newTypes.map(o => ({ ...o, w: 1 }));
       while (fieldOut.length < U.newFieldTypeChoices && nt.length) fieldOut.push(draw(nt)!);
@@ -2095,7 +2131,7 @@ export class Sim {
     if (a === 'tea') { tea(); return; }
     if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'dia') p.rakeLv.dia++; else if (b === 'cd') p.rakeLv.cd++; return; }
     const s = p.skills[a as SkillId];
-    switch (key) {
+    switch (famOf(a as SkillId) + '_' + b) { // Bohne / Blaubeere use the crossbow / shotgun cases
       case 'asp_dmg': case 'cran_dmg': case 'cab_dmg': case 'lemon_dmg': s.lvDmg++; break;
       case 'asp_rng': case 'cran_rng': case 'cab_rng': case 'lemon_rng': s.lvRange++; break;
       case 'asp_cd': case 'cran_cd': case 'cab_cd': case 'lemon_cd': s.lvCd++; break;
@@ -2139,7 +2175,7 @@ export class Sim {
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.hoeTime(p)) : 0, sd: r2(p.swingDir), hk: p.hoeAct === 'slash' ? 1 : 0, wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.hoeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),
-        ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
+        ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (() => { const xw = isXbow(p.active) ? p.active : p.xbT > 0 ? p.xbW : ''; return xw === 'asp' && !p.skills.asp.combo ? 1 : xw === 'bean' ? 2 : 0; })(), fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || (!isTool(p.active) && p.skills[p.active].combo) ? 0 : WEAPONS.indexOf(p.active),
         wa: p.canT >= 0 ? r2(p.canAng) : null, // watering: pour angle (rad)
         ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw
@@ -2150,7 +2186,7 @@ export class Sim {
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
-        if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
+        if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.frz > 0) fl |= EF.frozen; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
         if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.leave > 0) { fl |= EF.leave; fl &= ~EF.flee; } if (e.elite) fl |= EF.elite;
         if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
         if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock; if (e.pois > 0) fl |= EF.poison;
@@ -2161,7 +2197,7 @@ export class Sim {
         return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => String.fromCharCode(97 + FRUITS.indexOf(f.type))).join(''), aux, aux2] as ESnap;
       }),
       fr: this.fruits.filter(f => f.state !== 'carried').map(f => [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
-      pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? (p.bb ? 2 : 1) : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
+      pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' || p.kind === 'bean' ? p.w / this.cfg.skills[p.kind].width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' || p.kind === 'blue' ? (p.bb ? 2 : 1) : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen]),
       mi: this.mines.map(m => { const f = m.fl && m.fl > 0 && m.ft ? 1 - m.fl / m.ft : 1; const x = m.sx !== undefined && f < 1 ? m.sx + (m.x - m.sx) * f : m.x, z = m.sz !== undefined && f < 1 ? m.sz + (m.z - m.sz) * f : m.z;
         return [m.id, r2(x), r2(z), r2(clamp(1 - m.t / (m.r ? this.CB.list.cabboom.berryDelay : this.cfg.skills.cran.splashDelay), 0, 1)), f < 1 ? r2(.3 + Math.sin(f * Math.PI) * 1.1) : 0, m.fire ? 1 : m.bb ? 2 : 0] as MSnap; }),

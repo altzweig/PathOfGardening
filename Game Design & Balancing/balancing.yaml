@@ -15,7 +15,9 @@ names:
     rake: Hacke            # Werkzeug-Id bleibt "rake" (18.11.2026: Harke -> Hacke)
     can: Gießkanne
     asp: Spargel-Armbrust
-    cran: Beeren-Schrotflinte   # 18.11.2026: neutral, verschießt Heidelbeeren und Preiselbeeren
+    bean: Bohnen-Armbrust       # 18.11.2026 neu (Waffentabelle)
+    cran: Preiselbeer-Schrotflinte   # 18.11.2026 (Waffentabelle): wieder zwei Schrotflinten, je eine pro Beere
+    blue: Blaubeer-Schrotflinte
     cab: Kohlbombe
     lemon: Citrateaser
     chili: Flammenwerfer
@@ -118,10 +120,12 @@ names:
   # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
   effects:
     asp: 3er-Salve · durchbohrt
-    cran: Blutung · Beeren platzen
+    bean: 3 Bohnen nebeneinander · durchbohrt
+    cran: Blutung
+    blue: Einfrieren
     cab: Gift · verlangsamt
-    lemon: Kettenblitz
-    chili: Brand stapelt sich · Flächenbrand
+    lemon: Kettenblitz · Beute fällt
+    chili: Brand stapelt sich
 
 player:
   hp: 100
@@ -292,9 +296,17 @@ can:                       # Gießkanne (18.11.2026): Startwerkzeug neben der Ha
   radius: 0.25             # m, Dicke des Gießbereichs (Kreis um den Auftreffpunkt)
   wetPerSecond: 10         # Nässe pro s für jedes Feld, das der Gießbereich berührt
 
+weaponRarity:              # 18.11.2026 (Waffentabelle): Seltenheit je Waffe = skills.<waffe>.rarity (Index), farbiger Edelstein auf der Freischalt-Karte
+  names:  [Gewöhnlich, Ungewöhnlich, Selten, Episch]
+  colors: ["#c8c8c0", "#5ac85a", "#4a9cff", "#b46cff"]
+
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
+  # level: ab dieser Spielerstufe kann die Freischalt-Karte der Waffe kommen (Waffentabelle "Level Req.")
+  # rarity: Seltenheit (Index in weaponRarity.names)
   asp:
+    level: 2
+    rarity: 0              # Gewöhnlich
     damage: 15
     range: 7.5             # m (vorher 5 -> +50 %)
     cooldown: 0.75         # s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
@@ -305,20 +317,55 @@ skills:
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
-  cran:
-    damage: 5              # je Projektil
-    range: 7.00            # m (4,5 -> +50 %)
-    cooldown: 0.625        # -20 % Feuerrate (vorher 0.5)
+  bean:                    # Bohnen-Armbrust (18.11.2026, Waffentabelle): wie die Spargel-Armbrust, aber jeder Schuss sind 3 Bohnen nebeneinander
+    level: 2
+    rarity: 0              # Gewöhnlich
+    damage: 15             # je Bohne
+    range: 7.5             # m
+    cooldown: 0.75         # s pro Salve
+    burstShots: 3          # 3 Schuss pro Salve
+    burstGap: 0.1          # s zwischen den Schüssen einer Salve
+    ammoPerShot: 1         # 1 Bohne je Schuss (3 pro Salve), egal wie viele Bohnen gleichzeitig fliegen
+    beans: 3               # Bohnen pro Schuss, fliegen gleichzeitig nebeneinander ...
+    beanSpread: 10         # ... mit 10 Grad Abweichung zwischen den Bohnen (Fächer)
+    speed: 15              # m/s
+    pierce: 1              # durchbohrt 1 Ziel ...
+    pierceFactor: 0.5      # ... danach 50 % Schaden
+    width: 0.2             # m Trefferbreite einer Bohne
+  cran:                    # Preiselbeer-Schrotflinte (18.11.2026: nur noch Preiselbeeren)
+    level: 2
+    rarity: 0              # Gewöhnlich
+    damage: 5              # je Beere
+    range: 5               # m (Waffentabelle 18.11.2026; vorher 7)
+    cooldown: 0.625        # s
     ammoPerShot: 6
     pellets: 6             # Beeren pro Schuss
     cone: 45               # Grad, maximaler Streukegel (±22,5 Grad), nichts fliegt weiter raus (17.11.2026: 80 -> 45, streut weniger)
     spreadSigma: 11        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 22 Grad (17.11.2026: 20 -> 11, passend zum Kegel)
+    # Bleeding (18.11.2026): 3 s, alle 0,5 s 10 % Waffenschaden, aber nur solange sich der Gegner bewegt. Neuer Treffer setzt die Dauer zurück.
     bleedDuration: 3       # s
-    bleedDps: 1
+    bleedTick: 0.5         # s
+    bleedShare: 0.10       # Anteil des Beerenschadens pro Tick
     splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
-    splashDamage: 0.25     # Platzschaden = Anteil des Beerenschadens (ohne Blutung); 17.11.2026: 50 -> 25 %, Upgrade bis 100 %
+    splashDamage: 0        # 18.11.2026: kein Platzen mehr im Grundzustand (nicht in der Waffentabelle); nur noch über das Upgrade "Platzschaden" (+15 % je Stufe)
     splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
+  blue:                    # Blaubeer-Schrotflinte (18.11.2026, Waffentabelle): gleiche Werte, Blaubeeren frieren ein
+    level: 2
+    rarity: 0              # Gewöhnlich
+    damage: 5              # je Beere
+    range: 5               # m
+    cooldown: 0.625        # s
+    ammoPerShot: 6
+    pellets: 6
+    cone: 45
+    spreadSigma: 11
+    freezeDuration: 3      # s Frozen: der Gegner friert ein und bewegt sich nicht (greift auch nicht an). Neuer Treffer setzt die Dauer zurück. Bosse frieren nicht ein.
+    splashDelay: 2         # nur mit Upgrade "Platzschaden"
+    splashDamage: 0
+    splashRadius: 0.6
   lemon:                   # Citrateaser (17.11.2026): Zauberstab, schießt einen langsamen Kugelblitz geradeaus
+    level: 10
+    rarity: 1              # Ungewöhnlich
     damage: 20             # Grundschaden: Direkttreffer = 100 %
     cooldown: 1.0          # 1 Kugelblitz pro Sekunde
     ammoPerShot: 1
@@ -332,23 +379,28 @@ skills:
     chainDamage: 0.5       # Kettenziele und Rückblitz aufs Hauptziel: je 50 % Schaden (Upgrade Schadenseffizienz bis 100 %)
     dropLoot: true         # das direkt getroffene Tier lässt seine Beute fallen
   chili:                   # Flammenwerfer: Flammenkegel, der hin und her schwenkt und Gegner anzündet
-    range: 3.5             # m, Flammenlänge
+    level: 10
+    rarity: 1              # Ungewöhnlich
+    range: 2.5             # m, Flammenlänge (18.11.2026: 3,5 -> 2,5)
     cooldown: 0.125        # s pro Flammenstoß -> 8 Chilis pro Sekunde
     ammoPerShot: 1
-    cone: 30               # Grad, Breite der Flamme
-    sweep: 40              # Grad, so weit schwenkt die Flamme (Mitte = Zielrichtung)
+    cone: 20               # Grad, Breite der Flamme (18.11.2026: 30 -> 20)
+    sweep: 20              # Grad, so weit schwenkt die Flamme hin und her (18.11.2026: 40 -> 20)
     sweepPeriod: 1.5       # s für einmal links -> rechts -> zurück
-    # Jeder Flammenstoß, der einen Gegner erwischt: Sofortschaden + 1 Brand-Stapel (max. burnStacks).
-    # Brennen: pro Tick Stapel x burnDamage. Jeder neue Treffer frischt die Brenndauer auf; ohne Treffer erlischt es nach burnDuration.
-    # Flächenbrand: stirbt ein brennender Gegner, springt das Feuer auf Gegner in spreadRadius über (Anteil spreadShare seiner Stapel, mind. 1).
-    damage: 1              # Sofortschaden je Treffer (8 Flammenstöße pro Sekunde)
-    burnDamage: 0.5        # Brandschaden je Stapel und Tick
-    burnStacks: 6
-    burnDuration: 3        # s Brenndauer nach dem letzten Treffer
-    burnTick: 0.5          # s pro Brand-Tick
-    spreadRadius: 1.5      # m
+    # Feuer-Stacks (18.11.2026, Waffentabelle): je stackTime s in der Flamme 1 Stack (max. burnStacks).
+    # Pro Stack alle burnTick s burnShare x Waffenschaden. Ohne Kontakt zur Flamme erlischt das Feuer nach burnDuration s.
+    damage: 7              # Waffenschaden (Grundlage für den Brandschaden; Schadens-Upgrades erhöhen ihn)
+    hitDamage: 0           # Sofortschaden je Flammenstoß (18.11.2026: keiner mehr, nur noch Brand)
+    stackTime: 0.3         # s in der Flamme pro Stack
+    burnShare: 0.10        # 10 % Waffenschaden pro Stack und Tick -> 10 Stacks = 7 Schaden alle 0,5 s
+    burnStacks: 10
+    burnDuration: 2        # s, Feuer geht aus, wenn so lange kein Kontakt zur Flamme
+    burnTick: 0.5          # s pro Brand-Tick (Upgrade "Brand-Tick" macht ihn schneller)
+    spreadRadius: 0        # m, Flächenbrand beim Tod (18.11.2026 aus, nicht in der Waffentabelle; z. B. 1.5 = wieder an)
     spreadShare: 0.5
   cab:                     # 17.11.2026: Aufladewurf statt Zeitzünder + Giftlache
+    level: 2
+    rarity: 0              # Gewöhnlich
     damage: 5
     radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
     cooldown: 1.0
@@ -603,6 +655,7 @@ weaponSlots:               # Waffen neben der Harke
 combos:
   unlockUpgrades: 5        # Upgrades je Waffe, bevor die Kombi angeboten wird
   convertDamage: 0.10      # +10 % Schaden je nicht passender Spezial-Stufe
+  burn: { damage: 0.5, stacks: 6, duration: 3 }   # Brand der Kombiwaffen (alte Flammenwerfer-Werte, bis die Kombis überarbeitet werden): Schaden je Stapel und Tick, max. Stapel, s
   shock:                   # "unter Strom" (Sourbow, Chillightning): Gegner knistert, Ticks bei sich und Nachbarn
     duration: 2            # s
     tick: 0.5              # s pro Tick
@@ -710,6 +763,8 @@ combos:
       damage: 6
       pelletFactor: 1.5    # +50 % Beeren
       rangeFactor: 1.3     # +30 % Reichweite
+      baseRange: 7         # 18.11.2026: Grundreichweite wie die alte Beeren-Schrotflinte (die Preiselbeer-Schrotflinte hat jetzt 5 m)
+      baseSplash: 0.25     # Platzschaden liegender Beeren wie vorher (die Preiselbeer-Schrotflinte platzt im Grundzustand nicht mehr)
       pierce: 1            # +1 Durchschuss
       cooldown: 0.625
       burnStacks: 2        # Getroffene brennen sofort

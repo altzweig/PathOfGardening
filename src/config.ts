@@ -1,6 +1,7 @@
 import YAML from 'yaml';
 
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
+/** fruit weapons; id = its ammo fruit. 18.11.2026 (Waffentabelle): blue = Blaubeer-Schrotflinte, bean = Bohnen-Armbrust (new) */
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'bean';
 /** tools every player has from the start (rake = the hoe "Hacke" since 18.11.2026, watering can) + fruit weapons */
 export type Weapon = 'rake' | 'can' | SkillId;
 export const isTool = (w: Weapon): w is 'rake' | 'can' => w === 'rake' || w === 'can';
@@ -10,15 +11,21 @@ export const CROPS: CropId[] = ['ramsons', 'bean', 'pea', 'straw', 'potato', 'ga
 export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | CropId;
 export const isCrop = (t: FruitType): t is CropId => (CROPS as string[]).includes(t);
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
-export const WEAPONS: Weapon[] = ['rake', 'can', 'asp', 'cran', 'cab', 'lemon', 'chili'];
+// new weapons at the end: SKILLS indices are used in the snapshot
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'bean'];
+/** weapon families sharing the code: crossbows (salvo, piercing bolts) and shotguns (pellet spread) */
+export const isXbow = (id: string): id is 'asp' | 'bean' => id === 'asp' || id === 'bean';
+export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
+/** upgrade family of a weapon: bean uses the crossbow upgrades (asp), blue the shotgun upgrades (cran) */
+export const famOf = (id: SkillId): SkillId => id === 'bean' ? 'asp' : id === 'blue' ? 'cran' : id;
+export const WEAPONS: Weapon[] = ['rake', 'can', 'asp', 'bean', 'cran', 'blue', 'cab', 'lemon', 'chili'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', ...CROPS];
 /** fruit radius on the ground (m) */
 export const fruitSize = (t: FruitType) => t === 'cab' || t === 'pumpkin' ? .14 : t === 'nut' ? .07 : t === 'lettuce' ? .12 : .08;
-/** fruit that is ammo for a weapon (nut and blueberry are not; blueberries feed the berry shotgun, see ammoOf) */
+/** fruit that is ammo for a weapon (blueberry: Blaubeer-Schrotflinte, bean: Bohnen-Armbrust since 18.11.2026) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
-/** weapon a fruit is ammo for: blueberries and cranberries both feed the berry shotgun (18.11.2026) */
-export const ammoOf = (t: FruitType): SkillId | null => t === 'blue' ? 'cran' : isWeaponFruit(t) ? t : null;
+/** weapon a fruit is ammo for (since 18.11.2026 two shotguns: blueberries and cranberries are separate ammo again) */
+export const ammoOf = (t: FruitType): SkillId | null => isWeaponFruit(t) ? t : null;
 /** hoe action: chop (into the ground, farming) or slash (sword swing, fighting) */
 export type HoeAct = 'chop' | 'slash';
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
@@ -34,6 +41,10 @@ export interface SeasonCfg { months: number[]; wetLoss: number; rain: number }
 export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog', 'squirrel'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
+/** shared by every fruit weapon: level from which its unlock card can come, rarity (index into weaponRarity) */
+interface WeaponBase { damage: number; range: number; cooldown: number; ammoPerShot: number; level?: number; rarity?: number }
+export interface XbowCfg extends WeaponBase { burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number }
+export interface GunCfg extends WeaponBase { pellets: number; cone: number; spreadSigma: number; splashDelay: number; splashDamage: number; splashRadius: number }
 export interface EnemyCfg {
   hp: number; speed: number; radius: number;
   steals?: FruitType[]; carryMax?: number; fleeSpeed?: number;
@@ -86,13 +97,23 @@ export interface Balancing {
     slashTime: number; slashCooldown: number; slashArc: number; slashRange: number; damage: number; stun: number; knockback: number };
   /** watering can: sweeps arc deg from left to right in sweepTime s, water lands reach m in front, circle of radius m, wetness per s */
   can: { arc: number; sweepTime: number; reach: number; radius: number; wetPerSecond: number };
+  /** weapon rarities (Waffentabelle): names + card colour, skills.<id>.rarity is the index */
+  weaponRarity?: { names: string[]; colors: string[] };
   skills: {
     readySeconds: number;
-    asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number };
-    cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; splashDelay: number; splashDamage: number; splashRadius: number };
-    lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean };
-    chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
+    asp: XbowCfg;
+    /** Bohnen-Armbrust: like the crossbow, every bolt is `beans` beans side by side, `beanSpread` deg apart */
+    bean: XbowCfg & { beans: number; beanSpread: number };
+    /** Preiselbeer-Schrotflinte: bleeding (bleedDuration s, every bleedTick s bleedShare x pellet damage while the enemy moves) */
+    cran: GunCfg & { bleedDuration: number; bleedTick: number; bleedShare: number };
+    /** Blaubeer-Schrotflinte: frozen (freezeDuration s: the enemy does not move) */
+    blue: GunCfg & { freezeDuration: number };
+    lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean; level?: number; rarity?: number };
+    /** flamethrower (18.11.2026): damage = weapon damage; every stackTime s in the flame 1 fire stack (max burnStacks);
+     *  every burnTick s each stack deals burnShare x weapon damage; out burnDuration s after the last contact.
+     *  hitDamage: instant damage per flame burst; spreadRadius 0 = no wildfire */
+    chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; hitDamage: number; stackTime: number; burnShare: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number; level?: number; rarity?: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number; level?: number; rarity?: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
@@ -115,7 +136,7 @@ export interface Balancing {
   dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
   weaponSlots?: { max: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
-  combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
+  combos?: { unlockUpgrades: number; convertDamage: number; /** fire of combo weapons (old flamethrower numbers): damage per stack and tick, max stacks, s */ burn?: { damage: number; stacks: number; duration: number }; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };
   hud: {
     hat: { colors: [number, string][]; crownShare: number; blinkBelow: number; pulseBelow: number; vignetteBelow: number; vignetteStrength: number };

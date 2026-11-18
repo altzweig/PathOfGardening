@@ -1,4 +1,4 @@
-import { COMBOS, FRUITS, isCrop, SKILLS, SkillId, WEAPONS, Weapon, isTool } from '../config';
+import { COMBOS, FRUITS, isCrop, isWeaponFruit, SKILLS, SkillId, WEAPONS, Weapon, isTool } from '../config';
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -30,7 +30,7 @@ export class Hud {
       if (secs > A.lowSeconds) st.armed = true; // refilled: warn again next time
       else if (st.armed) { st.armed = false; st.vis = Math.max(st.vis, A.lowShow); }
       const key = w + am + (secs <= A.lowSeconds ? 'l' : '');
-      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w === 'cran' ? 'mix' : w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
+      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
       target = st.vis > 0 ? 1 : 0;
     }
     st.vis = Math.max(0, st.vis - dt);
@@ -99,10 +99,10 @@ export class Hud {
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
-    const have = s.fi.map(f => FRUITS[f[1]]).filter(t => !isCrop(t)).map(t => t === 'blue' ? 'cran' : t); // vegetables from the harvest calendar only give XP // blueberries are berry shotgun ammo too
+    const have = s.fi.map(f => FRUITS[f[1]]).filter(t => !isCrop(t) || isWeaponFruit(t)); // vegetables from the harvest calendar only give XP (bean: Bohnen-Armbrust)
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
-      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t === 'cran' ? 'mix' : t)}<span data-r="${t}">0</span></div>`).join('');
+      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
       for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
     }
     document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const i = SKILLS.indexOf(el.dataset.r as any); const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : pr.am[i]); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
@@ -140,7 +140,8 @@ export function cardEl(o: Offer) {
   const b = document.createElement('button'); b.className = `card ${o.cat}-c${o.wp ? ' wpn' : ''}${o.combo ? ' combo-c' : ''}`; b.dataset.key = o.key;
   if (o.wp) {
     b.dataset.skill = o.wp;
-    b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3><div class="stats">${o.lines.map(l => `<span>${iconText(l)}</span>`).join('')}</div>${o.fx ? `<div class="fx">${o.fx}</div>` : ''}<i class="shine"></i>`;
+    if (o.rar) b.style.setProperty('--rar', o.rar); // weapon rarity: coloured gem on the unlock card
+    b.innerHTML = `${o.rar ? '<i class="rar"></i>' : ''}<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3><div class="stats">${o.lines.map(l => `<span>${iconText(l)}</span>`).join('')}</div>${o.fx ? `<div class="fx">${o.fx}</div>` : ''}<i class="shine"></i>`;
   } else {
     b.innerHTML = `<div class="pic">${pic(o.pic)}</div><h3>${o.title}</h3>${o.lines.slice(0, 2).map(l => `<div class="ln">${iconText(l)}</div>`).join('')}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}<i class="shine"></i>`;
   }

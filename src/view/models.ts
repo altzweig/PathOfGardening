@@ -44,6 +44,7 @@ export const PROJ_ASP_TIP = new THREE.MeshStandardMaterial({ color: 0xd8a0ff, em
 export const PROJ_CRAN = new THREE.MeshStandardMaterial({ color: 0xff4a5e, emissive: 0xff1a3a, emissiveIntensity: 3.6, roughness: .3 });
 /** blueberry pellet of the berry shotgun (18.11.2026: the shotgun fires both berries) */
 export const PROJ_BLUE = new THREE.MeshStandardMaterial({ color: 0x6a7cff, emissive: 0x2a3cff, emissiveIntensity: 3.2, roughness: .3 });
+export const PROJ_BEAN = new THREE.MeshStandardMaterial({ color: 0x8ad850, emissive: 0x5ac02a, emissiveIntensity: 2.6, roughness: .4 }); // bean of the Bohnen-Armbrust
 export const PROJ_CAB = new THREE.MeshStandardMaterial({ color: 0xc8ff90, emissive: 0x8ae040, emissiveIntensity: 1.8, roughness: .6, flatShading: true });
 
 /** berry: slightly flattened sphere with a sunken dark star-shaped crown on top (blueberry big, lingonberry small) */

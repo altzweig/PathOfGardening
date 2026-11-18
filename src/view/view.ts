@@ -31,7 +31,7 @@ import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, chopMark, slashSmear, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PROJ_BEAN, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
 import { CROP_VIS } from './crops';
 import { loadNature, natureMesh } from './nature';
@@ -45,14 +45,14 @@ import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
-import { HOE, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
+import { HOE, aspCrossbow, beanCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { can?: { g: THREE.Group; tilt: THREE.Group; spout: THREE.Object3D; grip: THREE.Object3D; decT: number }; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { can?: { g: THREE.Group; tilt: THREE.Group; spout: THREE.Object3D; grip: THREE.Object3D; decT: number }; gun?: { g: THREE.Group; anim: THREE.Group; blue: boolean }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group; k: number }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -494,13 +494,14 @@ export class GameView {
     });
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], (p) => {
-      if (p[1] >= 2) return projMesh(p[1]);
-      if (p[1] !== 0) return fruitMesh(p[6] === 2 ? 'blue' : 'cran', .9, false, true); // berry shotgun: blueberry (2) or cranberry pellet
+      if (p[1] >= 2 && p[1] <= 9) return projMesh(p[1]);
+      if (p[1] === 10) { const m = new THREE.Group(); const b = part(m, GEO.sph, PROJ_BEAN, .035, .035, .11, 0, 0, 0, false); b.rotation.y = 0; return m; } // bean (Bohnen-Armbrust)
+      if (p[1] !== 0) return fruitMesh(p[6] === 2 ? 'blue' : 'cran', .9, false, true); // shotgun pellet: blueberry (2) or cranberry
       const m = new THREE.Group();
       const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
       return m;
-    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
+    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4 || p[1] === 10) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2 && p[1] <= 9) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
     this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, true), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
       if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
@@ -718,7 +719,7 @@ export class GameView {
       case 'chop': chopMark(e.x, e.z, e.a); decal(e.x, e.z, 0x3a2614, .14, 1.2, { op: .45 }); break; // hoe blade went into the ground
       case 'slash': slashSmear(e.x, e.z, e.a, e.r, e.c, e.t); break; // comic white swing arc of the hoe
       case 'shot': {
-        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xfff0dc : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
+        const col = e.w === 'asp' || e.w === 'bean' ? 0xb8ff70 : e.w === 'cran' ? 0xfff0dc : e.w === 'blue' ? 0xc8dcff : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
         burst(V(e.x, .75, e.z), col, 10, 2.2, .2, .22); PART.spawn(V(e.x, .75, e.z), V(0, 0, 0), col, .9, .12);
         const pv = this.players.get(e.p); if (pv) { pv.recoil = e.w === 'lemon' ? .04 : .12; if (e.w === 'lemon') pv.lemonMat.emissiveIntensity = .55; } // wand: the lemon flares up
         break;
@@ -988,8 +989,9 @@ export class GameView {
   /** cranberry blunderbuss / tied cabbage in the hand while that weapon is active */
   private animBaseHeld(v: PView) {
     const aw = v.s.aw ? WEAPONS[v.s.aw] : 'rake', al = !!v.s.al;
-    const gunOn = al && aw === 'cran', cabOn = al && aw === 'cab';
-    if (gunOn && !v.gun) { const m = cranGun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = m; }
+    const gunOn = al && (aw === 'cran' || aw === 'blue'), cabOn = al && aw === 'cab';
+    if (gunOn && v.gun && v.gun.blue !== (aw === 'blue')) { v.g.remove(v.gun.g); v.gun = undefined; } // Preiselbeer- / Blaubeer-Schrotflinte
+    if (gunOn && !v.gun) { const m = cranGun(aw === 'blue'); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = { ...m, blue: aw === 'blue' }; }
     if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
@@ -998,10 +1000,11 @@ export class GameView {
   private animXbow(v: PView) {
     const on = !!v.s.xb && !!v.s.al;
     if (!on && !v.xbow) return;
-    if (!v.xbow) { // walnut crossbow with bundled asparagus limbs (arsenal.ts)
-      const { g, bolt } = aspCrossbow();
+    if (on && v.xbow && v.xbow.k !== v.s.xb) { v.g.remove(v.xbow.g); v.xbow = undefined; } // Spargel (1) / Bohne (2)
+    if (!v.xbow) { // walnut crossbow with bundled asparagus limbs / bean-pod limbs (arsenal.ts)
+      const { g, bolt } = v.s.xb === 2 ? beanCrossbow() : aspCrossbow();
       v.g.add(g); g.position.set(.2, .78, .22);
-      v.xbow = { g, bolt };
+      v.xbow = { g, bolt, k: v.s.xb || 1 };
     }
     const X = v.xbow; X.g.visible = on; if (!on) return;
     X.bolt.visible = v.recoil < .04; // bolt gone right after the shot, reloaded before the next one
@@ -1118,6 +1121,11 @@ export class GameView {
       const sc = v.g.scale.x; if (Math.random() < dt * 22) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.2, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-1.2, 1.2), rand(-.2, 1.2), rand(-1.2, 1.2)), Math.random() < .5 ? 0xfff6c0 : 0x9fd0ff, rand(.04, .08), rand(.08, .16), { a: 1 });
       if (!burning) for (const m of v.P.mats) m.emissive.setRGB(.25 + .2 * Math.random(), .25 + .2 * Math.random(), .12);
     }
+    if (fl & EF.frozen) { // frozen (Blaubeer-Schrotflinte): icy blue-white, frost crystals sparkle around it
+      const sc = v.g.scale.x, ig = .32 + .05 * Math.sin(now * 3 + e[0]);
+      if (!burning && !(fl & EF.flash)) for (const m of v.P.mats) m.emissive.setRGB(ig * .2, ig * .5, ig * 1.1);
+      if (Math.random() < dt * 8) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.15, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-.05, .05), rand(.05, .25), rand(-.05, .05)), Math.random() < .5 ? 0xe8f6ff : 0x9fd0ff, rand(.04, .08) * sc, rand(.5, .9), { a: .9 });
+    }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
   }
@@ -1143,12 +1151,12 @@ export class GameView {
       m.visible = true; m.scale.set(C.width, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI); return;
     }
     if (w === 'rake') return; // no marker: the hoe works where the player stands
-    if (w === 'cran') {
-      const m = this.aimInd[w], r = rng('cran');
+    if (w === 'cran' || w === 'blue') {
+      const m = this.aimInd.cran, r = rng(w);
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
-    } else if (w === 'asp' || w === 'lemon') {
+    } else if (w === 'asp' || w === 'bean' || w === 'lemon') {
       const m = this.aimInd.asp, r = rng(w);
-      m.visible = true; m.scale.set(.12, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI);
+      m.visible = true; m.scale.set(w === 'bean' ? .2 : .12, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI);
     } else if (w === 'chili') { // whole swept area (sweep + flame width), a full circle once it spins
       const m = this.aimInd.chili, arc = Math.min(359.9, (me.s.fw || 40) + (me.s.fc || 30));
       if (m.userData.arc !== arc) { m.userData.arc = arc; m.geometry.dispose(); m.geometry = sectorGeo(1, arc * Math.PI / 180, 32); }

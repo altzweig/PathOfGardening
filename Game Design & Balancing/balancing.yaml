@@ -515,16 +515,18 @@ enemies:
   # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
   # Gilt für Spieler und Gegner gleich.
   resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
-  raccoon:                 # greift nie an, streunt umher, sammelt 5 XP (Blaubeeren) und haut damit ab
+  raccoon:                 # 18.11.2026: greift nie an, geht immer zum Lager und stiehlt aus den Vorräten (nie von den Feldern)
     hp: 12.6               # 17.11.2026 x1,8 (vorher 7)
     speed: 2.75
-    wanderSpeed: 2.0       # m/s beim Umherstreunen
+    wanderSpeed: 2.0       # m/s beim Umherstreunen (nur ohne Lager)
     radius: 0.32
     peaceful: true
-    steals: [blue]
-    carryMax: 5
+    lagerSteal: true       # stiehlt am Lager aus den Vorräten (Munition) aller Spieler
+    stealRate: 4           # Früchte pro Sekunde zu Beginn
+    stealRatePerWave: 0    # +Anteil pro Welle (0.05 = +5 % je Welle), zum späteren Skalieren
+    stealTime: 5           # s am Lager, spätestens dann haut er mit der Beute ab (entkommt er, ist sie weg)
+    dropShare: 0.5         # getroffen (vertrieben): lässt diesen Anteil der Beute fallen und flieht. Tot: lässt alles fallen
     fleeSpeed: 6.2
-    fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
   panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
     hp: 13.2               # 17.11.2026 +20 % (vorher 11)
     speed: 2.2

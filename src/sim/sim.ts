@@ -74,8 +74,6 @@ export interface Player {
   chW: SkillId | ''; chT: number; thrK: number; chAim: boolean;
   /** watering can: s into the current left-to-right sweep (-1 = not watering), keep sweeping (held), current pour angle (rad) */
   canT: number; canHold: boolean; canAng: number;
-  /** berry shotgun: how much of the ammo are blueberries (only decides the colour of the pellets) */
-  blueAmmo: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** wetness 0..100, growth 0..1 of a new field (seedlings -> grown), regrow: coming back from 0 HP (look follows HP, grown again at regrowGrownAt) */
@@ -87,6 +85,8 @@ interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
   state: 'fly' | 'ground' | 'collect' | 'merge' | 'carried'; src: number; born: number; bounce: number; r: number;
   ct: number; fx: number; fz: number; fy: number; collector: Player | null; tx: number; tz: number; mt: number;
+  /** taken from the players' supplies (Lager) by a raccoon: picking it up again gives the ammo back, but no XP a second time */
+  nx?: boolean;
 }
 type Target = { kind: 'player'; p: Player } | { kind: 'lager' } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
 interface Enemy {
@@ -101,6 +101,8 @@ interface Enemy {
   puff: number; // hedgehog: s into the current puff cycle
   /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
   hx: number; hz: number; cx: number; cz: number; y: number;
+  /** raccoon at the shed: s spent stealing, fruit owed (fractional, stealRate per s) */
+  stealT: number; stealAcc: number; driven: boolean;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
 export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'bean', 'blue'] as const;
@@ -208,7 +210,7 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, hoeAct: 'chop', walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, collected: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, skills: Object.fromEntries(SKILLS.map(k => [k, mk(k)])) as Record<SkillId, SkillState>,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, xbW: 'asp', handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0, canT: -1, canHold: false, canAng: 0, blueAmmo: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, xbW: 'asp', handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0, canT: -1, canHold: false, canAng: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.players.push(p);
@@ -375,7 +377,7 @@ export class Sim {
     const v = fr.val;
     // 18.11.2026: every fruit gives XP (xp.fruit = factor per type), weapon fruit gives ammo on top
     const xv = v * (this.cfg.xp.gain ?? 1) * (this.cfg.xp.fruit?.[fr.type] ?? 1) * this.f(this.cfg.coop.xpValueExponent);
-    if (xv > 0) { this.collectedXP += v; this.addXP(xv); }
+    if (xv > 0 && !fr.nx) { this.collectedXP += v; this.addXP(xv); }
     const am = ammoOf(fr.type);
     if (fr.type === 'nut') p.nuts += v;
     else if (am) {
@@ -583,6 +585,7 @@ export class Sim {
     if (o.freeze && !e.boss) e.frz = Math.max(e.frz, o.freeze); // Blaubeer-Schrotflinte: frozen (bosses do not freeze)
     if (o.stun) this.applyStun(e, o.stun);
     if (e.hp <= 0) this.killEnemy(e);
+    else if (this.cfg.enemies[e.type].lagerSteal && !e.boss && !o.dot) this.driveOff(e);
     else { const fb = this.cfg.enemies[e.type].fleeBelow; if (fb && !e.boss && !e.fleeing && e.hp < e.maxHp * fb) { e.fleeing = true; e.target = { kind: 'flee' }; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); } }
     return true;
   }
@@ -697,6 +700,45 @@ export class Sim {
       fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1;
     }
     if (e.carry.length) { e.carry = []; e.fleeing = false; e.target = null; }
+  }
+  /** raccoon (18.11.2026): steals stealRate fruit per s from the players' supplies (their ammo) while standing at the shed,
+   *  runs off with the loot after stealTime s at the latest */
+  stealTick(e: Enemy, dt: number) {
+    const D = this.cfg.enemies[e.type];
+    e.stealT += dt; e.stealAcc += this.stealRate(e) * dt;
+    let took = 0;
+    while (e.stealAcc >= 1) {
+      e.stealAcc -= 1;
+      const fr = this.takeSupply(e); if (!fr) { e.stealAcc = 0; break; }
+      e.carry.push(fr); took++;
+    }
+    if (took) { e.lunge = .15; this.sfx(e.type + '.steal', e.x, e.z); }
+    if (e.stealT >= (D.stealTime ?? 5)) { e.fleeing = true; e.target = { kind: 'flee' }; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); }
+  }
+  /** fruit per s a raccoon steals: start value, growing per wave */
+  stealRate(e: Enemy) { const D = this.cfg.enemies[e.type]; return (D.stealRate ?? 4) * (1 + (D.stealRatePerWave ?? 0) * Math.max(0, this.wave - 1)); }
+  /** one fruit out of the supplies of all players (weighted by how much each has), null if they are empty */
+  takeSupply(e: Enemy): Fruit | null {
+    let tot = 0; for (const p of this.players) for (const id of SKILLS) tot += Math.floor(p.ammo[id]);
+    if (tot <= 0) return null;
+    let r = Math.random() * tot;
+    for (const p of this.players) for (const id of SKILLS) {
+      const n = Math.floor(p.ammo[id]); if (r >= n) { r -= n; continue; }
+      p.ammo[id] -= 1; const type: FruitType = id; // weapon id = its ammo fruit (blueberries are their own ammo since 18.11.2026)
+      const fr = this.spawnFruit(type, 0, e.x, .4, e.z, e.x, e.z, -1); fr.state = 'carried'; fr.nx = true;
+      return fr;
+    }
+    return null;
+  }
+  /** raccoon hit: drops dropShare of its loot (the rest stays with it) and runs off */
+  driveOff(e: Enemy) {
+    const D = this.cfg.enemies[e.type];
+    if (e.driven) return; // driven off once: further hits on the way out don't shake loose more
+    e.driven = true;
+    const n = Math.ceil(e.carry.length * (D.dropShare ?? .5));
+    if (n > 0) { const keep = e.carry.slice(n); e.carry = e.carry.slice(0, n); this.dropCarry(e); e.carry = keep; }
+    if (!e.fleeing) { e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); }
+    e.fleeing = true; e.target = { kind: 'flee' };
   }
   /** Citrateaser (17.11.2026): the lemon wand shoots a slow glowing ball lightning straight ahead */
   lemonBall(p: Player, dx: number, dz: number, st: SkillStats) {
@@ -1204,7 +1246,7 @@ export class Sim {
       walk: rand(0, 7), hop: rand(0, 1), state: 'approach', st: 0, cdx: 0, cdz: 1, hitThisCharge: false,
       tongueT: 0, tongueCd: D.tongueCooldown || 1.5, tongueLen: 1, lunge: 0, dead: false, hurtOnce: false, kbx: 0, kbz: 0, kbLeft: 0, laughT: rand(2, 3.5), elite, dmgMul: (elite ? EL.damage : 1) * N.damage * G.damage, wv: this.wave,
       burn: 0, burnT: 0, burnTick: this.cfg.skills.chili.burnTick, burnDmg: 0, burnLeft: 0, burnSum: 0, burnNum: 0, shock: 0, shockT: 0, shockDmg: 0, shockR: 0, shockTk: .5, pois: 0, poisT: 0, poisDmg: 0, gasT: 0, gasCh: 0, gasDmg: 0, puff: rand(0, D.puffEvery || 2),
-      hx: 0, hz: 0, cx: 0, cz: 0, y: 0,
+      hx: 0, hz: 0, cx: 0, cz: 0, y: 0, stealT: 0, stealAcc: 0, driven: false,
     };
     if (type === 'squirrel' && !this.squirrelStart(e)) return; // no nut tree (any more): nobody comes
     this.enemies.push(e); this.waveSpawned++;
@@ -1218,6 +1260,7 @@ export class Sim {
       for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
       if (bp) return { kind: 'player', p: bp };
     }
+    if (D.lagerSteal && this.cfg.lager) return { kind: 'lager' }; // raccoon (18.11.2026): always goes for the supplies in the shed, never the fields
     // fruit: preferred kinds first, then everything else it takes (steals or eats)
     const want = D.eats || D.steals;
     if (want) {
@@ -1354,6 +1397,8 @@ export class Sim {
         fr.state = 'carried'; e.carry.push(fr); this.sfx(e.type + '.steal', e.x, e.z);
         if (e.carry.length >= (D.carryMax || 5)) { e.fleeing = true; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); }
       }
+    } else if (t.kind === 'lager' && D.lagerSteal) {
+      if (d <= reach) this.stealTick(e, dt);
     } else if (t.kind !== 'fruit' && d <= reach && !D.puffEvery) { // hedgehogs only hurt by puffing up
       e.atkT -= dt;
       if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } else if (t.kind === 'lager') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtLager(E.meleeDamage * e.dmgMul); } }

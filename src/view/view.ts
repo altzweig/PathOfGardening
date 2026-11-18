@@ -693,7 +693,9 @@ export class GameView {
   }
   private setCarry(v: EView, carry: string) {
     v.carry = carry; const c = v.P.carry; for (const ch of [...c.children]) c.remove(ch);
-    for (let i = 0; i < carry.length; i++) { const m = fruitMesh(FRUITS[carry.charCodeAt(i) - 97], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
+    for (let i = 0; i < carry.length; i++) { // loot heaped on its back: rings of 6 around a middle one, layer on layer (raccoon carries up to 20)
+      const m = fruitMesh(FRUITS[carry.charCodeAt(i) - 97], .8), L = Math.floor(i / 7), k = i % 7, a = k * Math.PI / 3 + L, rr = k ? .09 - L * .015 : 0;
+      m.position.set(Math.cos(a) * rr + rand(-.02, .02), .62 + L * .075, -.1 + Math.sin(a) * rr + rand(-.02, .02)); c.add(m); }
   }
 
   // ---------------- events ----------------

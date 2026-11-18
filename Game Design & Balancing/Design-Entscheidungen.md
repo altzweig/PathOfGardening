@@ -442,6 +442,16 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Erntemonate aus dem Kalender: Spargel April–Mai, Kohl (Grünkohl) November–Februar, Chili August–September, die neuen Pflanzen siehe `plants` in `balancing.yaml`. Heidelbeere/Preiselbeere bleiben bei Bastis neuerer Ansage (Juli–August / September–Oktober).
 - **Startpool** (`startPool`): Zu Beginn jeder Partie werden 3 zufällige Pflanzen gezogen (alle außer Heidelbeere, Preiselbeere und abgeschalteten wie dem Nussbaum), die zusammen mindestens 6 verschiedene Erntemonate abdecken. Nur diese 3 kommen in der Partie als neue Felder vor, dazu Heidelbeere und Preiselbeere. Waffenpflanzen (Spargel, Kohl, Zitrone, Chili) sind Teil der Auslosung; ist keine dabei, bleibt die Beeren-Schrotflinte die einzige Fruchtwaffe.
 
+## Waschbären stehlen aus dem Lager (18.11.2026)
+
+- Waschbären gehen immer zum Lager in der Mitte, nie mehr zu den Feldern oder herumliegenden Blaubeeren. Sie greifen weiterhin nichts an.
+- Am Lager stehlen sie aus den Vorräten, also der gesammelten Munition aller Spieler (zufällig, gewichtet nach Menge): zu Beginn 4 Früchte pro Sekunde (`enemies.raccoon.stealRate`, kann über `stealRatePerWave` mit den Wellen steigen). Die Beute liegt sichtbar als Haufen auf ihrem Rücken.
+- Spätestens nach 5 s am Lager (`stealTime`) hauen sie mit der Beute ab. Entkommt ein Waschbär in den Wald, ist die Beute weg.
+- Vertreiben = der Waschbär wird getroffen (jeder direkte Treffer): er lässt die Hälfte der Beute fallen (`dropShare`, aufgerundet) und flieht mit dem Rest. Weitere Treffer auf der Flucht lösen nichts mehr. Getötet lässt er alles fallen.
+- Fallengelassene Früchte kann man wieder aufsammeln, sie geben die Munition zurück, aber kein zweites Mal XP (sonst ließe sich XP vermehren).
+- Ohne Vorräte (z. B. Welle 1) gibt es nichts zu holen: der Waschbär wartet die 5 s am Lager und geht leer.
+- Am Wellenende lassen alle Tiere ihre Beute fallen (wie bisher).
+
 ## Grundwaffen nach Bastis Waffentabelle (18.11.2026)
 Quelle: bearbeitbare Waffentabelle (Artifact). Zahlen in balancing.yaml `skills`, Seltenheit in `weaponRarity`.
 - **Zwei Schrotflinten statt einer neutralen:** Preiselbeer-Schrotflinte (`cran`, nur Preiselbeeren) und Blaubeer-Schrotflinte (`blue`, nur Blaubeeren, neue Waffe). Beide: 6 Beeren à 5 Schaden, 5 m (vorher 7 m), Streukegel 45°, alle 0,625 s, gleiche Upgrades (Beeren, Durchbohr-Chance, Platzschaden).

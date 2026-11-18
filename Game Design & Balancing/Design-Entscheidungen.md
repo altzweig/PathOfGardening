@@ -342,6 +342,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **„Unter Strom“** (Sourbow, Chillightning): Gegner knistert 2 s, alle 0,5 s Schaden an sich und an Nachbarn in 0,5 m, mit kleinen Blitzbögen.
 - Annahmen, wo die Tabelle offen war: Kimchi hat Kohl als Hauptwaffe, Chillightning Chili. Die Coleateral Bomb hinterlässt keine Giftlache (nicht erwähnt), die Cabboomberry schon (seit 17.11.2026 abends Gift-Debuff statt Lache, siehe „Kohlbombe als Aufladewurf“). Die Rakete explodiert beim ersten Gegner oder am Ende ihrer 20 m, am Rand der Explosion 50 % Schaden. Shockgun-Blitze verbinden auch Beeren aus verschiedenen Schüssen.
 - Test-Menü: Gruppe „Kombiwaffen“ schaltet jede Kombi direkt frei (inkl. 60 Munition).
+- Shockgun (18.11.2026): Die Beeren blitzen auch im Flug wie der Citrateaser-Kugelblitz: alle 0,15 s trifft jede Beere den nächsten Gegner in 0,6 m Umkreis mit 60 % Schaden. Sie fliegen dafür langsamer (7 m/s statt 9–11), weiter durch Gegner hindurch und bilden am Boden wie bisher das Blitznetz. Werte `combos.list.shock.speed/flightTick/flightRadius/flightDamage`.
 
 ## Waffentest-Modus (17.11.2026)
 - Eigener Menüpunkt „Waffentest“ (der bisherige Testmodus mit Cheat-Menü bleibt).

@@ -602,6 +602,10 @@ combos:
       linkWidth: 0.35      # m Trefferbreite eines Blitzes
       ticks: 3
       tickInterval: 0.5
+      speed: 7             # m/s Flug der Beeren (vorher fest 9-11), langsamer, damit sie unterwegs öfter blitzen (18.11.2026)
+      flightTick: 0.15     # s, im Flug blitzt jede Beere so oft ... (wie der Citrateaser-Kugelblitz, 18.11.2026)
+      flightRadius: 0.6    # m ... den nächsten Gegner in diesem Umkreis ...
+      flightDamage: 0.6    # ... mit diesem Anteil des Schadens (5 -> 3 pro Blitz)
       keep: [cran_pel, cran_mine, lemon_tgt, lemon_xfer]  # +1 Beere; +10 % Blitzschaden; +1 Blitz pro Beere; +10 % Blitzreichweite
     hot:                   # Hotgun: Schrotflinte in Chiliform, brennende Beeren
       main: cran

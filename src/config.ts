@@ -50,6 +50,9 @@ export interface EnemyCfg {
   prefersFields?: FruitType[];
   /** attacks the shed (Lager) in the middle instead of the fields */
   lager?: boolean;
+  /** raccoon (18.11.2026): steals from the supplies in the shed instead of from the fields: stealRate fruit per s (+stealRatePerWave share per wave),
+   *  runs off after stealTime s at the latest; hit, it drops dropShare of the loot and flees; killed, it drops everything */
+  lagerSteal?: boolean; stealRate?: number; stealRatePerWave?: number; stealTime?: number; dropShare?: number;
   /** damage sources (weapon fruit) it takes enemies.resistance less damage from */
   resist?: FruitType[];
   /** hedgehog: puffs up every puffEvery s (puffUp s fast, then contracts for the rest), puffScale bigger, hurting everything within puffRadius */

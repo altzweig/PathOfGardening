@@ -77,6 +77,6 @@ export default defineConfig({
   build: {
     target: 'es2020', chunkSizeWarningLimit: 2500,
     // vfx.html = VFX lab (developer tool for skill effects, not linked from the game)
-    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html') } },
+    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html'), tiere: path.join(ROOT, 'tiere.html') } },
   },
 });

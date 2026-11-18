@@ -513,7 +513,7 @@ export class Sim {
   }
   killEnemy(e: Enemy) {
     if (e.burn > 0) { if (e.burnSum > 0) { this.num(e.x, e.z, e.burnSum, 'o'); e.burnSum = 0; } this.spreadFire(e); }
-    e.dead = true; this.kills++; this.sfx(e.type + '.die', e.x, e.z);
+    e.dead = true; this.kills++; this.sfx(e.type + '.die', e.x, e.z); this.emit({ k: 'die', e: e.id }); // view plays the death animation
     if (e.gasT > 0 && Math.random() < e.gasCh) this.gasBurst(e);
     this.burst(e.x, .4, e.z, 0xffe0b0, 22, 2.6, .18, .6, { g: 4 });
     this.burst(e.x, .4, e.z, 0x404040, 10, 1.2, .5, .9, { a: .4 });

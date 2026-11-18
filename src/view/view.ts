@@ -32,6 +32,7 @@ import {
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
 import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -49,6 +50,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
 interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -115,6 +117,7 @@ export class GameView {
   private dyn = new THREE.Group();
   private players = new Map<number, PView>();
   private enemies = new Map<number, EView>();
+  private corpses: Corpse[] = [];
   private fruits = new Map<number, FView>();
   private projs = new Map<number, JView>();
   private bombs = new Map<number, JView>();
@@ -434,7 +437,7 @@ export class GameView {
     for (const e of s.en) {
       let v = this.enemies.get(e[0]);
       if (!v) {
-        const type = ENEMIES[e[1]], b = buildEnemy(type); this.dyn.add(b.g);
+        const type = ENEMIES[e[1]], b = buildEnemy(type, !!(e[7] & EF.boss)); this.dyn.add(b.g);
         if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); addOutline(b.P.body, ELITE_COL[type]); } // elite: bigger, outline glowing in its colour
         if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); addOutline(b.P.body, 0x8a4cff, .04); } // boss: huge, violet outline
         v = { g: b.g, P: b.P, type, bar: makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
@@ -444,9 +447,17 @@ export class GameView {
       v.s = e; (v as any).f = id;
       if (v.carry !== e[8]) this.setCarry(v, e[8]);
     }
+    let died: Set<number> | undefined;
+    for (const ev of s.ev) if (ev.k === 'die') (died ??= new Set()).add(ev.e);
     for (const [eid, v] of this.enemies) if ((v as any).f !== id) {
       if (v.s[7] & EF.leave) burst(V(v.x, .3, v.z), 0xcfe8b0, 12, 1.4, .08, .35); // wave over: it vanishes in a little puff
-      this.dyn.remove(v.g); if (v.ind) this.dyn.remove(v.ind); barGroup.remove(v.bar); this.enemies.delete(eid); }
+      if (v.ind) this.dyn.remove(v.ind); barGroup.remove(v.bar); this.enemies.delete(eid);
+      if (died?.has(eid) && this.corpses.length < 24) { // killed: plays its death animation, then sinks into the ground
+        v.P.stars.visible = false; if (v.P.shield) v.P.shield.visible = false; v.P.carry.clear();
+        for (const m of v.P.mats) { m.emissive.setRGB(0, 0, 0); m.opacity = 1; } if (v.P.spines) v.P.spines.emissiveIntensity = 0;
+        this.corpses.push({ v, t: 0 });
+      } else this.dyn.remove(v.g);
+    }
     // fruit
     for (const f of s.fr) {
       let v = this.fruits.get(f[0]);
@@ -764,6 +775,7 @@ export class GameView {
     if (s) {
       for (const v of this.players.values()) this.animPlayer(v, dt, k);
       for (const v of this.enemies.values()) this.animEnemy(v, dt, k, now);
+      for (let i = this.corpses.length - 1; i >= 0; i--) { const c = this.corpses[i]; c.t += dt; if (!animateDeath(c.v.P.a, c.t, now)) { this.dyn.remove(c.v.g); this.corpses.splice(i, 1); } }
       for (const v of this.fruits.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.g.position.set(v.x, v.y, v.z);
         if (v.tier > 0) { v.g.rotation.y += dt; if (Math.random() < dt * v.tier * 2) PART.spawn(V(v.x + rand(-.15, .15), v.y + .1, v.z + rand(-.15, .15)), V(0, .6, 0), FRUIT_HEX[v.type], .1, .8); }
@@ -955,31 +967,33 @@ export class GameView {
     const sq = v.type === 'squirrel', hy = sq ? (this.smooth ? lerp(v.g.position.y, e[10], k) : e[10]) : 0;
     v.g.position.set(v.x, hy, v.z);
     v.g.rotation.y = lerpAngle(v.g.rotation.y, e[4], .2);
-    if (sq && v.P.tail) { // hopping: body pitches up on take-off and down on landing, tail streams behind; climbing: upright on the trunk
-      const climb = e[9] === 1, h = e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22);
-      v.P.body.rotation.x = climb ? -1.3 : -.35 * h + .15;
-      v.P.tail.rotation.x = climb ? .4 : -.5 * h + Math.sin(now * 6 + e[0]) * .08;
-    }
-    const stun = fl & EF.stun;
-    v.P.stars.visible = !!stun; if (stun) { v.P.stars.rotation.y += dt * 6; v.P.body.rotation.z = Math.sin(now * 18) * .08; } else v.P.body.rotation.z = 0;
+    const stun = fl & EF.stun, air = !!(fl & EF.air), H = this.cfg.enemies.hedgehog;
+    // hedgehog puff 0..1: jerky puff up, slow contraction
+    let puff: number | undefined;
+    if (v.type === 'hedgehog') { const up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9], k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up); puff = ph < up ? k2 : k2 * k2; }
+    // rig animation (gait, idle, attack, hit, stun) driven by the snapshot
+    animate(v.P.a, {
+      x: v.x, z: v.z, yaw: v.g.rotation.y, dt, now, stun: !!stun, flee: !!(fl & EF.flee), flash: !!(fl & EF.flash), lunge: !!(fl & EF.lunge), carry: e[8].length,
+      air: v.type === 'toad' ? (air ? clamp(e[9] / .5, 0, 1) : 0) : sq ? e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22) : 0,
+      climb: sq && e[9] === 1, windup: fl & EF.windup ? e[9] : 0, charge: !!(fl & EF.charge), puff,
+      tongue: v.type === 'toad' && fl & EF.tongue ? e[10] : 0, rear: fl & EF.boss && e[9] === 1 ? clamp(e[10] * 3, 0, 1) : 0,
+    });
+    v.P.stars.visible = !!stun; if (stun) v.P.stars.rotation.y += dt * 6;
     if (v.type === 'toad') {
-      const air = !!(fl & EF.air); v.P.body.position.y = air ? Math.sin(e[9] / .5 * Math.PI) * .55 : 0;
+      v.P.body.position.y += air ? Math.sin(e[9] / .5 * Math.PI) * .55 : 0;
       for (const m of v.P.mats) m.opacity = air ? .4 : 1;
-      if (fl & EF.tongue) { v.P.tongue!.visible = true; v.P.tongue!.scale.z = Math.max(.01, e[10]); } else v.P.tongue!.visible = false;
       if (!air && Math.random() < dt * 6) PART.spawn(V(v.x + rand(-.25, .25), rand(.15, .4), v.z + rand(-.25, .25)), V(0, .5, 0), 0xb8ffb0, rand(.06, .1), .5, { a: .8 }); // shimmer while sitting
     }
-    if (v.type === 'hedgehog') { // jerky puff up, slow contraction; the spines flash once
-      const H = this.cfg.enemies.hedgehog, up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9];
-      const k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up);
-      v.P.puff!.scale.setScalar(1 + (H.puffScale ?? .3) * (ph < up ? k2 : k2 * k2));
+    if (v.type === 'hedgehog') { // the spines flash once per puff
+      const ph = e[9];
+      v.P.puff!.scale.setScalar(1 + (H.puffScale ?? .3) * (puff ?? 0));
       v.P.spines!.emissiveIntensity = ph < .15 ? (1 - ph / .15) * 1.6 : 0;
       if (v.ph !== undefined && ph < v.ph - .3) { burst(V(v.x, .35, v.z), 0xfff0c0, 10, 1.6, .07, .25); decal(v.x, v.z, 0xffe0a0, .3, .25, { ring: true, add: true, grow: (H.radius * (1 + (H.puffScale ?? .3)) + (H.puffRadius ?? .5)) * v.g.scale.x, op: .5 }); }
       v.ph = ph;
-    } else if (!(fl & EF.windup)) v.P.body.position.y = Math.abs(Math.sin(now * 9 + e[0])) * .06 * (stun ? 0 : 1);
-    v.P.body.position.z = fl & EF.lunge ? .12 : 0;
+    }
     if (v.type === 'sheep') {
       const wind = !!(fl & EF.windup);
-      v.P.body.position.x = wind ? Math.sin(now * 40) * .03 * e[9] : 0;
+      v.P.body.position.x += wind ? Math.sin(now * 40) * .03 * e[9] : 0;
       v.P.eyes!.forEach(m => (m.material as THREE.MeshBasicMaterial).color.setRGB(1, wind ? 1 - e[9] : 1, wind ? 1 - e[9] : 1));
       if (wind) {
         if (!v.ind) { v.ind = new THREE.Mesh(GEO.plane, addMat(0xff4030, 0)); v.ind.rotation.x = -Math.PI / 2; this.dyn.add(v.ind); }
@@ -995,7 +1009,7 @@ export class GameView {
     v.P.body.scale.set(1 + q * .25, 1 - q * .3, 1 + q * .25);
     const bleedGlow = fl & EF.bleed ? (.5 + .5 * Math.sin(now * 12)) * .9 : 0;
     if (fl & EF.boss && e[9] === 1) { // boss charging: shakes and glows violet
-      v.P.body.position.x = Math.sin(now * 45) * .04 * e[10]; for (const m of v.P.mats) m.emissive.setRGB(.25 * e[10], .1 * e[10], .5 * e[10]);
+      v.P.body.position.x += Math.sin(now * 45) * .04 * e[10]; for (const m of v.P.mats) m.emissive.setRGB(.25 * e[10], .1 * e[10], .5 * e[10]);
       if (Math.random() < .4) PART.spawn(V(v.x + rand(-.6, .6), rand(.3, 1.2), v.z + rand(-.6, .6)), V(0, .8, 0), 0x8a4cff, .2, .5); return;
     }
     const burning = fl & EF.burn, fire = burning ? .5 + .3 * Math.sin(now * 23 + e[0]) + .15 * Math.sin(now * 37) : 0;

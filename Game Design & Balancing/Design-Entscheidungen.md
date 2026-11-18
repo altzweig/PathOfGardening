@@ -377,3 +377,11 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Der Boss dreht nicht ab: Er bleibt, bis er besiegt ist, auch über die Pause und die nächste Welle hinweg. Grund: Ein Bosskampf soll nicht durch Aussitzen enden, und der Boss ist selten genug (nach Spieler-Level).
 - Danach Pause mit dezentem Countdown (klein, grau) bis zur nächsten Welle, ohne Ticken.
 - Werte unter `waves`: `countdownAfter`, `leaveTime`, `leaveSpeed`, `announce`, `tickFrom`, `redFrom`.
+
+## Tiere: Modelle und Animationen (18.11.2026)
+- Alle Tiere (Waschbär, Waschbär-Boss, Roter Panda, Kröte, Schaf, Igel, Eichhörnchen) sind neu modelliert: weiche, prozedurale Formen mit mehrtonigen Fellfarben, Masken, Ringelschwänzen, Hörnern, Warzen. Spezifikation: `Tiere-Prompt.md`. Code: `src/view/animals.ts`.
+- Jedes Tier ist ein geriggtes Mesh (Knochen für Rumpf, Hals, Kopf, Kiefer, Ohren, Schwanz, Beine) plus Augen. Geometrie wird pro Art einmal gebaut; 2–3 Draw-Calls pro Tier statt bisher bis zu 80 (wichtig für Mobile mit vielen Gegnern).
+- Animationen kommen aus den Simulationsdaten: Idle (Atmen, Umschauen, Blinzeln, Ohrzucken), Gangart je Tier an echte Geschwindigkeit gekoppelt, Angriff (Biss + Pfotenhieb, Zunge, Hufscharren, Einrollen, Boss richtet sich auf), Treffer-Rückstoß, Betäubt (Kopf hängt, Wanken), Flucht (Ohren angelegt, Schwanz hoch).
+- Tod: Tiere kippen auf die Seite (Kröte auf den Rücken), zucken kurz und sinken nach 1,6 s in den Boden. Höchstens 24 gleichzeitig, sonst verschwinden sie sofort.
+- Der Boss hat ein eingerissenes Ohr, eine Narbe und ein rotes Halstuch.
+- Vorschauseite für alle Tiere und Animationen: `tiere.html` (nicht im Spiel verlinkt).

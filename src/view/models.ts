@@ -3,6 +3,7 @@ import { lemonWand, rakeHandle, rakeHeadModel } from './arsenal';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
+import { ANIMAL_EYE, makeAnimal, type Animal } from './animals';
 import type { Look } from '../look';
 import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 
@@ -142,8 +143,7 @@ export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green
-export const EYE_COL: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070 };
-function eyeMat(c: number) { return new THREE.MeshBasicMaterial({ color: c, toneMapped: false }); }
+export const EYE_COL: Record<EnemyType, number> = ANIMAL_EYE;
 
 const shieldBase = new THREE.ShaderMaterial({
   uniforms: { uColor: { value: new THREE.Color(0x6fd0ff) }, uTime: windU, uStr: { value: 1 } },
@@ -154,87 +154,18 @@ const shieldBase = new THREE.ShaderMaterial({
       float a=(f*1.1+band*.06+hx*.08)*uStr; gl_FragColor=vec4(uColor*a*1.4,a); }`,
 });
 
-export interface EnemyParts { tail?: THREE.Group; body: THREE.Group; stars: THREE.Group; mats: THREE.MeshStandardMaterial[]; tongue?: THREE.Group; spines?: THREE.MeshStandardMaterial; puff?: THREE.Group; shield?: THREE.Mesh; eyes?: THREE.Mesh[]; carry: THREE.Group }
-export function buildEnemy(type: EnemyType) {
-  const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const P: Partial<EnemyParts> = { body };
-  if (type === 'raccoon') {
-    const fur = M(0x77726c), dk = M(0x26231f), lt = M(0xd8d0c4);
-    part(body, GEO.sph, fur, .25, .21, .34, 0, .3, 0); part(body, GEO.sph, fur, .19, .16, .17, 0, .46, .3);
-    part(body, GEO.sph, dk, .2, .065, .16, 0, .49, .34); part(body, GEO.sph, lt, .08, .065, .1, 0, .43, .45); part(body, GEO.sph, dk, .03, .03, .03, 0, .45, .55);
-    part(body, GEO.cone, dk, .06, .1, .05, -.11, .63, .27); part(body, GEO.cone, dk, .06, .1, .05, .11, .63, .27);
-    const em = eyeMat(EYE_COL.raccoon); part(body, GEO.sph, em, .028, .028, .028, -.07, .5, .47, false); part(body, GEO.sph, em, .028, .028, .028, .07, .5, .47, false);
-    for (let i = 0; i < 4; i++) { const s = part(body, GEO.cyl, i % 2 ? dk : fur, .075 - i * .008, .12, .075 - i * .008, 0, .36 + i * .05, -.36 - i * .1); s.rotation.x = -1.0; }
-    for (const [x, z] of [[-.13, .18], [.13, .18], [-.13, -.18], [.13, -.18]]) part(body, GEO.cyl, dk, .045, .18, .045, x, .09, z);
-    P.mats = [fur, dk, lt];
-  } else if (type === 'panda') {
-    const fur = M(0xb2471e), dk = M(0x2a1510), wt = M(0xf0e6d6);
-    part(body, GEO.sph, fur, .27, .22, .36, 0, .32, 0); part(body, GEO.sph, fur, .2, .17, .18, 0, .5, .32);
-    part(body, GEO.sph, wt, .09, .07, .08, 0, .45, .46); part(body, GEO.sph, wt, .05, .06, .03, -.11, .54, .44); part(body, GEO.sph, wt, .05, .06, .03, .11, .54, .44);
-    part(body, GEO.sph, dk, .03, .03, .03, 0, .47, .54);
-    part(body, GEO.cone, fur, .07, .1, .05, -.13, .67, .28); part(body, GEO.cone, fur, .07, .1, .05, .13, .67, .28);
-    const em = eyeMat(EYE_COL.panda); part(body, GEO.sph, em, .028, .028, .028, -.075, .52, .48, false); part(body, GEO.sph, em, .028, .028, .028, .075, .52, .48, false);
-    for (let i = 0; i < 5; i++) { const s = part(body, GEO.cyl, i % 2 ? M(0x6a2a10) : fur, .085, .11, .085, 0, .34 + i * .03, -.38 - i * .1); s.rotation.x = -1.2; }
-    for (const [x, z] of [[-.14, .2], [.14, .2], [-.14, -.2], [.14, -.2]]) part(body, GEO.cyl, dk, .05, .2, .05, x, .1, z);
-    P.mats = [fur, wt];
-  } else if (type === 'toad') {
-    const sk = M(0x5f7d3a, { tr: true }), bl = M(0xb8b070, { tr: true }), wart = M(0x3f5a26, { tr: true });
-    part(body, GEO.ico, sk, .33, .2, .3, 0, .2, 0); part(body, GEO.sph, bl, .26, .12, .22, 0, .14, .06);
-    for (let i = 0; i < 6; i++) part(body, GEO.sph, wart, .04, .03, .04, rand(-.2, .2), .37, rand(-.2, .15));
-    part(body, GEO.sph, sk, .08, .08, .08, -.14, .36, .18); part(body, GEO.sph, sk, .08, .08, .08, .14, .36, .18);
-    const em = eyeMat(EYE_COL.toad); part(body, GEO.sph, em, .045, .045, .045, -.15, .38, .24, false); part(body, GEO.sph, em, .045, .045, .045, .15, .38, .24, false);
-    for (const [x, z] of [[-.25, -.1], [.25, -.1]]) part(body, GEO.sph, sk, .12, .07, .16, x, .08, z);
-    const tongue = new THREE.Group(); tongue.position.set(0, .2, .28); body.add(tongue);
-    const tmat = M(0xff6a8a, { e: 0xff3060, ei: .8 });
-    const tm = part(tongue, GEO.cyl, tmat, .045, 1, .045, 0, 0, .5, false); tm.rotation.x = Math.PI / 2;
-    part(tongue, GEO.sph, tmat, .09, .07, .09, 0, 0, 1, false); // sticky tip
-    tongue.scale.set(1, 1, .01); tongue.visible = false; P.tongue = tongue;
-    P.mats = [sk, bl, wart];
-  } else if (type === 'hedgehog') {
-    // spiky ball on short legs; the spiky part sits in its own group so it can puff up
-    const skin = M(0x8a6a4a), face = M(0xc8a47a), dk = M(0x1a120c), spine = M(0x4a3524, { e: 0xfff0c0, ei: 0 });
-    const puff = new THREE.Group(); puff.position.y = .2; body.add(puff); P.puff = puff;
-    part(puff, GEO.sph, skin, .27, .2, .32, 0, 0, -.02);
-    const up = new THREE.Vector3(0, 1, 0);
-    for (let i = 0; i < 70; i++) { // spines on the back half, pointing outwards
-      const u = rand(0, 1), th = rand(0, Math.PI * 2), ph = Math.acos(1 - u * 1.15);
-      const d = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
-      if (d.z > .55) continue; // keep the face free
-      const m = part(puff, GEO.cone, spine, .035, rand(.2, .26), .035, d.x * .26, d.y * .18 + .02, d.z * .3 - .02);
-      m.quaternion.setFromUnitVectors(up, d.clone().add(new THREE.Vector3(0, .25, -.15)).normalize());
-    }
-    const snout = part(body, GEO.cone, face, .1, .2, .1, 0, .17, .34); snout.rotation.x = Math.PI / 2;
-    part(body, GEO.sph, face, .14, .12, .12, 0, .18, .24);
-    part(body, GEO.sph, dk, .03, .03, .03, 0, .17, .45);
-    const em = eyeMat(EYE_COL.hedgehog); part(body, GEO.sph, em, .022, .022, .022, -.065, .23, .33, false); part(body, GEO.sph, em, .022, .022, .022, .065, .23, .33, false);
-    for (const [x, z] of [[-.13, .14], [.13, .14], [-.13, -.14], [.13, -.14]]) part(body, GEO.cyl, dk, .035, .1, .035, x, .05, z);
-    P.spines = spine; P.mats = [skin, face];
-  } else if (type === 'squirrel') {
-    // small red squirrel: slim body sitting up a little, big bushy tail curled up over the back, tufted ears
-    const fur = M(0xb2541e), belly = M(0xf0d8b0), dk = M(0x2a160c);
-    part(body, GEO.sph, fur, .13, .14, .19, 0, .2, 0); part(body, GEO.sph, belly, .085, .1, .1, 0, .18, .09);
-    part(body, GEO.sph, fur, .1, .095, .1, 0, .33, .15); part(body, GEO.sph, belly, .05, .045, .05, 0, .31, .24); part(body, GEO.sph, dk, .018, .018, .018, 0, .32, .28);
-    for (const sx of [-1, 1]) { const ear = part(body, GEO.cone, fur, .035, .09, .025, sx * .055, .44, .13); ear.rotation.z = -sx * .2; part(body, GEO.cone, dk, .015, .05, .015, sx * .06, .5, .13, false); }
-    const em = eyeMat(EYE_COL.squirrel); part(body, GEO.sph, em, .02, .022, .02, -.05, .35, .23, false); part(body, GEO.sph, em, .02, .022, .02, .05, .35, .23, false);
-    const tail = new THREE.Group(); tail.position.set(0, .2, -.16); body.add(tail); P.tail = tail;
-    const tl = M(0xd0743a); // bushy S-shaped tail: back, up over the back, tip curled forward
-    for (const [y, z, r, c] of [[.04, -.08, .085, fur], [.14, -.17, .1, fur], [.28, -.21, .115, fur], [.42, -.18, .12, tl], [.53, -.1, .11, fur], [.57, -.01, .085, tl]] as [number, number, number, THREE.MeshStandardMaterial][]) part(tail, GEO.ico, c, r * 1.05, r, r, 0, y, z);
-    for (const [x, z] of [[-.07, .1], [.07, .1], [-.08, -.08], [.08, -.08]]) part(body, GEO.cyl, dk, .025, .1, .025, x, .05, z);
-    P.mats = [fur, belly, tl];
-  } else {
-    const wool = M(0xa29c90), dk = M(0x1e1a18); // greyer wool: no bloom
-    for (let i = 0; i < 9; i++) { const a = i / 9 * 7; part(body, GEO.ico, wool, rand(.18, .24), rand(.18, .22), rand(.18, .24), Math.cos(a) * .2, .44 + rand(-.05, .08), Math.sin(a) * .26); }
-    part(body, GEO.ico, wool, .3, .26, .36, 0, .45, 0);
-    part(body, GEO.box, dk, .17, .19, .24, 0, .52, .4); part(body, GEO.box, dk, .14, .04, .06, -.13, .58, .36).rotation.z = .4; part(body, GEO.box, dk, .14, .04, .06, .13, .58, .36).rotation.z = -.4;
-    const em = eyeMat(0xffffff); P.eyes = [part(body, GEO.sph, em, .025, .025, .025, -.06, .56, .52, false), part(body, GEO.sph, em.clone(), .025, .025, .025, .06, .56, .52, false)];
-    for (const [x, z] of [[-.15, .2], [.15, .2], [-.15, -.2], [.15, -.2]]) part(body, GEO.cyl, dk, .045, .3, .045, x, .15, z);
-    const sh = new THREE.Mesh(GEO.sph, shieldBase.clone()); (sh.material as THREE.ShaderMaterial).uniforms.uTime = windU; sh.scale.setScalar(.7); sh.position.y = .42; g.add(sh); P.shield = sh;
-    P.mats = [wool];
+export interface EnemyParts { a: Animal; body: THREE.Group; stars: THREE.Group; mats: THREE.MeshStandardMaterial[]; tongue?: THREE.Group; spines?: THREE.MeshStandardMaterial; puff?: THREE.Object3D; shield?: THREE.Mesh; eyes?: THREE.Mesh[]; carry: THREE.Group }
+/** enemy = sculpted, rigged animal (animals.ts) + game extras: stun stars, sheep shield */
+export function buildEnemy(type: EnemyType, boss = false) {
+  const a = makeAnimal(type, boss), g = a.g;
+  const P: EnemyParts = { a, body: a.body, mats: [a.mat], tongue: a.tongue, spines: a.spineMat, puff: a.b.puff, carry: a.carry, stars: new THREE.Group() };
+  if (type === 'sheep') {
+    P.eyes = [a.eyes];
+    const sh = new THREE.Mesh(GEO.sph, shieldBase.clone()); (sh.material as THREE.ShaderMaterial).uniforms.uTime = windU; sh.scale.setScalar(.72); sh.position.y = .44; g.add(sh); P.shield = sh;
   }
-  const stars = new THREE.Group(); stars.visible = false; stars.position.y = type === 'toad' || type === 'hedgehog' || type === 'squirrel' ? .65 : .9; g.add(stars);
+  const stars = P.stars; stars.visible = false; stars.position.y = type === 'toad' || type === 'hedgehog' || type === 'squirrel' ? .65 : .9; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0x9cff60 }), .045, .045, .045, Math.cos(i * 2.1) * .22, 0, Math.sin(i * 2.1) * .22, false);
-  P.stars = stars;
-  const carry = new THREE.Group(); body.add(carry); P.carry = carry;
-  return { g, P: P as EnemyParts };
+  return { g, P };
 }
 
 /** Hat material: uHp 1..0 eats the hat. Crown (y 1.215..1.37) is bitten from the top down,
@@ -246,7 +177,11 @@ export const ELITE_COL: Record<EnemyType, number> = { ...EYE_COL, sheep: 0xffd86
 const outlineGeo = new Map<string, THREE.BufferGeometry>();
 function smoothGeo(g: THREE.BufferGeometry) {
   let o = outlineGeo.get(g.uuid);
-  if (!o) { const p = new THREE.BufferGeometry(); p.setAttribute('position', g.getAttribute('position')); if (g.index) p.setIndex(g.index); o = mergeVertices(p, 1e-4); o.computeVertexNormals(); outlineGeo.set(g.uuid, o); }
+  if (!o) {
+    const p = new THREE.BufferGeometry(); p.setAttribute('position', g.getAttribute('position')); if (g.index) p.setIndex(g.index);
+    if (g.getAttribute('skinIndex')) { p.setAttribute('skinIndex', g.getAttribute('skinIndex')); p.setAttribute('skinWeight', g.getAttribute('skinWeight')); }
+    o = mergeVertices(p, 1e-4); o.computeVertexNormals(); outlineGeo.set(g.uuid, o);
+  }
   return o;
 }
 const outlineMats = new Map<string, THREE.ShaderMaterial>();
@@ -256,8 +191,18 @@ function outlineMat(color: number, width: number) {
     m = new THREE.ShaderMaterial({
       uniforms: { uColor: { value: new THREE.Color(color) }, uW: { value: width }, uTime: windU, uDay: envU.uDay },
       side: THREE.BackSide, toneMapped: false, fog: false,
-      vertexShader: `uniform float uW; uniform float uDay; void main(){ vec4 wp=modelMatrix*vec4(position,1.); vec3 n=normalize(mat3(modelMatrix)*normal);
-        wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; }`,
+      // works for rigid and skinned meshes (the skinning chunks are only active on a SkinnedMesh)
+      vertexShader: `uniform float uW; uniform float uDay;
+        #include <common>
+        #include <skinning_pars_vertex>
+        void main(){
+          #include <skinbase_vertex>
+          #include <beginnormal_vertex>
+          #include <skinnormal_vertex>
+          #include <begin_vertex>
+          #include <skinning_vertex>
+          vec4 wp=modelMatrix*vec4(transformed,1.); vec3 n=normalize(mat3(modelMatrix)*objectNormal);
+          wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; }`,
       fragmentShader: `uniform vec3 uColor; uniform float uTime; uniform float uDay; void main(){ gl_FragColor=vec4(uColor*(1.9+.35*sin(uTime*3.)+uDay*.8),1.); }`,
     });
     outlineMats.set(key, m);
@@ -268,5 +213,10 @@ function outlineMat(color: number, width: number) {
 export function addOutline(root: THREE.Object3D, color: number, width = .03) {
   const mat = outlineMat(color, width), list: THREE.Mesh[] = [];
   root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && (m.material as THREE.Material).type === 'MeshStandardMaterial') list.push(m); });
-  for (const m of list) { const h = new THREE.Mesh(smoothGeo(m.geometry), mat); h.castShadow = false; h.renderOrder = -1; m.add(h); }
+  for (const m of list) {
+    const sk = m as THREE.SkinnedMesh;
+    if (sk.isSkinnedMesh) { const h = new THREE.SkinnedMesh(smoothGeo(m.geometry), mat); h.castShadow = false; h.renderOrder = -1; h.frustumCulled = false; m.parent!.add(h); h.bind(sk.skeleton, sk.bindMatrix); }
+    else { const h = new THREE.Mesh(smoothGeo(m.geometry), mat); h.castShadow = false; h.renderOrder = -1; m.add(h); }
+  }
 }
+

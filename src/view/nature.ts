@@ -21,13 +21,13 @@ function tex(file: string) {
  *  - wind sway (scaled by height in model space and by the vertex colour gradient on plants)
  *  - night: things in the forest ring sink into darkness with a thin cold rim, so the garden stays the lit stage
  *  - optional glow (mushrooms, flowers) that only comes out at night */
-interface NatOpt { wind?: number; glow?: number; glowCol?: number; edge?: boolean }
+interface NatOpt { wind?: number; glow?: number; glowCol?: number; edge?: boolean; /** season: 'leaf' = turns orange in autumn, bare-brown in winter; 'ever' = stays green; snow lands on every upward face */ season?: 'leaf' | 'ever' | 'none' }
 function natMat(mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial, o: NatOpt, key: string) {
-  const wind = o.wind ?? 0, glow = o.glow ?? 0;
+  const wind = o.wind ?? 0, glow = o.glow ?? 0, season = o.season ?? 'ever';
   if (glow) { mat.emissive = new THREE.Color(o.glowCol ?? 0xffffff); mat.emissiveMap = mat.map; mat.emissiveIntensity = glow; }
   mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { uTime: windU, uDay: envU.uDay, uRim: { value: new THREE.Color(0x30405e) } });
-    sh.vertexShader = 'uniform float uTime;\nvarying vec3 vNWP;\n' + sh.vertexShader
+    Object.assign(sh.uniforms, { uTime: windU, uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn, uRim: { value: new THREE.Color(0x30405e) } });
+    sh.vertexShader = 'uniform float uTime;\nvarying vec3 vNWP;\nvarying vec3 vNWN;\n' + sh.vertexShader
       .replace('#include <begin_vertex>', `#include <begin_vertex>
       #ifdef USE_INSTANCING
         vec4 ip = instanceMatrix * vec4(0.,0.,0.,1.);
@@ -40,20 +40,30 @@ function natMat(mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial, o: 
       .replace('#include <project_vertex>', `
       #ifdef USE_INSTANCING
         vNWP = (modelMatrix * instanceMatrix * vec4(transformed, 1.)).xyz;
+        vNWN = normalize(mat3(modelMatrix * instanceMatrix) * objectNormal);
       #else
         vNWP = (modelMatrix * vec4(transformed, 1.)).xyz;
+        vNWN = normalize(mat3(modelMatrix) * objectNormal);
       #endif
       #include <project_vertex>`);
-    sh.fragmentShader = 'uniform float uDay;\nuniform vec3 uRim;\nvarying vec3 vNWP;\n' + sh.fragmentShader
+    sh.fragmentShader = 'uniform float uDay;\nuniform float uSnow;\nuniform float uAutumn;\nuniform vec3 uRim;\nvarying vec3 vNWP;\nvarying vec3 vNWN;\n' + sh.fragmentShader
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       totalEmissiveRadiance *= .25 + .75 * (1. - uDay);`)
       .replace('#include <fog_fragment>', `
       ${o.edge === false ? '' : `{ float rr = length(vNWP.xz), edge = smoothstep(12.8, 17.5, rr) * (1. - uDay);
         float fr = pow(1. - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
         gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * .16 + uRim * fr * .55, edge * .9); }`}
+      ${season === 'none' ? '' : `{ // seasons: autumn leaves, bare winter crowns, snow on everything facing up
+        float lum = dot(gl_FragColor.rgb, vec3(.3, .59, .11));
+        float hh = fract(sin(dot(floor(vNWP.xz * .7), vec2(12.99, 78.23))) * 43758.55);
+        ${season === 'leaf' ? `vec3 aut = mix(vec3(1., .42, .08), vec3(.86, .16, .06), hh) * (lum * 2.1 + .02);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, aut, uAutumn * (.55 + .4 * hh));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.42, .33, .26) * (lum * 1.6 + .02), uSnow * .7);` : ''}
+        float up = clamp(vNWN.y, 0., 1.), sn = uSnow * smoothstep(.3, .75, up + (hh - .5) * .3 + uSnow * .25);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.9, .94, 1.) * clamp(lum * 2.4 + .12, .2, 1.15), sn * .85); }`}
       #include <fog_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'nat' + key + wind + glow + (o.edge === false ? 'n' : 'e');
+  mat.customProgramCacheKey = () => 'nat' + key + wind + glow + (o.edge === false ? 'n' : 'e') + season;
   return mat;
 }
 
@@ -82,7 +92,8 @@ function material(name: string, vc: boolean, scale: number) {
   m = cut ? new THREE.MeshLambertMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, alphaTest: .35, side: THREE.DoubleSide, vertexColors: vc })
     : new THREE.MeshStandardMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, roughness: d.kind === 'rock' ? .92 : .85, metalness: 0, vertexColors: vc });
   const wind = d.kind === 'leaf' ? .012 / scale : d.kind === 'plant' || d.kind === 'flower' ? .07 : 0;
-  natMat(m, { wind, glow: d.kind === 'glow' ? 1.4 : d.kind === 'flower' ? .3 : 0, glowCol: d.kind === 'glow' ? 0xb8a0ff : 0xffffff, edge: d.kind !== 'glow' }, key);
+  const season = d.kind === 'glow' ? 'none' : d.kind === 'leaf' && name !== 'Leaves_Pine' ? 'leaf' : d.kind === 'plant' || d.kind === 'flower' ? 'leaf' : 'ever';
+  natMat(m, { season, wind, glow: d.kind === 'glow' ? 1.4 : d.kind === 'flower' ? .3 : 0, glowCol: d.kind === 'glow' ? 0xb8a0ff : 0xffffff, edge: d.kind !== 'glow' }, key);
   matCache.set(key, m); return m;
 }
 

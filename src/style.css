@@ -38,9 +38,14 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 @keyframes wcdBeat{0%{transform:translateX(-50%) scale(1.35)}100%{transform:translateX(-50%) scale(1)}}
 #wann{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);white-space:nowrap;font:700 clamp(40px,9vw,84px) var(--f-display);color:var(--gold);
   letter-spacing:.06em;text-shadow:0 0 30px #000,0 0 14px #e3b96477,0 3px 6px #000;opacity:0}
+#month{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 92px);transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;
+  font:600 15px var(--f-display);color:var(--parch);text-shadow:0 0 10px #000,0 2px 3px #000;pointer-events:none}
+#month i{font-style:normal;font-size:17px}
+#wann small{display:block;text-align:center;font-size:.4em;color:var(--parch);margin-top:-.1em}
+#wann.winter{color:#d8e6ff}#wann.autumn{color:#ffb060}#wann.spring{color:#ffc8e0}
 #wann.night{color:#b9c8ff;text-shadow:0 0 30px #000,0 0 16px #6f8cff88,0 3px 6px #000}
 @media (prefers-reduced-motion:reduce){#wcd.beat{animation:none}}
-@media (max-height:430px){#wcd{top:calc(env(safe-area-inset-top,0px) + 46px);font-size:24px}#wcd.pause{font-size:15px}}
+@media (max-height:430px){#wcd{top:calc(env(safe-area-inset-top,0px) + 46px);font-size:24px}#wcd.pause{font-size:15px}#month{top:calc(env(safe-area-inset-top,0px) + 78px);font-size:13px}}
 #respawn{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--f-display);font-size:64px;color:#ffd890;text-shadow:0 0 30px #000,0 0 12px #e3b96488}
 
 /* joysticks */

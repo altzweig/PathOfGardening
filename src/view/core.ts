@@ -12,7 +12,7 @@ export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 export function lerpAngle(a: number, b: number, t: number) { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; }
 export const windU = { value: 0 };
 /** shared environment uniforms (day-night): uDay 0 = night .. 1 = day, uSun = direction to the main light */
-export const envU = { uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uFogCol: { value: new THREE.Color(0) }, uFogNear: { value: 20 }, uFogFar: { value: 60 } };
+export const envU = { uSnow: { value: 0 }, uAutumn: { value: 0 }, uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uFogCol: { value: new THREE.Color(0) }, uFogNear: { value: 20 }, uFogFar: { value: 60 } };
 export const isTouch =matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 
 // ---------------- renderer ----------------

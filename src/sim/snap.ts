@@ -55,7 +55,8 @@ export type Ev = { k: string; [key: string]: any };
 
 export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
-  wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
+  wp: 0 | 1; won: 0 | 1; mo?: number; rn?: 0 | 1; lh?: number; lk?: number; // mo: month 1..12 (0 = no seasons), rn: raining, lh: shed HP share (-1 = no shed), lk: shed shake
+  wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]

@@ -39,12 +39,14 @@ export function groundMaterial(control: THREE.Texture) {
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, {
       tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
-      uDay: envU.uDay,
+      uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn,
       tDry: { value: T.dry.c }, nDry: { value: T.dry.n }, tDirt: { value: T.dirt.c }, nDirt: { value: T.dirt.n }, tPeb: { value: T.pebble.c }, nPeb: { value: T.pebble.n },
     });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vWP;
 uniform float uDay;
+uniform float uSnow;
+uniform float uAutumn;
 uniform sampler2D tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
 vec3 gNor = vec3(0.);
 ${NOISE}
@@ -70,6 +72,11 @@ ${NOISE}
   if (wDirt>.002) noTile(tDirt, nDirt, p/3.9, k, gc, gNor, wDirt);
   if (wPeb>.002) noTile(tPeb, nPeb, p/3.3, k, gc, gNor, wPeb);
   gc *= (.82 + .36*tFbm(p*.07+2.)) * mix(ctl.b, .45 + .55*ctl.b, uDay) * mix(.42, .78, uDay);     // large-scale light/dark variation + darkness to the rim (softer by day)
+  // seasons (18.11.2026): autumn turns the lawn to straw, snow covers the ground in soft drifts (thinner on the garden earth)
+  float dim = mix(ctl.b, .45 + .55*ctl.b, uDay) * mix(.42, .78, uDay);
+  gc = mix(gc, gc * vec3(1.25, .98, .6), uAutumn * wLawn * .7);
+  float sn = uSnow * smoothstep(.3, .62, n1*.7 + n3*.45 + uSnow*.45 - wDirtAll*.2);
+  gc = mix(gc, vec3(.93, .96, 1.) * (.82 + .18*n3) * dim * 1.25, sn);
   diffuseColor.rgb *= gc;`)
       .replace('#include <normal_fragment_maps>', /* glsl */`
   { vec3 tn = normalize(vec3(gNor.xy*.9, max(gNor.z, .2)));

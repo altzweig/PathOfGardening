@@ -1,6 +1,6 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { Balancing, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, SEASONS, SeasonKey, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { emptyIntent, EF, ESnap, Ev, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -11,6 +11,7 @@ const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.
 const SQ3 = Math.sqrt(3);
 /** asparagus pierce level "every target" */
 const PIERCE_ALL = 999;
+const LAGER_POS = { x: 0, z: 0 };
 const FRUIT_BURST: Record<FruitType, number> = { blue: 0x4a6cff, asp: 0x9cff60, cran: 0xd0203a, cab: 0x6fbf3a, lemon: 0xffe040, chili: 0xff3a10, nut: 0xb07a3a };
 // ---------- hex field grid (pointy-top axial, fields touch each other) ----------
 /** forest: slot outside the garden (in the forest), only for forest field types (nut tree) */
@@ -20,6 +21,7 @@ export function slotPositions(cfg: Balancing): Slot[] {
   const H = hexR(cfg), out: Slot[] = [];
   for (let q = -5; q <= 5; q++) for (let r = -5; r <= 5; r++) {
     if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) > 5) continue;
+    if (cfg.lager && q === 0 && r === 0) continue; // the shed (Lager) stands in the middle
     out.push({ q, r, x: H * SQ3 * (q + r / 2), z: H * 1.5 * r });
   }
   // innermost slots first (ties broken by angle so it is deterministic)
@@ -84,7 +86,7 @@ interface Fruit {
   state: 'fly' | 'ground' | 'collect' | 'merge' | 'carried'; src: number; born: number; bounce: number; r: number;
   ct: number; fx: number; fz: number; fy: number; collector: Player | null; tx: number; tz: number; mt: number;
 }
-type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
+type Target = { kind: 'player'; p: Player } | { kind: 'lager' } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
 interface Enemy {
   id: number; type: EnemyType; x: number; z: number; hp: number; maxHp: number; shield: number; shieldMax: number; shieldT: number; r: number; speed: number;
   stun: number; stunMax: number; bleed: number; bleedT: number; flash: number; atkT: number; think: number; target: Target; carry: Fruit[]; fleeing: boolean; face: number; /** s left until it is gone after the wave countdown ran out (0 = not leaving) */ leave: number;
@@ -151,9 +153,12 @@ export class Sim {
   constructor(cfg: Balancing, opts: { sandbox?: boolean } = {}) {
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
+    if (cfg.lager) this.lagerHp = this.lagerMax = cfg.lager.hp;
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
     if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake', freeze: false }; return; }
-    // start fields: the centre first, then every second slot of the first ring around it, then outwards
+    // start fields: given hex positions (next to the shed), otherwise the centre first, then the first ring, then outwards
+    const SF = cfg.arena.startSlots;
+    if (SF?.length) { for (const [q, r, t] of SF) { const i = this.slots.findIndex(s => s.q === q && s.r === r); if (i >= 0 && !this.fieldAt(i)) { const sf = this.placeField(i, t); if (sf) sf.starter = true; } } return; }
     const ring1 = [[0, 0], [1, 0], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, -1]];
     const order = [...ring1.map(([q, r]) => this.slots.findIndex(s => s.q === q && s.r === r)), ...this.slots.map((_, i) => i)].filter(i => i >= 0);
     for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i)) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
@@ -176,7 +181,7 @@ export class Sim {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
     const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, gasLv: 0, poisLv: 0, effLv: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
-      id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
+      id, color, x: this.spawnPoint(this.players.length)[0], z: this.spawnPoint(this.players.length)[1], face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
@@ -194,6 +199,12 @@ export class Sim {
     if (this.phase === 'lvl') this.checkAllPicked();
   }
   player(id: number) { return this.players.find(p => p.id === id); }
+  /** where player i starts / respawns: in front of the shed (or the centre without one) */
+  spawnPoint(i: number): [number, number] {
+    const L = this.cfg.lager, a = i * Math.PI / 2;
+    if (!L) return i ? [Math.cos(a) * .6, Math.sin(a) * .6] : [0, 0];
+    const b = -Math.PI / 2 + (i - 1.5) * .45, r = L.radius + .9; return [Math.cos(b) * r, Math.sin(b) * r];
+  }
   setIntent(id: number, it: Intent) {
     const p = this.player(id); if (!p) return;
     if (p.fresh) { p.fresh = false; p.lastTap = it.tapSeq; p.lastCycle = it.cycle; } // counters from a previous round are not presses
@@ -237,7 +248,7 @@ export class Sim {
   /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries, HP; without tilling) */
   rate(f: Field) { return this.yields(f) ? this.baseRate(f.type) * this.prodMult(f) * this.hpF(f) : 0; }
   /** a field bears fruit once it is grown (not while regrowing) and not in drought */
-  yields(f: Field) { return f.alive && f.hp > 0 && f.grow >= 1 && !f.regrow && f.wet >= this.cfg.fields.wetDrought; }
+  yields(f: Field) { return f.alive && f.hp > 0 && f.grow >= 1 && !f.regrow && f.wet >= this.cfg.fields.wetDrought && this.inSeason(f.type); }
   /** look of the plants: -1 = wilted (0 HP, or regrowing below regrowAt), otherwise 0 (seedlings) .. 1 (grown) */
   growLook(f: Field) {
     const F = this.cfg.fields, h = this.hpF(f);
@@ -250,12 +261,13 @@ export class Sim {
     f.hp = 0; f.regrow = true; f.grow = 0;
     this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
     this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
-    if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
+    if (!this.cfg.lager && this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver(); // without a shed: old rule (all garden fields down)
   }
   /** wetness, growth, healing and drought of one field */
   private waterTick(f: Field, dt: number) {
     const F = this.cfg.fields;
-    f.wet = clamp(f.wet - F.wetLoss * dt, 0, 100);
+    const S = this.season();
+    f.wet = clamp(f.wet - F.wetLoss * (S?.wetLoss ?? 1) * dt + (this.raining ? this.cfg.seasons?.rain.wetPerSecond ?? 0 : 0) * dt, 0, 100);
     if (!f.alive || this.phase === 'over') return;
     if (f.wet > F.wetGrow) {
       f.hp = Math.min(f.maxHp, f.hp + F.wetHeal * dt);
@@ -1192,8 +1204,9 @@ export class Sim {
       const [x, z] = this.clampArena((f ? f.x : 0) + Math.cos(a) * r, (f ? f.z : 0) + Math.sin(a) * r);
       return { kind: 'wander', x, z };
     }
+    if (D.lager && this.cfg.lager) return { kind: 'lager' }; // panda, sheep: go for the shed
     if (D.prefersFields) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.hp > 0 && D.prefersFields.includes(f.type)) { const d = dist(e, f); if (d < bd) { bd = d; best = f; } } if (best) return { kind: 'field', f: best }; }
-    const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
+    const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : this.cfg.lager ? { kind: 'lager' } : null; // no field left standing: the shed
   }
   /** poisoned (cabbage) enemies are slower */
   slowF(e: Enemy) { return e.pois > 0 ? 1 - (this.cfg.skills.cab.poisonSlow ?? 0) : 1; }
@@ -1205,7 +1218,7 @@ export class Sim {
     return d;
   }
   targetPos(t: Target): { x: number; z: number } | null {
-    if (!t) return null; if (t.kind === 'player') return t.p; if (t.kind === 'fruit') return t.fr; if (t.kind === 'field') return t.f; if (t.kind === 'wander') return t; return null;
+    if (!t) return null; if (t.kind === 'lager') return LAGER_POS; if (t.kind === 'player') return t.p; if (t.kind === 'fruit') return t.fr; if (t.kind === 'field') return t.f; if (t.kind === 'wander') return t; return null;
   }
   hurtPlayer(p: Player, dmg: number, color = 'h') {
     if (!p.alive || this.phase === 'over') return;
@@ -1278,7 +1291,7 @@ export class Sim {
     }
     const tp = this.targetPos(t)!;
     const FR = hexR(this.cfg) * .7; // enemies walk onto the field to attack it
-    const reach = t.kind === 'field' ? FR : t.kind === 'player' ? e.r + .5 : e.r * .6;
+    const reach = t.kind === 'field' ? FR : t.kind === 'lager' ? (this.cfg.lager?.radius ?? 1) + e.r + .25 : t.kind === 'player' ? e.r + .5 : e.r * .6;
     if (e.type === 'toad') {
       e.hop += dt / D.hopPeriod!; const air = (e.hop % 1) < .5;
       const rng = t.kind === 'field' ? FR + .55 : t.kind === 'player' ? D.tongueRange! : .3;
@@ -1313,7 +1326,7 @@ export class Sim {
       }
     } else if (t.kind !== 'fruit' && d <= reach && !D.puffEvery) { // hedgehogs only hurt by puffing up
       e.atkT -= dt;
-      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } }
+      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } else if (t.kind === 'lager') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtLager(E.meleeDamage * e.dmgMul); } }
     } else e.atkT = Math.min(e.atkT, .5);
   }
   /** hedgehog: puffs up with a jerk every puffEvery s, spines hurt players around it (and the field it stands on) */
@@ -1345,7 +1358,8 @@ export class Sim {
         e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtPlayer(p, D.ramDamage! * e.dmgMul); if (p.alive) this.stunPlayer(p, D.ramStun!); this.emit({ k: 'poof', x: r2(p.x), z: r2(p.z) });
         e.state = 'rest'; e.st = D.rest!; break;
       }
-      for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtField(f, D.ramDamage! * e.dmgMul); e.state = 'rest'; e.st = D.rest!; }
+      if (this.cfg.lager && !e.hitThisCharge && Math.hypot(e.x, e.z) < this.cfg.lager.radius + e.r + .1) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtLager(D.ramDamage! * e.dmgMul); this.emit({ k: 'poof', x: r2(e.x), z: r2(e.z) }); e.state = 'rest'; e.st = D.rest!; }
+      if (!this.cfg.enemies.sheep.lager) for (const f of this.fields) if (f.alive && !e.hitThisCharge && dist(e, f) < hexR(this.cfg) * .8) { e.hitThisCharge = true; this.sfx('sheep.ram', e.x, e.z); this.hurtField(f, D.ramDamage! * e.dmgMul); e.state = 'rest'; e.st = D.rest!; }
       if (e.st <= 0 && e.state === 'charge') { e.state = 'rest'; e.st = D.rest!; }
     } else if (e.state === 'rest') {
       if (e.st <= 0) { e.state = 'approach'; e.target = null; }
@@ -1460,8 +1474,11 @@ export class Sim {
     const W = this.cfg.waves, w = this.wave;
     const dMax = Math.min(W.directionsMax, W.directionsStart + Math.floor((w - 1) / W.directionEveryWaves));
     const k = Math.max(1, Math.min(size, Math.floor(rand(Math.max(1, dMax - 1), dMax + .999))));
-    const a0 = rand(0, Math.PI * 2), dirs: number[] = [], groups: EnemyType[][] = [];
-    for (let i = 0; i < k; i++) { dirs.push(a0 + i * Math.PI * 2 / k + rand(-.35, .35)); groups.push([]); }
+    const a0 = rand(0, Math.PI * 2), dirs: number[] = [], groups: EnemyType[][] = [], GA = this.cfg.layout?.gaps;
+    if (GA?.length) { // enemies only come through the gaps in the forest (layout.gaps)
+      const free = GA.map(g => g * Math.PI / 180);
+      for (let i = 0; i < k; i++) { const j = Math.floor(Math.random() * free.length); dirs.push(free.length ? free.splice(j, 1)[0] : GA[i % GA.length] * Math.PI / 180); groups.push([]); }
+    } else for (let i = 0; i < k; i++) { dirs.push(a0 + i * Math.PI * 2 / k + rand(-.35, .35)); groups.push([]); }
     for (let i = 0, g = 0; i < size; g++) { // some animals (hedgehogs) always come as a pack from one direction
       const type = w === 1 ? 'raccoon' : this.pickType(), G = this.cfg.waves.types[type]?.group;
       const n = G ? Math.floor(rand(G[0], G[1] + .999)) : 1;
@@ -1476,6 +1493,37 @@ export class Sim {
   private waveT0 = 0; private waveDur = 1; private waveEndAt = 0; private pauseLen = 1; private dayEnd = .75;
   cycleLen() { const D = this.cfg.dayNight; return D ? D.dayWaves + D.nightWaves : 0; }
   isNight(w = this.wave) { const D = this.cfg.dayNight; return !!D && w >= 1 && (w - 1) % this.cycleLen() >= D.dayWaves; }
+  // ---------- seasons (18.11.2026: only daytime, one wave = one month, 12 waves = one year) ----------
+  /** month 1..12 of wave w (before wave 1: the start month) */
+  month(w = this.wave) { const S = this.cfg.seasons; if (!S) return 0; return ((S.startMonth - 1 + Math.max(0, w - 1)) % 12) + 1; }
+  seasonKey(m = this.month()): SeasonKey | null { const S = this.cfg.seasons; if (!S || !m) return null; return SEASONS.find(k => S[k].months.includes(m)) ?? null; }
+  season() { const k = this.seasonKey(); return k ? this.cfg.seasons![k] : null; }
+  /** a plant bears fruit only in its real harvest months (plants.<type>.months); no list = all year */
+  inSeason(t: FruitType, m = this.month()) { const M = this.cfg.plants[t].months; return !M || !m || this.sb !== null || M.includes(m); }
+  raining = false; private rainT = 0;
+  /** rain showers: share of the time it rains per season, each shower lasts rain.duration s and wets every field */
+  private weather(dt: number) {
+    const S = this.season(), R = this.cfg.seasons?.rain; if (!S || !R || this.sb) { this.raining = false; return; }
+    this.rainT -= dt;
+    if (this.raining) { if (this.rainT <= 0) { this.raining = false; this.rainT = 0; } return; }
+    const avg = (R.duration[0] + R.duration[1]) / 2, share = clamp(S.rain ?? 0, 0, .95);
+    if (share > 0 && Math.random() < dt * share / (avg * (1 - share))) { this.raining = true; this.rainT = rand(R.duration[0], R.duration[1]); }
+  }
+  // ---------- shed (Lager) in the middle: when it breaks, the game is lost ----------
+  lagerHp = 0; lagerMax = 0; private lagerShake = 0;
+  hurtLager(dmg: number) {
+    const L = this.cfg.lager; if (!L || this.phase === 'over' || this.lagerHp <= 0) return;
+    this.lagerHp = Math.max(0, this.lagerHp - dmg); this.lagerShake = .25;
+    this.num(0, 0, dmg, 'f'); this.emit({ k: 'lagerHit' });
+    if (this.lagerHp <= 0) { this.burst(0, 1, 0, 0x8a6a3a, 80, 4, .3, 1.4, { g: 6 }); this.emit({ k: 'lagerDown' }); this.gameOver(); }
+  }
+  /** players and animals walk round the shed */
+  private pushOutLager(o: { x: number; z: number }, r: number) {
+    const L = this.cfg.lager; if (!L || this.sb) return;
+    const d = Math.hypot(o.x, o.z), m = L.radius + r; if (d >= m) return;
+    if (d < 1e-3) { o.z = m; return; }
+    o.x *= m / d; o.z *= m / d;
+  }
   bossEvery() { return this.cycleLen() || this.cfg.enemies.boss.every || 0; }
   /** enemies get stronger over the waves, same curve shape as the XP need: growth^(w-1) + linear*(w-1) (wave 1 = 1) */
   waveScale(w = this.wave) {
@@ -1487,7 +1535,7 @@ export class Sim {
   /** share of the current wave "hour" that has passed (0..1): fighting covers the first 75 %, the pause the rest */
   private dayFrac() { return this.wavePause ? this.dayEnd + (1 - this.dayEnd) * (1 - Math.max(0, this.waveT) / Math.max(.1, this.pauseLen)) : .75 * Math.min(1, (this.time - this.waveT0) / Math.max(1, this.waveDur)); }
   /** hour of the cycle: 0 .. cycleLen (one hour per wave); 0 = morning of day 1 */
-  dayHour() { if (this.sb) return this.sb.hour; if (this.wave < 1 || !this.cycleLen()) return 0; return (this.wave - 1) % this.cycleLen() + this.dayFrac(); }
+  dayHour() { if (this.sb) return this.sb.hour; if (this.cfg.seasons) return this.cfg.seasons.hour; if (this.wave < 1 || !this.cycleLen()) return 0; return (this.wave - 1) % this.cycleLen() + this.dayFrac(); }
   /** start wave w now: builds the group schedule */
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
@@ -1626,7 +1674,7 @@ export class Sim {
     if (!p.alive) {
       p.chW = ''; p.chT = 0; // a held throw is lost when the player falls
       p.respawnT -= dt;
-      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
+      if (p.respawnT <= 0) { const [sx, sz] = this.spawnPoint(this.players.indexOf(p)); p.alive = true; p.hp = P.hp; p.x = sx; p.z = sz; this.burst(sx, .6, sz, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', sx, sz); }
       return;
     }
     let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
@@ -1741,7 +1789,8 @@ export class Sim {
     const dt = rdt * scale;
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
-    for (const p of this.players) this.updatePlayer(p, dt);
+    for (const p of this.players) { this.updatePlayer(p, dt); if (p.alive) this.pushOutLager(p, .3); }
+    this.weather(dt); this.lagerShake = Math.max(0, this.lagerShake - dt);
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
@@ -1788,6 +1837,7 @@ export class Sim {
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), m = a.r + b.r;
       if (d < m && d > .001) { const k = (m - d) / d * .5; a.x -= dx * k; a.z -= dz * k; b.x += dx * k; b.z += dz * k; }
     }
+    for (const e of en) if (!this.inTree(e)) this.pushOutLager(e, e.r);
     // burning pools (Kimchi)
     for (let i = this.pools.length - 1; i >= 0; i--) {
       const pl = this.pools[i]; pl.t -= dt; pl.tickT -= dt;
@@ -2073,7 +2123,7 @@ export class Sim {
       };
     }
     return {
-      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, mo: this.month(this.wavePause && this.wave < this.cfg.waves.total && (this.waveT <= (this.cfg.waves.announce ?? 2.5)) ? this.wave + 1 : this.wave), rn: this.raining ? 1 : 0, lh: this.lagerMax ? r2(this.lagerHp / this.lagerMax) : -1, lk: r2(this.lagerShake), lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),

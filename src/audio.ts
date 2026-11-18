@@ -258,3 +258,19 @@ export function tickAmbient(dt: number) {
   const a = Math.random() * Math.PI * 2; sfx('calls.' + key, lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });
+
+// rain (seasons, 18.11.2026): looped filtered noise, plus a few random drops; level 0..1
+let rainSrc: AudioBufferSourceNode | null = null, rainGain: GainNode | null = null;
+export function setRain(level: number) {
+  if (!AC || !noiseBuf) return;
+  const v = audio.on ? Math.max(0, Math.min(1, level)) : 0;
+  if (!rainSrc && v > .01) {
+    rainSrc = AC.createBufferSource(); rainSrc.buffer = noiseBuf; rainSrc.loop = true;
+    const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 350;
+    rainGain = AC.createGain(); rainGain.gain.value = 0;
+    rainSrc.connect(hp); hp.connect(lp); lp.connect(rainGain); rainGain.connect(master); rainSrc.start();
+  }
+  if (rainGain) rainGain.gain.setTargetAtTime(v * .16, AC.currentTime, .3);
+  if (v > .2 && Math.random() < v * .25) noise({ t: rand(.02, .05), vol: rand(.02, .05) * v, type: 'bandpass', f: rand(2500, 6000), q: rand(2, 5), at: .002 });
+}

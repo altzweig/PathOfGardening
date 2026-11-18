@@ -120,7 +120,31 @@ arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
   fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
   fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
-  startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (das erste liegt in der Gartenmitte)
+  startFields: 1           # nur ohne startSlots: so viele Blaubeerfelder zu Beginn (das erste in der Gartenmitte)
+  startSlots: [[-1, 1, blue], [0, 1, cran]]   # 18.11.2026 (Bastis Skizze): Blaubeer- und Preiselbeerfeld direkt unter dem Lager (Hex-Koordinaten q, r)
+
+lager:                     # 18.11.2026: Gartenhütte (Lager) in der Mitte der Lichtung, aus Holz zusammengenagelt.
+  hp: 300                  # Leben. Ist das Lager kaputt, ist das Spiel verloren (ersetzt "alle Felder 0 HP")
+  radius: 1.15             # m, Spieler und Tiere laufen drumherum
+  # Welche Tiere das Lager angreifen: enemies.<tier>.lager: true (Panda, Schaf). Alle anderen gehen auf die Felder.
+  # Feld-Tiere gehen aufs Lager, wenn kein Feld mehr Leben hat.
+
+layout:                    # Lichtung (Bastis Skizze 18.11.2026): Waldstücke ringsum, dazwischen Lücken, nur dort kommen Gegner herein
+  gaps: [-104, -21, 43, 121, 181]   # Grad: 0 = rechts, 90 = unten, -90 = oben (oben, oben rechts, unten rechts, unten links, links)
+  gapWidth: 6              # m, Breite einer Lücke (keine Bäume, Büsche, Steine; nur kurzes Gras und Trittsteine)
+
+seasons:                   # 18.11.2026: statt Tag und Nacht nur noch Tag, dafür Jahreszeiten. 1 Welle = 1 Monat, 12 Wellen = 1 Jahr
+  startMonth: 7            # Welle 1 = Juli (Bastis Wahl: Blaubeeren tragen sofort)
+  hour: 7                  # feste Tageszeit fürs Licht (Stunde 0-16 des alten Tagesbogens, 8 = Mittag)
+  monthNames: [Januar, Februar, März, April, Mai, Juni, Juli, August, September, Oktober, November, Dezember]
+  # wetLoss: Faktor auf fields.wetLoss (Wasserverbrauch). rain: Anteil der Zeit, in der es regnet
+  spring: { months: [3, 4, 5],  wetLoss: 1,   rain: 0.25 }   # mehr Regen
+  summer: { months: [6, 7, 8],  wetLoss: 2,   rain: 0.05 }   # Wasserverbrauch verdoppelt
+  autumn: { months: [9, 10, 11], wetLoss: 1,  rain: 0.25 }   # mehr Regen
+  winter: { months: [12, 1, 2], wetLoss: 0.5, rain: 0 }      # kalt: Boden trocknet kaum, Schnee statt Regen
+  rain:
+    duration: [8, 16]      # s pro Regenschauer
+    wetPerSecond: 3        # Nässe pro s auf jedem Feld, solange es regnet
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
@@ -165,13 +189,14 @@ fruit:
 
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
-  blue: { interval: 2 }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
-  asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 5, unlockAt: 0, amount: 4 }   # 3x Ertrag
-  cab:  { interval: 15, unlockAt: 0 }
-  lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true }
+ # months: echte Erntemonate in Mitteleuropa (18.11.2026). Nur dann tragen die Felder Früchte (auch beim Harken)
+  blue: { interval: 2, months: [7, 8, 9] }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  asp:  { interval: 10, unlockAt: 0, amount: 2, months: [4, 5, 6] }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
+  cran: { interval: 5, unlockAt: 0, amount: 4, months: [8, 9, 10] }   # 3x Ertrag
+  cab:  { interval: 15, unlockAt: 0, months: [6, 7, 8, 9, 10, 11, 12, 1, 2] }   # Weiß-/Rotkohl Jun-Nov, Grün-/Rosenkohl Nov-Feb
+  lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10, months: [11, 12, 1, 2, 3] }   # Sonderfall Kübelpflanze, Haupternte Mittelmeer Nov-Mär; Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
+  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10, months: [8, 9, 10] } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
+  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true, months: [9, 10] }
   # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
@@ -316,7 +341,7 @@ enemies:
   scaling:                 # Gegner werden über die Wellen stärker, gleiche Kurvenform wie XP:  Faktor = growth^(w-1) + linear*(w-1)
     hp:     { growth: 1.03, linear: 0.03 }    # Leben:  Welle 10 ≈ 1,6x · Welle 24 ≈ 2,7x · Welle 48 ≈ 5,4x
     damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
-    # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), zusätzlich zum Nachtfaktor (dayNight.night)
+    # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), (Nachtfaktor gibt es seit 18.11.2026 nicht mehr)
   elite:                   # Elite-Gegner: selten, größer, leuchtende Outline in ihrer Farbe (mit leichtem Bloom)
     fromWave: 4            # ab dieser Welle möglich
     chanceStart: 0.01      # Anteil Elite in dieser Welle
@@ -378,6 +403,7 @@ enemies:
     hp: 13.2               # 17.11.2026 +20 % (vorher 11)
     speed: 2.2
     radius: 0.34
+    lager: true            # 18.11.2026: plündert das Lager, wenn keine Frucht herumliegt
     prefers: [cran, chili] # rote Früchte zuerst ...
     steals: [cran, chili, asp, cab, lemon, blue]   # ... sonst alle anderen
     carryMax: 5
@@ -397,6 +423,7 @@ enemies:
     resist: [cab, lemon]
   sheep:
     maxAlive: 5            # höchstens so viele Schafe gleichzeitig
+    lager: true            # 18.11.2026: rammt das Lager
     hp: 3.6                # 17.11.2026 +20 % (vorher 3)
     speed: 1.7
     radius: 0.44
@@ -445,13 +472,13 @@ waves:
   # 17.11.2026: Jede Welle hat einen festen COUNTDOWN (oben mittig): Gruppen-Zeitplan (durationStart/-PerWave)
   # + countdownAfter. Läuft er ab, drehen alle Gegner (außer dem Boss) um und verschwinden. Dann folgt eine feste
   # Pause mit dezentem Countdown, kurz vor der nächsten Welle wird "Welle N" mittig eingeblendet.
-  total: 48                # Wellen bis zum Sieg (= 2 volle Tag-Nacht-Zyklen, endet mit dem 2. Boss)
+  total: 48                # Wellen bis zum Sieg (= 4 Jahre à 12 Monate)
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
   countMultiplier: 1.3     # 17.11.2026: Gegneranzahl aller Wellen +30 % (auf Gruppengröße, nach sizeMax)
-  durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
-  durationPerWave: 2.5     # s länger je Welle
+  durationStart: 40        # s Zeit von erster bis letzter Gruppe (18.11.2026: jede Welle genau 1 min = 40 + countdownAfter 20)
+  durationPerWave: 0       # s länger je Welle (18.11.2026: 0, alle Wellen 1 min)
   countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
   leaveTime: 3             # s nach Ablauf drehen die Gegner um, laufen Richtung Wald und verblassen; danach sind sie weg
   leaveSpeed: 1.3          # x Laufgeschwindigkeit beim Abdrehen
@@ -473,7 +500,7 @@ waves:
   directionsStart: 1       # Richtungen pro Gruppe in Welle 1
   directionsMax: 4
   directionEveryWaves: 3   # alle 3 Wellen eine Richtung mehr möglich
-  directionSpread: 20      # Grad Streuung innerhalb einer Richtung
+  directionSpread: 7       # Grad Streuung innerhalb einer Richtung (18.11.2026: 20 -> 7, damit sie durch die Waldlücken kommen)
   staggerMin: 0.15         # s zwischen zwei Gegnern derselben Richtung
   staggerMax: 0.35
   warnTime: 1.5            # s vorher blinzeln Augen in dieser Richtung
@@ -485,13 +512,7 @@ waves:
     sheep:   { from: 21, weight: 0.4 }
     squirrel: { from: 3, weight: 1.2, needs: nut }   # needs: kommt nur, wenn ein Nussbaum steht (aus dessen Krone)
 
-dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) = 1 Stunde, die Sonne wandert mit
-  dayWaves: 16             # so viele Tag-Wellen (16 h Tag) ...
-  nightWaves: 8            # ... dann so viele Nacht-Wellen (8 h Nacht). Boss nur in der letzten Nachtwelle, danach wird es Tag
-  night:                   # Nachtwellen sind größer und stärker
-    size: 1.4              # x Gegner pro Gruppe
-    hp: 1.3                # x Leben
-    damage: 1.25           # x Angriffsstärke
+# dayNight entfernt (18.11.2026): nur noch Tag, dafür Jahreszeiten (seasons)
 
 weaponSlots:               # Waffen neben der Harke
   max: 3                   # höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up

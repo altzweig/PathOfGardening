@@ -17,6 +17,10 @@ export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'sh
 /** one combo weapon: main/sub weapon, ammo (main fruit; sub fruit converts at subAmmo), keep = special upgrades that still apply
  *  (as "<skill>_<key>", all others turn into convertDamage), the rest are weapon-specific numbers */
 export interface ComboCfg { main: SkillId; sub: SkillId; subAmmo: number; ammoPerShot: number; cooldown: number; damage: number; keep?: string[]; [k: string]: any }
+/** seasons (18.11.2026): one wave = one month */
+export type SeasonKey = 'spring' | 'summer' | 'autumn' | 'winter';
+export const SEASONS: SeasonKey[] = ['spring', 'summer', 'autumn', 'winter'];
+export interface SeasonCfg { months: number[]; wetLoss: number; rain: number }
 export const ENEMIES: EnemyType[] = ['raccoon', 'panda', 'toad', 'sheep', 'hedgehog', 'squirrel'];
 
 interface Lim { step: number; max?: number; maxLevel?: number }
@@ -34,6 +38,8 @@ export interface EnemyCfg {
   fleeBelow?: number;
   /** fields it attacks first */
   prefersFields?: FruitType[];
+  /** attacks the shed (Lager) in the middle instead of the fields */
+  lager?: boolean;
   /** damage sources (weapon fruit) it takes enemies.resistance less damage from */
   resist?: FruitType[];
   /** hedgehog: puffs up every puffEvery s (puffUp s fast, then contracts for the rest), puffScale bigger, hurting everything within puffRadius */
@@ -47,7 +53,13 @@ export interface Balancing {
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number };
-  arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
+  arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; startSlots?: [number, number, FruitType][] };
+  /** shed in the middle: HP (game lost at 0), collision radius in m */
+  lager?: { hp: number; radius: number };
+  /** clearing layout: angles (deg, 0 = right/+x, 90 = down/+z) of the gaps in the forest where enemies come in, gap width in m */
+  layout?: { gaps: number[]; gapWidth: number };
+  /** seasons: month of wave 1, fixed daytime hour for the light, month names, the 4 seasons, rain showers */
+  seasons?: { startMonth: number; hour: number; monthNames: string[]; rain: { duration: [number, number]; wetPerSecond: number } } & Record<SeasonKey, SeasonCfg>;
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; seedlingHp: number; growTime: number; regrowAt: number; regrowGrownAt: number;
@@ -55,7 +67,7 @@ export interface Balancing {
     wetStart: number; wetLoss: number; wetGrow: number; wetDrought: number; wetHeal: number; droughtDamage: number;
     tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>;
+  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean; months?: number[] }>;
   rake: { damage: number; range: number; diameter: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
   /** watering can: sweeps arc deg from left to right in sweepTime s, water lands reach m in front, circle of radius m, wetness per s */
   can: { arc: number; sweepTime: number; reach: number; radius: number; wetPerSecond: number };

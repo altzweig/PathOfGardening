@@ -2,6 +2,8 @@
 const svg = (body: string, vb = '0 0 40 40') => `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${body}</svg>`;
 
 const FRUIT = {
+  // both berries of the berry shotgun (ammo chip / ammo popup)
+  mix: `<circle cx="14" cy="22" r="7" fill="#4a64f0"/><circle cx="26" cy="19" r="6" fill="#e2384a"/><circle cx="21" cy="30" r="5.5" fill="#ff5466"/><circle cx="28" cy="30" r="5" fill="#5a74ff"/>`,
   blue: `<circle cx="14" cy="22" r="7" fill="#4a64f0"/><circle cx="26" cy="19" r="7" fill="#3550e0"/><circle cx="21" cy="29" r="6" fill="#5a74ff"/><path d="M24 13l2-3 2 3" stroke="#9fb4ff" stroke-width="1.6" fill="none"/>`,
   asp: `<path d="M8 33 L29 12" stroke="#7fbf45" stroke-width="5" stroke-linecap="round"/><path d="M29 12 L35 5 L32 15 Z" fill="#a46cc0"/><path d="M15 26l-3-1M20 21l-3-1M25 16l-3-1" stroke="#4f8a2a" stroke-width="2"/>`,
   cran: `<circle cx="14" cy="22" r="6" fill="#e2384a"/><circle cx="26" cy="18" r="6" fill="#c42638"/><circle cx="21" cy="30" r="5.5" fill="#ff5466"/><path d="M20 12 q4-8 10-6" stroke="#3f6b2a" stroke-width="2" fill="none"/>`,
@@ -10,14 +12,18 @@ const FRUIT = {
   chili: `<path d="M9 13 q3 -3 7 -1 q14 5 17 20 q-12 -3 -21 -12 q-4 -4 -3 -7z" fill="#e02a12"/><path d="M14 15 q10 4 15 13" stroke="#ff8a60" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M9 13 q-1 -4 -5 -6 M7 11 q3 -3 6 0" stroke="#4f8a2a" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
   nut: `<path d="M20 9 C29 9 33 18 31 25 C29 33 24 36 20 36 C16 36 11 33 9 25 C7 18 11 9 20 9z" fill="#a8743a"/><path d="M20 13 C25 15 27 22 25 29" stroke="#d8a868" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M9 14 q3 -9 11 -9 q8 0 11 9 q-5 -3 -11 -2 q-6 -1 -11 2z" fill="#6a8a3a"/><path d="M20 5 v-3" stroke="#5a3a1a" stroke-width="2.4" stroke-linecap="round"/>`,
 };
-const RAKE = `<path d="M8 34 L28 10" stroke="#c8935a" stroke-width="3.5" stroke-linecap="round"/><path d="M20 4 L36 18" stroke="#c9d0d6" stroke-width="3.5" stroke-linecap="round"/><path d="M22 6l-4 4M26 9.5l-4 4M30 13l-4 4M34 16.5l-4 4" stroke="#c9d0d6" stroke-width="2.2" stroke-linecap="round"/>`;
+// hoe (Hacke, 18.11.2026): long ash handle, iron blade at the top end bent down (the name RAKE stays for all old uses)
+const RAKE = `<path d="M7 35 L29 9" stroke="#c8935a" stroke-width="3.6" stroke-linecap="round"/><path d="M27 11 q2 -4 6 -3" stroke="#6f7880" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M30 6 L39 13 L35 21 L27 14 Z" fill="#9aa4ac" stroke="#4a5258" stroke-width="1.4" stroke-linejoin="round"/><path d="M35.5 20 L39 13" stroke="#e3c47a" stroke-width="1.8" stroke-linecap="round"/><path d="M10 31 l4 -4.7" stroke="#5a3a22" stroke-width="4.6" stroke-linecap="round"/>`;
+// hoe swing: the hoe with a comic white swing arc (black outline)
+const SLASH = `<path d="M5 30 A20 20 0 0 1 33 9" stroke="#14100c" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M5 30 A20 20 0 0 1 33 9" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/><g transform="translate(6 6) scale(.78)">${RAKE}</g>`;
 // watering can: tin body, long spout with rose to the right, handle on top, a few drops
 const CAN = `<path d="M7 16 h17 l-1.5 16 q-7 2 -14 0 z" fill="#7fa6b8" stroke="#3e5866" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 16 q5 -9 11 0" stroke="#3e5866" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M23 27 L33 15" stroke="#7fa6b8" stroke-width="3.2" stroke-linecap="round"/><path d="M31 12 l5 4 l-2 2 l-5 -4 z" fill="#5f8496"/><path d="M8.5 21 h14" stroke="#a9cbd8" stroke-width="1.4"/><circle cx="36" cy="22" r="1.6" fill="#7fd0ff"/><circle cx="38" cy="27" r="1.4" fill="#7fd0ff"/><circle cx="34" cy="28" r="1.3" fill="#7fd0ff"/>`;
 const SKILL = {
   rake: RAKE,
+  slash: SLASH,
   can: CAN,
   asp: `<rect x="5" y="18" width="24" height="5" rx="2" fill="#5a4630"/><path d="M26 6 Q20 20.5 26 35" stroke="#6aa83c" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M26 6 L15 20.5 L26 35" stroke="#e8dcc0" stroke-width="1.2" fill="none"/><path d="M15 20.5 H35" stroke="#7fbf45" stroke-width="3" stroke-linecap="round"/><path d="M35 18 L39 20.5 L35 23 Z" fill="#a46cc0"/><path d="M9 23 l-2 7 h4 l2-7" fill="#3d2f20"/>`,
-  cran: `<rect x="4" y="18" width="18" height="7" rx="2" fill="#5a4630"/><rect x="16" y="15" width="16" height="4.5" rx="2" fill="#8a8f96"/><rect x="16" y="20" width="16" height="4.5" rx="2" fill="#8a8f96"/><circle cx="35" cy="12" r="3" fill="#ff4d5e"/><circle cx="37" cy="21" r="2.6" fill="#e2384a"/><circle cx="34" cy="29" r="2.8" fill="#ff5466"/>`,
+  cran: `<rect x="4" y="18" width="18" height="7" rx="2" fill="#5a4630"/><rect x="16" y="15" width="16" height="4.5" rx="2" fill="#8a8f96"/><rect x="16" y="20" width="16" height="4.5" rx="2" fill="#8a8f96"/><circle cx="35" cy="12" r="3" fill="#5a74ff"/><circle cx="37" cy="21" r="2.6" fill="#e2384a"/><circle cx="34" cy="29" r="2.8" fill="#4a64f0"/>`,
   cab: `<circle cx="18" cy="23" r="12" fill="#8fd16a"/><path d="M18 11 q-5 12 0 24 M18 11 q5 12 0 24 M7 20 q11 4 22 0" stroke="#4f8a2a" stroke-width="2" fill="none"/><path d="M27 12 q4-6 9-5" stroke="#c8935a" stroke-width="2" fill="none"/><circle cx="36" cy="7" r="2.6" fill="#ffd27a"/>`,
   lemon: `<rect x="4" y="18" width="16" height="8" rx="2" fill="#5a4630"/><rect x="14" y="15" width="12" height="9" rx="3" fill="#f0d030"/><path d="M26 19 L31 14 L29 20 L35 16 L32 23 L38 21" stroke="#fff6a0" stroke-width="2.4" fill="none" stroke-linejoin="round"/><path d="M8 26 l-2 7 h5 l2-7" fill="#3d2f20"/>`,
   // chili-shaped flamethrower: pod as barrel, green stem as grip, flame out of the tip

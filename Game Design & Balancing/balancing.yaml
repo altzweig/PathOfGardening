@@ -12,10 +12,10 @@
 
 names:
   skills:
-    rake: Harke
+    rake: Hacke            # Werkzeug-Id bleibt "rake" (18.11.2026: Harke -> Hacke)
     can: Gießkanne
     asp: Spargel-Armbrust
-    cran: Preiselbeer-Schrotflinte
+    cran: Beeren-Schrotflinte   # 18.11.2026: neutral, verschießt Heidelbeeren und Preiselbeeren
     cab: Kohlbombe
     lemon: Citrateaser
     chili: Flammenwerfer
@@ -105,7 +105,7 @@ coop:
   enemyCountExponent: 0.5   #  x1,41       x1,73       x2,00   Gegner pro Stoß
   enemyHpExponent: 0.5      #  x1,41       x1,73       x2,00   Gegner-HP (inkl. Schaf-Schild)
   xpYieldExponent: 0.5      #  x1,41       x1,73       x2,00   Blaubeer-Wachstum (Menge)
-  xpValueExponent: 0.5      #  x1,41       x1,73       x2,00   XP pro Blaubeere
+  xpValueExponent: 0.5      #  x1,41       x1,73       x2,00   XP pro Frucht
   enemyDamageExponent: 0.0  #  x1          x1          x1      Gegnerschaden
   snapshotRate: 20          # Netz-Updates pro Sekunde vom Host
 
@@ -115,6 +115,9 @@ xp:
   growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
   linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
   gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
+  # 18.11.2026: ALLE Früchte geben XP (vorher nur Blaubeeren). XP pro Frucht = Fruchtwert x gain x Faktor hier (fehlt = 1).
+  # Munition geben die Waffenfrüchte weiterhin zusätzlich; Heidelbeeren sind jetzt auch Munition der Beeren-Schrotflinte.
+  fruit: { blue: 1, asp: 1, cran: 1, cab: 1, lemon: 1, chili: 1, nut: 1 }
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
@@ -168,10 +171,10 @@ fields:
   regrowAt: 0.1            # welkes Feld (0 HP) heilt nur über wetGrow; ab diesem HP-Anteil sind wieder Setzlinge zu sehen
   regrowGrownAt: 0.5       # ab diesem HP-Anteil ist ein nachwachsendes Feld wieder ausgewachsen (nur beim Heilen von 0 HP)
   # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
-  # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
-  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
-  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
-                           # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
+  # Beackern (18.11.2026, Hacke): jeder Hackschlag beackert genau EIN Feld, das unter der Fußspitze (hoe.toe). Keine Flächenanteile mehr.
+  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Hackschlag als beackert (Leuchten)
+  tillStroke: 6.0          # s Produktionszeit pro Hackschlag (voller Schlag, unabhängig von der Fläche)
+                           # -> Hacken auf einem Feld: Ernte alle (Erntezeit x Hack-Abklingzeit / tillStroke) s; Ertrag fällt aus der getroffenen Pflanze
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
   rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
@@ -190,9 +193,9 @@ fruit:
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
  # months: echte Erntemonate in Mitteleuropa (18.11.2026). Nur dann tragen die Felder Früchte (auch beim Harken)
-  blue: { interval: 2, months: [7, 8, 9] }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  blue: { interval: 2, months: [7, 8] }                    # Heidelbeeren: Startfrucht, Ernte Juli-August (18.11.2026)                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
   asp:  { interval: 10, unlockAt: 0, amount: 2, months: [4, 5, 6] }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 5, unlockAt: 0, amount: 4, months: [8, 9, 10] }   # 3x Ertrag
+  cran: { interval: 5, unlockAt: 0, amount: 4, months: [9, 10] }      # Preiselbeeren: Startfrucht, Ernte September-Oktober (18.11.2026); 3x Ertrag
   cab:  { interval: 15, unlockAt: 0, months: [6, 7, 8, 9, 10, 11, 12, 1, 2] }   # Weiß-/Rotkohl Jun-Nov, Grün-/Rosenkohl Nov-Feb
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10, months: [11, 12, 1, 2, 3] }   # Sonderfall Kübelpflanze, Haupternte Mittelmeer Nov-Mär; Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10, months: [8, 9, 10] } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
@@ -201,13 +204,21 @@ plants:
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
   # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
 
-rake:
-  damage: 5                # 16.11.2026 halbiert (vorher 10)
-  range: 1.2               # m, maximale Ausdehnung der Harke (vordere Kante des Trefferkreises)
-  diameter: 0.7            # m, Trefferkreis (Sphere-Overlap) zwischen Zug-Ende vorne und maximaler Ausdehnung, Durchmesser = diese Distanz (17.11.2026, ersetzt die Breite); Treffer + Beackern
-  cooldown: 0.5            # s
-  pullTime: 0.22           # s, Zug: Harke in einem Schwung von vorne nach links hinten ziehen (17.11.2026, immer gleich, nicht mehr abwechselnd)
-  pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
+hoe:                       # Hacke (18.11.2026, ersetzt die Harke; alte Harke: archiv/harke/). Intern heißt das Werkzeug weiter "rake".
+  # Linksklick / großer Knopf: Hacken = Hacke in den Boden schlagen. Beackert genau EIN Feld: das unter der Fußspitze
+  # (Punkt toe m mittig vor der Figur). Trifft Gegner nur in einem kleinen Kreis um die Aufschlagstelle.
+  chopTime: 0.26           # s, Ausholen + Zuschlagen; Aufschlag am Ende
+  chopCooldown: 0.5        # s zwischen zwei Hackschlägen (= wie oft geerntet werden kann)
+  toe: 0.3                 # m vor der Figurmitte: Fußspitze = Aufschlagstelle, entscheidet über das beackerte Feld
+  chopDamage: 5            # Schaden im Aufschlag-Kreis
+  chopDiameter: 0.6        # m, kleiner Trefferkreis um die Aufschlagstelle (Upgrade: upgrades.rakeDiameter)
+  chopStun: 0.3            # s Stun pro Treffer beim Hacken (nicht bei Bossen)
+  # Rechtsklick / Schwung-Knopf: Schwung wie mit einem Schwert, zum Kämpfen
+  slashTime: 0.16          # s für den Schwung von links nach rechts, Treffer in der Mitte
+  slashCooldown: 0.45      # s
+  slashArc: 60             # Grad, Trefferkegel
+  slashRange: 1.0          # m, Reichweite ab Figurmitte (Upgrade: upgrades.rakeRange)
+  damage: 5                # Schaden des Schwungs (Upgrade rakeDamage gilt für Hacken und Schwung)
   stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
   knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
 
@@ -299,10 +310,10 @@ upgrades:
   aspPierceBonus: { step: 0.10, maxLevel: 5 }  # Piercing Damage +10 Prozentpunkte (50 -> 100 %), Karte: alter Wert + goldenes +10 %
   aspSize:        { step: 1.00, maxLevel: 4 }  # Geschossgröße +100 % additiv je Stufe, max 500 % (17.11.2026), Karte: alter Wert + goldenes +100 %
   aspSalvo:       { shots: [4, 5, 7, 9, 12] }  # Salve: Bolzen je Stufe statt 3, in derselben Salvenzeit wie 3 Bolzen (17.11.2026)
-  rakeDiameter:   { step: 0.20 }               # Harke Trefferkreis +20 cm Durchmesser, ohne Obergrenze (17.11.2026)
-  rakeRange:      { step: 0.20 }               # Harke +20 cm weiter (maximale Ausdehnung), ohne Obergrenze
-  rakeDamage:     { step: 0.20 }               # Harke +20 % Grundschaden (additiv), ohne Obergrenze
-  rakeSpeed:      { step: 0.10 }               # Harke Abklingzeit x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
+  rakeDiameter:   { step: 0.20 }               # Hacke: Trefferkreis beim Hacken +20 cm Durchmesser, ohne Obergrenze
+  rakeRange:      { step: 0.20 }               # Hacke: Schwung +20 cm Reichweite, ohne Obergrenze
+  rakeDamage:     { step: 0.20 }               # Hacke: +20 % Schaden (Hacken und Schwung, additiv), ohne Obergrenze
+  rakeSpeed:      { step: 0.10 }               # Hacke: Abklingzeiten x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
   lemonTargets:   { step: 1,    maxLevel: 5 }  # Kettenziele nach Direkttreffer: 0 -> 1/2/3/4/5 (je 60 % Schaden) (17.11.2026)
   lemonEfficiency: { step: 0.10, maxLevel: 5 } # Schadenseffizienz: Ketten- und Rückblitzschaden 50 -> 60/70/80/90/100 % (17.11.2026)
   lemonTransfer:  { step: 0.20, maxLevel: 5 }  # Rückblitz: Chance je Kettenziel, dass der Blitz zurück aufs Hauptziel springt (60 %): 20/40/60/80/100 % (17.11.2026)

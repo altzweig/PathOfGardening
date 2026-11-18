@@ -9,11 +9,11 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Arbeitstitel: **PathOfGardening** (früher „Beerenwacht“).
 
 ## Steuerung
-- **PC:** WASD laufen, Maus zielen, linke Maustaste = aktive Waffe (halten = Dauerfeuer), Leertaste = nächste verfügbare Waffe, Esc = Pause.
+- **PC:** WASD laufen, Maus zielen, linke Maustaste = aktive Waffe (halten = Dauerfeuer; mit der Hacke: hacken), rechte Maustaste = Schwung mit der Hacke (immer, egal welche Waffe aktiv ist; seit 18.11.2026), Leertaste = nächste verfügbare Waffe, Esc = Pause.
   - Reihenfolge Harke → Spargel-Armbrust → Schrotflinte → Kohlbombe. Leertaste springt nur auf Waffen, die gerade *bereit* sind.
   - Wird die aktive Waffe leer, wechselt das Spiel automatisch zur nächsten bereiten Nicht-Harke-Waffe, sonst zur Harke.
   - Die aktive Waffe ist unten rechts hervorgehoben.
-- **Mobil:** linker Daumen irgendwo links = laufen. Rechts wischen = Harke zielen. Jede Waffe ist ein eigener Joystick: tippen = automatisch zielen, halten + ziehen = zielen und feuern.
+- **Mobil:** linker Daumen irgendwo links = laufen. Rechts wischen = Schwung mit der Hacke zielen. Großer Knopf = hacken, Knopf darüber = Schwung (seit 18.11.2026). Jede Waffe ist ein eigener Joystick: tippen = automatisch zielen, halten + ziehen = zielen und feuern.
 
 ## Optik
 - Das Spiel ist insgesamt dunkel. Am Rand ist es komplett schwarz, nur Silhouetten von Büschen und Bäumen.
@@ -409,9 +409,9 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
   - Sommer (Jun–Aug): Wasserverbrauch der Felder doppelt (`summer.wetLoss` 2).
   - Winter (Dez–Feb): kein Regen, Boden trocknet langsamer (`winter.wetLoss` 0,5, Annahme). Bei den meisten Pflanzen keine Ernte.
 - **Ernte nur in der echten Erntezeit** (Mitteleuropa, `plants.<typ>.months`). Außerhalb tragen die Felder keine Früchte, auch nicht beim Harken; sie wachsen, heilen und brauchen weiter Wasser. Die Früchte am Busch sind dann nicht zu sehen.
-  - Blaubeere Jul–Sep · Spargel Apr–Jun (bis Johannistag) · Preiselbeere Aug–Okt · Kohl Jun–Feb (Weiß-/Rotkohl Jun–Nov, Grün-/Rosenkohl Nov–Feb) · Chili Aug–Okt · Zitrone Nov–Mär (Sonderfall: in Mitteleuropa nur Kübelpflanze, Haupternte im Mittelmeerraum) · Nuss Sep–Okt.
+  - Heidelbeere (Blaubeere) Jul–Aug · Spargel Apr–Jun (bis Johannistag) · Preiselbeere Sep–Okt (beide seit 18.11.2026, Bastis Vorgabe) · Kohl Jun–Feb (Weiß-/Rotkohl Jun–Nov, Grün-/Rosenkohl Nov–Feb) · Chili Aug–Okt · Zitrone Nov–Mär (Sonderfall: in Mitteleuropa nur Kübelpflanze, Haupternte im Mittelmeerraum) · Nuss Sep–Okt.
   - Im Winter gibt es nur Kohl und Zitronen, im März nur Zitronen. Man muss im Sommer und Herbst Munition für den Winter sammeln.
-  - Blaubeeren sind XP: außerhalb Jul–Sep kommt XP nur von besiegten Tieren.
+  - ~~Blaubeeren sind XP~~ Seit 18.11.2026 geben alle Früchte XP (siehe „Hacke statt Harke“).
 - Optik: Herbst färbt Laub orange-rot und den Rasen strohig, fallende Blätter. Winter: Schnee auf Boden, Bäumen, Büschen und dem Hüttendach, kahle braune Kronen, Schneeflocken, kühleres Licht. Frühling: treibende Blütenblätter. Sommer: wärmeres Licht. Regen: Regenstreifen, Spritzer, graueres Licht, Regenrauschen. Übergänge weich über ein paar Sekunden.
 - HUD: oben mittig unter dem Countdown Jahreszeit-Symbol + Monatsname. Die Wellen-Ansage zeigt unter „Welle N“ den neuen Monat.
 
@@ -422,3 +422,16 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Spieler und Tiere laufen um die Hütte herum (`lager.radius`). Spieler starten und erscheinen nach dem Tod vor der Hütte.
 - Startfelder: Blaubeer- und Preiselbeerfeld direkt unter dem Lager (`arena.startSlots`). Der Hex-Platz in der Mitte gehört dem Lager.
 - Die Lichtung ist ringsum von Waldstücken umgeben. Zwischen ihnen liegen 5 Lücken (`layout.gaps`, Winkel aus der Skizze: oben, oben rechts, unten rechts, unten links, links), nur dort kommen die Gegner herein. In den Lücken stehen keine Bäume, Büsche oder Felsen, nur kurzes Gras und Trittsteine eines Trampelpfads. Der Wald ist dafür etwas dichter.
+
+## Hacke statt Harke (18.11.2026)
+- Die Harke ist ersetzt durch eine **Hacke** (Gartenhacke: Eschenstiel, geschmiedetes Blatt). Die alte Harke liegt im Archiv (`archiv/harke/`: Code, Modell, Werte), sie wird nicht mehr gebaut. Intern heißt das Werkzeug weiter `rake`, Werte stehen unter `hoe` in `balancing.yaml`.
+- **Hacken** (linke Maustaste, großer Knopf): ausholen über den Kopf, dann in den Boden schlagen. Aufschlagstelle ist die **Fußspitze**: der Punkt `hoe.toe` (0,3 m) mittig vor der Figur. Beackert wird **genau ein Feld**, das unter diesem Punkt. Kein Flächenanteil mehr (die Flächen-Mechanik der Harke ist ausgebaut): jeder Hackschlag bringt `fields.tillStroke` s Ertrag, die Früchte fallen aus der getroffenen Pflanze. Geräusch: das Harken-Geräusch (`player.till`). Gegner nimmt das Hacken nur in einem kleinen Kreis um die Aufschlagstelle mit (`hoe.chopDiameter`, `chopDamage`, kurzer Stun).
+- Richtung beim Hacken: Zielen > Laufrichtung > letzte Richtung. Die Hacke dreht nicht zu Gegnern, damit man das Feld trifft, auf dem man steht.
+- **Schwung** (rechte Maustaste, Schwung-Knopf, rechts wischen): Schlag wie mit einem Schwert von links nach rechts, Kegel `hoe.slashArc` 60°, Reichweite `hoe.slashRange` 1 m ab Figurmitte. Treffer in der Mitte des Schwungs: Schaden, Stun, Rückstoß (Bosse nur Schaden). Sichtbar als comicartiger weißer Schwungbogen mit schwarzer Kontur, dazu ein Wusch-Geräusch (`player.slash`). Richtung: Zielen > nächster Gegner in Reichweite > Laufrichtung.
+- Upgrades bleiben (ohne Obergrenze): Schaden gilt für beides, Tempo für beide Abklingzeiten, Reichweite = Schwung, Durchmesser = Hack-Kreis.
+
+## Startfrüchte und Beeren-Schrotflinte (18.11.2026)
+- Heidelbeeren (Blaubeeren) und Preiselbeeren sind die Startfrüchte (`arena.startSlots`). Ernte: Heidelbeere Juli–August, Preiselbeere September–Oktober. Preiselbeeren sehen aus wie bisher.
+- **Alle Früchte geben XP** in ähnlicher Menge: pro Frucht Fruchtwert × `xp.gain`, Faktor pro Sorte in `xp.fruit` (alle 1). Waffenfrüchte geben zusätzlich Munition.
+- Die **Beeren-Schrotflinte** (vorher Preiselbeer-Schrotflinte) ist farblich neutral (Walnussschaft, Eisenlauf, Glasbehälter mit beiden Beeren; neutraler Glanz im HUD) und verschießt **beide Beeren**: Heidelbeeren und Preiselbeeren füllen dieselbe Munition. Die Farbe jeder Beere im Schuss richtet sich nach dem Anteil in der Munition (blaue und rote Beeren, Flecken entsprechend). Der Effekt bleibt vorerst wie er ist, Basti legt ihn neu fest.
+

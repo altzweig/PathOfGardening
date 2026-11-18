@@ -5,7 +5,7 @@ Alle Zahlen kommen aus `balancing.yaml` (Spalte „Parameter“). Die Werte hier
 **Ziehung pro Stufe:** 3 Karten (`upgrades.offersPerLevel`). Freischalt-Karten haben Vorrang, der Rest wird gewichtet zufällig gezogen (Grundgewicht 1, Feld-Karten `upgrades.newFieldWeight`).
 - **Wiederholung:** Jede Karte, die man schon genommen hat, kommt etwas häufiger: Gewicht × (1 + 0,25 × Anzahl genommen) (`upgrades.repeatWeight`).
 - **Aufteilung:** pro Level-up 1 Feld-Karte (vorhandener Typ, Doppelernte oder Feldpflege) + höchstens 2 Waffen-Karten. Alle 5 Level stattdessen 2 neue Feldtypen zur Wahl (`upgrades.fieldCardsPerLevel`, `weaponCardsMax`, `newFieldTypeEvery`, `newFieldTypeChoices`).
-- **Feste Start-Upgrades:** 1. Level-up = 2 neue Feldtypen zur Wahl, alternativ ein weiteres Blaubeerfeld. 2. Level-up = die Waffe zum neuen Feld (ohne Sammel-Bedingung) bzw. Harken-Verbesserungen (`upgrades.firstUpgradeNewField`, `secondUpgradeWeapon`).
+- **Feste Start-Upgrades:** 1. Level-up = 2 neue Feldtypen zur Wahl, alternativ ein weiteres Blaubeerfeld. 2. Level-up = die Waffe zum neuen Feld (ohne Sammel-Bedingung) bzw. Hacken-Verbesserungen (`upgrades.firstUpgradeNewField`, `secondUpgradeWeapon`).
 - Wenn nichts mehr übrig ist, gibt es Kräutertee.
 - Im Koop wählt jeder Spieler eigene Karten. Felder und Doppelernte gelten für alle.
 
@@ -48,14 +48,14 @@ Felder sind flach und 3 m groß (`arena.fieldSize`), liegen lückenlos im Hex-Ra
 
 Eine Waffe gilt als **bereit**, wenn Munition für 3 s Dauerfeuer da ist (`skills.readySeconds`).
 
-## 3. Harke (Startwaffe)
+## 3. Hacke (Startwaffe, seit 18.11.2026 statt Harke)
 
 | Karte | Effekt | Max. | Parameter |
 |---|---|---|---|
-| Durchmesser | Trefferkreis +20 cm Durchmesser (Karte zeigt cm) | unbegrenzt | `upgrades.rakeDiameter` |
-| Reichweite | +20 cm maximale Ausdehnung (Karte zeigt cm) | unbegrenzt | `upgrades.rakeRange` |
-| Schaden | +20 % Grundschaden | unbegrenzt | `upgrades.rakeDamage` |
-| Tempo | Abklingzeit × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Harken | unbegrenzt | `upgrades.rakeSpeed` |
+| Durchmesser | Trefferkreis beim Hacken +20 cm Durchmesser (Karte zeigt cm) | unbegrenzt | `upgrades.rakeDiameter` |
+| Reichweite | Schwung +20 cm Reichweite (Karte zeigt cm) | unbegrenzt | `upgrades.rakeRange` |
+| Schaden | +20 % Schaden (Hacken und Schwung) | unbegrenzt | `upgrades.rakeDamage` |
+| Tempo | Abklingzeiten × 0,9 je Stufe: schneller schlagen und mehr Ertrag beim Hacken | unbegrenzt | `upgrades.rakeSpeed` |
 
 ## 3b. Waffen-Upgrades (für jede freigeschaltete Waffe)
 
@@ -124,5 +124,5 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 
 | Was | Wert | Parameter |
 |---|---|---|
-| Harke | 5 Schaden, Trefferkreis 0,7 m Durchmesser, vordere Kante 1,2 m vor dem Spieler, 0,5 s. Zug nach links hinten, dann Stoß nach vorne: beim Aufprall Schaden, 0,5 s Stun, 0,3 m Rückstoß, beackert alle Felder im Kreis anteilig zur Fläche | `rake.*`, `fields.till*` |
+| Hacke | Hacken: Schlag in den Boden an der Fußspitze (0,3 m vor der Figur), beackert genau das Feld darunter, 5 Schaden im Kreis 0,6 m, alle 0,5 s. Schwung: 60°-Kegel, 1 m, 5 Schaden, 0,5 s Stun, 0,3 m Rückstoß, alle 0,45 s | `hoe.*`, `fields.till*` |
 | Verschmelzen | 10 gleiche Früchte → 1 größere (Wert 1 → 10 → 100) | `fruit.mergeCount`, `fruit.tierValue` |

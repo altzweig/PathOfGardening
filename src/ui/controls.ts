@@ -29,11 +29,13 @@ export function pcControls() {
     <rect x="0" y="0" width="150" height="230" rx="75" fill="#1a2027" stroke="#3a4550" stroke-width="3"/>
     <path d="M75 0 V95 M0 95 H150" stroke="#3a4550" stroke-width="3"/>
     <path d="M4 92 V75 A71 71 0 0 1 75 4 V92 Z" fill="${GOLD}" opacity=".85"/>
+    <path d="M146 92 V75 A71 71 0 0 0 75 4 V92 Z" fill="#ffffff" opacity=".55"/>
     <rect x="66" y="30" width="18" height="40" rx="9" fill="#2b3540" stroke="#3a4550" stroke-width="2"/>
   </g>
   ${arrow(760, 120, 700, 120)}
-  ${label(690, 112, 'Angriff', 'end')}
+  ${icon(skillIcon('rake'), 560, 84, 48)}${label(690, 112, 'Hacken', 'end')}
   ${label(690, 146, '(halten = Dauerfeuer)', 'end', 22, MUT)}
+  ${arrow(910, 120, 950, 170)}${icon(skillIcon('slash'), 900, 176, 64)}${label(932, 262, 'Schwung')}
   ${arrow(835, 95, 835, 40)}${label(835, 30, 'Mausrad: Zoom')}
   <g transform="translate(835 340)">
     <circle r="40" fill="none" stroke="${GOLD}" stroke-width="3" stroke-dasharray="7 6"/>
@@ -53,17 +55,18 @@ export function mobileControls() {
   <circle cx="232" cy="306" r="32" fill="${GOLD}"/>
   ${label(250, 150, 'Laufen', 'middle', 34)}
   ${label(250, 188, 'Daumen irgendwo links', 'middle', 22, MUT)}
-  <!-- right side: drag = aim rake -->
+  <!-- right side: drag = aim + swing the hoe -->
   ${label(600, 150, 'Wischen', 'middle', 30)}
-  ${label(600, 186, 'Harke zielen', 'middle', 22, MUT)}
+  ${icon(skillIcon('slash'), 640, 160, 44)}${label(630, 192, 'Schwung', 'end', 22, MUT)}
   <path d="M560 250 q40 -30 90 -10" stroke="${TXT}" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M650 240 l-14 -10 l2 16 z" fill="${TXT}"/>
   <!-- buttons -->
   <g transform="translate(870 420)">
     <circle r="58" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(skillIcon('rake'), -36, -36, 72)}
   </g>
   <g transform="translate(735 445)"><circle r="40" fill="#1d252d" stroke="#8fe36a" stroke-width="4"/>${icon(skillIcon('asp'), -26, -26, 52)}</g>
-  <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('cran'), -26, -26, 52)}</g>
-  <g transform="translate(880 300)"><circle r="36" fill="#1d252d" stroke="#7fd0ff" stroke-width="4"/>${icon(skillIcon('can'), -24, -24, 48)}</g>
+  <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#e8dcc4" stroke-width="4"/>${icon(skillIcon('cran'), -26, -26, 52)}</g>
+  <g transform="translate(882 318)"><circle r="40" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(skillIcon('slash'), -28, -28, 56)}</g>
+  <g transform="translate(884 222)"><circle r="34" fill="#1d252d" stroke="#7fd0ff" stroke-width="4"/>${icon(skillIcon('can'), -22, -22, 44)}</g>
   <g transform="translate(790 225)"><circle r="40" fill="#1d252d" stroke="#b8f070" stroke-width="4"/>${icon(skillIcon('cab'), -26, -26, 52)}</g>
   ${label(935, 128, 'Tippen = automatisch zielen', 'end', 22, TXT)}
   ${label(935, 100, 'Halten + ziehen = zielen', 'end', 22, TXT)}

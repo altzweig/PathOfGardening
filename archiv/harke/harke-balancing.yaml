@@ -1,0 +1,19 @@
+# ARCHIV (18.11.2026): Werte der alten Harke aus balancing.yaml
+rake:
+  damage: 5                # 16.11.2026 halbiert (vorher 10)
+  range: 1.2               # m, maximale Ausdehnung der Harke (vordere Kante des Trefferkreises)
+  diameter: 0.7            # m, Trefferkreis (Sphere-Overlap) zwischen Zug-Ende vorne und maximaler Ausdehnung, Durchmesser = diese Distanz (17.11.2026, ersetzt die Breite); Treffer + Beackern
+  cooldown: 0.5            # s
+  pullTime: 0.22           # s, Zug: Harke in einem Schwung von vorne nach links hinten ziehen (17.11.2026, immer gleich, nicht mehr abwechselnd)
+  pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
+  stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
+  knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
+upgrades:
+  rakeDiameter:   { step: 0.20 }               # Harke Trefferkreis +20 cm Durchmesser, ohne Obergrenze (17.11.2026)
+  rakeRange:      { step: 0.20 }               # Harke +20 cm weiter (maximale Ausdehnung), ohne Obergrenze
+  rakeDamage:     { step: 0.20 }               # Harke +20 % Grundschaden (additiv), ohne Obergrenze
+  rakeSpeed:      { step: 0.10 }               # Harke Abklingzeit x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
+fields:
+  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
+  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
+                           # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch

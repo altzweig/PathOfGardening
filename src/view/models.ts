@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { lemonWand, rakeHandle, rakeHeadModel } from './arsenal';
+import { hoeModel, lemonWand } from './arsenal';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
 import { ANIMAL_EYE, makeAnimal, type Animal } from './animals';
 import type { Look } from '../look';
-import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
+import { GEO, M, envU, part, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
 export const FRUIT_COL: Record<FruitType, string> = { blue: '#4a64f0', asp: '#8fe36a', cran: '#f0306a', cab: '#b8f070', lemon: '#ffe44a', chili: '#ff3a1a', nut: '#c08a4a' };
@@ -38,6 +38,8 @@ export const ASP_TIP_BUSH = new THREE.MeshStandardMaterial({ color: 0x6a3a88, ro
 export const PROJ_ASP = new THREE.MeshStandardMaterial({ color: 0xb8ff70, emissive: 0x8cff3a, emissiveIntensity: 3.2, roughness: .4 });
 export const PROJ_ASP_TIP = new THREE.MeshStandardMaterial({ color: 0xd8a0ff, emissive: 0xb050ff, emissiveIntensity: 3.2 });
 export const PROJ_CRAN = new THREE.MeshStandardMaterial({ color: 0xff4a5e, emissive: 0xff1a3a, emissiveIntensity: 3.6, roughness: .3 });
+/** blueberry pellet of the berry shotgun (18.11.2026: the shotgun fires both berries) */
+export const PROJ_BLUE = new THREE.MeshStandardMaterial({ color: 0x6a7cff, emissive: 0x2a3cff, emissiveIntensity: 3.2, roughness: .3 });
 export const PROJ_CAB = new THREE.MeshStandardMaterial({ color: 0xc8ff90, emissive: 0x8ae040, emissiveIntensity: 1.8, roughness: .6, flatShading: true });
 
 /** berry: slightly flattened sphere with a sunken dark star-shaped crown on top (blueberry big, lingonberry small) */
@@ -57,7 +59,7 @@ function berryGeo(crown: number) {
 export const BERRY_GEO = { blue: berryGeo(.2), cran: berryGeo(.1) };
 export function fruitMesh(type: FruitType, scale: number, glow = true, proj = false) {
   const g = new THREE.Group();
-  const mat = proj ? (type === 'asp' ? PROJ_ASP : type === 'cran' ? PROJ_CRAN : PROJ_CAB) : glow ? GROUND_MAT[type] : BUSH_MAT[type];
+  const mat = proj ? (type === 'asp' ? PROJ_ASP : type === 'cran' ? PROJ_CRAN : type === 'blue' ? PROJ_BLUE : PROJ_CAB) : glow ? GROUND_MAT[type] : BUSH_MAT[type];
   if (type === 'asp') {
     const st = part(g, GEO.cyl, mat, .035, .38, .035, 0, 0, 0); st.rotation.z = Math.PI / 2;
     const tp = part(g, GEO.cone, proj ? PROJ_ASP_TIP : glow ? ASP_TIP_GROUND : ASP_TIP_BUSH, .045, .1, .045, .22, 0, 0); tp.rotation.z = -Math.PI / 2;
@@ -116,22 +118,14 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
 }
 
 export const PLAYER_RING = [0xffd890, 0x8fc8ff, 0xff9a8a, 0xd0a0ff];
-/** rake head as wide as the raked strip: one tine per scratch, same spacing (wider rake = more tines) */
-export function rakeHead(w: number) {
-  const head = rakeHeadModel(rakeTines(w), TINE_GAP, w);
-  head.userData.w = w; return head;
-}
-export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
+export function buildPlayer(look: Look) {
   const g = new THREE.Group();
-  const wood = M(0x7a5230);
   const body = new THREE.Group(); g.add(body);
   // detailed farmer figure (character editor look), hands follow the weapons via IK (view.animPlayer)
   const rig = buildFarmer(look); body.add(rig.root);
-  // rake: pivot at the player, head reaches exactly the hit range so the swing matches the cone
+  // hoe (weapon id 'rake'): `rake` = pivot in the hands (position + pitch/yaw animated), `head` = the hoe itself, slides through the hands
   const rake = new THREE.Group(); rake.position.set(0, .62, 0); rake.rotation.order = 'YXZ'; g.add(rake);
-  const L = rakeLen - .12;
-  rake.add(rakeHandle(L)); void wood;
-  const head = rakeHead(rakeW); head.position.z = L; rake.add(head);
+  const head = hoeModel(); rake.add(head);
   // lemon wand (Citrateaser): second arm + slim wooden wand with a lemon on the tip, only while equipped
   const wand = new THREE.Group(); wand.visible = false; body.add(wand);
   const stick = new THREE.Group(); stick.position.set(-.25, .67, .22); stick.rotation.set(-.42, .2, 0, 'YXZ'); wand.add(stick); // in the hand, tilted up, pointing slightly inward
@@ -139,7 +133,7 @@ export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
   const wandTip = new THREE.Object3D(); wandTip.position.set(0, 0, .53); stick.add(wandTip);
   const stars = new THREE.Group(); stars.position.y = 1.55; stars.visible = false; g.add(stars);
   for (let i = 0; i < 3; i++) part(stars, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffe066 }), .05, .05, .05, Math.cos(i * 2.1) * .25, 0, Math.sin(i * 2.1) * .25, false);
-  return { g, body, rake, head, stars, L, wand, wandTip, wandGrip: stick, lemonMat, rig };
+  return { g, body, rake, head, stars, wand, wandTip, wandGrip: stick, lemonMat, rig };
 }
 
 // eye colours requested for the darkness: panda orange, raccoon blue, toad green

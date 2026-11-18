@@ -84,6 +84,8 @@ export const SND: Record<string, (arg?: any) => void> = {
   /** watering can: soft, continuous trickle (a few overlapping filtered noise drops) */
   pour() { if (!can('pour', .09)) return; noise({ t: .22, vol: .05, type: 'bandpass', f: rand(2200, 3200), q: .9, at: .04 }); for (let i = 0; i < 3; i++) noise({ t: rand(.02, .05), vol: rand(.02, .05), type: 'bandpass', f: rand(3500, 7000), q: rand(2, 5), when: rand(0, .09), at: .002 }); },
   rake() { if (can('rake', .08)) noise({ t: .16, vol: .18, type: 'bandpass', f: 2600, f2: 500, q: 1.2 }); },
+  /** hoe swing: comic sword whoosh (airy band-pass sweep up then down, a short low swoosh underneath) */
+  whoosh() { if (!can('whoosh', .08)) return; noise({ t: .2, vol: .2, type: 'bandpass', f: 700, f2: 2600, q: 1.6, at: .05 }); noise({ t: .14, vol: .12, type: 'bandpass', f: 3200, f2: 900, q: 2, when: .1, at: .01 }); tone({ type: 'sine', f: 180, f2: 90, t: .16, vol: .05, at: .04 }); },
   /** n = number of enemies hit by one swing: one punch per target, slightly staggered */
   punches(n: number) { if (!can('punch', .06)) return; const k = Math.min(5, n); for (let i = 0; i < k; i++) comicPunch(i * .045, n); },
   /** crossbow: string twang + wooden clack */

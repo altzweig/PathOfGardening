@@ -49,7 +49,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { can?: { g: THREE.Group; tilt: THREE.Group; spout: THREE.Object3D; grip: THREE.Object3D; decT: number }; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -76,7 +76,7 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
+interface FieldView { wbar: THREE.Group; wet: number; wetV: number; grow: number; growV: number; wetMats: THREE.MeshStandardMaterial[]; bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; ripe?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -408,13 +408,16 @@ export class GameView {
       if (!v) v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]);
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
-      // 0 HP: the plant wilts (brown, squashed, no fruit) until it is raked back above 0 HP, then it grows back fresh
-      if (v.alive && f[2] <= 0 && !v.wilt) { this.killField(v); v.wilt = true; }
-      else if (v.wilt && f[2] > 0) { this.removeField(f[0], v); v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]); }
+      // wilted (0 HP, or regrowing below 10 % HP): brown, squashed, no fruit; once watered back up it sprouts as fresh seedlings
+      const look = f[12] ?? 1;
+      if (v.alive && look < 0 && !v.wilt) { this.killField(v); v.wilt = true; }
+      else if (v.wilt && look >= 0) { const wv = v.wetV; this.removeField(f[0], v); v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]], false); v.wetV = wv; v.growV = look; }
+      v.wet = (f[11] ?? 100) / 100; v.grow = Math.max(0, look);
+      setBar(v.wbar, v.wet); v.wbar.visible = v.alive;
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
       v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
-      v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
+      v.shake = f[4];
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches([], hexR(this.cfg)); } // no torches at the beds any more
@@ -509,7 +512,7 @@ export class GameView {
     }
     for (const [k, v] of map) if (v.seen !== id) { this.dyn.remove(v.m); map.delete(k); }
   }
-  private makeField(slot: number, type: FruitType, p: { x: number; z: number }) {
+  private makeField(slot: number, type: FruitType, p: { x: number; z: number }, fresh = true) {
     const H = hexR(this.cfg);
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
     // flat bed, flush with the ground: walkable, no collider
@@ -522,8 +525,12 @@ export class GameView {
       bed.receiveShadow = true; g.add(bed);
     } else {
       const spots: [number, number][] = type === 'nut' ? [[0, 0]] : [0, 1, 2, 3, 4, 5].map(k => triPlant(0, 0, H, k));
-      const bed = buildBed(H, spots); g.add(bed); bedMat = (bed.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      // own materials per bed: the soil darkens with the field's wetness
+      const bed = buildBed(H, spots); g.add(bed);
+      for (const c of bed.children) { const m = c as THREE.Mesh; m.material = (m.material as THREE.MeshStandardMaterial).clone(); }
+      bedMat = (bed.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
     }
+    const wetMats = g.children.flatMap(c => c.children.length ? c.children.map(x => (x as THREE.Mesh).material as THREE.MeshStandardMaterial) : [(c as THREE.Mesh).material as THREE.MeshStandardMaterial]);
     // rim kept only as data holder for the rarity colour (no visible UI line any more)
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
     const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
@@ -553,10 +560,17 @@ export class GameView {
       lava = new THREE.Mesh(softBedGeo(H * .92, rand(0, 99)), new THREE.MeshBasicMaterial({ map: lavaTex, vertexColors: true, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    // wetness bar under the HP bar: blue, no number, marks at 60 % (wet: grows + heals) and 10 % (below: drought)
+    const wbar = makeBar(1.1, .05, 0x3a9cff), FC = this.cfg.fields;
+    for (const [t, col] of [[FC.wetGrow / 100, 0xffffff], [FC.wetDrought / 100, 0xff7a50]] as [number, number][]) {
+      const tick = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: col, depthTest: false, toneMapped: false }));
+      tick.scale.set(.018, .1, 1); tick.position.set(-.55 + 1.1 * t, 0, .003); tick.renderOrder = 1000; wbar.add(tick);
+    }
+    wbar.position.set(p.x, 1.1, p.z); wbar.children.forEach(c => c.position.y -= .1);
+    const v: FieldView = { wbar, wet: 1, wetV: -1, grow: 0, growV: fresh ? 0 : -1, wetMats, bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
-    burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
+    if (fresh) burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
     return v;
   }
   /** rim = loading bar: an energy pulse runs clockwise, one edge per harvest; tilled fields glow and wiggle */
@@ -599,6 +613,19 @@ export class GameView {
       c.rotation.z = Math.cos(now * 27 + i * 1.3) * .28 * cb;
       c.scale.y = (c.userData.sy ?? 1) * (1 - (one ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
     });
+    // wetness: the soil gets darker and a little glossier the wetter it is (eases towards the value)
+    v.wetV = v.wetV < 0 ? v.wet : lerp(v.wetV, v.wet, Math.min(1, dt * 3));
+    const d = 1 - .38 * v.wetV;
+    v.wetMats.forEach((m, i) => {
+      if (m.userData.r0 === undefined) { m.userData.r0 = m.roughness; m.userData.o0 = m.opacity; }
+      if (i === 0) { m.color.setRGB(d, d * .97, d * .95); m.roughness = m.userData.r0 * (1 - .35 * v.wetV); } // soil
+      else m.opacity = m.userData.o0 * (.25 + .75 * v.wetV); // dark wet patches around the plants grow with the wetness
+    });
+    // growth: small seedlings without fruit -> grown plants (eased); a wilted plant stays squashed
+    v.growV = v.growV < 0 ? v.grow : lerp(v.growV, v.grow, Math.min(1, dt * 4));
+    const gs = v.wilt ? 1 : .28 + .72 * v.growV, rb = 1 + v.rarity * .08;
+    v.plant.scale.set(rb * gs, (v.alive && !v.wilt ? rb : .55) * (v.ftype === "nut" ? 1 : 1 + v.shake * .4) * gs, rb * gs);
+    const ripe = !v.wilt && v.grow >= 1; if (v.ripe !== ripe) { v.ripe = ripe; v.fruits.forEach(m => m.visible = ripe); }
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
   private rakeStroke(slot: number, a: number, mask: number, w?: number[]) {
@@ -635,7 +662,7 @@ export class GameView {
   /** dead plant sinks into the ground and crumbles to dust, then the slot is empty */
   private vanishing: { g: THREE.Group; pl: THREE.Group; t: number }[] = [];
   private vanishField(slot: number, v: FieldView) {
-    this.dyn.remove(...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot);
+    this.dyn.remove(...v.pulse); barGroup.remove(v.bar, v.wbar); this.fields.delete(slot);
     burst(V(v.x, .3, v.z), 0x6a5236, 26, 1.6, .22, .9, { g: 3 });
     this.vanishing.push({ g: v.g, pl: v.plant, t: 0 });
   }
@@ -646,7 +673,7 @@ export class GameView {
       if (k >= 1) { this.dyn.remove(q.g); this.vanishing.splice(i, 1); }
     }
   }
-  private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g, ...v.pulse); barGroup.remove(v.bar); this.fields.delete(slot); }
+  private removeField(slot: number, v: FieldView) { this.dyn.remove(v.g, ...v.pulse); barGroup.remove(v.bar, v.wbar); this.fields.delete(slot); }
   private killField(v: FieldView) {
     v.mats.leaf.color.set(0x4a3a24); v.mats.head.color.set(0x5a4a2a); v.plant.scale.set(1, .55, 1);
     v.fruits.forEach(f => f.visible = false);
@@ -786,7 +813,7 @@ export class GameView {
         if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
       }
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
-      for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
+      for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); f.wbar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
     this.animVanish(dt);
     this.updateOverlay();
@@ -848,9 +875,10 @@ export class GameView {
     this.animFlame(v, dt);
     this.animXbow(v);
     this.animBaseHeld(v);
+    this.animCan(v, dt);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.can?.g.visible || v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -878,6 +906,7 @@ export class GameView {
     else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
     else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
+    else if (v.can && v.can.g.visible) { v.can.g.updateMatrixWorld(true); t0 = v.can.grip.getWorldPosition(V()); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
@@ -893,6 +922,42 @@ export class GameView {
     if (!on || !cid) return;
     if (!v.cw) { v.cw = buildHeld(cid); v.g.add(v.cw.g); }
     v.cw.g.visible = true; animHeld(v.cw, v.cwT);
+  }
+  /** watering can in the hand while it is the active tool or pouring: swings with the pour angle (left -> right),
+   *  tilts forward, a water arc runs from the rose to the ground and leaves wet spots where it lands */
+  private animCan(v: PView, dt: number) {
+    const s = v.s, pouring = s.wa != null && !!s.al, on = !!s.al && (pouring || (s.aw ? WEAPONS[s.aw] === 'can' : false));
+    if (!on && !v.can) return;
+    if (!v.can) {
+      const g = new THREE.Group(), tilt = new THREE.Group(); g.add(tilt);
+      const tin = M(0x7fa6b8, { m: .55, r: .35 }), dark = M(0x4f6f7e, { m: .5, r: .4 });
+      part(tilt, GEO.cyl, tin, .09, .17, .09, 0, 0, 0); // body (cyl: radius 1, height 1)
+      part(tilt, GEO.cyl, dark, .093, .02, .093, 0, .085, 0); // rim
+      const sp = new THREE.Group(); sp.position.set(0, -.02, .08); sp.rotation.x = .85; tilt.add(sp); // spout pointing forward/up
+      part(sp, GEO.cyl, tin, .015, .26, .015, 0, .13, 0);
+      const rose = new THREE.Object3D(); rose.position.set(0, .27, 0); sp.add(rose);
+      part(sp, GEO.cyl, dark, .032, .025, .032, 0, .27, 0);
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(.075, .012, 6, 14, Math.PI), dark); handle.position.set(0, .1, -.01); handle.rotation.y = Math.PI / 2; tilt.add(handle);
+      const grip = new THREE.Object3D(); grip.position.set(0, .175, -.01); tilt.add(grip);
+      g.position.set(.06, .62, .3); v.g.add(g);
+      v.can = { g, tilt, spout: rose, grip, decT: 0 };
+    }
+    const C = v.can; C.g.visible = on; if (!on) return;
+    const rel = pouring ? Math.atan2(Math.sin(s.wa! - v.rot), Math.cos(s.wa! - v.rot)) : 0;
+    C.g.rotation.y = lerp(C.g.rotation.y, rel, Math.min(1, dt * 14));
+    C.tilt.rotation.x = lerp(C.tilt.rotation.x, pouring ? .75 : 0, Math.min(1, dt * 8));
+    if (!pouring) return;
+    // water: drops leave the rose and fly in an arc onto the landing point (reach m in front along the pour angle)
+    const W = this.cfg.can, tx = v.x + Math.sin(s.wa!) * W.reach, tz = v.z + Math.cos(s.wa!) * W.reach;
+    const p0 = C.spout.getWorldPosition(V()), T = .32;
+    const n = Math.max(1, Math.round(dt * 90));
+    for (let i = 0; i < n; i++) {
+      const jx = rand(-1, 1) * W.radius * .6, jz = rand(-1, 1) * W.radius * .6, t = T * rand(.9, 1.1);
+      PART.spawn(p0, V((tx + jx - p0.x) / t, (-p0.y + .5 * 9.8 * t * t) / t, (tz + jz - p0.z) / t), Math.random() < .5 ? 0x4aa8ff : 0x9ad8ff, rand(.07, .11), t, { g: 9.8, a: .8, s1: .05 });
+    }
+    if (Math.random() < dt * 25) { const a = rand(0, 7); PART.spawn(V(tx + rand(-.15, .15), .05, tz + rand(-.15, .15)), V(Math.cos(a) * .6, rand(.6, 1.3), Math.sin(a) * .6), 0xbfe8ff, .07, .35, { g: 9.8, a: .8 }); } // splashes
+    C.decT -= dt; if (C.decT <= 0) { C.decT = .08; decal(tx + rand(-.06, .06), tz + rand(-.06, .06), 0x10161e, W.radius * rand(.8, 1.1), 2.5, { op: .35 }); } // wet spot where it lands
+    if (s.id === this.me) play('pour');
   }
   /** cranberry blunderbuss / tied cabbage in the hand while that weapon is active */
   private animBaseHeld(v: PView) {
@@ -1045,6 +1110,7 @@ export class GameView {
     if (!me || !me.s.al || !a.show || !a.weapon || !this.snap) return;
     const w = a.weapon, ang = Math.atan2(a.x, a.z), px = me.x, pz = me.z, priv = this.snap.me[this.me];
     const rng = (id: SkillId) => priv ? priv.rg[SKILLS.indexOf(id)] : 1;
+    if (w === 'can') return; // no marker: the water shows where it lands
     const cid = w !== 'rake' && priv ? comboOf(priv.cb?.[SKILLS.indexOf(w)] ?? -1) : '';
     if (cid === 'chilight') { // lightning wave: long strip as wide as the wave
       const m = this.aimInd.asp, r = rng('chili'), C = this.cfg.combos!.list.chilight;

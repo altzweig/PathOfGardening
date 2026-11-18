@@ -28,7 +28,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 
 ## Felder und Bauen (15.11.2026)
 - Felder sind flach, 3 m groß (Ecke zu Ecke) und liegen lückenlos im Hex-Raster. Kein Collider: Spieler und Gegner laufen drüber, Früchte sammelt man im Vorbeilaufen. Gegner greifen ein Feld an, indem sie draufgehen.
-- Wer mit seinem Mittelpunkt auf einem Feld steht, heilt es (1 HP/s).
+- ~~Wer mit seinem Mittelpunkt auf einem Feld steht, heilt es (1 HP/s).~~ Entfällt seit 18.11.2026, siehe „Nässe, Gießkanne und Wachstum“.
 - Feld-Karten gibt es für alle Typen und beliebig oft. Nach der Wahl öffnet sich eine Bauansicht von oben, in der man das Feld auf einen Platz setzt: freier Platz = neues Feld, anderer Typ = überbauen, gleicher Typ = Seltenheit hochleveln (1, 2, 3, 4 Felder bis Ungewöhnlich, Selten, Episch, Legendär).
 - Seltenheit: Produktion x1,5 je Stufe (multiplikativ) und +10 % für jedes angrenzende Feld je Stufe (additiv). Annahme: Der Nachbarbonus wächst mit jeder Seltenheitsstufe des Feldes, nicht nur einmal.
 - Bauansicht: Farbe des Platzes zeigt das Ergebnis (weiß frei, gold hochleveln, rot überbauen), Punkte zeigen den Fortschritt zur nächsten Seltenheit. Rand eines Feldes = Seltenheitsfarbe (grau, grün, blau, lila, orange).
@@ -115,7 +115,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 
 ## Startfelder, Heilen, Zitronenbäumchen (16.11.2026)
 - Das Spiel startet mit einem Blaubeerfeld in der Gartenmitte (17.11.2026, vorher drei). Startfelder nehmen keinen Schaden, solange noch irgendein anderes Gartenfeld HP hat. Erst wenn alle anderen auf 0 HP sind, werden sie verwundbar (Stand 17.11.2026, siehe „Felder gehen nicht kaputt“).
-- Beackern heilt: das beackerte Feld, den beackernden Spieler und im Koop alle Mitspieler, die mit dem Mittelpunkt auf diesem Feld stehen (je 1 HP/s). Die Feldpflege-Karte erhöht beide Werte.
+- ~~Beackern heilt: das beackerte Feld, den beackernden Spieler und im Koop alle Mitspieler, die mit dem Mittelpunkt auf diesem Feld stehen (je 1 HP/s). Die Feldpflege-Karte erhöht beide Werte.~~ Entfällt seit 18.11.2026: Die Harke heilt nichts mehr, die Feldpflege-Karte ist raus.
 - Zitronenbäumchen ab Level 10 als neuer Feldtyp: kleiner Baum, bei jeder Ernte zuckt ein Blitz zwischen den Zitronen und sie leuchten kurz auf.
 - Citrateaser (Munition Zitronen): trifft genau 1 Ziel direkt (16 Schaden, 1 Angriff/s), springt auf bis zu 2 Nachbarn (50 %), die je auf 2 weitere (25 %). Max. 100 % + 2×50 % + 4×25 % = 300 %. Das erste Ziel lässt seine Beute fallen. Spezial-Upgrades: +1 Ziel (3. Glied → 2. Glied → Hauptziel) und +10 % Weiterleitung (4×).
 - Treffer-Aufblitzen der Gegner halbiert, damit Bloom nicht mehr überstrahlt.
@@ -388,3 +388,13 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Tod: Tiere kippen auf die Seite (Kröte auf den Rücken), zucken kurz und sinken nach 1,6 s in den Boden. Höchstens 24 gleichzeitig, sonst verschwinden sie sofort.
 - Der Boss hat ein eingerissenes Ohr, eine Narbe und ein rotes Halstuch.
 - Vorschauseite für alle Tiere und Animationen: `tiere.html` (nicht im Spiel verlinkt).
+
+## Nässe, Gießkanne und Wachstum (18.11.2026)
+- **Neue Felder** starten als kleine Setzlinge ohne Früchte mit 1/10 der HP (`fields.seedlingHp`). Sie wachsen nur, solange die Nässe über 60 % liegt, und sind nach insgesamt 60 s Wachstum ausgewachsen (`fields.growTime`). Erst ausgewachsene Felder tragen Früchte (Wachstum am Rand und Harken-Ertrag). Gilt auch für das Startfeld.
+- **Nässe** 0–100 pro Feld, ohne Zahl: blaue Leiste unter der HP-Leiste mit Markierung bei 60 % (nass) und 10 % (darunter Dürre). Das Beet wird mit der Nässe dunkler, die dunklen Flecken um die Pflanzen werden kräftiger. Jedes Feld verliert 1 Nässe/s (`fields.wetLoss`). Neue Felder starten mit 100 Nässe (`fields.wetStart`, Annahme); Überbauen behält die Nässe des Bodens.
+- **Über 60 % Nässe:** Feld wächst und heilt 1 HP/s (`fields.wetHeal`). **Unter 10 %:** kein Ertrag mehr und das Feld vertrocknet mit 5 HP/s (`fields.droughtDamage`). Dazwischen normaler Ertrag (weiter proportional zu den HP), aber kein Wachstum und keine Heilung.
+- **Heilen nur noch über Nässe:** Die Harke heilt weder Felder noch Spieler, Draufstehen heilt nicht mehr, die Feldpflege-Karte ist entfernt. Kräutertee (Notfall-Karte) heilt weiterhin.
+- **Tote Felder (0 HP)** welken. Über 60 % Nässe heilen sie wieder: ab 10 % HP sind wieder Setzlinge zu sehen, die mitwachsen, bei 50 % HP ist das Feld wieder ausgewachsen (`fields.regrowAt`, `fields.regrowGrownAt`, nur beim Heilen von 0 HP). Danach normales Verhalten. Dürre wirkt auch auf die Startfelder; vertrocknen alle Gartenfelder, ist das Spiel vorbei.
+- **Gießkanne:** Startwerkzeug neben der Harke, immer verfügbar. Gießen schwenkt die Kanne in 1 s um 50° von links nach rechts (gehalten: Schwenk auf Schwenk, Richtung folgt dem Zielen). Das Wasser landet 1,2 m vor dem Spieler (`can.reach`, Annahme) in einem Kreis mit 0,25 m Radius; jedes Feld, das der Kreis berührt, bekommt 10 Nässe/s. Werte unter `can`.
+- Steuerung: PC Leertaste wechselt Harke › Gießkanne › Waffen, Linksklick gießt. Mobile: eigener Knopf über der Harke; Tippen gießt einen Schwenk zum nächsten nicht nassen Feld, Halten + Ziehen zielt. Optik: Blechkanne in der Hand, Wasserbogen mit Spritzern, dunkle nasse Stelle am Auftreffpunkt, leises Plätschern.
+

@@ -13,6 +13,7 @@
 names:
   skills:
     rake: Harke
+    can: Gießkanne
     asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
     cab: Kohlbombe
@@ -57,7 +58,6 @@ names:
     kimchi: Splittert 3 × 3 · brennende Lache
     chilight: Schlag · Blitzwelle schleudert Gegner weg
   tea: Kräutertee
-  care: Feldpflege          # Upgrade: Beackern heilt das Feld
   # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
   hints:
     dmg: Schaden
@@ -77,7 +77,6 @@ names:
     chili_dmg: Brandschaden
     sweep: Schwenk
     tick: Brandtempo
-    till: Heilen beim Beackern
     yield: Doppelernte
     tea: Heilung
   # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
@@ -131,11 +130,19 @@ forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im W
 
 fields:
   hp: 100
-  healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
-  tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
-  tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
   # Felder gehen nie kaputt: bei 0 HP welken sie und produzieren nichts. Ertrag = HP-Anteil (100 % HP = 100 % Ertrag, 50 % HP = 50 %),
-  # gilt für Wachstum und Harken-Ertrag. Beackern (und Draufstehen) heilt auch Felder mit 0 HP wieder. Kein XP beim Fall auf 0 HP. (17.11.2026)
+  # gilt für Wachstum und Harken-Ertrag. Kein XP beim Fall auf 0 HP. (17.11.2026)
+  # Nässe + Wachstum (18.11.2026): Felder heilen nur noch über Nässe. Harke und Draufstehen heilen nicht mehr, Feldpflege-Upgrade entfernt.
+  seedlingHp: 0.1          # neues Feld startet als kleine Setzlinge ohne Früchte mit 1/10 der HP
+  growTime: 60             # s über wetGrow Nässe, bis die Setzlinge ausgewachsen sind (erst dann Ertrag)
+  wetStart: 100            # Nässe eines neu gepflanzten Feldes (0-100; Überbauen behält die Nässe des Bodens)
+  wetLoss: 1               # Nässe, die ein Feld pro s verliert
+  wetGrow: 60              # über dieser Nässe wächst das Feld und heilt (Markierung auf der Nässe-Leiste)
+  wetHeal: 1               # HP/s Heilung über wetGrow
+  wetDrought: 10           # unter dieser Nässe: Dürre, kein Ertrag (Markierung auf der Nässe-Leiste)
+  droughtDamage: 5         # HP/s Verlust in der Dürre (vertrocknen)
+  regrowAt: 0.1            # welkes Feld (0 HP) heilt nur über wetGrow; ab diesem HP-Anteil sind wieder Setzlinge zu sehen
+  regrowGrownAt: 0.5       # ab diesem HP-Anteil ist ein nachwachsendes Feld wieder ausgewachsen (nur beim Heilen von 0 HP)
   # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
@@ -178,6 +185,13 @@ rake:
   pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
   stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
   knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
+
+can:                       # Gießkanne (18.11.2026): Startwerkzeug neben der Harke
+  arc: 50                  # Grad, schwenkt von links nach rechts
+  sweepTime: 1             # s für einen vollen Schwenk (gehalten: Schwenk auf Schwenk)
+  reach: 1.2               # m vor dem Spieler landet das Wasser
+  radius: 0.25             # m, Dicke des Gießbereichs (Kreis um den Auftreffpunkt)
+  wetPerSecond: 10         # Nässe pro s für jedes Feld, das der Gießbereich berührt
 
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
@@ -264,7 +278,6 @@ upgrades:
   rakeRange:      { step: 0.20 }               # Harke +20 cm weiter (maximale Ausdehnung), ohne Obergrenze
   rakeDamage:     { step: 0.20 }               # Harke +20 % Grundschaden (additiv), ohne Obergrenze
   rakeSpeed:      { step: 0.10 }               # Harke Abklingzeit x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
-  tillHeal:       { step: 1, maxLevel: 5, weight: 1.2 }  # Feldpflege: +1 HP/s je Stufe auf Feld- UND Spieler-Heilung beim Beackern; Ziehgewicht 1,2
   lemonTargets:   { step: 1,    maxLevel: 5 }  # Kettenziele nach Direkttreffer: 0 -> 1/2/3/4/5 (je 60 % Schaden) (17.11.2026)
   lemonEfficiency: { step: 0.10, maxLevel: 5 } # Schadenseffizienz: Ketten- und Rückblitzschaden 50 -> 60/70/80/90/100 % (17.11.2026)
   lemonTransfer:  { step: 0.20, maxLevel: 5 }  # Rückblitz: Chance je Kettenziel, dass der Blitz zurück aufs Hauptziel springt (60 %): 20/40/60/80/100 % (17.11.2026)

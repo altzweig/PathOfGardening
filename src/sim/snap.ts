@@ -22,6 +22,7 @@ export interface PSnap {
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
+  wa?: number | null; // watering can: pour angle (rad) while watering, null otherwise
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string }
@@ -45,8 +46,8 @@ export type MSnap = [number, number, number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]
 // pool: [id, x, z, radius, lifeFrac]
 export type PuSnap = [number, number, number, number, number, number]; // + burning (Kimchi)
-/** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
-export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number];
+/** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second, wetness 0..100, plant look (-1 wilted, 0 seedlings .. 1 grown) */
+export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, number];
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768 } as const;
 

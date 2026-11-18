@@ -65,6 +65,8 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill[data-skill=rake]{width:96px;height:96px;right:24px;bottom:24px}
 .skill[data-skill=rake] .charge{display:none}
 .skill:not([data-skill=rake]){width:70px;height:70px;right:155px;bottom:37px}
+.skill[data-skill=can]{width:64px;height:64px;right:40px;bottom:150px;--glow:#7fd0ff}
+.skill[data-skill=can] .charge{display:none}
 .skill[data-skill=asp]{--glow:#8fe36a}
 .skill[data-skill=cran]{--glow:#ff4d5e}
 .skill[data-skill=cab]{--glow:#b8f070}
@@ -73,9 +75,9 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 /* weapon positions around the rake, in the order the weapons were learned */
 .skill[data-pos="0"]{right:155px;bottom:37px}
 .skill[data-pos="1"]{right:120px;bottom:120px}
-.skill[data-pos="2"]{right:37px;bottom:155px}
-.skill[data-pos="3"]{right:172px;bottom:170px}
-.skill[data-pos="4"]{right:240px;bottom:100px}
+.skill[data-pos="2"]{right:172px;bottom:170px}
+.skill[data-pos="3"]{right:240px;bottom:100px}
+.skill[data-pos="4"]{right:100px;bottom:230px}
 /* PC: buttons only show state, the active weapon is marked */
 body[data-input=pc] .skill{pointer-events:none}
 body[data-input=pc] .skill.active{transform:scale(1.12)}

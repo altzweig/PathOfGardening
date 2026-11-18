@@ -1,4 +1,4 @@
-import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon, isTool } from '../config';
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -19,9 +19,9 @@ export class Hud {
     const el = $('#ammoPop'), pr = s.me[me], st = this.ammo;
     if (!pr || !pos) { el.style.opacity = '0'; return; }
     const w = WEAPONS[pr.ac];
-    if (w !== st.w) { st.w = w; st.vis = w === 'rake' ? 0 : A.showOnSwitch; st.armed = true; st.last = -1; }
+    if (w !== st.w) { st.w = w; st.vis = isTool(w) ? 0 : A.showOnSwitch; st.armed = true; st.last = -1; }
     let target = 0;
-    if (w !== 'rake') {
+    if (!isTool(w)) {
       const i = SKILLS.indexOf(w as any), am = pr.am[i], secs = Math.floor(am / Math.max(1, pr.co[i])) * pr.cs[i];
       if (secs > A.lowSeconds) st.armed = true; // refilled: warn again next time
       else if (st.armed) { st.armed = false; st.vis = Math.max(st.vis, A.lowShow); }
@@ -37,9 +37,9 @@ export class Hud {
   constructor() {
     const box = $('#btns');
     for (const w of WEAPONS) {
-      const b = document.createElement('div'); b.className = 'skill' + (w === 'rake' ? '' : ' grey'); b.dataset.skill = w;
-      b.innerHTML = `<div class="charge"></div><div class="face">${skillIcon(w)}</div><div class="kn"></div>${w === 'rake' ? '' : '<span class="ammo">0</span>'}`;
-      if (w !== 'rake') b.hidden = true;
+      const b = document.createElement('div'); b.className = 'skill' + (isTool(w) ? '' : ' grey'); b.dataset.skill = w;
+      b.innerHTML = `<div class="charge"></div><div class="face">${skillIcon(w)}</div><div class="kn"></div>${isTool(w) ? '' : '<span class="ammo">0</span>'}`;
+      if (!isTool(w)) b.hidden = true;
       box.appendChild(b); this.btn[w] = b;
     }
   }

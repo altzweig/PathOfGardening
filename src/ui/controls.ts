@@ -19,10 +19,11 @@ export function pcControls() {
   <!-- Space -->
   ${key(330, 400, 330, 70, 'Leertaste', true, 26)}
   ${label(495, 510, 'Waffe wechseln')}
-  ${icon(skillIcon('rake'), 360, 320, 52)}<text x="425" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('asp'), 445, 320, 52)}<text x="510" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('cran'), 530, 320, 52)}<text x="595" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('cab'), 615, 320, 52)}
+  ${icon(skillIcon('rake'), 318, 320, 52)}<text x="376" y="355" font-size="30" fill="${MUT}">›</text>
+  ${icon(skillIcon('can'), 392, 320, 52)}<text x="450" y="355" font-size="30" fill="${MUT}">›</text>
+  ${icon(skillIcon('asp'), 466, 320, 52)}<text x="524" y="355" font-size="30" fill="${MUT}">›</text>
+  ${icon(skillIcon('cran'), 540, 320, 52)}<text x="598" y="355" font-size="30" fill="${MUT}">›</text>
+  ${icon(skillIcon('cab'), 614, 320, 52)}
   <!-- mouse -->
   <g transform="translate(760 70)">
     <rect x="0" y="0" width="150" height="230" rx="75" fill="#1a2027" stroke="#3a4550" stroke-width="3"/>
@@ -62,8 +63,9 @@ export function mobileControls() {
   </g>
   <g transform="translate(735 445)"><circle r="40" fill="#1d252d" stroke="#8fe36a" stroke-width="4"/>${icon(skillIcon('asp'), -26, -26, 52)}</g>
   <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('cran'), -26, -26, 52)}</g>
-  <g transform="translate(870 290)"><circle r="40" fill="#1d252d" stroke="#b8f070" stroke-width="4"/>${icon(skillIcon('cab'), -26, -26, 52)}</g>
-  ${label(905, 240, 'Tippen = automatisch zielen', 'end', 22, TXT)}
-  ${label(905, 212, 'Halten + ziehen = zielen', 'end', 22, TXT)}
+  <g transform="translate(880 300)"><circle r="36" fill="#1d252d" stroke="#7fd0ff" stroke-width="4"/>${icon(skillIcon('can'), -24, -24, 48)}</g>
+  <g transform="translate(790 225)"><circle r="40" fill="#1d252d" stroke="#b8f070" stroke-width="4"/>${icon(skillIcon('cab'), -26, -26, 52)}</g>
+  ${label(935, 128, 'Tippen = automatisch zielen', 'end', 22, TXT)}
+  ${label(935, 100, 'Halten + ziehen = zielen', 'end', 22, TXT)}
 </svg>`;
 }

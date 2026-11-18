@@ -1,11 +1,13 @@
 import YAML from 'yaml';
 
 export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
-export type Weapon = 'rake' | SkillId;
+/** tools every player has from the start (rake, watering can) + fruit weapons */
+export type Weapon = 'rake' | 'can' | SkillId;
+export const isTool = (w: Weapon): w is 'rake' | 'can' => w === 'rake' || w === 'can';
 export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut';
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
-export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
+export const WEAPONS: Weapon[] = ['rake', 'can', 'asp', 'cran', 'cab', 'lemon', 'chili'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
@@ -41,17 +43,22 @@ export interface EnemyCfg {
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
-  names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
+  names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
-  fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
+  fields: { hp: number; rarityHp: number; seedlingHp: number; growTime: number; regrowAt: number; regrowGrownAt: number;
+    /** wetness 0..100: start value, loss per s, threshold for growing/healing, drought threshold, heal HP/s when wet, HP/s lost in drought */
+    wetStart: number; wetLoss: number; wetGrow: number; wetDrought: number; wetHeal: number; droughtDamage: number;
+    tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
   plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>;
   rake: { damage: number; range: number; diameter: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
+  /** watering can: sweeps arc deg from left to right in sweepTime s, water lands reach m in front, circle of radius m, wetness per s */
+  can: { arc: number; sweepTime: number; reach: number; radius: number; wetPerSecond: number };
   skills: {
     readySeconds: number;
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number };
@@ -63,7 +70,7 @@ export interface Balancing {
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
     aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; cabGas: Lim; cabPoison: Lim; doubleHarvest: Lim;
-    rakeDiameter: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; tillHeal: Lim & { weight: number };
+    rakeDiameter: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim;
     lemonTargets: Lim; lemonTransfer: Lim; lemonEfficiency: Lim;
     chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };
     chiliTick: { factor: number; min: number };

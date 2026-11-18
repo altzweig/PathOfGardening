@@ -81,6 +81,8 @@ export const SND: Record<string, (arg?: any) => void> = {
     const n = 7 + Math.floor(rand(0, 5));
     for (let i = 0; i < n; i++) noise({ t: rand(.025, .06), vol: rand(.05, .12), type: 'bandpass', f: rand(2500, 6500), q: rand(1.5, 4), when: rand(0, .3) * Math.pow(rand(0, 1), .6), at: .002 });
   },
+  /** watering can: soft, continuous trickle (a few overlapping filtered noise drops) */
+  pour() { if (!can('pour', .09)) return; noise({ t: .22, vol: .05, type: 'bandpass', f: rand(2200, 3200), q: .9, at: .04 }); for (let i = 0; i < 3; i++) noise({ t: rand(.02, .05), vol: rand(.02, .05), type: 'bandpass', f: rand(3500, 7000), q: rand(2, 5), when: rand(0, .09), at: .002 }); },
   rake() { if (can('rake', .08)) noise({ t: .16, vol: .18, type: 'bandpass', f: 2600, f2: 500, q: 1.2 }); },
   /** n = number of enemies hit by one swing: one punch per target, slightly staggered */
   punches(n: number) { if (!can('punch', .06)) return; const k = Math.min(5, n); for (let i = 0; i < k; i++) comicPunch(i * .045, n); },

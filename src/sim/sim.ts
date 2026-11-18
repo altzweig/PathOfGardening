@@ -1,6 +1,6 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { Balancing, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isTool, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { emptyIntent, EF, ESnap, Ev, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -70,8 +70,12 @@ export interface Player {
   cwT: number; cwId: ComboId | '';
   /** charge throw (cabbage and thrown combos): weapon being charged, s held, charge 0..1 of the throw being fired */
   chW: SkillId | ''; chT: number; thrK: number; chAim: boolean;
+  /** watering can: s into the current left-to-right sweep (-1 = not watering), keep sweeping (held), current pour angle (rad) */
+  canT: number; canHold: boolean; canAng: number;
 }
-interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean }
+interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
+  /** wetness 0..100, growth 0..1 of a new field (seedlings -> grown), regrow: coming back from 0 HP (look follows HP, grown again at regrowGrownAt) */
+  wet: number; grow: number; regrow: boolean }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number; dur: number; iv: number; fire?: { tick: number; dmgPct: number } }
@@ -136,7 +140,6 @@ export class Sim {
   players: Player[] = [];
   fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = []; snodes: SNode[] = []; lwaves: LWave[] = [];
   yieldLv: Record<FruitType, number> = { blue: 0, asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, nut: 0 };
-  tillHealLv = 0;
   events: Ev[] = [];
   private nid = 1;
   private mergeT = 0;
@@ -177,7 +180,7 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0, canT: -1, canHold: false, canAng: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.players.push(p);
@@ -214,8 +217,10 @@ export class Sim {
       this.burst(s.x, .4, s.z, 0xffe08a, 30, 2.5, .2, .8);
       return f;
     }
+    const wet = f ? f.wet : F.wetStart; // overbuilding keeps the wet soil
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
-    f = { slot, type, x: s.x, z: s.z, hp: F.hp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false };
+    // every new field starts as small seedlings without fruit and with seedlingHp of its HP
+    f = { slot, type, x: s.x, z: s.z, hp: F.hp * F.seedlingHp, maxHp: F.hp, alive: true, t: rand(0, this.cfg.plants[type].interval), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false, wet, grow: 0, regrow: false };
     this.fields.push(f);
     this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
@@ -230,7 +235,37 @@ export class Sim {
   /** fields never break: they produce in proportion to their HP (100 % HP = full yield, 0 HP = nothing) */
   hpF(f: Field) { return f.maxHp > 0 ? clamp(f.hp / f.maxHp, 0, 1) : 0; }
   /** average fruit per second of a field (rarity, neighbours, double harvest, coop blueberries, HP; without tilling) */
-  rate(f: Field) { return f.alive ? this.baseRate(f.type) * this.prodMult(f) * this.hpF(f) : 0; }
+  rate(f: Field) { return this.yields(f) ? this.baseRate(f.type) * this.prodMult(f) * this.hpF(f) : 0; }
+  /** a field bears fruit once it is grown (not while regrowing) and not in drought */
+  yields(f: Field) { return f.alive && f.hp > 0 && f.grow >= 1 && !f.regrow && f.wet >= this.cfg.fields.wetDrought; }
+  /** look of the plants: -1 = wilted (0 HP, or regrowing below regrowAt), otherwise 0 (seedlings) .. 1 (grown) */
+  growLook(f: Field) {
+    const F = this.cfg.fields, h = this.hpF(f);
+    if (f.hp <= 0) return -1;
+    if (f.regrow) return h < F.regrowAt ? -1 : clamp((h - F.regrowAt) / Math.max(.01, F.regrowGrownAt - F.regrowAt), 0, .99);
+    return clamp(f.grow, 0, 1);
+  }
+  /** field reaches 0 HP (eaten or dried out): wilts, produces nothing, regrows from 0 when wet again (no XP) */
+  private fieldDown(f: Field) {
+    f.hp = 0; f.regrow = true; f.grow = 0;
+    this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
+    this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
+    if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
+  }
+  /** wetness, growth, healing and drought of one field */
+  private waterTick(f: Field, dt: number) {
+    const F = this.cfg.fields;
+    f.wet = clamp(f.wet - F.wetLoss * dt, 0, 100);
+    if (!f.alive || this.phase === 'over') return;
+    if (f.wet > F.wetGrow) {
+      f.hp = Math.min(f.maxHp, f.hp + F.wetHeal * dt);
+      if (!f.regrow && f.grow < 1) f.grow = Math.min(1, f.grow + dt / Math.max(1, F.growTime));
+    } else if (f.wet < F.wetDrought && f.hp > 0) { // drought: the plants dry out
+      f.hp -= F.droughtDamage * dt;
+      if (f.hp <= 0) this.fieldDown(f);
+    }
+    if (f.regrow && f.hp > 0 && this.hpF(f) >= F.regrowGrownAt) { f.regrow = false; f.grow = 1; }
+  }
   /** fruit per second of a common field of this type without neighbours (double harvest, coop blueberries) */
   baseRate(t: FruitType) {
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[t]);
@@ -250,12 +285,7 @@ export class Sim {
     if (f.starter && this.fields.some(o => !o.starter && o.hp > 0 && !this.isForest(o))) { f.shake = .12; this.emit({ k: 'imm', x: r2(f.x), z: r2(f.z) }); return; }
     f.hp -= dmg; f.shake = .25; this.sfx('plants.eaten.' + f.type, f.x, f.z);
     this.num(f.x, f.z, dmg, 'f');
-    if (f.hp <= 0) { // fields do not break: they wilt at 0 HP, produce nothing and can be raked back to health (no XP)
-      f.hp = 0;
-      this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
-      this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
-      if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
-    }
+    if (f.hp <= 0) this.fieldDown(f); // fields do not break: they wilt at 0 HP and only come back when watered
   }
   spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number) {
     const T = .55;
@@ -621,7 +651,7 @@ export class Sim {
       any = true;
       if (A > bestA) { bestA = A; best = f; }
       f.tilledT = F.tillDuration; f.shake = Math.max(f.shake, .2);
-      f.t -= F.tillStroke * (A / A0) * this.prodMult(f) * this.hpF(f);
+      if (this.yields(f)) f.t -= F.tillStroke * (A / A0) * this.prodMult(f) * this.hpF(f);
       while (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f, tri); }
       // view: field flash; only the plants of the raked triangles wobble and shed leaves (bit mask m), rustle
       let m = 0; tri.forEach((x, k) => { if (x > .01) m |= 1 << k; });
@@ -630,21 +660,12 @@ export class Sim {
       this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)), m, w: tri.map(x => r2(Math.min(1, x / TA))) });
     }
     if (!any) return;
-    // healing (Feldpflege) goes through the field covered most: one field per player
+    // the field covered most counts as this player's tilled field
     for (const o of this.fields) if (o !== best && o.tilledBy === p.id) o.tilledBy = -1;
     if (best) best.tilledBy = p.id;
     const RS = this.rakeStats(p);
     this.sfx('player.till', p.x + dx * RS.centre, p.z + dz * RS.centre);
     this.burst(p.x + dx * RS.centre, .1, p.z + dz * RS.centre, 0x8a6a3a, 10, 1.2, .14, .4, { g: 4 });
-  }
-  /** while a field is being tilled it heals (also back up from 0 HP), and so do the tilling player and team mates standing on it */
-  tillHeal(f: Field, dt: number) {
-    const F = this.cfg.fields, up = this.cfg.upgrades.tillHeal.step * this.tillHealLv;
-    if (f.alive) f.hp = Math.min(f.maxHp, f.hp + (F.tillHealField + up) * dt);
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      if (p.id === f.tilledBy || this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z)) === f) p.hp = Math.min(this.cfg.player.hp, p.hp + (F.tillHealPlayer + up) * dt);
-    }
   }
   /** an enemy drops everything it carries (fruit flies off and can be picked up again) */
   dropCarry(e: Enemy) {
@@ -772,7 +793,6 @@ export class Sim {
       rows.push([`field.${f}`, 'Felder', `${N.fields[f]} (+ bauen/hochleveln, − entfernen)`, this.fields.filter(x => x.type === f).length]);
       rows.push([`yield.${f}`, 'Felder', `Doppelernte ${N.plants[f]}`, this.yieldLv[f]]);
     }
-    rows.push(['care', 'Felder', N.care, this.tillHealLv]);
     if (this.cfg.combos) for (const cid of COMBOS) { const C = this.CB.list[cid]; rows.push([`combo.${cid}`, 'Kombiwaffen', `${N.combos?.[cid] ?? cid} (${N.skills[C.main]} + ${N.skills[C.sub]})`, p.skills[C.main].combo === cid ? 1 : 0]); }
     return rows;
   }
@@ -783,7 +803,6 @@ export class Sim {
     if (key === 'level') { this.level = Math.max(1, this.level + d); this.xp = 0; return; }
     if (key === 'hp') { p.hp = d > 0 ? this.cfg.player.hp : Math.max(1, p.hp - 10); return; }
     if (a === 'rake') { (p.rakeLv as any)[b] = lim0((p.rakeLv as any)[b] + d); return; }
-    if (a === 'care') { this.tillHealLv = lim0(this.tillHealLv + d); return; }
     if (a === 'yield') { this.yieldLv[b as FruitType] = lim0(this.yieldLv[b as FruitType] + d); return; }
     if (a === 'field') {
       const t = b as FruitType;
@@ -1618,9 +1637,6 @@ export class Sim {
     if (p.kb) { const s = Math.min(p.kb.left, 12 * dt); p.x += p.kb.dx * s; p.z += p.kb.dz * s; p.kb.left -= s; if (p.kb.left <= 0) p.kb = null; }
     else if (ml > .05 && sf > 0) { p.x += mx * P.speed * sf * dt; p.z += mz * P.speed * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
     [p.x, p.z] = this.clampArena(p.x, p.z);
-    // standing (with the centre) on a field heals it
-    const under = this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z));
-    if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
 
     p.rakeCd -= dt * sf; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt * sf);
     p.xbT = Math.max(0, p.xbT - dt); p.handT = Math.max(0, p.handT - dt); p.cwT = Math.max(0, p.cwT - dt);
@@ -1639,17 +1655,18 @@ export class Sim {
       p.flAng = fs.circle ? p.flSpin : p.flBase + fs.sweep * Math.PI / 360 * (1 - 4 * Math.abs(p.flPh - .5)); // smooth angle for the view
     }
     // active weapon: auto-switch when empty, cycle on request
-    if (p.active !== 'rake' && this.isEmpty(p, p.active)) p.active = this.nextAvailable(p, p.active, true);
+    if (!isTool(p.active) && this.isEmpty(p, p.active)) p.active = this.nextAvailable(p, p.active, true);
     if (it.cycle !== p.lastCycle) { p.lastCycle = it.cycle; p.active = this.nextAvailable(p, p.active, false); this.emit({ k: 'cycle', p: p.id }); }
     const fw: Weapon | null = it.fire === 'active' ? p.active : it.fire;
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
+    this.canTick(p, dt, fw === 'can');
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
     if (p.swing > 0 || p.rakeHit) { // running stroke: turns with the player at once, impact at the end of the push
       const d = this.rakeDir(p); p.aimX = d[0]; p.aimZ = d[1]; p.face = p.swingDir = Math.atan2(d[0], d[1]);
       if (p.swing <= 0) { p.rakeHit = false; this.rakeImpact(p, d[0], d[1]); }
     }
     // thrown weapons (cabbage, Coleateral Bomb, Cabboomberry, Kimchi): hold to charge, the throw flies on release
-    const chg = fw && fw !== 'rake' && this.thrown(p.skills[fw], fw) ? fw : null;
+    const chg = fw && !isTool(fw) && this.thrown(p.skills[fw], fw) ? fw : null;
     if (p.chW && p.chW !== chg) {
       const w = p.chW, dir: [number, number] | undefined = p.chAim ? [p.aimX, p.aimZ] : undefined;
       p.thrK = this.chargeK(p); p.chW = ''; p.chT = 0; p.chAim = false;
@@ -1661,21 +1678,54 @@ export class Sim {
       if (p.chW) { p.skills[chg].firing = true; if (it.aim) p.chAim = true; p.face = Math.atan2(p.aimX, p.aimZ); }
     } else if (fw) {
       if (fw === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range); this.rakeAttack(p, d[0], d[1]); } }
-      else this.tryFire(p, fw);
+      else if (fw !== 'can') this.tryFire(p, fw);
     }
     if (it.tapSeq !== p.lastTap) {
       p.lastTap = it.tapSeq;
       const w = it.tapW;
       if (w === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range, false); this.rakeAttack(p, d[0], d[1]); } }
+      else if (w === 'can') { if (p.canT < 0) this.canStart(p, false); } // tap: one sweep towards the nearest thirsty field
       else if (w) { const s = this.stats(w, p.skills[w]); this.tryFire(p, w, this.aimDir(p, this.thrown(p.skills[w], w) ? s.throwDist : s.range, false)); }
     }
   }
-  /** next weapon in order rake → asp → cran → cab that is available (skills: ready). */
+  /** watering can: direction of a new sweep = aim, else the nearest field that is not wet, else facing */
+  private canStart(p: Player, useIntent: boolean) {
+    const C = this.cfg.can, it = p.intent;
+    let dx = Math.sin(p.face), dz = Math.cos(p.face);
+    if (useIntent && it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); dx = it.ax / l; dz = it.az / l; }
+    else {
+      let best: Field | null = null, bd = C.reach + hexR(this.cfg) * 1.5;
+      for (const f of this.fields) { if (!f.alive || f.wet > this.cfg.fields.wetGrow + 20) continue; const d = dist(p, f); if (d < bd) { bd = d; best = f; } }
+      if (best && bd > .3) { dx = (best.x - p.x) / bd; dz = (best.z - p.z) / bd; }
+    }
+    p.aimX = dx; p.aimZ = dz; p.face = Math.atan2(dx, dz); p.canT = 0; p.canHold = useIntent; p.handT = 0;
+  }
+  /** watering can: sweeps C.arc deg from left to right in C.sweepTime s (held: sweep after sweep). The water lands
+   *  C.reach m in front; every field touched by that circle (radius C.radius) gets C.wetPerSecond wetness per s. */
+  private canTick(p: Player, dt: number, held: boolean) {
+    const C = this.cfg.can;
+    if (held && p.canT < 0) this.canStart(p, true);
+    if (p.canT < 0) return;
+    if (held) { p.canHold = true; if (p.intent.aim) p.face = Math.atan2(p.aimX, p.aimZ); } // the sweep follows the aim live
+    p.canT += dt;
+    if (p.canT >= C.sweepTime) { if (held) p.canT -= C.sweepTime; else { p.canT = -1; p.canHold = false; return; } }
+    const k = clamp(p.canT / C.sweepTime, 0, 1), half = C.arc * Math.PI / 360;
+    p.canAng = p.face + half - 2 * half * k; // + = left of the facing direction, sweeps to the right
+    const cx = p.x + Math.sin(p.canAng) * C.reach, cz = p.z + Math.cos(p.canAng) * C.reach;
+    const hit = new Set<Field>();
+    for (let i = 0; i <= 8; i++) { // centre + 8 points on the rim of the water circle
+      const a = i * Math.PI / 4, r = i ? C.radius : 0, f = this.fieldAt(slotAt(this.cfg, this.slots, cx + Math.cos(a) * r, cz + Math.sin(a) * r));
+      if (f && f.alive) hit.add(f);
+    }
+    for (const f of hit) f.wet = Math.min(100, f.wet + C.wetPerSecond * dt);
+  }
+  /** next weapon in order rake → can → fruit weapons that is available (skills: ready). */
   nextAvailable(p: Player, from: Weapon, skipRake: boolean): Weapon {
     const i0 = WEAPONS.indexOf(from);
     for (let k = 1; k <= WEAPONS.length; k++) {
       const w = WEAPONS[(i0 + k) % WEAPONS.length];
       if (w === 'rake') { if (!skipRake) return 'rake'; continue; }
+      if (w === 'can') { if (!skipRake) return 'can'; continue; }
       if (w !== from && this.isReady(p, w)) return w;
     }
     return 'rake';
@@ -1695,8 +1745,9 @@ export class Sim {
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
-      if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
-      if (f.alive) { f.t -= dt * this.prodMult(f) * this.hpF(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
+      if (f.tilledT > 0) { f.tilledT -= dt; if (f.tilledT <= 0) f.tilledBy = -1; }
+      this.waterTick(f, dt);
+      if (this.yields(f)) { f.t -= dt * this.prodMult(f) * this.hpF(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type].interval; this.produce(f); } }
       f.shake = Math.max(0, f.shake - dt);
     }
     // fruit
@@ -1907,8 +1958,6 @@ export class Sim {
       nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
       nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
       nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
-    // field care: tilling heals the tilled field
-    if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; fieldPool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
     for (const f of FRUITS) if (this.fieldOf(f) && !this.closedType(p, f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
       const lv = this.yieldLv[f], st = U.doubleHarvest.step;
       fieldPool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f], lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
@@ -1982,7 +2031,6 @@ export class Sim {
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
     if (a === 'tea') { tea(); return; }
     if (a === 'rake') { if (b === 'rng') p.rakeLv.rng++; else if (b === 'dmg') p.rakeLv.dmg++; else if (b === 'dia') p.rakeLv.dia++; else if (b === 'cd') p.rakeLv.cd++; return; }
-    if (a === 'care') { this.tillHealLv++; return; }
     const s = p.skills[a as SkillId];
     switch (key) {
       case 'asp_dmg': case 'cran_dmg': case 'cab_dmg': case 'lemon_dmg': s.lvDmg++; break;
@@ -2029,10 +2077,11 @@ export class Sim {
         id: p.id, c: p.color, x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
-        lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
+        lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || (!isTool(p.active) && p.skills[p.active].combo) ? 0 : WEAPONS.indexOf(p.active),
+        wa: p.canT >= 0 ? r2(p.canAng) : null, // watering: pour angle (rad)
         ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw
         // combo weapon in the hand: active weapon is a combo, or a combo fired just now
-        cw: (() => { const ac = p.active !== 'rake' ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),
+        cw: (() => { const ac = !isTool(p.active) ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
         rh: p.swing > 0 || (p.active === 'rake' && p.handT <= 0) ? 1 : 0,
       })),
@@ -2055,7 +2104,7 @@ export class Sim {
         return [m.id, r2(x), r2(z), r2(clamp(1 - m.t / (m.r ? this.CB.list.cabboom.berryDelay : this.cfg.skills.cran.splashDelay), 0, 1)), f < 1 ? r2(.3 + Math.sin(f * Math.PI) * 1.1) : 0, m.fire ? 1 : 0] as MSnap; }),
       sn: this.snodes.map(n => [n.id, r2(n.x), r2(n.z), r2(n.ticks / n.tot)]),
       br: FRUITS.map(t => Math.round(this.baseRate(t) * 1000) / 1000),
-      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000]),
+      fi: this.fields.map(f => [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(1 - f.t / this.cfg.plants[f.type].interval, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, Math.round(f.wet), r2(this.growLook(f))]),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / p.dur)), p.fire ? 1 : 0]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),
       bs: (() => { const b = this.enemies.find(e => e.boss); return b ? r2(b.hp / b.maxHp) : -1; })(),

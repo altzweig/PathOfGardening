@@ -344,7 +344,7 @@ class Game {
 
 // ---------- weapon test room ----------
 type SbWeapon = Weapon | ComboId;
-const SB_LIST: SbWeapon[] = [...WEAPONS, ...COMBOS];
+const SB_LIST: SbWeapon[] = [...WEAPONS.filter(w => w !== 'can'), ...COMBOS]; // no fields in the test room: no watering can
 const SB_RATES = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];
 const ENEMY_NAMES: Record<EnemyType, string> = { raccoon: 'Waschbär', panda: 'Panda', toad: 'Kröte', sheep: 'Schaf', hedgehog: 'Igel', squirrel: 'Eichhörnchen' };
 

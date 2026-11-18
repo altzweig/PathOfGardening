@@ -109,7 +109,10 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
   } else if (type === 'lemon') { // small lemon tree: trunk, round crown, lemons on the outside
     part(g, GEO.cyl, mats.head, .06, .7, .06, 0, .35, 0);
     for (let i = 0; i < 5; i++) { const a = i / 5 * 7; part(g, GEO.ico, mats.leaf, rand(.28, .36), rand(.24, .3), rand(.28, .36), Math.cos(a) * .18, .85 + rand(-.05, .1), Math.sin(a) * .18); }
-    for (let i = 0; i < 9; i++) { const a = rand(0, 7), y = rand(.7, 1.05), r = .38 - Math.abs(y - .88) * .4; fruits.push(part(g, GEO.sph, BUSH_MAT.lemon, .07, .055, .055, Math.cos(a) * r, y, Math.sin(a) * r, false)); }
+    // Basti 18.11.2026: mehr Zitronen, sichtbar unter und außen an der Krone hängend
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2 + rand(-.15, .15), low = i % 2 === 0, y = low ? rand(.52, .64) : rand(.7, .95), r = low ? rand(.3, .42) : rand(.5, .56), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      part(g, GEO.cyl, mats.head, .008, .08, .008, x, y + .09, z, false);
+      const l = part(g, GEO.sph, BUSH_MAT.lemon, .055, .075, .055, x, y, z, false); l.rotation.set(rand(-.2, .2), 0, rand(-.2, .2)); fruits.push(l); }
   } else if (type === 'chili') { // bushy chili plant full of red pods hanging down
     for (let i = 0; i < 4; i++) { const a = i / 4 * 7 + rand(-.3, .3), r = rand(.06, .14), h = rand(.35, .5); const st = part(g, GEO.cyl, mats.head, .025, h, .025, Math.cos(a) * r, h / 2, Math.sin(a) * r); st.rotation.set(rand(-.2, .2), 0, rand(-.2, .2)); }
     for (let i = 0; i < 6; i++) { const a = i / 6 * 7, r = rand(.08, .26); part(g, GEO.ico, mats.leaf, rand(.14, .19), rand(.08, .11), rand(.14, .19), Math.cos(a) * r, rand(.42, .6), Math.sin(a) * r); }

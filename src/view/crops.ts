@@ -33,6 +33,13 @@ function canes(g: THREE.Group, L: Mat, h: number, leaves: number, lw = .12) {
   for (let i = 0; i < leaves; i++) { const a = rand(0, 7), y = rand(.15, h - .05), r = .2 - y / h * .1; const [x, z] = at(a, r); const lf = part(g, GEO.lo, L, lw, .04, lw * 1.2, x, y, z); lf.rotation.set(rand(-.6, .6), a, rand(-.6, .6)); }
 }
 
+/** Paprikaschote: vier Kammern, flacher Deckel mit grünem Stiel */
+function bell(g: THREE.Group, B: Mat, fr: THREE.Mesh[] | null, k: number) {
+  for (let i = 0; i < 4; i++) { const [x, z] = at(i / 4 * Math.PI * 2, .045 * k); const l = part(g, GEO.sph, B, .075 * k, .1 * k, .075 * k, x, 0, z, false); fr?.push(l); }
+  const t = part(g, GEO.cyl, B, .08 * k, .04 * k, .08 * k, 0, .07 * k, 0, false); fr?.push(t);
+  part(g, GEO.cyl, STEM, .02 * k, .07 * k, .02 * k, 0, .12 * k, 0, false);
+}
+
 export const CROP_VIS: Record<CropId, CropVis> = {
   // Bärlauch: breite, spitze Blätter dicht am Waldboden, weiße Sternblüten-Dolden
   ramsons: { col: 0x6ad050, leaf: 0x205a16, head: 0x4f9a35, ground: gm(0x6ad050, 0x3aa020, .9, .5), bush: bm(0xf4f4ea, .6),
@@ -66,7 +73,7 @@ export const CROP_VIS: Record<CropId, CropVis> = {
         for (let k = -1; k <= 1; k++) fr.push(part(hang, GEO.sph, B, .036, .036, .036, 0, -.12 + k * .055, .016, false));
         part(hang, GEO.cyl, STEM, .006, .04, .006, 0, .0, 0, false); });
     },
-    fruit(g, m) { const p = part(g, GEO.capsule, m, .04, .12, .03, 0, 0, 0); p.rotation.z = Math.PI / 2; for (let k = -1; k <= 1; k++) part(g, GEO.sph, m, .03, .03, .03, k * .05, .02, .012); } },
+    fruit(g, m) { part(g, GEO.sph, m, .045, .045, .045, -.03, 0, 0); part(g, GEO.sph, m, .045, .045, .045, .03, 0, -.01); part(g, GEO.sph, m, .045, .045, .045, 0, .01, .045); } }, // Basti: Ernte als kleine Kügelchen
   // Erdbeere: Rosette aus dreiteiligen Blättern, rote Früchte mit gelben Nüsschen liegen außen
   straw: { col: 0xff3048, leaf: 0x2f6a2a, head: 0x3f7a2a, ground: gm(0xe8202e, 0xff2030, .6, .3), bush: bm(0xd8182a, .3),
     plant(g, L, H, B, fr) {
@@ -90,13 +97,16 @@ export const CROP_VIS: Record<CropId, CropVis> = {
     },
     fruit(g, m) { part(g, GEO.sph, m, .09, .08, .09, 0, 0, 0); part(g, GEO.cone, m, .03, .07, .03, 0, .09, 0); for (let i = 0; i < 4; i++) part(g, GEO.cyl, ROOTY, .004, .04, .004, Math.cos(i) * .03, -.08, Math.sin(i) * .03, false); } },
   // Kopfsalat: lockere hellgrüne Köpfe
-  lettuce: { col: 0xa8f070, leaf: 0x6ab83a, head: 0x8ad050, ground: gm(0xa8f070, 0x6ac030, .8, .6, true), bush: bm(0x9ae060, .6, true),
+  lettuce: { col: 0x7ad840, leaf: 0x3fa020, head: 0x5ac028, ground: gm(0x7ad840, 0x4ab020, .8, .6, true), bush: bm(0x6ad030, .55, true),
+    // Basti 18.11.2026: wellige Ränder, sattes Grün
     plant(g, L, H, B, fr) {
-      rosette(g, L, 8, .26, .16, .2, .06, .5);
+      rosette(g, L, 9, .27, .16, .2, .06, .5);
+      ring(18, (a, i) => { const r = i % 2 ? .34 : .29, [x, z] = at(a, r); const w = part(g, GEO.lo, L, .07, .025, .06, x, .1 + (i % 3) * .025, z); w.rotation.set(rand(-.7, .7), -a, rand(.3, .9)); }); // krauser Rand
       fr.push(part(g, GEO.ico, B, .2, .16, .2, 0, .14, 0, false));
-      ring(5, a => { const [x, z] = at(a, .1); const l = part(g, GEO.lo, B, .13, .08, .15, x, .2, z, false); l.rotation.set(.6, -a, 0); fr.push(l); });
+      ring(7, (a, i) => { const [x, z] = at(a, .11); const l = part(g, GEO.lo, B, .13, .08, .15, x, .2 + (i % 2) * .02, z, false); l.rotation.set(.6 + rand(-.2, .2), -a, rand(-.3, .3)); fr.push(l);
+        const [ex, ez] = at(a, .19); const e = part(g, GEO.lo, B, .05, .03, .05, ex, .24, ez, false); e.rotation.set(rand(-.8, .8), -a, rand(-.8, .8)); fr.push(e); });
     },
-    fruit(g, m) { part(g, GEO.ico, m, .13, .1, .13, 0, 0, 0); ring(4, a => { const [x, z] = at(a, .07); const l = part(g, GEO.lo, m, .08, .05, .1, x, .02, z); l.rotation.set(.5, -a, 0); }); } },
+    fruit(g, m) { part(g, GEO.ico, m, .13, .1, .13, 0, 0, 0); ring(6, a => { const [x, z] = at(a, .08); const l = part(g, GEO.lo, m, .08, .05, .1, x, .02, z); l.rotation.set(.5, -a, rand(-.4, .4)); const [ex, ez] = at(a, .13); const e = part(g, GEO.lo, m, .04, .025, .04, ex, .03, ez); e.rotation.set(rand(-.8, .8), -a, rand(-.8, .8)); }); } },
   // Kürbis: große Blätter am Boden, dicke orange Kürbisse
   pumpkin: { col: 0xff8a20, leaf: 0x3f7a2a, head: 0x4f8a30, ground: gm(0xf07a18, 0xff7010, .7, .5, true), bush: bm(0xe8781a, .5, true),
     plant(g, L, H, B, fr) {
@@ -165,12 +175,13 @@ export const CROP_VIS: Record<CropId, CropVis> = {
     fruit(g, m) { const c = part(g, GEO.cone, m, .045, .26, .045, 0, 0, 0); c.rotation.z = Math.PI / 2; for (let k = 0; k < 3; k++) { const t = part(g, GEO.cone, bm(0x4a9a30), .02, .12, .01, .17, 0, (k - 1) * .02); t.rotation.z = -Math.PI / 2 + (k - 1) * .3; } } },
   // Paprika: kompakter Busch, rote und gelbe Schoten hängen
   pepper: { col: 0xff4a20, leaf: 0x2f6a28, head: 0x3f7a2a, ground: gm(0xe83a18, 0xff3a10, .7, .3), bush: bm(0xd8301a, .3),
+    // Basti 18.11.2026: größere Pflanze, wenige aber große Früchte in Paprikaform (vier Kammern, Stiel oben)
     plant(g, L, H, B, fr) {
-      for (let i = 0; i < 5; i++) { const [x, z] = at(i / 5 * 7, i ? .2 : 0); part(g, GEO.ico, L, rand(.16, .2), rand(.12, .16), rand(.16, .2), x, .48 + (i ? 0 : .08), z); }
-      for (let i = 0; i < 3; i++) { const [x, z] = at(i / 3 * 7, .06); part(g, GEO.cyl, H, .02, .45, .02, x, .22, z); }
-      ring(6, a => { const [x, z] = at(a, rand(.26, .36)); fr.push(part(g, GEO.ico, B, .07, .08, .07, x, .3 + rand(-.05, .05), z, false)); });
+      for (let i = 0; i < 4; i++) { const [x, z] = at(i / 4 * 7 + .4, .07), h = rand(.6, .72); const st = part(g, GEO.cyl, H, .025, h, .025, x, h / 2, z); st.rotation.set(-z * 1.5, 0, x * 1.5); }
+      for (let i = 0; i < 7; i++) { const [x, z] = at(i / 7 * 7, i ? rand(.12, .17) : 0); part(g, GEO.ico, L, rand(.13, .16), rand(.1, .13), rand(.13, .16), x, rand(.62, .78) + (i ? 0 : .06), z); }
+      ring(3, a => { const [x, z] = at(a, .34); const p = new THREE.Group(); p.position.set(x, .32, z); p.rotation.set(rand(-.15, .15), rand(0, 7), rand(-.15, .15)); g.add(p); bell(p, B, fr, 1); part(g, GEO.cyl, H, .015, .2, .015, x * .8, .45, z * .8); });
     },
-    fruit(g, m) { part(g, GEO.ico, m, .08, .09, .08, 0, 0, 0); part(g, GEO.cyl, STEM, .015, .05, .015, 0, .1, 0); } },
+    fruit(g, m) { bell(g, m, null, .75); } },
   // Radieschen: kleine Blattrosette, rote Knöllchen auf der Erde
   radish: { col: 0xff3a70, leaf: 0x4a9a35, head: 0x5aa83a, ground: gm(0xe8285a, 0xff2060, .6, .3), bush: bm(0xd8205a, .3),
     plant(g, L, H, B, fr) {

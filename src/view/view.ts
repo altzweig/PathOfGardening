@@ -35,7 +35,9 @@ import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAY
 import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
-import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
+import { Lager } from './lager';
+import { resetSeasons, seasonNow, updateSeasons } from './seasons';
+import { buildWorld, setForestGaps, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
@@ -345,12 +347,20 @@ export class GameView {
   }
 
   private rakeW = 0;
+  /** shed in the middle (18.11.2026) */
+  lager: Lager | null = null;
+  /** month 1..12 of the current wave (0 = no seasons) */
+  month = 0;
+  /** a plant shows fruit only in its harvest months */
+  inSeason(t: FruitType) { const M = this.cfg?.plants[t]?.months; return !M || !this.month || this.sandbox || M.includes(this.month); }
   setConfig(cfg: Balancing) {
     this.rakeW = cfg.rake.diameter;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
     setForestClearings(this.slots.filter(sl => sl.forest && !cfg.plants.nut?.disabled).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
+    if (cfg.layout) setForestGaps(cfg.layout.gaps, cfg.layout.gapWidth);
+    if (cfg.lager && !this.lager) this.lager = new Lager(scene);
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     this.aimInd = {
@@ -367,6 +377,8 @@ export class GameView {
   reset() {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
+    if (this.lager) { this.lager.reset(); barGroup.add(this.lager.bar); }
+    resetSeasons();
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); clearComboFx();
     this.setPlacing(null);
@@ -376,7 +388,7 @@ export class GameView {
 
   // ---------------- state ----------------
   apply(s: Snap) {
-    this.snap = s; const id = ++this.frameId;
+    this.snap = s; const id = ++this.frameId; this.month = s.mo ?? 0;
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -625,7 +637,7 @@ export class GameView {
     v.growV = v.growV < 0 ? v.grow : lerp(v.growV, v.grow, Math.min(1, dt * 4));
     const gs = v.wilt ? 1 : .28 + .72 * v.growV, rb = 1 + v.rarity * .08;
     v.plant.scale.set(rb * gs, (v.alive && !v.wilt ? rb : .55) * (v.ftype === "nut" ? 1 : 1 + v.shake * .4) * gs, rb * gs);
-    const ripe = !v.wilt && v.grow >= 1; if (v.ripe !== ripe) { v.ripe = ripe; v.fruits.forEach(m => m.visible = ripe); }
+    const ripe = !v.wilt && v.grow >= 1 && this.inSeason(v.ftype); if (v.ripe !== ripe) { v.ripe = ripe; v.fruits.forEach(m => m.visible = ripe); }
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
   private rakeStroke(slot: number, a: number, mask: number, w?: number[]) {
@@ -819,6 +831,8 @@ export class GameView {
     this.updateOverlay();
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
+    updateSeasons(dt, s?.mo ?? 0, !!s?.rn, !this.sandbox);
+    this.lager?.update(dt, this.sandbox || !s ? (this.me < 0 && !this.sandbox ? 1 : -1) : s.lh ?? -1, s?.lk ?? 0, seasonNow().snow, camera); if (this.lager && !s) this.lager.bar.visible = false;
     updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt

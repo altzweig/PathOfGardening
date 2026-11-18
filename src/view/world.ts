@@ -7,9 +7,9 @@ import { Inst, instance, loadNature } from './nature';
 
 const ARENA = 15;
 /** trodden paths from the forest into the garden: quadratic curves, also carry stepping stones */
-const PATHS = Array.from({ length: 7 }, (_, k) => ({ a: k / 7 * Math.PI * 2 + rand(-.2, .2), w: rand(7, 12) }));
-function pathPoint(a: number, t: number) {
-  const u = 1 - t, p0 = [Math.cos(a) * 26, Math.sin(a) * 26], p1 = [Math.cos(a + .3) * 12, Math.sin(a + .3) * 12], p2 = [Math.cos(a) * 4.5, Math.sin(a) * 4.5];
+let PATHS = Array.from({ length: 7 }, (_, k) => ({ a: k / 7 * Math.PI * 2 + rand(-.2, .2), w: rand(7, 12), bend: .3 }));
+function pathPoint(a: number, t: number, bend = .3) {
+  const u = 1 - t, p0 = [Math.cos(a) * 26, Math.sin(a) * 26], p1 = [Math.cos(a + bend) * 12, Math.sin(a + bend) * 12], p2 = [Math.cos(a) * 4.5, Math.sin(a) * 4.5];
   return { x: u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], z: u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1] };
 }
 
@@ -26,7 +26,7 @@ function groundControl() {
   for (const P of PATHS) {
     const a = P.a; g.lineWidth = P.w; g.beginPath();
     g.moveTo(toPx(Math.cos(a) * 26), toPx(Math.sin(a) * 26));
-    g.quadraticCurveTo(toPx(Math.cos(a + .3) * 12), toPx(Math.sin(a + .3) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
+    g.quadraticCurveTo(toPx(Math.cos(a + P.bend) * 12), toPx(Math.sin(a + P.bend) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
   }
   g.filter = 'none';
   // the garden itself: bare earth (red channel)
@@ -112,6 +112,22 @@ function buildGardenDeco() {
 }
 function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
 
+// gaps in the forest ring (layout.gaps, Basti's sketch 18.11.2026): no trees, bushes or rocks there, a trodden path leads in
+let gaps: { a: number; w: number }[] = [];
+const GAP_KEEP = /^(RockPath|Grass_Common_Short|Clover|Pebble)/;
+const inGap = (x: number, z: number, pad = 0) => {
+  const r = Math.hypot(x, z); if (r < 10.5) return false;
+  return gaps.some(g => { const along = x * Math.cos(g.a) + z * Math.sin(g.a), side = Math.abs(-x * Math.sin(g.a) + z * Math.cos(g.a));
+    return along > 0 && side < g.w / 2 + pad + Math.max(0, r - 17) * .35; }); // opens up a little towards the outside like a funnel
+};
+export function setForestGaps(deg: number[], width: number) {
+  const list = deg.map(d => ({ a: d * Math.PI / 180, w: width }));
+  if (JSON.stringify(list) === JSON.stringify(gaps)) return;
+  gaps = list;
+  PATHS = list.map(g => ({ a: g.a, w: rand(8, 11), bend: rand(-.12, .12) }));
+  gardenMat = groundMaterial(groundControl()); if (!bare) ground.material = gardenMat;
+  if (natureReady && natureGroup) { scene.remove(natureGroup); natureGroup = null; buildNature(); }
+}
 // clearings in the forest belt where nut trees can be planted: no bushes, rocks or undergrowth there
 let clearings: { x: number; z: number; r: number }[] = [], natureGroup: THREE.Group | null = null;
 const inClearing = (x: number, z: number) => clearings.some(c => (c.x - x) ** 2 + (c.z - z) ** 2 < c.r * c.r);
@@ -124,15 +140,15 @@ export function setForestClearings(list: { x: number; z: number; r: number }[]) 
 function buildNature() {
   const W = natureGroup = new THREE.Group(); W.name = 'nature'; W.visible = !bare; scene.add(W);
   const dens = gfx.quality === 'niedrig' ? .45 : gfx.quality === 'mittel' ? .7 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
-  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list.filter(p => !inClearing(p.x, p.z)), o);
+  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list.filter(p => !inClearing(p.x, p.z) && !(GAP_KEEP.test(name) ? false : inGap(p.x, p.z, name.includes('Tree') || name.startsWith('Pine') ? 1.2 : o.shadow ? .3 : -.6))), o); // gaps: only short grass, clover and stepping stones
 
   // --- forest: twisted giants, dead trees, dark pines, a few broadleaf trees; a dense wall close in, thinner behind
   const taken: { x: number; z: number; d: number }[] = [];
   const trees: { name: string; s: number; col: () => THREE.Color; d: number; n: number; r0: number; r1: number }[] = [
-    { name: 'Twisted', s: .38, n: 11, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .25 ? hsl(rand(.07, .12), rand(.65, .8), rand(.42, .5)) : hsl(rand(.22, .3), rand(.55, .7), rand(.34, .42)) },
-    { name: 'Pine', s: .72, n: 28, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.2, .28), rand(.25, .4), rand(.78, .9)) },
+    { name: 'Twisted', s: .38, n: 15, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .25 ? hsl(rand(.07, .12), rand(.65, .8), rand(.42, .5)) : hsl(rand(.22, .3), rand(.55, .7), rand(.34, .42)) },
+    { name: 'Pine', s: .72, n: 42, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.2, .28), rand(.25, .4), rand(.78, .9)) },
     { name: 'Dead', s: .42, n: 11, d: 2.6, r0: 15.4, r1: 25, col: () => white },
-    { name: 'Common', s: .62, n: 12, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.24, .32), rand(.55, .7), rand(.32, .4)) },
+    { name: 'Common', s: .62, n: 20, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.24, .32), rand(.55, .7), rand(.32, .4)) },
   ];
   const variants: Record<string, string[]> = {
     Twisted: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), Dead: [1, 2, 3, 4, 5].map(i => 'DeadTree_' + i),
@@ -148,7 +164,7 @@ function buildNature() {
   }
 
   // --- bushes on the rim (the eyes sit in them); some flowering
-  const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6).filter(p => !inClearing(p.x, p.z));
+  const bushPts = ringPts(N(90), 13, 15.3, 1.1, [], 1.6).filter(p => !inClearing(p.x, p.z) && !inGap(p.x, p.z));
   BUSHES.length = 0;
   const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.25, .34), rand(.5, .65), rand(.28, .36)) }; });
   const fl = bushList.filter(() => Math.random() < .25);
@@ -189,7 +205,7 @@ function buildNature() {
   // --- stepping stones along the trodden paths, pebbles along the garden border
   const stones: Inst[] = [];
   for (const P of PATHS) for (let t = 0; t < 1; t += .028) {
-    const q = pathPoint(P.a, t), r = Math.hypot(q.x, q.z); if (r < 10.4 || r > 21 || Math.random() < .25) continue;
+    const q = pathPoint(P.a, t, P.bend), r = Math.hypot(q.x, q.z); if (r < 10.4 || r > 21 || Math.random() < .25) continue;
     stones.push({ x: q.x + rand(-.35, .35), z: q.z + rand(-.35, .35), y: -.02, s: rand(.5, .75), shade: rand(.75, 1) });
   }
   for (const [name, list] of group(['RockPath_Round_Small_1', 'RockPath_Round_Small_2', 'RockPath_Round_Small_3'], stones)) add(name, list, { receive: true });

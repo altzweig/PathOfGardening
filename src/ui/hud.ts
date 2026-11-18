@@ -5,6 +5,8 @@ import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
+const seasonOf = (m: number) => !m ? '' : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+const SEASON_ICON: Record<string, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
 export const PLAYER_CSS = ['#ffd890', '#8fc8ff', '#ff9a8a', '#d0a0ff'];
 
 export class Hud {
@@ -45,14 +47,16 @@ export class Hud {
   }
   // wave countdown + announcement
   private cd = { sec: -1, ann: -1, wp: -1 };
-  updateWave(s: Snap, W: { announce?: number; tickFrom?: number; redFrom?: number }, dayWaves = 0) {
+  updateWave(s: Snap, W: { announce?: number; tickFrom?: number; redFrom?: number }, dayWaves = 0, months: string[] = []) {
+    this.updateMonth(s, months);
     const el = $('#wcd'), an = $('#wann'), st = this.cd, wt = s.wt ?? -1;
     const annT = W.announce ?? 2.5, next = s.wv + 1;
     // "Welle N" in the middle during the last announce seconds of the pause, then the enemies set off
     const announcing = !document.body.classList.contains('sandbox') && !!s.wp && wt >= 0 && wt <= annT && next <= s.wn && s.ph !== 'over';
     if (announcing && st.ann !== next) {
-      st.ann = next; an.textContent = `Welle ${next}`;
+      st.ann = next; an.innerHTML = `Welle ${next}` + (s.mo && months[s.mo - 1] ? `<small>${months[s.mo - 1]}</small>` : '');
       an.classList.toggle('night', s.dc > 0 && (next - 1) % s.dc >= dayWaves); // night waves in moon blue
+      for (const k of ['spring', 'summer', 'autumn', 'winter']) an.classList.toggle(k, seasonOf(s.mo ?? 0) === k);
       play('waveAnn');
     }
     an.hidden = !announcing;
@@ -70,6 +74,12 @@ export class Hud {
       st.sec = sec; el.textContent = sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : String(sec);
     }
     el.classList.toggle('pause', !!s.wp); el.classList.toggle('red', red);
+  }
+  /** month + season icon at the top (seasons, 18.11.2026) */
+  private updateMonth(s: Snap, months: string[]) {
+    const el = $('#month'), mo = s.mo ?? 0, show = !!mo && !document.body.classList.contains('sandbox') && s.ph !== 'over';
+    el.hidden = !show; if (!show) return;
+    this.set('#month i', 'moI', SEASON_ICON[seasonOf(mo)] ?? ''); this.set('#month span', 'moN', months[mo - 1] ?? '');
   }
   reset() { this.cd = { sec: -1, ann: -1, wp: -1 }; ($('#wann')).hidden = true; this.cache = {}; this.wasReady = {}; this.resKey = ''; }
   private set(id: string, key: string, v: string, html = false) {

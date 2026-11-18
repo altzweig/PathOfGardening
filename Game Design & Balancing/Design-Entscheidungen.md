@@ -360,7 +360,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Ertrag skaliert linear mit den HP: 100 % HP = 100 % Ertrag, 50 % HP = 50 %. Gilt für das normale Wachstum und für den Harken-Ertrag. Die Produktionsrate im Feld-Info zeigt den aktuellen Wert.
 - Beackern heilt beschädigte Felder wie bisher, auch Felder mit 0 HP. Sobald ein Feld wieder über 0 HP ist, wächst die Pflanze frisch nach. Draufstehen heilt weiterhin ebenfalls (auch bei 0 HP).
 - Beim Fall auf 0 HP gibt es kein XP mehr (das Blaubeer-Geschenk und `fields.deathXpShare/deathRemoveDelay` sind entfernt).
-- Gegner suchen sich nur Felder mit HP als Ziel. Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
+- Gegner suchen sich nur Felder mit HP als Ziel. Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP (seit 18.11.2026 ersetzt: Spielende = Lager kaputt, siehe „Lager und Lichtung“).
 
 
 ## Waffenmodelle (17.11.2026)
@@ -399,3 +399,26 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - **Gießkanne:** Startwerkzeug neben der Harke, immer verfügbar. Gießen schwenkt die Kanne in 1 s um 50° von links nach rechts (gehalten: Schwenk auf Schwenk, Richtung folgt dem Zielen). Das Wasser landet 1,2 m vor dem Spieler (`can.reach`, Annahme) in einem Kreis mit 0,25 m Radius; jedes Feld, das der Kreis berührt, bekommt 10 Nässe/s. Werte unter `can`.
 - Steuerung: PC Leertaste wechselt Harke › Gießkanne › Waffen, Linksklick gießt. Mobile: eigener Knopf über der Harke; Tippen gießt einen Schwenk zum nächsten nicht nassen Feld, Halten + Ziehen zielt. Optik: Blechkanne in der Hand, Wasserbogen mit Spritzern, dunkle nasse Stelle am Auftreffpunkt, leises Plätschern.
 
+
+## Jahreszeiten statt Tag und Nacht (18.11.2026, ersetzt den Tag-Nacht-Zyklus)
+- Es ist immer Tag (feste Tageszeit `seasons.hour`). Kein Mond, keine Nachtwellen, kein Nachtfaktor mehr. Der Abschnitt „Tag-Nacht-Zyklus (16.11.2026)“ gilt nicht mehr.
+- **1 Welle = 1 Monat, 12 Wellen = 1 Jahr.** Jede Welle dauert genau 1 Minute (`waves.durationStart` 40 s Gruppen + `countdownAfter` 20 s), danach 15 s Pause. 48 Wellen = 4 Jahre bis zum Sieg.
+- **Welle 1 = Juli** (`seasons.startMonth`, Bastis Wahl): Blaubeeren tragen sofort, der erste Winter kommt ab Welle 6.
+- Jahreszeiten (Monate in `seasons.<jahreszeit>.months`):
+  - Frühling (Mär–Mai) und Herbst (Sep–Nov): mehr Regen. Regenschauer befeuchten alle Felder (`seasons.rain`).
+  - Sommer (Jun–Aug): Wasserverbrauch der Felder doppelt (`summer.wetLoss` 2).
+  - Winter (Dez–Feb): kein Regen, Boden trocknet langsamer (`winter.wetLoss` 0,5, Annahme). Bei den meisten Pflanzen keine Ernte.
+- **Ernte nur in der echten Erntezeit** (Mitteleuropa, `plants.<typ>.months`). Außerhalb tragen die Felder keine Früchte, auch nicht beim Harken; sie wachsen, heilen und brauchen weiter Wasser. Die Früchte am Busch sind dann nicht zu sehen.
+  - Blaubeere Jul–Sep · Spargel Apr–Jun (bis Johannistag) · Preiselbeere Aug–Okt · Kohl Jun–Feb (Weiß-/Rotkohl Jun–Nov, Grün-/Rosenkohl Nov–Feb) · Chili Aug–Okt · Zitrone Nov–Mär (Sonderfall: in Mitteleuropa nur Kübelpflanze, Haupternte im Mittelmeerraum) · Nuss Sep–Okt.
+  - Im Winter gibt es nur Kohl und Zitronen, im März nur Zitronen. Man muss im Sommer und Herbst Munition für den Winter sammeln.
+  - Blaubeeren sind XP: außerhalb Jul–Sep kommt XP nur von besiegten Tieren.
+- Optik: Herbst färbt Laub orange-rot und den Rasen strohig, fallende Blätter. Winter: Schnee auf Boden, Bäumen, Büschen und dem Hüttendach, kahle braune Kronen, Schneeflocken, kühleres Licht. Frühling: treibende Blütenblätter. Sommer: wärmeres Licht. Regen: Regenstreifen, Spritzer, graueres Licht, Regenrauschen. Übergänge weich über ein paar Sekunden.
+- HUD: oben mittig unter dem Countdown Jahreszeit-Symbol + Monatsname. Die Wellen-Ansage zeigt unter „Welle N“ den neuen Monat.
+
+## Lager und Lichtung (18.11.2026, Bastis Skizze)
+- In der Mitte steht das **Lager**: eine kleine, aus Brettern zusammengenagelte Gartenhütte (Satteldach, angelehnte Tür, Fenster mit Blumenkasten, Fass, Kiste mit Beeren, Sack, Harke). Es hat Leben (`lager.hp`, grüner Balken über dem Dach) und ist vorerst nur Lebensanzeige.
+- **Ist das Lager kaputt, ist das Spiel verloren.** Das ersetzt die alte Regel „alle Gartenfelder 0 HP = Spielende“. Felder welken weiter bei 0 HP, beenden das Spiel aber nicht mehr.
+- Panda und Schaf greifen das Lager an (`enemies.<tier>.lager: true`): der Panda plündert es, wenn keine Frucht herumliegt, das Schaf rammt es. Kröte und Igel gehen auf die Felder, der Waschbär klaut weiter Blaubeeren. Feld-Tiere gehen aufs Lager, wenn kein Feld mehr Leben hat. Spieler in Aggro-Reichweite werden wie bisher zuerst angegriffen.
+- Spieler und Tiere laufen um die Hütte herum (`lager.radius`). Spieler starten und erscheinen nach dem Tod vor der Hütte.
+- Startfelder: Blaubeer- und Preiselbeerfeld direkt unter dem Lager (`arena.startSlots`). Der Hex-Platz in der Mitte gehört dem Lager.
+- Die Lichtung ist ringsum von Waldstücken umgeben. Zwischen ihnen liegen 5 Lücken (`layout.gaps`, Winkel aus der Skizze: oben, oben rechts, unten rechts, unten links, links), nur dort kommen die Gegner herein. In den Lücken stehen keine Bäume, Büsche oder Felsen, nur kurzes Gras und Trittsteine eines Trampelpfads. Der Wald ist dafür etwas dichter.

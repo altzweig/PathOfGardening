@@ -4,7 +4,9 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop-Skizze). Die Regeln des alten Wellen-Survivals liegen unverändert in `archiv/garden-defence-v1/design/Design-Entscheidungen.md`. Ablauf, Phasen und Annahmen des Umbaus: `Farming-Gameloop.md`.
 
 ## Grundsätze
-- **Keine Erklärtexte im Spiel.** Mechaniken werden nicht erklärt, Spieler entdecken selbst. Einzige Ausnahme: der **Tutorial-Tag** (Tag 1), Texte in `tutorial.texts`.
+- **Keine Erklärtexte im Spiel.** Mechaniken werden nicht erklärt, Spieler entdecken selbst. Ausnahmen: der **Tutorial-Tag** (Tag 1), Texte in `tutorial.texts`, und die **Tipps im Ladebildschirm** (`loading.tips`).
+- **Ladebildschirm** beim Start: Vorschaubild der Farm (`public/loading/farm.jpg`), Ladebalken, darunter alle `loading.tipEvery` s ein neuer zufälliger Tipp. Bleibt mindestens `loading.minTime` s stehen, damit man den ersten Tipp lesen kann.
+- **Charakter-Editor:** Würfeln dreht die Figur einmal ganz herum, sie landet immer mit Blick nach vorne.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil.
 - Im Abend- und Morgen-Bildschirm nur Icons, Zahlen und Namen, keine Sätze.
 - PC- und Mobile-Steuerung werden immer parallel gebaut.

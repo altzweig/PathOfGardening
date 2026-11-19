@@ -40,6 +40,7 @@ export interface FarmCfg {
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { offers: number; maxActive: number; start: { need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> } }; pool: QuestPoolEntry[] };
   buildings: Record<BuildingId, BuildingCfg>;
+  loading: { minTime: number; tipEvery: number; fade: number; tips: string[] };
   tutorial: { raccoonHp: number; raccoonSteal: number; raccoonSpeed: number; raccoonStart: number; fieldHint: number; texts: Record<string, string> };
   hof: { clearing: { rx: number; rz: number }; gaps: number[]; gapWidth: number; door: { x: number; z: number }; basket: { x: number; z: number }; bush: { x: number; z: number };
     buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number }[] };

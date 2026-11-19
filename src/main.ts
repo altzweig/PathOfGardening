@@ -136,6 +136,8 @@ class Game {
     if (tutorial) { s.water = this.cfg.can.capacity; s.weapon = null; s.ammo = null; s.ammoCount = 0; }
     s.phase = 'day';
     this.sim = new DaySim(this.cfg, s, this.hof, { tutorial }); this.sim.initRipe();
+    // weeds + forage only grow where nobody is looking
+    this.sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return p.x > -60 && p.x < innerWidth + 60 && p.y > -60 && p.y < innerHeight + 60; };
     this.view.clearDynamic(); this.view.setState(s); this.view.snapCamera(this.sim.player.x, this.sim.player.z); this.view.resetLight();
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
     if (this.tut) this.tut.onDone = () => this.endOfDay('time');
@@ -189,10 +191,14 @@ class Game {
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
     let it = this.input.intent(sim, this.view);
+    // camera turning; the stick / WASD walk relative to the view
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
+    it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.tut) it = this.tut.update(dt, it);
     sim.update(dt, it);
     for (const e of sim.ev) {
-      if (e.k === 'store' && e.item !== 'blue') this.hud.float(this.cfg.hof.basket.x, this.cfg.hof.basket.z, `${ic(e.item)}+${e.n}`);
+      if (e.k === 'store' && e.item !== 'blue') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
       if (e.k === 'faint') this.endOfDay('faint');
     }
     if (sim.finished === 'time' && !this.tut) this.endOfDay('time');

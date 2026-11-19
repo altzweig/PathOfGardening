@@ -1,14 +1,18 @@
 // Persistent farm state (save game in localStorage): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
-import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, QuestPoolEntry, WeaponId, levelFor, plotsAllowed } from './config';
+import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, QuestPoolEntry, STALL_IDS, WeaponId, levelFor, plotsAllowed } from './config';
 
 export type PlotStage = 'wild' | 'empty' | 'raked' | 'sown' | 'ripe';
-export interface PlotState { open: boolean; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number }
+/** yieldLeft = harvest passes left on a ripe plot; weeds 0..plots.weeds.max; fert = times fertilised (this crop), fertDay = day of the last time */
+export interface PlotState { open: boolean; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number }
 export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
-export interface BushState { phase: BushPhase; t: number; berries: number; picked: number }
+/** berries = big berries left on the bush, small = small picks left after that */
+export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
+/** things that grow on the farm by themselves (kept from day to day) */
+export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number }[]; seq: number; init: boolean }
 export interface Quest { id: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean }
 export interface Production { recipe: number; doneDay: number }
-export interface BuildingState { built: boolean; prod: Production | null }
+export interface BuildingState { built: boolean; prod?: Production | null }
 export interface DaySummary { day: number; got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xp: number; fainted: boolean }
 
 export interface FarmState {
@@ -22,6 +26,7 @@ export interface FarmState {
   water: number;               // fillings in the watering can
   plots: PlotState[];
   bush: BushState;
+  wild: WildState;
   buildings: Record<BuildingId, BuildingState>;
   quests: { active: Quest[]; offers: Quest[]; seq: number };
   weapon: WeaponId | null;     // chosen in the morning (null = only the rake)
@@ -35,26 +40,32 @@ export interface FarmState {
 const KEY = 'pog-farm-v1';
 
 export function newState(cfg: FarmCfg): FarmState {
-  const plots: PlotState[] = cfg.hof.plots.map((_, i) => ({ open: i < cfg.start.plots, stage: i < cfg.start.plots ? 'empty' : 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0 }));
+  const plots: PlotState[] = cfg.hof.plots.map((_, i) => newPlot(i < cfg.start.plots));
   const buildings = {} as Record<BuildingId, BuildingState>;
-  for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) buildings[id] = { built: !!cfg.buildings[id]?.built, prod: null };
+  for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) buildings[id] = { built: !!cfg.buildings[id]?.built };
   const s: FarmState = {
     v: 1, day: 1, tutorialDone: false, money: cfg.start.money, xp: 0, level: 1, items: { ...cfg.start.items }, water: cfg.can.start,
-    plots, bush: { phase: 'dry', t: 0, berries: 0, picked: 0 }, buildings,
+    plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false },
     quests: { active: [{ id: 'start', need: { ...cfg.quests.start.need }, reward: { ...cfg.quests.start.reward }, start: true }], offers: [], seq: 1 },
     weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [],
   };
   return s;
 }
+export const newPlot = (open: boolean): PlotState => ({ open, stage: open ? 'empty' : 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0, weeds: 0, fert: 0, fertDay: 0 });
+export const freshBush = (): BushState => ({ phase: 'dry', t: 0, berries: 0, small: 0, picked: 0 });
 export function loadState(cfg: FarmCfg): FarmState | null {
   try {
     const raw = localStorage.getItem(KEY); if (!raw) return null;
     const s = JSON.parse(raw) as FarmState; if (s.v !== 1) return null;
     // new plots / buildings from a changed layout
-    while (s.plots.length < cfg.hof.plots.length) s.plots.push({ open: false, stage: 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0 });
+    while (s.plots.length < cfg.hof.plots.length) s.plots.push(newPlot(false));
     s.plots.length = cfg.hof.plots.length;
-    for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) s.buildings[id] ??= { built: !!cfg.buildings[id]?.built, prod: null };
+    for (const p of s.plots) { p.weeds ??= 0; p.fert ??= 0; p.fertDay ??= 0; }
+    for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) s.buildings[id] ??= { built: !!cfg.buildings[id]?.built };
+    for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
     s.levelUps ??= [];
+    s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
+    if (s.bush.small === undefined) s.bush = freshBush();
     return s;
   } catch { return null; }
 }
@@ -111,8 +122,10 @@ export function rollOffers(cfg: FarmCfg, s: FarmState) {
   }
 }
 function producible(cfg: FarmCfg, s: FarmState, p: QuestPoolEntry) {
-  if (p.item === 'blue' || p.item === 'wheat' || p.item === 'straw') return true;
-  for (const id of BUILDING_IDS) for (const r of cfg.buildings[id]?.recipes ?? []) if (r.out[p.item] && (s.buildings[id].built || (cfg.buildings[id].level ?? 99) <= s.level)) return true;
+  if (['blue', 'wheat', 'straw', 'green', 'apple', ...Object.keys(cfg.wild.forage.items)].includes(p.item)) return true;
+  const reach = (id: BuildingId) => id === 'house' || s.buildings[id].built || (cfg.buildings[id].level ?? 99) <= s.level;
+  for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) for (const r of cfg.buildings[id]?.recipes ?? []) if (r.out[p.item] && reach(id)) return true;
+  for (const id of STALL_IDS) if (cfg.stalls[id].yield[p.item] && reach(id)) return true;
   return false;
 }
 
@@ -133,38 +146,25 @@ export const openPlots = (s: FarmState) => s.plots.filter(p => p.open).length;
 export function canOpenPlot(cfg: FarmCfg, s: FarmState) { return openPlots(s) < Math.min(plotsAllowed(cfg, s.level), s.plots.length) && s.money >= cfg.plots.cost; }
 export function openPlot(cfg: FarmCfg, s: FarmState) {
   if (!canOpenPlot(cfg, s)) return false;
-  const p = s.plots.find(q => !q.open); if (!p) return false;
-  s.money -= cfg.plots.cost; Object.assign(p, { open: true, stage: 'empty', crop: null, days: 0, watered: false, bites: 0 }); return true;
+  const i = s.plots.findIndex(q => !q.open); if (i < 0) return false;
+  s.money -= cfg.plots.cost; s.plots[i] = newPlot(true); return true;
 }
-/** production: start in the evening, ready `days` evenings later */
-export function startProduction(cfg: FarmCfg, s: FarmState, id: BuildingId, recipe: number) {
-  const r = cfg.buildings[id].recipes?.[recipe], b = s.buildings[id];
-  if (!r || !b.built || b.prod) return false;
-  if (!Object.entries(r.in).every(([k, v]) => count(s, k) >= v)) return false;
-  for (const [k, v] of Object.entries(r.in)) addItem(cfg, s, k, -v);
-  b.prod = { recipe, doneDay: s.day + r.days }; return true;
-}
-export function collectProduction(cfg: FarmCfg, s: FarmState, id: BuildingId) {
-  const b = s.buildings[id]; if (!b.prod || b.prod.doneDay > s.day) return false;
-  const r = cfg.buildings[id].recipes![b.prod.recipe];
-  for (const [k, v] of Object.entries(r.out)) addItem(cfg, s, k, v);
-  b.prod = null; return true;
-}
-
 // ---------------- day transitions ----------------
 /** evening: plots that were watered grow one day, the bush resets, unused ammo goes back into the storage */
 export function endDay(cfg: FarmCfg, s: FarmState) {
   for (const p of s.plots) {
-    if (p.open && p.stage === 'sown' && p.crop && p.watered) { p.days++; if (p.days >= cfg.crops[p.crop].days) { const C = cfg.crops[p.crop]; p.stage = 'ripe'; p.bites = 0; p.yieldLeft = C.yield[C.seed] ?? 0; } }
+    if (p.open && p.stage === 'sown' && p.crop && p.watered) { p.days++; if (p.days >= cfg.crops[p.crop].days) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(cfg, p); } }
     p.watered = false;
   }
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
   s.ammoCount = 0; s.phase = 'evening';
   rollOffers(cfg, s);
 }
+/** harvest passes of a plot that just ripened (fertiliser: +fertBonus per time) */
+export const ripeCuts = (cfg: FarmCfg, p: PlotState) => Math.round(cfg.plots.cuts * (1 + cfg.plots.fertBonus * p.fert));
 /** next morning */
 export function nextDay(cfg: FarmCfg, s: FarmState) {
-  s.day++; s.bush = { phase: 'dry', t: 0, berries: 0, picked: 0 }; s.phase = 'morning'; s.summary = null; s.levelUps = [];
+  s.day++; s.bush = freshBush(); s.phase = 'morning'; s.summary = null; s.levelUps = [];
 }
 /** morning: take weapon + ammo for the day */
 export function takeLoadout(cfg: FarmCfg, s: FarmState, weapon: WeaponId | null, ammo: ItemId | null, n: number) {

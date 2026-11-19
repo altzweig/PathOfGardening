@@ -1,9 +1,9 @@
 // Evening in the house (Lager, Aufträge, Bauen, Produktion, day summary, level-up) and the morning loadout
 // (exactly one weapon + one ammo type). Pure DOM over the dusk view of the farm. No explaining texts: icons, numbers, names.
 import type { BuildingId, FarmCfg, ItemId, WeaponId } from '../config';
-import { BUILDING_IDS, WEAPON_IDS, plotsAllowed } from '../config';
+import { BUILDING_IDS, STALL_IDS, WEAPON_IDS, plotsAllowed } from '../config';
 import type { FarmState, Quest } from '../state';
-import { acceptQuest, build, buildStatus, canOpenPlot, collectProduction, completeQuest, count, openPlot, openPlots, questReady, startProduction } from '../state';
+import { acceptQuest, build, buildStatus, canOpenPlot, completeQuest, count, openPlot, openPlots, questReady } from '../state';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -61,7 +61,6 @@ export class HouseUi {
     const s = this.s; let n = 0;
     if (t === 'quests') n = s.quests.active.filter(q => questReady(s, q)).length;
     if (t === 'build') n = BUILDING_IDS.filter(id => buildStatus(this.cfg, s, id) === 'ok').length + (canOpenPlot(this.cfg, s) ? 1 : 0);
-    if (t === 'prod') n = BUILDING_IDS.filter(id => s.buildings[id].prod && s.buildings[id].prod!.doneDay <= s.day).length;
     return n ? `<em>${n}</em>` : '';
   }
   private quest(q: Quest, offer: boolean) {
@@ -95,23 +94,21 @@ export class HouseUi {
     });
     return plotRow + rows.join('');
   }
+  /** what the buildings make during the day (overview only: production runs at the building by left click) */
   private prodList() {
     const s = this.s, C = this.cfg;
-    const list = BUILDING_IDS.filter(id => C.buildings[id].recipes?.length);
-    return list.map(id => {
-      const b = s.buildings[id], B = C.buildings[id];
-      if (!b.built) return `<div class="row p lock">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div>${ic('lock')}</div>`;
-      if (b.prod) {
-        const r = B.recipes![b.prod.recipe], ready = b.prod.doneDay <= s.day;
-        return `<div class="row p">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div><div class="cost">${this.goods(r.out)}</div>
-          ${ready ? `<button class="hb go" data-collect="${id}">Abholen</button>` : `<span class="gd">${ic('moon')}<b>${b.prod.doneDay - s.day}</b></span>`}</div>`;
+    const rows: string[] = [];
+    for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) {
+      const B = C.buildings[id], built = id === 'house' || s.buildings[id].built;
+      if (B.recipes?.length && B.action) rows.push(...B.recipes.map(r => `<div class="row p${built ? '' : ' lock'}">${ic(id)}<div class="bn"><b>${B.action!.label}</b><small>${this.name(id)}</small></div>
+        <div class="cost">${this.goods(r.in, built)}${ic('arrowR')}${this.goods(r.out)}</div>${built ? '' : ic('lock')}</div>`));
+      if ((STALL_IDS as string[]).includes(id)) {
+        const S = C.stalls[id as keyof typeof C.stalls] as any;
+        rows.push(`<div class="row p${built ? '' : ' lock'}">${ic(id)}<div class="bn"><b>${C.actions[S.collect as 'milk'].label}</b><small>${this.name(id)}</small></div>
+          <div class="cost">${this.goods({ [S.feed]: S.feedCost * S.maxFed }, built)}${ic('arrowR')}${this.goods(Object.fromEntries(Object.entries(S.yield as Record<string, number>).map(([k, v]) => [k, v * S.animals.length])))}</div>${built ? '' : ic('lock')}</div>`);
       }
-      return B.recipes!.map((r, i) => {
-        const ok = Object.entries(r.in).every(([k, v]) => count(s, k) >= v);
-        return `<div class="row p">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div><div class="cost">${this.goods(r.in, true)}${ic('arrowR')}${this.goods(r.out)}<span class="gd">${ic('moon')}<b>${r.days}</b></span></div>
-          <button class="hb" data-prod="${id}:${i}" ${ok ? '' : 'disabled'}>Start</button></div>`;
-      }).join('');
-    }).join('');
+    }
+    return rows.join('');
   }
   private store() {
     const items = Object.entries(this.s.items).filter(([, v]) => v > 0);
@@ -126,8 +123,6 @@ export class HouseUi {
     else if (d.accept) { const q = s.quests.offers.find(x => x.id === d.accept); if (q && acceptQuest(C, s, q)) this.onSound('ui.confirm'); }
     else if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
     else if (d.plot) { if (openPlot(C, s)) this.onSound('ui.confirm'); }
-    else if (d.prod) { const [id, i] = d.prod.split(':'); if (startProduction(C, s, id as BuildingId, +i)) this.onSound('ui.confirm'); }
-    else if (d.collect) { if (collectProduction(C, s, d.collect as BuildingId)) this.onSound('ui.confirm'); }
     this.onChange(); this.render();
   }
 

@@ -64,3 +64,22 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 
 ## Texturen und Credits
 - Texturen immer natürlich gemischt, kein sichtbares Tiling. Fremd-Assets mit Credits (Name, Link, Lizenz) in `src/ui/credits.ts`.
+
+## Gebäude und Tagesaktionen (19.11.2026, Bastis Aktionsliste)
+- Jede Aktion (außer Kämpfen) geht nur, wenn das Gebäude gebaut ist. Steht man im Radius, erscheint "[Aktionsname]" über dem Ziel (PC mit Linksklick-Symbol, rot mit fehlenden Waren, wenn es gerade nicht geht). Linksklick (Handy: Aktionsknopf) startet sie, ein kleiner Zeitbalken (1–4 s) füllt sich. Zeiten und Namen: `actions` in balancing.yaml.
+- Wiederholbare Aktionen laufen von selbst weiter, solange die Bedingung gilt: Busch ernten bis leer, Brombeeren pflücken, Feld ernten, Wasser schöpfen bis das Fass voll ist.
+- Busch: alle ~1,5 s 3–4 Beeren (8 Durchgänge), danach 4 Durchgänge mit je 1 kleinen Beere. Der Korb erscheint erst bei der ersten Ernte direkt neben der Spielfigur und bleibt dort für den Tag; Beeren fliegen im Bogen hinein (Sammel-Sound). Busch wackelt, Blätter fliegen (alte Ernteanimation). Busch-Kollision größer (`bush.radius`).
+- Feld: Pflügen (neues Feld), Säen, Gießen 1×/Tag, Jäten (bis 5 Unkräuter je Feld; ab 3 kann nicht geerntet werden), Düngen 1×/Tag (+30 % Ernten), Ernten mehrmals, danach ist das Feld wieder gepflügt.
+- Ställe (Kühe, Schafe & Ziegen, Hühner): Füttern am Stall (Kuh 3×, Schaf/Ziege 2×, Huhn 1×), Stroh auslegen (+30 % Ertrag), Melken / Eier sammeln 1× je Tageshälfte (morgens, abends). Ertrag anteilig zur Fütterung. Hungrige Tiere zeigen ein Napf-Symbol, satte Tiere legen sich hin und schlafen (Zzz).
+- Hof: Unkraut (Start 80, max. 200, alle 6–12 s eins) und Sammelgut am Waldrand (Bärlauch, Sauerampfer, Pilze, Brennholz, Steine; Start 40) wachsen nur dort nach, wo gerade niemand hinschaut. Jäten gibt Grünschnitt. Wilde Brombeeren am Waldrand: etwa halber Ertrag pro Zeit wie der Busch. Apfelbäume schütteln.
+- Gebäude-Produktion am Tag statt abends: Mühle (Mahlen), Bäckerei (Backen: Mehl + Wasser → Brot), Saftpresse, Küche im Haupthaus (Kochen), Molkerei (Käse), Güllesilo (Dünger aus Grünschnitt + Gülle).
+- Tiere: am Anfang 2–3 zufällige Hasen, genau 1 Waschbär-Überfall zufällig in der 2. Tageshälfte, +1 Waschbär je Level. Tutorial-Waschbär stiehlt nur 4 Beeren, erste Quest 20 Blaubeeren.
+- Lichtung ca. 10 m größer, Wald bis zur maximalen Sichtweite. Kamera frei drehbar: mittlere Maustaste ziehen (PC) bzw. auf der rechten Bildschirmhälfte wischen (Handy); Laufen richtet sich nach der Kamera.
+
+### Annahmen (bitte prüfen)
+- Küche nimmt das erste Rezept, für das alles da ist (Reihenfolge in balancing.yaml).
+- Kühe geben zusätzlich Gülle (für den Dünger), Schafe und Ziegen geben Milch.
+- Futter: Kühe/Schafe/Ziegen Grünschnitt, Hühner Weizen.
+- Ställe werden zur Tagesmitte wieder hungrig (= "morgens und abends").
+- "Bäume" = die Apfelbäume auf dem Hof.
+- Pflügen nur für neue Felder; nach der letzten Ernte bleibt das Feld gepflügt und kann direkt neu gesät werden.

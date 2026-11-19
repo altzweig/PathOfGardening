@@ -34,17 +34,46 @@ export function pushOut(o: Obstacle, x: number, z: number, r: number): { x: numb
   return toWorld(o, nx, nz);
 }
 
+/** small seeded random generator: the same layout on every start */
+export function seeded(seed: number) { let t = seed >>> 0; return () => { t += 0x6d2b79f5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
+
 export class Hof {
   obstacles: Obstacle[] = [];
   gaps: { a: number; x: number; z: number }[] = [];
+  /** wild bramble bushes along the forest edge */
+  brambles: { x: number; z: number }[] = [];
   rx: number; rz: number;
   constructor(public cfg: FarmCfg) {
     const H = cfg.hof; this.rx = H.clearing.rx; this.rz = H.clearing.rz;
     for (const [id, r] of Object.entries(H.buildings) as [BuildingId, RectCfg][]) this.obstacles.push(obstacleOf(r, id));
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
-    this.obstacles.push({ kind: 'circle', x: H.basket.x, z: H.basket.z, r: .35, id: 'basket' });
-    this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: .45, id: 'bush' });
+    this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
     this.gaps = H.gaps.map(d => { const a = d * Math.PI / 180, e = this.edge(a); return { a, x: e.x, z: e.z }; });
+    // brambles: evenly around the edge (seeded jitter), never in a gap
+    const rnd = seeded(7), n = cfg.wild?.brambles?.count ?? 0;
+    for (let i = 0, tries = 0; this.brambles.length < n && tries < n * 30; tries++, i++) {
+      const a = (i + rnd() * .6) / n * Math.PI * 2 + .3, e = this.edge(a, .9 + rnd() * .04);
+      if (this.inGap(e.x, e.z, 2) || !this.freeSpot(e.x, e.z, 1)) continue;
+      this.brambles.push(e);
+    }
+    for (const b of this.brambles) this.obstacles.push({ kind: 'circle', x: b.x, z: b.z, r: .6, id: 'bramble' });
+  }
+  /** no building, tree, bush or plot here (pad = extra distance) */
+  freeSpot(x: number, z: number, pad = 0) {
+    const h = this.cfg.plots.size / 2 + .2;
+    for (const p of this.cfg.hof.plots) if (Math.hypot(x - p.x, z - p.z) < h + pad) return false;
+    for (const o of this.obstacles) {
+      if (o.kind === 'circle') { if (Math.hypot(x - o.x, z - o.z) < o.r + pad) return false; }
+      else { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + pad && Math.abs(lz) < o.hd + pad) return false; }
+    }
+    return Math.hypot(x - this.cfg.hof.door.x, z - this.cfg.hof.door.z) > 1.2 + pad;
+  }
+  /** obstacle of a building (for distances to its walls / fence) */
+  building(id: BuildingId) { return this.obstacles.find(o => o.id === id) ?? null; }
+  /** distance from a point to the outside of an obstacle */
+  distTo(o: Obstacle, x: number, z: number) {
+    if (o.kind === 'circle') return Math.max(0, Math.hypot(x - o.x, z - o.z) - o.r);
+    const { lx, lz } = toLocal(o, x, z); return Math.hypot(Math.max(0, Math.abs(lx) - o.hw), Math.max(0, Math.abs(lz) - o.hd));
   }
   /** point on the clearing edge in direction a */
   edge(a: number, k = 1) { return { x: Math.cos(a) * this.rx * k, z: Math.sin(a) * this.rz * k }; }

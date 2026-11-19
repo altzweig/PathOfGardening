@@ -8,7 +8,11 @@ import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
-const TOOL_ICON: Record<string, string> = { can: 'can', rake: 'rake', seed: 'seed', hands: 'hands', sickle: 'sickle' };
+const TOOL_ICON: Record<string, string> = { can: 'can', rake: 'rake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
+/** left mouse button (PC label) */
+const LMB = `<svg class="ms" viewBox="0 0 30 42"><rect x="2" y="2" width="26" height="38" rx="13" fill="#1a2027" stroke="#fff2c0" stroke-width="2.4"/><path d="M15 2v17M2 19h26" stroke="#5a6570" stroke-width="2"/><path d="M15 3.5a12 12 0 0 0-11.5 12V19H15z" fill="#e3b964"/></svg>`;
+/** height of the label over a target (m) */
+const LABEL_Y: Record<string, number> = { bld: 2.4, stall: 1.9, well: 2.8, tree: 3.4, plot: 1.7, bush: 1.9, bramble: 1.5, forage: .9, weed: .9 };
 
 export class FarmHud {
   private key = '';
@@ -47,6 +51,20 @@ export class FarmHud {
       cur.classList.toggle('no', !hoverInfo!.ok);
       if (cur.dataset.t !== tool + hoverInfo!.ok) { cur.dataset.t = tool + hoverInfo!.ok; cur.innerHTML = ic(tool) + (hoverInfo!.ok ? '' : `<em>${ic(hoverInfo!.why === 'water' ? 'dropEmpty' : hoverInfo!.why === 'seed' ? 'seed' : 'lock')}</em>`); }
     } else cur.hidden = true;
+    // "[Aktion]" over the spot the player would work at (hidden while an action runs: the bar shows then)
+    const lab = $('#fLabel');
+    if (hover && hoverInfo && !sim.inputLocked && !P.action && !P.goal) {
+      // buildings: over the wall next to the player, not over the middle of the roof
+      const tp = hover.k === 'bld' || hover.k === 'stall' ? sim.facePoint(hover) : sim.targetPos(hover), p = view.screen(tp.x, LABEL_Y[hover.k] ?? 1.5, tp.z);
+      lab.hidden = !p.on;
+      const x = Math.max(110, Math.min(innerWidth - 110, p.x)), y = Math.max(110, Math.min(innerHeight - 20, p.y));
+      lab.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      const need = !hoverInfo.ok && hoverInfo.need ? Object.entries(hoverInfo.need).map(([k, n]) => `<span class="need">${ic(k)}${n}</span>`).join('') : '';
+      const why = !hoverInfo.ok && !need ? ic(hoverInfo.why === 'water' ? 'dropEmpty' : hoverInfo.why === 'seed' ? 'seed' : hoverInfo.why === 'weeds' ? 'green' : 'lock') : '';
+      const html = (touch ? '' : LMB) + `<span>[${hoverInfo.label}]</span>` + (hoverInfo.count ? `<i>${hoverInfo.count}</i>` : '') + need + why;
+      if (lab.dataset.h !== html) { lab.dataset.h = html; lab.innerHTML = html; }
+      lab.classList.toggle('no', !hoverInfo.ok);
+    } else lab.hidden = true;
     const act = $('#bAct'), t2 = touch && hoverInfo ? TOOL_ICON[hoverInfo.tool] : 'hands';
     if (act.dataset.t !== t2 + (hoverInfo?.ok ?? '')) { act.dataset.t = t2 + (hoverInfo?.ok ?? ''); act.innerHTML = ic(t2); }
     act.classList.toggle('idle', !hoverInfo || !hoverInfo.ok);
@@ -73,5 +91,5 @@ export class FarmHud {
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }
-  clear() { for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
+  clear() { $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
 }

@@ -4,16 +4,21 @@ import YAML from 'yaml';
 export type ItemId = string;
 export type WeaponId = 'rake' | 'shotgun' | 'crossbow' | 'sling' | 'mace' | 'cannon';
 export const WEAPON_IDS: WeaponId[] = ['shotgun', 'crossbow', 'sling', 'mace', 'cannon'];
-export type BuildingId = 'house' | 'well' | 'shop' | 'mill' | 'bakery' | 'carpentry' | 'workshop' | 'dairy' | 'juicer' | 'silo' | 'chickens' | 'cows';
-export const BUILDING_IDS: BuildingId[] = ['well', 'mill', 'shop', 'juicer', 'bakery', 'carpentry', 'workshop', 'cows', 'dairy', 'chickens', 'silo'];
+export type BuildingId = 'house' | 'well' | 'shop' | 'mill' | 'bakery' | 'carpentry' | 'workshop' | 'dairy' | 'juicer' | 'silo' | 'chickens' | 'cows' | 'sheep';
+export const BUILDING_IDS: BuildingId[] = ['well', 'mill', 'shop', 'juicer', 'bakery', 'carpentry', 'workshop', 'cows', 'sheep', 'dairy', 'chickens', 'silo'];
+export type StallId = 'cows' | 'sheep' | 'chickens';
+export const STALL_IDS: StallId[] = ['cows', 'sheep', 'chickens'];
+export type Livestock = 'cow' | 'sheep' | 'goat' | 'chicken';
 export type AnimalType = 'raccoon' | 'hare';
-export type ActionKind = 'water' | 'rake' | 'sow' | 'harvestBush' | 'harvestPlot' | 'refill';
-export type Tool = 'can' | 'rake' | 'seed' | 'hands' | 'sickle';
+export type ActionKind = 'water' | 'plow' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
+export type Tool = 'can' | 'rake' | 'seed' | 'hands' | 'sickle' | 'bucket';
+export interface ActionCfg { time: number; label: string; repeat?: boolean }
 
 /** Taler + goods */
 export type Cost = { money?: number } & Record<string, number | undefined>;
-export interface Recipe { in: Record<ItemId, number>; out: Record<ItemId, number>; days: number }
-export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; questSlots?: number }
+export interface Recipe { in: Record<ItemId, number>; out: Record<ItemId, number> }
+export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; questSlots?: number; action?: { label: string; time: number } }
+export interface StallCfg { animals: Livestock[]; feed: ItemId; feedCost: number; maxFed: number; collect: 'milk' | 'eggs'; yield: Record<ItemId, number> }
 export interface RectCfg { x: number; z: number; w?: number; d?: number; r?: number; rot?: number; fence?: boolean }
 export interface GunCfg { available: boolean; level: number; ammo: ItemId[]; ammoPerShot?: number; cooldown?: number; pellets?: number; cone?: number; range?: number; speed?: number; damage?: number }
 export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radius: number; scare: number; xp: number;
@@ -22,20 +27,24 @@ export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radiu
 export interface QuestPoolEntry { item: ItemId; amount: [number, number]; money: number; xp: number; level: number }
 
 export interface FarmCfg {
-  names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string> };
+  names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
   player: { hp: number; speed: number; radius: number; reach: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
-  actions: { water: number; rake: number; sow: number; harvestPlot: number; refill: number };
+  actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number };
-  bush: { ripen: number; berries: number; pickInterval: number; barDelay: number; almostAt: number };
+  bush: { ripen: number; bigPicks: number; bigBerries: [number, number]; smallPicks: number; smallBerries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, { seed: ItemId; days: number; yield: Record<ItemId, number> }>;
-  plots: { size: number; byLevel: number[]; cost: number };
+  plots: { size: number; cuts: number; fertBonus: number; weeds: { max: number; every: [number, number]; blockAt: number }; byLevel: number[]; cost: number };
+  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number> };
+    brambles: { count: number; berries: number; regrow: number; pick: [number, number] }; apples: { perTree: number; shake: [number, number] }; barrel: number };
+  stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
+  camera: { rotate: number; pitch: [number, number] };
   storage: { capacity: number };
   start: { money: number; items: Record<ItemId, number>; plots: number };
   weapons: { rake: { damage: number; range: number; arc: number; cooldown: number; swing: number; knockback: number; stun: number } } & Record<Exclude<WeaponId, 'rake'>, GunCfg>;
   ammo: Record<ItemId, { damage: number; freeze?: number }>;
   animals: Record<AnimalType, AnimalCfg>;
-  spawns: { firstAfter: number; lastBefore: number; groups: number; groupsPerLevel: number; size: [number, number]; sizePerLevel: number; types: Record<AnimalType, number>; scaling: { hp: number; damage: number; speed: number } };
+  spawns: { wanderers: [number, number]; wanderTypes: Partial<Record<AnimalType, number>>; raid: { from: number; to: number; raccoons: number; perLevel: number }; scaling: { hp: number; damage: number; speed: number } };
   faint: { dryFields: boolean };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { offers: number; maxActive: number; start: { need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> } }; pool: QuestPoolEntry[] };

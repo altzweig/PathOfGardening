@@ -16,7 +16,7 @@ const rim = new THREE.DirectionalLight(0x9ab8ff, 1.1); rim.position.set(-4, 3, -
 scene.add(new THREE.HemisphereLight(0xc8d8ff, 0x3a2a1a, .5));
 const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 48), new THREE.MeshStandardMaterial({ color: 0x4a5a32, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-const ALL: [string, EnemyType, boolean][] = [['raccoon', 'raccoon', false], ['panda', 'panda', false], ['toad', 'toad', false], ['sheep', 'sheep', false], ['hedgehog', 'hedgehog', false], ['squirrel', 'squirrel', false], ['boss', 'raccoon', true]];
+const ALL: [string, EnemyType, boolean][] = [['raccoon', 'raccoon', false], ['panda', 'panda', false], ['toad', 'toad', false], ['sheep', 'sheep', false], ['hedgehog', 'hedgehog', false], ['squirrel', 'squirrel', false], ['hare', 'hare', false], ['boss', 'raccoon', true]];
 const only = Q.get('only')?.split(',');
 const list = ALL.filter(x => !only || only.includes(x[0])).map(([n, t, boss]) => ({ n, a: makeAnimal(t, boss) }));
 const cols = Math.min(list.length, +(Q.get('cols') || 4)), sp = 1.25;

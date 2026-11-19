@@ -21,6 +21,9 @@ const DICE = svg('<rect x="5" y="5" width="22" height="22" rx="5"/><circle cx="1
 
 type Key = 'hair' | 'hairCol' | 'skin' | 'outfit';
 
+/** yaw at which the figure looks at the camera (slightly turned, reads better than straight on) */
+const FRONT = .45, TAU = Math.PI * 2, ROLL = 1.1;
+
 export class StartMenu {
   look: Look;
   private el = document.getElementById('menu')!;
@@ -31,7 +34,9 @@ export class StartMenu {
   private cam = new THREE.PerspectiveCamera(24, 1, .05, 30);
   private rig: Rig | null = null;
   private turn = new THREE.Group();
-  private yaw = .45; private drag: number | null = null; private spin = 0;
+  private yaw = FRONT; private drag: number | null = null; private spin = 0;
+  /** dice roll: one full turn that always ends facing the camera */
+  private roll = { t: -1, from: 0, to: 0 };
   private raf = 0; private last = 0; private t = 0; private pop = 0;
   onSound: (k: string) => void = () => {};
 
@@ -44,7 +49,7 @@ export class StartMenu {
     const rim2 = new THREE.DirectionalLight(0x9fc0ff, 1.1); rim2.position.set(2, 1.5, -2); s.add(rim2);
     s.add(this.turn);
     // drag to turn the figure (a flick keeps it spinning a little)
-    this.canvas.addEventListener('pointerdown', e => { this.drag = e.clientX; this.spin = 0; this.canvas.setPointerCapture(e.pointerId); });
+    this.canvas.addEventListener('pointerdown', e => { this.drag = e.clientX; this.spin = 0; this.roll.t = -1; this.canvas.setPointerCapture(e.pointerId); });
     this.canvas.addEventListener('pointermove', e => { if (this.drag === null) return; const d = (e.clientX - this.drag) * .014; this.yaw += d; this.spin = d * 30; this.drag = e.clientX; });
     const up = () => { this.drag = null; };
     this.canvas.addEventListener('pointerup', up); this.canvas.addEventListener('pointercancel', up);
@@ -57,7 +62,8 @@ export class StartMenu {
       this.onSound('ui.confirm'); this.look = randomLook(); this.name.value = this.look.name; this.save();
       dice.classList.remove('roll'); void dice.offsetWidth; dice.classList.add('roll');
       this.name.classList.remove('flash'); void this.name.offsetWidth; this.name.classList.add('flash');
-      this.rebuild(); this.renderOpts(); this.spin = 9;
+      this.rebuild(); this.renderOpts(); this.spin = 0;
+      const k = Math.round((this.yaw - FRONT) / TAU); this.roll = { t: 0, from: this.yaw, to: FRONT + (k + 1) * TAU };
     });
     // keyboard: arrows move through the menu, Enter activates (native)
     addEventListener('keydown', e => {
@@ -108,7 +114,10 @@ export class StartMenu {
     const now = performance.now(), dt = Math.min(.05, (now - this.last) / 1000); this.last = now; this.t += dt;
     if (!this.renderer || !this.rig) return;
     if (this.canvas.width !== Math.round(this.canvas.clientWidth * this.renderer.getPixelRatio())) this.resize();
-    if (this.drag === null) { this.yaw += this.spin * dt; this.spin *= Math.exp(-dt * 2.5); this.yaw += Math.sin(this.t * .45) * dt * .1; }
+    if (this.roll.t >= 0 && this.drag === null) {
+      const r = this.roll; r.t = Math.min(1, r.t + dt / ROLL); const e = 1 - (1 - r.t) ** 3; // fast start, soft landing
+      this.yaw = r.from + (r.to - r.from) * e; if (r.t >= 1) r.t = -1;
+    } else if (this.drag === null) { this.yaw += this.spin * dt; this.spin *= Math.exp(-dt * 2.5); this.yaw += Math.sin(this.t * .45) * dt * .1; }
     this.turn.rotation.y = this.yaw;
     this.pop = Math.max(0, this.pop - dt * 2.2);
     const p = this.pop, sq = Math.sin((1 - p) * Math.PI * 3) * p * .06;

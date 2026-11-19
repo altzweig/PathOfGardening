@@ -18,6 +18,7 @@ import { HouseUi } from './farm/ui/house';
 import { Tutorial } from './farm/tutorial';
 import { mobileControls, pcControls } from './farm/ui/controls';
 import { ic } from './farm/ui/ficons';
+import { LoadScreen } from './farm/ui/loading';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const OVERLAYS = ['#menu', '#confirmNew', '#options', '#credits', '#controls', '#pause'];
@@ -38,9 +39,12 @@ class Game {
   private ending = false;
 
   async boot() {
+    const load = new LoadScreen(); load.set(.08);
     try { this.cfg = await loadFarmCfg(); }
-    catch (e) { this.only('#menu'); const er = $('#menuErr'); er.hidden = false; er.textContent = 'balancing.yaml: ' + (e as Error).message; return; }
+    catch (e) { await load.finish(null); this.only('#menu'); const er = $('#menuErr'); er.hidden = false; er.textContent = 'balancing.yaml: ' + (e as Error).message; load.fadeOut(null); return; }
+    load.startTips(this.cfg); load.set(.15);
     setSoundConfig(await loadSounds());
+    load.loaders(.2, .9); // models + textures
     const q = new URLSearchParams(location.search).get('q'); if (q && q in QL) { gfx.quality = q as typeof gfx.quality; gfx.auto = false; } // ?q=niedrig (tests, slow devices)
     applyQuality();
     this.hof = new Hof(this.cfg);
@@ -51,11 +55,17 @@ class Game {
     this.house = new HouseUi(this.cfg, this.s);
     this.view.floatXp = (x, z, xp) => this.hud.float(x, z, `${ic('xp')}+${xp}`, 'xp');
     this.wire();
-    this.only('#menu'); this.updateMenu();
+    this.only(null); this.updateMenu();
     let last = performance.now();
     const loop = (now: number) => { requestAnimationFrame(loop); const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); };
     requestAnimationFrame(loop);
     (window as any).__pog = this;
+    // wait for the forest, then a few rendered frames (shader compile) so the menu starts smooth
+    await this.view.world.ready; load.set(.93);
+    for (let i = 0; i < 3; i++) await new Promise(r => requestAnimationFrame(r));
+    await load.finish(this.cfg);
+    this.only('#menu');
+    await load.fadeOut(this.cfg);
   }
   private only(id: string | null) { for (const o of OVERLAYS) $(o).hidden = o !== id; this.menu.setActive(id === '#menu'); }
   private updateMenu() { $('#playBtn').textContent = hasSave() ? 'Weiterspielen' : 'Spielen'; $('#newBtn').hidden = !hasSave(); }

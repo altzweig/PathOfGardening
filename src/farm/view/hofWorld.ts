@@ -53,10 +53,12 @@ function control(cfg: FarmCfg, hof: Hof) {
 export class HofWorld {
   ground: THREE.Mesh;
   nature: THREE.Group | null = null;
+  /** resolves once the forest, buildings' surroundings and trees are built (loading screen waits for it) */
+  ready: Promise<void>;
   constructor(public cfg: FarmCfg, public hof: Hof, private free: (x: number, z: number, pad: number) => boolean) {
     this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(control(cfg, hof)));
     this.ground.rotation.x = -Math.PI / 2; this.ground.receiveShadow = true; scene.add(this.ground);
-    loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
+    this.ready = loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
   }
   private build() {
     const W = this.nature = new THREE.Group(); W.name = 'nature'; scene.add(W);

@@ -277,6 +277,26 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
 
 # ---------------------------------------------------------------------
 # Tutorial-Tag (erster Tag). Texte: die einzige erlaubte Erklärung im Spiel.
+loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken, Tipps
+  minTime: 2.5             # s, so lange bleibt er mindestens stehen
+  tipEvery: 5              # s, dann kommt der nächste Tipp
+  fade: 0.6                # s Ausblenden
+  tips:                    # zufällige Reihenfolge, Ausnahme von "keine Erklärtexte" (Basti 19.11.2026)
+    - Felder brauchen jeden Tag einmal Wasser. Ungegossene Tage zählen nicht.
+    - Die Gießkanne füllst du am Brunnen auf.
+    - Regen gießt alle Felder und den Busch.
+    - Waschbären klauen aus dem Korb am Lager. Triff sie, dann lassen sie die Beute fallen.
+    - Hasen sind scheu. Geh auf sie zu, dann flüchten sie in den Wald.
+    - Tiere kommen nur durch die Lücken im Wald.
+    - Ohne Waffe kämpfst du mit der Harke.
+    - Blaubeeren als Munition frieren Tiere kurz ein.
+    - Unbenutzte Munition kommt abends zurück ins Lager.
+    - XP gibt es für Aufträge und vertriebene Tiere.
+    - Mit jedem Level schaltest du neue Gebäude frei.
+    - Weizen erntest du mit der Sichel und bekommst Weizen und Stroh.
+    - Abends im Haus nimmst du Aufträge an und gibst sie ab.
+    - Fällst du in Ohnmacht, ist der Tag vorbei und die Felder sind wieder trocken.
+
 tutorial:
   raccoonHp: 4             # ein Harkenschlag vertreibt ihn
   raccoonSteal: 5          # klaut so viele Beeren aus dem Korb

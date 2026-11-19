@@ -7,8 +7,34 @@
   <title>PathOfGardening</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700;800&display=swap">
+  <style>
+    /* loading screen: inline so it shows before the game script and styles are loaded */
+    #load{position:fixed;inset:0;z-index:100;background:#07090b;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;transition:opacity .6s ease;font-family:'Alegreya Sans',system-ui,sans-serif}
+    #load.out{opacity:0;pointer-events:none}
+    #loadImg{position:absolute;inset:0;background:#0d1410 url(./loading/farm.jpg) center/cover no-repeat;animation:loadZoom 30s ease-out both}
+    #load::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,#07090b00 40%,#07090bcc 78%,#07090b 100%),radial-gradient(ellipse at center,#0000 55%,#0008 100%);pointer-events:none}
+    #loadBox{position:relative;z-index:1;width:min(560px,86vw);padding:0 0 calc(env(safe-area-inset-bottom,0px) + 7vh);text-align:center}
+    #loadTitle{font-family:Cinzel,serif;font-weight:700;color:#f3dfae;font-size:clamp(26px,5vw,44px);letter-spacing:.04em;text-shadow:0 2px 14px #000c;margin-bottom:16px}
+    #loadTitle span{font-size:.62em;color:#c9b17c;margin:0 .12em}
+    #loadBar{height:10px;border-radius:6px;background:#0009;border:1px solid #e3b96466;box-shadow:0 0 0 3px #0005,inset 0 1px 3px #000c;overflow:hidden}
+    #loadFill{height:100%;transform-origin:left;transform:scaleX(.02);background:linear-gradient(90deg,#7cae3e,#c9df63);box-shadow:0 0 12px #c9df6399;animation:loadCreep 8s cubic-bezier(.1,.6,.3,1) both}
+    #loadTip{min-height:3em;margin-top:16px;color:#efe6d0;font-size:clamp(15px,2.3vw,19px);line-height:1.4;text-shadow:0 1px 6px #000;opacity:0}
+    #loadTip.in{animation:loadTip .5s ease-out both}
+    @keyframes loadCreep{from{transform:scaleX(.02)}to{transform:scaleX(.12)}}
+    @keyframes loadZoom{from{transform:scale(1.08)}to{transform:scale(1)}}
+    @keyframes loadTip{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @media (max-height:520px){#loadBox{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 4vh)}#loadTitle{margin-bottom:10px}#loadTip{margin-top:10px;min-height:2.8em}}
+  </style>
 </head>
 <body>
+<div id="load">
+  <div id="loadImg"></div>
+  <div id="loadBox">
+    <div id="loadTitle">Path<span>Of</span>Gardening</div>
+    <div id="loadBar"><div id="loadFill"></div></div>
+    <div id="loadTip"></div>
+  </div>
+</div>
 <div id="app">
   <canvas id="c"></canvas>
   <div id="hurt"></div>

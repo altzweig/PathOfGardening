@@ -1,6 +1,8 @@
 # PathOfGardening
 
-Garten-Survival im Browser (Three.js, TypeScript, Vite). Solo oder Koop für bis zu 4 Spieler (WebRTC über PeerJS).
+Hof-Spiel im Browser (Three.js, TypeScript, Vite): tagsüber den Hof bewirtschaften und Waschbären und Hasen vertreiben, abends im Haus Aufträge, Bauen und Produktion. Der Spielstand bleibt im Browser gespeichert.
+
+Das frühere Garten-Survival (Wellen, Level-up-Karten, Koop) liegt in `archiv/garden-defence-v1/`.
 
 ## Lokal starten
 
@@ -15,7 +17,9 @@ Dann die angezeigte Adresse öffnen (auch im WLAN vom Handy aus, `--host` ist ak
 
 ## Balancing
 
-Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die Datei wird bei jedem Spielstart geladen; im Dev-Modus lädt das Spiel beim Speichern automatisch neu. Übersicht der Upgrades: `Game Design & Balancing/Upgrades.md`, Regeln und Begründungen: `Design-Entscheidungen.md`.
+Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die Datei wird bei jedem Spielstart geladen; im Dev-Modus lädt das Spiel beim Speichern automatisch neu. Ablauf und Annahmen des Umbaus: `Farming-Gameloop.md`, Regeln und Begründungen: `Design-Entscheidungen.md`.
+
+Test-Hilfen: `?q=niedrig` startet mit niedriger Grafik, `?h=12` zeigt eine feste Tageszeit.
 
 ## Auf GitHub Pages veröffentlichen
 
@@ -25,12 +29,13 @@ Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die 
 
 ## Projektstruktur
 
-- `src/sim` – Spiellogik (läuft beim Host bzw. solo), erzeugt Snapshots
-- `src/view` – Three.js-Darstellung der Snapshots
-- `src/input` – PC- und Touch-Eingabe
-- `src/net` – Koop (PeerJS)
-- `src/ui` – HUD, Karten, Steuerungsseite
-- `prototype_original.html` – der ursprüngliche Prototyp als Referenz
+- `src/farm/config.ts`, `state.ts` – Balancing-Typen, Spielstand (Lager, Geld, XP, Felder, Gebäude, Aufträge) und Tag/Abend-Übergänge
+- `src/farm/sim.ts` – ein Tag: Spieler, Aktionen, Kampf, Tiere, Beute, Regen
+- `src/farm/tutorial.ts` – Tutorial-Tag mit Waschbär-Cutscene
+- `src/farm/view/` – Hof, Wald, Gebäude, Felder, Busch, Figur mit Werkzeugen, Kamera
+- `src/farm/input.ts`, `src/farm/ui/` – PC- und Touch-Eingabe, HUD, Abend- und Morgen-Bildschirm, Steuerungsseite
+- `src/view/` – gemeinsame Three.js-Bausteine (Licht, Effekte, Tiere, Figur, Natur, Texturen)
+- `archiv/garden-defence-v1/` – das alte Spiel (nicht im Build)
 
 ## Sounds
 

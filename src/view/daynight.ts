@@ -2,7 +2,7 @@
 // Drives the main light, sky/haze, fog, exposure, bloom, colour grade, garden lights, torches, bush eyes and ambience.
 import * as THREE from 'three';
 import { bloom, camera, envU, gardenLight, hemi, lantern, moon, renderer, scene, torch } from './core';
-import { setEyeNight, setFogLook, setTorchLevel } from './world';
+import { setEyeNight, setFogLook, setTorchLevel } from '../farm/view/hofWorld';
 import { setDayNight } from '../audio';
 
 const C = (h: number) => new THREE.Color(h);

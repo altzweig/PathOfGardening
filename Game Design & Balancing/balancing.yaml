@@ -1,839 +1,359 @@
 # =====================================================================
-#  PathOfGardening – Balancing
+#  PathOfGardening – Balancing (Farming-Gameloop seit 19.11.2026)
 # ---------------------------------------------------------------------
 #  Single Source of Truth. Das Spiel liest diese Datei bei JEDEM Start.
 #  Lokal (npm run dev): Datei speichern -> Spiel lädt automatisch neu.
 #  GitHub Pages: Datei committen + pushen -> wird mit ausgeliefert.
 #
-#  Einheiten: Zeit in Sekunden (s), Distanz in Metern (m, 1 m = 100 cm),
-#  Winkel in Grad, Prozent als Anteil (0.15 = 15 %).
-#  Im Koop wird gerechnet:  Faktor = Spielerzahl ^ Exponent
+#  Einheiten: Zeit in Sekunden (s), Distanz in Metern (m), Winkel in Grad,
+#  Prozent als Anteil (0.15 = 15 %). Geld = Taler.
+#  Die alten Werte (Wellen-Survival) liegen in archiv/garden-defence-v1/design/balancing.yaml.
+#  Ablauf und Annahmen: Farming-Gameloop.md, Regeln: Design-Entscheidungen.md.
 # =====================================================================
 
 names:
-  skills:
-    rake: Hacke            # Werkzeug-Id bleibt "rake" (18.11.2026: Harke -> Hacke)
-    can: Gießkanne
-    asp: Spargel-Armbrust
-    bean: Bohnen-Armbrust       # 18.11.2026 neu (Waffentabelle)
-    cran: Preiselbeer-Schrotflinte   # 18.11.2026 (Waffentabelle): wieder zwei Schrotflinten, je eine pro Beere
-    blue: Blaubeer-Schrotflinte
-    cab: Kohlbombe
-    lemon: Citrateaser
-    chili: Flammenwerfer
-  plants:            # Pflanze (Doppelernte-Karte)
-    blue: Blaubeerbusch
-    asp: Spargel
-    cran: Preiselbeeren
-    cab: Kohl
-    lemon: Zitronenbäumchen
-    chili: Chilipflanze
-    nut: Nussbaum
-    ramsons: Bärlauch
-    bean: Stangenbohne
-    pea: Erbse
-    straw: Erdbeere
-    potato: Kartoffel
+  items:                     # Waren im Lager (Id: Anzeigename)
+    blue: Blaubeeren
+    wheat: Weizen            # Getreide, zugleich Saatgut
+    straw: Stroh
+    flour: Mehl
+    bread: Brot
+    nut: Nüsse
     garlic: Knoblauch
-    lettuce: Kopfsalat
-    pumpkin: Kürbis
+    asp: Spargel
+    bean: Bohnen
     leek: Lauch
-    dandel: Löwenzahn
-    corn: Mais
-    carrot: Möhre
-    pepper: Paprika
-    radish: Radieschen
-    rhubarb: Rhabarber
-    goose: Stachelbeere
-    tomato: Tomate
-    onion: Zwiebel
-  fields:            # Feld (Neues-Feld-Karte)
-    blue: Blaubeerfeld
-    asp: Spargelfeld
-    cran: Preiselbeerfeld
-    cab: Kohlfeld
-    lemon: Zitronenbäumchen
-    chili: Chilifeld
-    nut: Nussbaum
-    ramsons: Bärlauchbeet
-    bean: Bohnenbeet
-    pea: Erbsenbeet
-    straw: Erdbeerbeet
-    potato: Kartoffelacker
-    garlic: Knoblauchbeet
-    lettuce: Salatbeet
-    pumpkin: Kürbisbeet
-    leek: Lauchbeet
-    dandel: Löwenzahnwiese
-    corn: Maisfeld
-    carrot: Möhrenbeet
-    pepper: Paprikabeet
-    radish: Radieschenbeet
-    rhubarb: Rhabarberbeet
-    goose: Stachelbeerstrauch
-    tomato: Tomatenbeet
-    onion: Zwiebelbeet
-  combos:           # Kombiwaffen (Bastis Namen)
-    jam: Jam-Bow
-    cole: Coleateral Bomb
-    sour: Sourbow
-    lance: Fire Lance
-    cabboom: Cabboomberry
-    shock: Shockgun
-    hot: Hotgun
-    rocket: Rocabblauncher
-    kimchi: Kimchi
-    chilight: Chillightning
-  comboFx:          # Effektzeile auf der Freischaltkarte (knapp)
-    jam: Beerenspitzen explodieren · Blutung
-    cole: Zeitbombe · 20 Spargel in alle Richtungen
-    sour: 3 Pfeile durchbohren alles · unter Strom
-    lance: Feuerball fliegt durch · Brand
-    cabboom: Giftlache · streut platzende Beeren
-    shock: Beeren bleiben liegen · Blitze dazwischen
-    hot: Brennende Beeren · Durchschuss
-    rocket: Rakete · riesige Explosion
-    kimchi: Splittert 3 × 3 · brennende Lache
-    chilight: Schlag · Blitzwelle schleudert Gegner weg
-  tea: Kräutertee
-  # Erklärzeile unter Upgrade-Karten (meist ein Wort). Gesucht wird: ganzer Karten-Key (z. B. cab_rng), dann Teil nach "_" (rng), dann Teil davor (yield).
-  hints:
-    dmg: Schaden
-    rng: Reichweite
-    cab_rng: Radius
-    cd: Abklingzeit
-    arc: Kegelbreite
-    wid: Breite
-    pierce: Durchbohren
-    pb: Durchbohr-Schaden
-    size: Bolzenbreite
-    pel: Beeren pro Schuss
-    mine: Platzschaden
-    tgt: Kettenziel
-    xfer: Weiterleitung
-    mini: Mini-Kohl
-    chili_dmg: Brandschaden
-    sweep: Schwenk
-    tick: Brandtempo
-    yield: Doppelernte
-    tea: Heilung
-  # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
-  effects:
-    asp: 3er-Salve · durchbohrt
-    bean: 3 Bohnen nebeneinander · durchbohrt
-    cran: Blutung
-    blue: Einfrieren
-    cab: Gift · verlangsamt
-    lemon: Kettenblitz · Beute fällt
-    chili: Brand stapelt sich
+    carrot: Karotten
+    lemon: Zitronen
+    apple: Äpfel
+    cab: Kohl
+    pumpkin: Kürbis
+    melon: Melone
+    juice: Saft
+    milk: Milch
+    cheese: Käse
+    egg: Eier
+    plank: Bretter
+  weapons:
+    rake: Harke              # Notwaffe: ohne Waffe oder ohne Munition schlägt man schwertartig mit der Harke
+    shotgun: Schrotflinte
+    crossbow: Armbrust
+    sling: Schleuder
+    mace: Streitkolben
+    cannon: Kanone
+  buildings:
+    house: Haupthaus
+    well: Brunnen
+    shop: Hofladen
+    mill: Mühle
+    bakery: Bäckerei
+    carpentry: Schreinerei
+    workshop: Werkstatt
+    dairy: Molkerei
+    juicer: Saftpresse
+    silo: Güllesilo
+    chickens: Hühnergehege
+    cows: Kuhweide
+    plot: Feld
+  animals:
+    raccoon: Waschbär
+    hare: Hase
+
+# ---------------------------------------------------------------------
+day:
+  length: 300              # s pro Tag (eine Welle = ein Tag, Basti: ca. 5 min)
+  clock: [6, 20]           # angezeigte Uhrzeit von Tagesbeginn bis Abend (nur Sonnen-Uhr im HUD)
+  light: [2.6, 16.0]       # Lichtstunde (2.6 = heller Morgen .. 16 = Sonnenuntergang) am Anfang und Ende des Tages
+  fade: 1.4                # s Schwarzblende am Abend / bei Ohnmacht
+  rain:                    # seltener Sommer-Gewitterschauer (gießt alle Felder und den Busch)
+    chance: 0.15           # Wahrscheinlichkeit pro Tag (nicht am Tutorial-Tag)
+    duration: [20, 32]     # s
 
 player:
   hp: 100
   speed: 4.6               # m/s
-  respawnBase: 1           # s bis zur ersten Wiederbelebung
-  respawnPerDeath: 1       # s zusätzlich pro weiterem Tod (1 s, 2 s, 3 s, ...)
-  pickupRadius: 1.0        # m, ab hier wird eine Frucht eingesammelt
-  pickupPerTier: 0.12      # m, große Früchte (Stufe 2/3) von etwas weiter
-  magnetRadius: 1.8        # m, ab hier rollt eine Frucht zum Spieler
-  magnetSpeed: 2.8         # m/s
+  radius: 0.35             # m, Kollision
+  reach: 1.7               # m bis zum Ziel, ab hier startet eine Aktion (sonst läuft die Figur erst hin)
+  hover: 2.6               # m: Handy-Aktionsknopf nimmt das nächste Ziel in dieser Entfernung
+  pickupRadius: 0.9        # m: fallengelassene Beute wird eingesammelt
+  magnetRadius: 3          # m: ab hier rollt Beute zum Spieler
+  magnetSpeed: 7           # m/s
+  hurtStun: 0.25           # s kurzes Zusammenzucken bei einem Biss (bricht die Aktion ab)
 
-coop:
-  maxPlayers: 4
-  # Faktor = Spielerzahl ^ Exponent.  0.5 = Wurzel, 1 = linear, 0 = aus.
-  #                           2 Spieler   3 Spieler   4 Spieler
-  xpNeedExponent: 1.0       #  x2,00       x3,00       x4,00   benötigte XP pro Stufe
-  enemyCountExponent: 0.5   #  x1,41       x1,73       x2,00   Gegner pro Stoß
-  enemyHpExponent: 0.5      #  x1,41       x1,73       x2,00   Gegner-HP (inkl. Schaf-Schild)
-  xpYieldExponent: 0.5      #  x1,41       x1,73       x2,00   Blaubeer-Wachstum (Menge)
-  xpValueExponent: 0.5      #  x1,41       x1,73       x2,00   XP pro Frucht
-  enemyDamageExponent: 0.0  #  x1          x1          x1      Gegnerschaden
-  snapshotRate: 20          # Netz-Updates pro Sekunde vom Host
+# ---------------------------------------------------------------------
+# Aktionen mit Linksklick: Dauer in s. Das passende Werkzeug + Animation kommt automatisch.
+actions:
+  water: 2.0               # Gießkanne: Busch oder Feld gießen
+  rake: 3.5                # Harke: Feld harken
+  sow: 2.5                 # Saatgutsack: säen
+  harvestPlot: 3.0         # Sichel: Feld ernten
+  refill: 2.5              # Gießkanne am Brunnen auffüllen
 
-xp:
-  # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
-  base: 40
-  growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
-  linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
-  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
-  # 18.11.2026: ALLE Früchte geben XP (vorher nur Blaubeeren). XP pro Frucht = Fruchtwert x gain x Faktor hier (fehlt = 1).
-  # Munition geben die Waffenfrüchte weiterhin zusätzlich; Heidelbeeren sind jetzt auch Munition der Beeren-Schrotflinte.
-  fruit: { blue: 1, asp: 1, cran: 1, cab: 1, lemon: 1, chili: 1, nut: 1,
-          ramsons: 1.5, bean: 1, pea: 1, straw: 1, potato: 2, garlic: 3, lettuce: 3, pumpkin: 7.5, leek: 3, dandel: 1, corn: 3, carrot: 2, pepper: 2, radish: 1, rhubarb: 2, goose: 0.75, tomato: 1.5, onion: 2.5 }
-  # Gemüse/Beeren aus dem Erntekalender (18.11.2026, zweite Zeile): Faktor so, dass ein Feld in der Erntezeit so viel XP bringt wie ein Heidelbeerfeld
-  # (0,5 Früchte/s): Faktor = 0,5 x interval / amount. Wer seltener erntet, bekommt größere Früchte.
+can:                       # Gießkanne
+  capacity: 5              # Füllungen (eine Füllung = einmal gießen)
+  start: 5                 # Tutorial-Tag: voll
 
-arena:
-  radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
-  fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
-  fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
-  startFields: 1           # nur ohne startSlots: so viele Blaubeerfelder zu Beginn (das erste in der Gartenmitte)
-  startSlots: [[-1, 1, blue], [0, 1, cran]]   # 18.11.2026 (Bastis Skizze): Blaubeer- und Preiselbeerfeld direkt unter dem Lager (Hex-Koordinaten q, r)
+bush:                      # Blaubeerbusch (jeden Tag): gießen -> reifen -> ernten -> leer
+  ripen: 60                # s nach dem Gießen bis erntereif
+  berries: 17              # Beeren pro Tag
+  pickInterval: 3.5        # s pro Beere beim Ernten (17 Beeren ≈ 1 min Ernten)
+  barDelay: 1              # s nach dem Gießen erscheint der dezente Reife-Balken
+  almostAt: 0.75           # Anteil der Reifezeit: Tutorial-Hinweis "fast erntereif"
 
-lager:                     # 18.11.2026: Gartenhütte (Lager) in der Mitte der Lichtung, aus Holz zusammengenagelt.
-  hp: 300                  # Leben. Ist das Lager kaputt, ist das Spiel verloren (ersetzt "alle Felder 0 HP")
-  radius: 1.15             # m, Spieler und Tiere laufen drumherum
-  # Welche Tiere das Lager angreifen: enemies.<tier>.lager: true (Panda, Schaf). Alle anderen gehen auf die Felder.
-  # Feld-Tiere gehen aufs Lager, wenn kein Feld mehr Leben hat.
+crops:                     # Feldfrüchte (jetzt nur Weizen): days = gegossene Tage bis reif, yield = Ernte
+  wheat:
+    seed: wheat            # verbraucht 1x diese Ware beim Säen
+    days: 3
+    yield: { wheat: 4, straw: 3 }
 
-layout:                    # Lichtung (Bastis Skizze 18.11.2026): Waldstücke ringsum, dazwischen Lücken, nur dort kommen Gegner herein
-  gaps: [-104, -21, 43, 121, 181]   # Grad: 0 = rechts, 90 = unten, -90 = oben (oben, oben rechts, unten rechts, unten links, links)
-  gapWidth: 6              # m, Breite einer Lücke (keine Bäume, Büsche, Steine; nur kurzes Gras und Trittsteine)
+plots:
+  size: 2.6                # m Kantenlänge eines Feldes
+  byLevel: [1, 3, 5, 8, 11, 14, 18, 22, 24]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
+  cost: 20                 # Taler für ein weiteres Feld (Abend: Bauen)
 
-seasons:                   # 18.11.2026: statt Tag und Nacht nur noch Tag, dafür Jahreszeiten. 1 Welle = 1 Monat, 12 Wellen = 1 Jahr
-  startMonth: 7            # Welle 1 = Juli (Bastis Wahl: Blaubeeren tragen sofort)
-  hour: 7                  # feste Tageszeit fürs Licht (Stunde 0-16 des alten Tagesbogens, 8 = Mittag)
-  monthNames: [Januar, Februar, März, April, Mai, Juni, Juli, August, September, Oktober, November, Dezember]
-  # wetLoss: Faktor auf fields.wetLoss (Wasserverbrauch). rain: Anteil der Zeit, in der es regnet
-  spring: { months: [3, 4, 5],  wetLoss: 1,   rain: 0.25 }   # mehr Regen
-  summer: { months: [6, 7, 8],  wetLoss: 2,   rain: 0.05 }   # Wasserverbrauch verdoppelt
-  autumn: { months: [9, 10, 11], wetLoss: 1,  rain: 0.25 }   # mehr Regen
-  winter: { months: [12, 1, 2], wetLoss: 0.5, rain: 0 }      # kalt: Boden trocknet kaum, Schnee statt Regen
-  rain:
-    duration: [20, 32]     # s pro Regenschauer (lang genug, dass er zum Gewitter anschwillt; Regenanteil der Jahreszeit bleibt gleich)
-    wetPerSecond: 3        # Nässe pro s auf jedem Feld, solange es regnet
+storage:
+  capacity: 999            # pro Ware (Lager-Ausbau kommt später)
 
-forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
-  slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
-  radius: 15.6             # m vom Gartenmittelpunkt: im Wald direkt hinter dem Buschring (Garten bis ca. 10 m, Büsche 13-15 m, begehbar bis 18 m)
-  angleOffset: 30          # Grad, Drehung des ersten Platzes
-  types: [nut]             # Feldtypen, die nur im Wald (und nicht im Garten) gebaut werden
+start:                     # neuer Spielstand
+  money: 15
+  items: { wheat: 1 }      # 1x Weizen-Saatgut
+  plots: 1                 # ein Feld
 
-fields:
-  hp: 100
-  # Felder gehen nie kaputt: bei 0 HP welken sie und produzieren nichts. Ertrag = HP-Anteil (100 % HP = 100 % Ertrag, 50 % HP = 50 %),
-  # gilt für Wachstum und Harken-Ertrag. Kein XP beim Fall auf 0 HP. (17.11.2026)
-  # Nässe + Wachstum (18.11.2026): Felder heilen nur noch über Nässe. Harke und Draufstehen heilen nicht mehr, Feldpflege-Upgrade entfernt.
-  seedlingHp: 0.1          # neues Feld startet als kleine Setzlinge ohne Früchte mit 1/10 der HP
-  growTime: 60             # s über wetGrow Nässe, bis die Setzlinge ausgewachsen sind (erst dann Ertrag)
-  wetStart: 100            # Nässe eines neu gepflanzten Feldes (0-100; Überbauen behält die Nässe des Bodens)
-  wetLoss: 1               # Nässe, die ein Feld pro s verliert
-  wetGrow: 60              # über dieser Nässe wächst das Feld und heilt (Markierung auf der Nässe-Leiste)
-  wetHeal: 1               # HP/s Heilung über wetGrow
-  wetDrought: 10           # unter dieser Nässe: Dürre, kein Ertrag (Markierung auf der Nässe-Leiste)
-  droughtDamage: 5         # HP/s Verlust in der Dürre (vertrocknen)
-  regrowAt: 0.1            # welkes Feld (0 HP) heilt nur über wetGrow; ab diesem HP-Anteil sind wieder Setzlinge zu sehen
-  regrowGrownAt: 0.5       # ab diesem HP-Anteil ist ein nachwachsendes Feld wieder ausgewachsen (nur beim Heilen von 0 HP)
-  # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
-  # Beackern (18.11.2026, Hacke): jeder Hackschlag beackert genau EIN Feld, das unter der Fußspitze (hoe.toe). Keine Flächenanteile mehr.
-  tillDuration: 1.0        # s, so lange gilt das Feld nach einem Hackschlag als beackert (Leuchten)
-  tillStroke: 6.0          # s Produktionszeit pro Hackschlag (voller Schlag, unabhängig von der Fläche)
-                           # -> Hacken auf einem Feld: Ernte alle (Erntezeit x Hack-Abklingzeit / tillStroke) s; Ertrag fällt aus der getroffenen Pflanze
-  # Felder sind flach: Spieler und Gegner laufen einfach drüber.
-  # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
-  rarityNames: [Gewöhnlich, Ungewöhnlich, Selten, Episch, Legendär]
-  rarityCost: [1, 2, 3, 4]     # Felder, die für Stufe 1->2, 2->3, 3->4, 4->5 draufgebaut werden müssen
-  rarityProduction: 1.5        # Produktion x1,5 je Seltenheitsstufe (multiplikativ)
-  rarityHp: 2                  # max. HP x2 je Seltenheitsstufe (Feld wird beim Aufstieg voll geheilt)
-  neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
-
-fruit:
-  tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
-  tierValue: [1, 5, 25]     # Wert Stufe 1/2/3
-  mergeCount: 5              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
-  mergeCheck: 0.5             # s zwischen Verschmelz-Prüfungen
-  cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
-
-plants:
-  # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
- # months: echte Erntemonate in Mitteleuropa (18.11.2026). Nur dann tragen die Felder Früchte (auch beim Harken)
-  blue: { interval: 2, months: [7, 8] }                    # Heidelbeeren: Startfrucht, Ernte Juli-August (18.11.2026)                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
-  asp:  { interval: 10, unlockAt: 0, amount: 2, months: [4, 5] }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 5, unlockAt: 0, amount: 4, months: [9, 10] }      # Preiselbeeren: Startfrucht, Ernte September-Oktober (18.11.2026); 3x Ertrag
-  cab:  { interval: 15, unlockAt: 0, months: [11, 12, 1, 2] }   # Grünkohl Nov-Feb (Erntekalender 18.11.2026; vorher Jun-Feb)
-  lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10, months: [11, 12, 1, 2, 3] }   # Sonderfall Kübelpflanze, Haupternte Mittelmeer Nov-Mär; Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10, months: [8, 9] } # Erntekalender 18.11.2026: Aug-Sep; Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
-  nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true, months: [9, 10] }
-  # Gemüse, Beeren, Kräuter aus Bastis Erntekalender (18.11.2026). Keine Waffe: die Früchte geben nur XP (Faktor in xp.fruit).
-  ramsons: { interval: 3, amount: 1, months: [3, 4, 5] }   # Bärlauch
-  bean:    { interval: 4, amount: 2, months: [7, 8, 9] }   # Stangenbohne
-  pea:     { interval: 4, amount: 2, months: [6, 7] }   # Erbse
-  straw:   { interval: 2, amount: 1, months: [5, 6, 7] }   # Erdbeere
-  potato:  { interval: 8, amount: 2, months: [6, 7, 8, 9, 10] }   # Kartoffel
-  garlic:  { interval: 6, amount: 1, months: [7, 8] }   # Knoblauch
-  lettuce: { interval: 6, amount: 1, months: [5, 6, 7, 8, 9, 10] }   # Kopfsalat
-  pumpkin: { interval: 15, amount: 1, months: [9, 10] }   # Kürbis
-  leek:    { interval: 6, amount: 1, months: [9, 10, 11, 12, 1, 2, 3] }   # Lauch
-  dandel:  { interval: 2, amount: 1, months: [3, 4, 5] }   # Löwenzahn
-  corn:    { interval: 6, amount: 1, months: [8, 9] }   # Mais
-  carrot:  { interval: 4, amount: 1, months: [6, 7, 8, 9, 10, 11] }   # Möhre
-  pepper:  { interval: 4, amount: 1, months: [8, 9, 10] }   # Paprika
-  radish:  { interval: 2, amount: 1, months: [4, 5, 6, 7, 8, 9, 10] }   # Radieschen
-  rhubarb: { interval: 8, amount: 2, months: [4, 5, 6] }   # Rhabarber
-  goose:   { interval: 3, amount: 2, months: [6, 7] }   # Stachelbeere
-  tomato:  { interval: 3, amount: 1, months: [7, 8, 9, 10] }   # Tomate
-  onion:   { interval: 5, amount: 1, months: [7, 8, 9] }   # Zwiebel
-  # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
-  # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
-  # magnet: false -> Nüsse rollen nicht zum Spieler, man muss hinlaufen (Aufheben im normalen pickupRadius). Ab Level 5 als neuer Feldtyp.
-
-startPool:                 # 18.11.2026: Startpool je Partie (Basti)
-  count: 3                 # so viele zufällige Pflanzen kommen in einer Partie als neue Felder vor ...
-  exclude: [blue, cran]    # ... außer diesen (die Startfelder gibt es immer)
-  minMonths: 6             # die gezogenen Pflanzen decken zusammen mindestens so viele verschiedene Erntemonate ab
-
-hoe:                       # Hacke (18.11.2026, ersetzt die Harke; alte Harke: archiv/harke/). Intern heißt das Werkzeug weiter "rake".
-  # Linksklick / großer Knopf: Hacken = Hacke in den Boden schlagen. Beackert genau EIN Feld: das unter der Fußspitze
-  # (Punkt toe m mittig vor der Figur). Trifft Gegner nur in einem kleinen Kreis um die Aufschlagstelle.
-  chopTime: 0.26           # s, Ausholen + Zuschlagen; Aufschlag am Ende
-  chopCooldown: 0.5        # s zwischen zwei Hackschlägen (= wie oft geerntet werden kann)
-  toe: 0.3                 # m vor der Figurmitte: Fußspitze = Aufschlagstelle, entscheidet über das beackerte Feld
-  chopDamage: 5            # Schaden im Aufschlag-Kreis
-  chopDiameter: 0.6        # m, kleiner Trefferkreis um die Aufschlagstelle (Upgrade: upgrades.rakeDiameter)
-  chopStun: 0.3            # s Stun pro Treffer beim Hacken (nicht bei Bossen)
-  # Rechtsklick / Schwung-Knopf: Schwung wie mit einem Schwert, zum Kämpfen
-  slashTime: 0.16          # s für den Schwung von links nach rechts, Treffer in der Mitte
-  slashCooldown: 0.45      # s
-  slashArc: 60             # Grad, Trefferkegel
-  slashRange: 1.0          # m, Reichweite ab Figurmitte (Upgrade: upgrades.rakeRange)
-  damage: 5                # Schaden des Schwungs (Upgrade rakeDamage gilt für Hacken und Schwung)
-  stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
-  knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
-
-can:                       # Gießkanne (18.11.2026): Startwerkzeug neben der Harke
-  arc: 50                  # Grad, schwenkt von links nach rechts
-  sweepTime: 1             # s für einen vollen Schwenk (gehalten: Schwenk auf Schwenk)
-  reach: 1.2               # m vor dem Spieler landet das Wasser
-  radius: 0.25             # m, Dicke des Gießbereichs (Kreis um den Auftreffpunkt)
-  wetPerSecond: 10         # Nässe pro s für jedes Feld, das der Gießbereich berührt
-
-weaponRarity:              # 18.11.2026 (Waffentabelle): Seltenheit je Waffe = skills.<waffe>.rarity (Index), farbiger Edelstein auf der Freischalt-Karte
-  names:  [Gewöhnlich, Ungewöhnlich, Selten, Episch]
-  colors: ["#c8c8c0", "#5ac85a", "#4a9cff", "#b46cff"]
-
-skills:
-  readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
-  # level: ab dieser Spielerstufe kann die Freischalt-Karte der Waffe kommen (Waffentabelle "Level Req.")
-  # rarity: Seltenheit (Index in weaponRarity.names)
-  asp:
-    level: 2
-    rarity: 0              # Gewöhnlich
-    damage: 15
-    range: 7.5             # m (vorher 5 -> +50 %)
-    cooldown: 0.75         # s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
-    burstShots: 3          # Armbrust schießt Salven aus 3 Spargel-Bolzen, dann Pause
-    burstGap: 0.1          # s zwischen den Bolzen einer Salve (skaliert mit dem Abklingzeit-Upgrade) -> Pause 0,55 s
-    ammoPerShot: 1         # je Bolzen (3 pro Salve)
-    speed: 15              # m/s
-    pierce: 1              # durchbohrte Ziele zu Beginn
-    pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
-    width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
-  bean:                    # Bohnen-Armbrust (18.11.2026, Waffentabelle): wie die Spargel-Armbrust, aber jeder Schuss sind 3 Bohnen nebeneinander
-    level: 2
-    rarity: 0              # Gewöhnlich
-    damage: 15             # je Bohne
-    range: 7.5             # m
-    cooldown: 0.75         # s pro Salve
-    burstShots: 3          # 3 Schuss pro Salve
-    burstGap: 0.1          # s zwischen den Schüssen einer Salve
-    ammoPerShot: 1         # 1 Bohne je Schuss (3 pro Salve), egal wie viele Bohnen gleichzeitig fliegen
-    beans: 3               # Bohnen pro Schuss, fliegen gleichzeitig nebeneinander ...
-    beanSpread: 10         # ... mit 10 Grad Abweichung zwischen den Bohnen (Fächer)
-    speed: 15              # m/s
-    pierce: 1              # durchbohrt 1 Ziel ...
-    pierceFactor: 0.5      # ... danach 50 % Schaden
-    width: 0.2             # m Trefferbreite einer Bohne
-  cran:                    # Preiselbeer-Schrotflinte (18.11.2026: nur noch Preiselbeeren)
-    level: 2
-    rarity: 0              # Gewöhnlich
-    damage: 5              # je Beere
-    range: 5               # m (Waffentabelle 18.11.2026; vorher 7)
-    cooldown: 0.625        # s
-    ammoPerShot: 6
-    pellets: 6             # Beeren pro Schuss
-    cone: 45               # Grad, maximaler Streukegel (±22,5 Grad), nichts fliegt weiter raus (17.11.2026: 80 -> 45, streut weniger)
-    spreadSigma: 11        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 22 Grad (17.11.2026: 20 -> 11, passend zum Kegel)
-    # Bleeding (18.11.2026): 3 s, alle 0,5 s 10 % Waffenschaden, aber nur solange sich der Gegner bewegt. Neuer Treffer setzt die Dauer zurück.
-    bleedDuration: 3       # s
-    bleedTick: 0.5         # s
-    bleedShare: 0.10       # Anteil des Beerenschadens pro Tick
-    splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
-    splashDamage: 0        # 18.11.2026: kein Platzen mehr im Grundzustand (nicht in der Waffentabelle); nur noch über das Upgrade "Platzschaden" (+15 % je Stufe)
-    splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
-  blue:                    # Blaubeer-Schrotflinte (18.11.2026, Waffentabelle): gleiche Werte, Blaubeeren frieren ein
-    level: 2
-    rarity: 0              # Gewöhnlich
-    damage: 5              # je Beere
-    range: 5               # m
-    cooldown: 0.625        # s
-    ammoPerShot: 6
+# ---------------------------------------------------------------------
+# Kampf (Rechtsklick). Morgens wählt man genau eine Waffe und eine Munition.
+weapons:
+  rake:                    # Harke (Notwaffe, immer dabei)
+    damage: 4
+    range: 1.35            # m
+    arc: 110               # Grad Trefferkegel
+    cooldown: 0.5          # s
+    swing: 0.2             # s Schwung (Treffer in der Mitte)
+    knockback: 0.5         # m
+    stun: 0.4              # s (Speed linear von 0 auf normal)
+  shotgun:
+    available: true
+    level: 1
+    ammo: [blue, wheat, nut, garlic]     # Beeren, Körner, Nüsse, Knoblauch
+    ammoPerShot: 1
+    cooldown: 0.7
     pellets: 6
-    cone: 45
-    spreadSigma: 11
-    freezeDuration: 3      # s Frozen: der Gegner friert ein und bewegt sich nicht (greift auch nicht an). Neuer Treffer setzt die Dauer zurück. Bosse frieren nicht ein.
-    splashDelay: 2         # nur mit Upgrade "Platzschaden"
-    splashDamage: 0
-    splashRadius: 0.6
-  lemon:                   # Citrateaser (17.11.2026): Zauberstab, schießt einen langsamen Kugelblitz geradeaus
-    level: 10
-    rarity: 1              # Ungewöhnlich
-    damage: 20             # Grundschaden: Direkttreffer = 100 %
-    cooldown: 1.0          # 1 Kugelblitz pro Sekunde
-    ammoPerShot: 1
-    range: 6               # m Flugweite des Kugelblitzes
-    speed: 3.5             # m/s, langsam (6 m in ca. 1,7 s)
-    ballRadius: 0.09       # m, Kugel ca. 18 cm groß (Optik + Kollision); Reichweite-Upgrade vergrößert stattdessen Kugel und tickRadius (+20 % je Stufe)
-    tickInterval: 0.25     # s, im Flug trifft der Blitz alle 0,25 s ...
-    tickRadius: 0.5        # m ... den nächsten Gegner in 0,5 m Umkreis ...
-    tickDamage: 0.25       # ... mit 25 % Schaden
-    chainRadius: 2.5       # m, so weit springt der Kettenblitz nach einem Direkttreffer zum nächsten Gegner
-    chainDamage: 0.5       # Kettenziele und Rückblitz aufs Hauptziel: je 50 % Schaden (Upgrade Schadenseffizienz bis 100 %)
-    dropLoot: true         # das direkt getroffene Tier lässt seine Beute fallen
-  chili:                   # Flammenwerfer: Flammenkegel, der hin und her schwenkt und Gegner anzündet
-    level: 10
-    rarity: 1              # Ungewöhnlich
-    range: 2.5             # m, Flammenlänge (18.11.2026: 3,5 -> 2,5)
-    cooldown: 0.125        # s pro Flammenstoß -> 8 Chilis pro Sekunde
-    ammoPerShot: 1
-    cone: 20               # Grad, Breite der Flamme (18.11.2026: 30 -> 20)
-    sweep: 20              # Grad, so weit schwenkt die Flamme hin und her (18.11.2026: 40 -> 20)
-    sweepPeriod: 1.5       # s für einmal links -> rechts -> zurück
-    # Feuer-Stacks (18.11.2026, Waffentabelle): je stackTime s in der Flamme 1 Stack (max. burnStacks).
-    # Pro Stack alle burnTick s burnShare x Waffenschaden. Ohne Kontakt zur Flamme erlischt das Feuer nach burnDuration s.
-    damage: 7              # Waffenschaden (Grundlage für den Brandschaden; Schadens-Upgrades erhöhen ihn)
-    hitDamage: 0           # Sofortschaden je Flammenstoß (18.11.2026: keiner mehr, nur noch Brand)
-    stackTime: 0.3         # s in der Flamme pro Stack
-    burnShare: 0.10        # 10 % Waffenschaden pro Stack und Tick -> 10 Stacks = 7 Schaden alle 0,5 s
-    burnStacks: 10
-    burnDuration: 2        # s, Feuer geht aus, wenn so lange kein Kontakt zur Flamme
-    burnTick: 0.5          # s pro Brand-Tick (Upgrade "Brand-Tick" macht ihn schneller)
-    spreadRadius: 0        # m, Flächenbrand beim Tod (18.11.2026 aus, nicht in der Waffentabelle; z. B. 1.5 = wieder an)
-    spreadShare: 0.5
-  cab:                     # 17.11.2026: Aufladewurf statt Zeitzünder + Giftlache
-    level: 2
-    rarity: 0              # Gewöhnlich
-    damage: 5
-    radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
-    cooldown: 1.0
-    ammoPerShot: 1
-    chargeTime: 1.0        # s Gedrückthalten bis zur vollen Ladung (Leiste über dem Spieler)
-    throwMin: 1.5          # m Wurfweite ohne Ladung (kurzes Antippen)
-    throwMax: 8            # m Wurfweite bei voller Ladung (linear dazwischen)
-    poisonDuration: 2      # s Debuff "vergiftet" (keine Lache mehr); erneuter Treffer setzt die Dauer zurück
-    poisonTick: 0.4        # s pro Gift-Tick (2 s / 0,4 s = 5 Ticks)
-    poisonTickDamage: 0.10 # Anteil des Explosionsschadens pro Tick (5 x 10 % = 50 %)
-    poisonSlow: 0.40       # vergiftete Gegner 40 % langsamer
-    gasRadius: 1.0         # m, Kohlgas-Upgrade: Umkreis der Gaswolke beim Tod (vergiftet alle Nachbarn darin)
-    miniRadiusFactor: 0.9  # Mini-Kohl: Radius x 0.5
-    miniDamageFactor: 0.5  # Mini-Kohl: Schaden x 0.5
+    cone: 26               # Grad Streuung
+    range: 7               # m
+    speed: 20              # m/s Schrot
+    damage: 2              # je Schrotkugel (x Munitionsfaktor)
+  crossbow:                # vorbereitet, noch gesperrt
+    available: false
+    level: 4
+    ammo: [asp, bean, leek, carrot]
+  sling:
+    available: false
+    level: 3
+    ammo: [garlic, nut, lemon, apple]
+  mace:
+    available: false
+    level: 6
+    ammo: [cab, pumpkin, melon]
+  cannon:
+    available: false
+    level: 8
+    ammo: [cab, pumpkin, melon]
 
-upgrades:
-  offersPerLevel: 3
-  damagePerLevel: 0.20     # +10 % Schaden je Stufe (additiv)
-  rangePerLevel: 0.20      # +10 % Reichweite / Radius je Stufe (additiv)
-  cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
-  aspPierce:      { step: 1,    max: 4 }       # Durchbohren +1, +1, +1 bis max, letzte Stufe danach: alle Ziele (17.11.2026)
-  aspPierceBonus: { step: 0.10, maxLevel: 5 }  # Piercing Damage +10 Prozentpunkte (50 -> 100 %), Karte: alter Wert + goldenes +10 %
-  aspSize:        { step: 1.00, maxLevel: 4 }  # Geschossgröße +100 % additiv je Stufe, max 500 % (17.11.2026), Karte: alter Wert + goldenes +100 %
-  aspSalvo:       { shots: [4, 5, 7, 9, 12] }  # Salve: Bolzen je Stufe statt 3, in derselben Salvenzeit wie 3 Bolzen (17.11.2026)
-  rakeDiameter:   { step: 0.20 }               # Hacke: Trefferkreis beim Hacken +20 cm Durchmesser, ohne Obergrenze
-  rakeRange:      { step: 0.20 }               # Hacke: Schwung +20 cm Reichweite, ohne Obergrenze
-  rakeDamage:     { step: 0.20 }               # Hacke: +20 % Schaden (Hacken und Schwung, additiv), ohne Obergrenze
-  rakeSpeed:      { step: 0.10 }               # Hacke: Abklingzeiten x 0.9 je Stufe (multiplikativ), ohne Obergrenze -> schneller schlagen UND mehr Ertrag
-  lemonTargets:   { step: 1,    maxLevel: 5 }  # Kettenziele nach Direkttreffer: 0 -> 1/2/3/4/5 (je 60 % Schaden) (17.11.2026)
-  lemonEfficiency: { step: 0.10, maxLevel: 5 } # Schadenseffizienz: Ketten- und Rückblitzschaden 50 -> 60/70/80/90/100 % (17.11.2026)
-  lemonTransfer:  { step: 0.20, maxLevel: 5 }  # Rückblitz: Chance je Kettenziel, dass der Blitz zurück aufs Hauptziel springt (60 %): 20/40/60/80/100 % (17.11.2026)
-  chiliSweep:                # Flammenwerfer "Zirkel": Schwenk und Flamme wachsen gemeinsam
-    sweepStep: 30            # +30 Grad Schwenk je Stufe (Tempo steigt mit: ein Schwenk dauert immer sweepPeriod)
-    coneStep: 5              # +5 Grad Flammenbreite je Stufe
-    circleSpeedBonus: 0.5    # ab 360 Grad Schwenk dreht die Flamme im Kreis, +50 % Tempo
-    circleConeStep: 10       # danach je Stufe +10 Grad Flammenbreite ...
-    circleSpeedStep: 0.10    # ... und +10 % Tempo (additiv)
-    maxCone: 360             # Schluss, sobald die Flamme 360 Grad breit ist
-  chiliTick:      { factor: 0.8, min: 0.1 }              # Brand-Tick x 0,8 je Stufe (0,5 -> 0,4 -> 0,32 s ...), bis 0,1 s
-  cranPellets:    { step: 2,    maxLevel: 5 }  # +2 Beeren pro Schuss: 6 -> 8/10/12/14/16 (17.11.2026)
-  cranPierce:     { step: 0.20, maxLevel: 5 }  # Chance pro Beere, einmal zu durchbohren: 0 -> 20/40/60/80/100 % (17.11.2026)
-  cranSplash:     { step: 0.15, maxLevel: 5 }  # +15 Prozentpunkte Platzschaden liegender Beeren: 25 -> 40/55/70/85/100 % (17.11.2026)
-  cabMini:        { step: 1,    maxLevel: 5 }
-  cabPoison:      { step: 0.50, maxLevel: 5 }  # Poison Damage: Gift-Tickschaden des Kohls +50 % je Stufe (additiv, 100 -> 350 %), gilt auch für Mini-Kohl und Kohlgas (17.11.2026)
-  cabGas:         { step: 0.10, maxLevel: 5 }  # Kohlgas: Kohl-Treffer legen Debuff "Kohlgas" (so lange wie das Gift); stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis cab.gasRadius (17.11.2026)
-  doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
-  # Kartenregeln pro Level-up (3 Karten):
-  fieldCardsPerLevel: 1    # immer 1 Feld-Karte: Feld eines vorhandenen Typs (bauen/hochleveln), Doppelernte oder Feldpflege
-  weaponCardsMax: 2        # höchstens 2 Waffen-Karten (Freischalten + Upgrades, inkl. Harke)
-  newFieldTypeEvery: 5     # alle 5 Level: neue Feldtypen zur Wahl statt der normalen Feld-Karte
-  newFieldTypeChoices: 2   # so viele verschiedene neue Typen (wenn noch vorhanden)
-  firstUpgradeNewField: true   # 1. Level-up: 2 neue Feldtypen zur Wahl + alternativ ein weiteres Blaubeerfeld
-  secondUpgradeWeapon: true    # 2. Level-up: Waffe zum neuen Feld (ohne Sammel-Bedingung) + Harken-Verbesserungen
-  repeatWeight: 0.25       # jede schon genommene Karte: Ziehgewicht +25 % (z. B. 2x Spargel-Reichweite -> x1,5)
-  herbalTea: { playerHeal: 40, fieldHeal: 25 } # Notfall-Karte, wenn nichts anderes übrig ist
+ammo:                      # Wirkung je Munition: damage = Faktor auf den Waffenschaden, freeze = s eingefroren (Blaubeeren)
+  blue: { damage: 1, freeze: 2.5 }
+  wheat: { damage: 0.6 }
+  nut: { damage: 1.4 }
+  garlic: { damage: 1.1 }
 
-enemies:
-  aggroRadius: 5           # m, ab hier greifen Gegner Spieler statt Felder an
-  maxAlive: 78             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor); 17.11.2026 60 -> 78 (+30 % wie die Gegneranzahl)
-  # 17.11.2026: Schaden aller Tiere und des Bosses x2 (Nahkampf, Gift, Stacheln, Rammen, Boss-Nahkampf, Boss-Bomben)
-  meleeDamage: 2           # vorher 1
-  meleeInterval: 1         # s
-  xpDrop: 1                # jeder besiegte Gegner lässt so viele Blaubeeren (XP) fallen
-  scaling:                 # Gegner werden über die Wellen stärker, gleiche Kurvenform wie XP:  Faktor = growth^(w-1) + linear*(w-1)
-    hp:     { growth: 1.03, linear: 0.03 }    # Leben:  Welle 10 ≈ 1,6x · Welle 24 ≈ 2,7x · Welle 48 ≈ 5,4x
-    damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
-    # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), (Nachtfaktor gibt es seit 18.11.2026 nicht mehr)
-  elite:                   # Elite-Gegner: selten, größer, leuchtende Outline in ihrer Farbe (mit leichtem Bloom)
-    fromWave: 4            # ab dieser Welle möglich
-    chanceStart: 0.01      # Anteil Elite in dieser Welle
-    chancePerWave: 0.002   # + je weitere Welle
-    chanceMax: 0.05
-    scale: 1.5             # Größe
-    hp: 3                  # x Leben
-    damage: 2              # x Angriffsstärke
-    xpMultiplier: 5        # x XP-Drop
-  boss:                    # Waschbär-Boss (vorerst der einzige Boss)
-    levels: { first: 20, every: 10 }   # 17.11.2026: kommt zu Beginn der ersten Welle, nachdem die Spieler Level 20 erreicht haben, dann Level 30, 40, 50 ...
-    every: 24              # nur ohne "levels": alle N Wellen (mit dayNight: in der letzten Nachtwelle)
-    scale: 2.4
-    hpEnemies: 33.33       # Leben = so viel wie 33,3 normale Waschbären (17.11.2026: Boss x3 Leben; vorher 20 Waschbären à 7 HP = 140, jetzt 33,33 x 12,6 = 420) ...
-    phases: 3              # Leben in 3 Stufen geteilt (Striche im Boss-Balken)
-    phaseSpeedup: 0.2      # nach jeder verlorenen Stufe greift er 20 % schneller an (x1,2, dann x1,44): Sammeln, Aufladen, Bomben-Takt, Nahkampf
-    hpGrowthPerWave: 0     # ... zusätzlich +x je Welle ab der ersten Boss-Welle (0: Boss wächst nur über enemies.scaling)
-    speed: 2.2
-    meleeDamage: 6         # vorher 3
-    xpDrop: 30
-    collectTime: 5         # s Blaubeeren sammeln
-    chargeTime: 2          # s aufladen (Warnung), dann Spezialattacke
-    berryBonus: 0.03       # +3 % mehr Bomben je gesammelter Blaubeere
-    bombDamage: 16         # vorher 8
-    bombRadius: 1.1        # m
-    bombFuse: 0.7          # s leuchtender Kreis am Boden, dann Explosion
-    trail:                 # Attacke 1: verfolgende Spur
-      count: 14
-      interval: 0.12       # s zwischen zwei Bomben
-      speedNear: 4         # m/s des Spur-Kopfes in Spielernähe
-      speedFar: 7          # m/s wenn der Spieler weit weg ist (schneller als der Spieler)
-      farDistance: 6
-      turnRate: 1.6        # rad/s, träge bei Richtungswechsel
-    carousel:              # Attacke 2: dreht sich, spuckt 3 Spuren in zufällige Richtungen
-      duration: 6
-      every: 1             # s
-      trails: 3
-      count: 7             # Bomben pro Spur
-      spacing: 0.9         # m
-    rain:                  # Attacke 3: Blaubeer-Regen
-      count: 30
-      interval: 0.1
-      warn: 0.5            # s zum Ausweichen
-      radius: 10           # m um die Gartenmitte
-  # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
-  # Gilt für Spieler und Gegner gleich.
-  resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
-  raccoon:                 # 18.11.2026: greift nie an, geht immer zum Lager und stiehlt aus den Vorräten (nie von den Feldern)
-    hp: 12.6               # 17.11.2026 x1,8 (vorher 7)
-    speed: 2.75
-    wanderSpeed: 2.0       # m/s beim Umherstreunen (nur ohne Lager)
-    radius: 0.32
-    peaceful: true
-    lagerSteal: true       # stiehlt am Lager aus den Vorräten (Munition) aller Spieler
-    stealRate: 4           # Früchte pro Sekunde zu Beginn
-    stealRatePerWave: 0    # +Anteil pro Welle (0.05 = +5 % je Welle), zum späteren Skalieren
-    stealTime: 5           # s am Lager, spätestens dann haut er mit der Beute ab (entkommt er, ist sie weg)
-    dropShare: 0.5         # getroffen (vertrieben): lässt diesen Anteil der Beute fallen und flieht. Tot: lässt alles fallen
-    fleeSpeed: 6.2
-  panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
-    hp: 13.2               # 17.11.2026 +20 % (vorher 11)
-    speed: 2.2
-    radius: 0.34
-    lager: true            # 18.11.2026: plündert das Lager, wenn keine Frucht herumliegt
-    prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue]   # ... sonst alle anderen
+# ---------------------------------------------------------------------
+# Tiere: wenige, kleine Schübe. Sie werden nicht getötet, sondern vertrieben (0 Leben = Flucht in den Wald, XP).
+animals:
+  raccoon:
+    hp: 12
+    speed: 2.4             # m/s beim Anschleichen
+    fleeSpeed: 3.4         # m/s auf der Flucht (langsamer als der Spieler)
+    radius: 0.35
+    stealInterval: 0.8     # s pro geklauter Ware
     carryMax: 5
-    fleeSpeed: 3.2
-    resist: [chili, cran]
-  toad:                    # Frosch: leuchtet am Boden, Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
-    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
-    speed: 2.1
-    radius: 0.30
-    hopPeriod: 1           # s pro Sprung (halbe Zeit in der Luft = unverwundbar)
-    tongueCooldown: 1.5
-    tongueRange: 1.5
-    poisonTicks: 3
-    poisonInterval: 2
-    poisonDamage: 2        # vorher 1
-    prefersFields: [cab, lemon]
-    resist: [cab, lemon]
-  sheep:
-    maxAlive: 5            # höchstens so viele Schafe gleichzeitig
-    lager: true            # 18.11.2026: rammt das Lager
-    hp: 3.6                # 17.11.2026 +20 % (vorher 3)
-    speed: 1.7
-    radius: 0.44
-    shield: 7.2            # 17.11.2026 +20 % (vorher 6)
-    shieldRegen: 3         # s bis Schild wieder voll
-    chargeRange: 4.5       # m, ab hier holt es Anlauf (Richtung wird zu Beginn festgelegt und nicht mehr nachgeführt)
-    windup: 1              # s Anlauf (vorher 2)
-    chargeSpeed: 9
-    chargeTime: 0.8
-    ramDamage: 8           # vorher 4
-    ramStun: 1             # s Betäubung (kein Rückstoß mehr)
-    rest: 2
-    resist: [asp]
-  hedgehog:                # Igel: kommen in Gruppen, plustern sich regelmäßig auf (Stachel-Schaden), fressen Beeren
-    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
-    speed: 1.8
-    radius: 0.30
-    eats: [blue, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
-    puffEvery: 2           # s pro Aufplustern
-    puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
-    puffScale: 0.3         # +30 % Größe
-    puffDamage: 4          # vorher 2; Schaden je Aufplustern an Spielern (und dem Feld, auf dem er steht)
-    puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
-    resist: [blue, cran]
-  squirrel:                # Eichhörnchen: kommt von der gegenüberliegenden Seite, hüpft im Zickzack zu seinem Nussbaum, klaut Nüsse und verschwindet damit im Baum
-    hp: 4.8                # 17.11.2026 +20 % (vorher 4)
-    speed: 4.2             # m/s, flink (Zickzack: der Weg ist länger)
-    wanderSpeed: 2.6       # m/s, flitzt um seinen Baum, solange keine Nuss liegt
-    radius: 0.22
-    spawnArc: 90           # Grad: Startpunkt zufällig in diesem Bereich auf der Gegenseite des Gartens (vom Nussbaum aus gesehen)
-    aggroRadius: 2.5       # m: kommt ein Spieler so nah, greift es ihn an (Nahkampf wie alle, enemies.meleeDamage)
-    steals: [nut]          # nur Nüsse
-    carryMax: 3            # mit 3 Nüssen läuft es in den Baum (oder sobald keine Nuss mehr liegt)
-    fleeSpeed: 5.5         # m/s mit voller Beute / auf der Flucht
-    fleeBelow: 0.5         # unter 50 % Leben flieht es in den Baum
-    hopPeriod: 0.32        # s pro Hüpfer
-    hopHeight: 0.22        # m
-    zigzag: 40             # Grad: jeder Hüpfer schwenkt so weit zur anderen Seite der direkten Linie
-    climbTime: 0.8         # s den Stamm hoch in die Krone, dann ist es mit den Nüssen weg (bis dahin treffbar)
-    crownHeight: 2.4       # m, Höhe der Krone (hier verschwindet es, hier fallen die Nüsse heraus)
-    patience: 10           # s wartet es am Baum auf Nüsse, dann verschwindet es im Baum
-    resist: [cab, chili]   # springt aus Explosionen, Giftlachen und Flammen
+    shy: 0.35              # Anteil scheuer Waschbären: hauen ab, sobald man näher als `scare` kommt
+    scare: 3.5             # m
+    aggro: 3               # m: mutige Waschbären greifen den Spieler an, wenn er so nah ist
+    damage: 6              # pro Biss
+    biteInterval: 1.2      # s
+    biteRange: 0.85        # m
+    xp: 8
+  hare:
+    hp: 6
+    speed: 2.6
+    fleeSpeed: 6.5
+    radius: 0.25
+    scare: 4.5             # m: flieht immer, sobald der Spieler näher kommt
+    eatInterval: 2.5       # s pro gefressener Beere / Feldbiss
+    plotBites: 3           # so viele Bisse kosten ein Feld einen Wachstumstag (reifes Feld: 1 Ware je Biss)
+    xp: 3
 
-waves:
-  # Gegner kommen in WELLEN. Eine Welle besteht aus mehreren Gruppen (Stößen) aus mehreren Richtungen.
-  # 17.11.2026: Jede Welle hat einen festen COUNTDOWN (oben mittig): Gruppen-Zeitplan (durationStart/-PerWave)
-  # + countdownAfter. Läuft er ab, drehen alle Gegner (außer dem Boss) um und verschwinden. Dann folgt eine feste
-  # Pause mit dezentem Countdown, kurz vor der nächsten Welle wird "Welle N" mittig eingeblendet.
-  total: 48                # Wellen bis zum Sieg (= 4 Jahre à 12 Monate)
-  firstWave: 4             # s bis zur ersten Welle
-  spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
-  firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
-  countMultiplier: 1.3     # 17.11.2026: Gegneranzahl aller Wellen +30 % (auf Gruppengröße, nach sizeMax)
-  durationStart: 40        # s Zeit von erster bis letzter Gruppe (18.11.2026: jede Welle genau 1 min = 40 + countdownAfter 20)
-  durationPerWave: 0       # s länger je Welle (18.11.2026: 0, alle Wellen 1 min)
-  countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
-  leaveTime: 3             # s nach Ablauf drehen die Gegner um, laufen Richtung Wald und verblassen; danach sind sie weg
-  leaveSpeed: 1.3          # x Laufgeschwindigkeit beim Abdrehen
-  announce: 2.5            # s vor Wellenstart: "Welle N" mittig eingeblendet (am Ende der Pause)
-  tickFrom: 10             # ab so vielen Sekunden Rest tickt der Wellen-Countdown hörbar (in der Pause nie)
-  redFrom: 3               # ab so vielen Sekunden Rest sind die Zahlen rot
-  pauseStart: 15           # s Pause nach jeder Welle (fest)
-  pausePerWave: 0          # s längere Pause je Welle
-  gapStart: 6              # s zwischen zwei Gruppen in Welle 1
-  gapPerWave: 0.06         # s kürzer je Welle
-  gapMin: 3                # s, kürzester Abstand
-  gapJitter: 0.25          # +-25 % Zufall auf den Abstand
-  sizeStart: 3             # Gegner pro Gruppe in Welle 1 (Grundwert)
-  sizePerWave: 0.8         # + Gegner pro Gruppe je Welle
-  sizeMax: 24
-  rampFrom: 0.5            # innerhalb der Welle: erste Gruppe = 50 % der Grundgröße ...
-  rampTo: 1.5              # ... letzte normale Gruppe = 150 %
-  finalMultiplier: 2.5     # Schlussgruppe am Ende der Welle = 250 %
-  directionsStart: 1       # Richtungen pro Gruppe in Welle 1
-  directionsMax: 4
-  directionEveryWaves: 3   # alle 3 Wellen eine Richtung mehr möglich
-  directionSpread: 7       # Grad Streuung innerhalb einer Richtung (18.11.2026: 20 -> 7, damit sie durch die Waldlücken kommen)
-  staggerMin: 0.15         # s zwischen zwei Gegnern derselben Richtung
-  staggerMax: 0.35
-  warnTime: 1.5            # s vorher blinzeln Augen in dieser Richtung
-  types:                   # ab welcher Welle ein Tier mitkommt, und wie häufig
-    raccoon: { from: 1,  weight: 3 }
-    panda:   { from: 4,  weight: 2, early: 1 }   # early: Gewicht schon vor "from", sobald Spargel- oder Preiselbeerfeld steht (ab Welle 2)
-    toad:    { from: 7,  weight: 1.2 }
-    hedgehog: { from: 11, weight: 0.4, group: [3, 4] }  # group: kommt immer als Gruppe aus 3-4 Tieren
-    sheep:   { from: 21, weight: 0.4 }
-    squirrel: { from: 3, weight: 1.2, needs: nut }   # needs: kommt nur, wenn ein Nussbaum steht (aus dessen Krone)
+spawns:
+  firstAfter: 30           # s nach Tagesbeginn kommt der erste Schub
+  lastBefore: 25           # s vor Tagesende kommt nichts mehr
+  groups: 3                # Schübe pro Tag auf Level 1 ...
+  groupsPerLevel: 0.5      # ... + je weiterem Level
+  size: [1, 2]             # Tiere pro Schub (zufällig)
+  sizePerLevel: 0.25       # + je weiterem Level (Obergrenze)
+  types: { raccoon: 0.55, hare: 0.45 }   # Gewichte
+  scaling:                 # Schwierigkeit steigt mit dem Level: + Anteil je Level über 1
+    hp: 0.12
+    damage: 0.1
+    speed: 0.03
 
-# dayNight entfernt (18.11.2026): nur noch Tag, dafür Jahreszeiten (seasons)
-
-weaponSlots:               # Waffen neben der Harke
-  max: 3                   # höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
+faint:                     # 0 Leben = ohnmächtig: man wacht abends auf, der Rest des Tages ist verloren
+  dryFields: true          # alle heute gegossenen Felder sind wieder trocken
 
 # ---------------------------------------------------------------------
-#  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")
-#  Haben beide Waffen eines Paares je unlockUpgrades Upgrades, bietet das nächste Level-up die Kombiwaffe an.
-#  Sie belegt den Platz der Hauptwaffe (main), der Platz der Nebenwaffe (sub) wird frei.
-#  Munition: Frucht der Hauptwaffe; Früchte der Nebenwaffe zählen x subAmmo (auch die beim Verschmelzen übrige Munition).
-#  Upgrades: Schaden/Reichweite/Abklingzeit beider Waffen zählen zusammen. keep = Spezial-Upgrades, die weiter wirken;
-#  jede andere Spezial-Stufe wird zu +convertDamage Schaden. Danach gibt es für die Kombiwaffe Schaden, Reichweite,
-#  Abklingzeit und die keep-Upgrades. Reichweite wirkt auf range bzw. Radius/Länge (siehe Kommentar je Waffe).
+levels:
+  xp: [0, 30, 80, 150, 250, 380, 550, 760, 1000, 1300]   # XP ab Level 1, 2, 3, ...
+  unlocks:                 # was ein Level freischaltet (Gebäude-Ids, zusätzliche Felder kommen über plots.byLevel)
+    2: [mill]
+    3: [shop, juicer]
+    4: [bakery]
+    5: [carpentry, workshop]
+    6: [dairy, cows, chickens]
+    7: [silo]
+
+quests:
+  offers: 2                # neue Angebote pro Abend
+  maxActive: 3
+  start:                   # Startauftrag, liegt vom ersten Abend an bereit
+    need: { blue: 10 }
+    reward: { money: 30, xp: 25, items: { wheat: 2 } }
+  pool:                    # Zufallsaufträge: need = Ware, Menge [min, max], Taler + XP pro Stück, ab Level
+    - { item: blue, amount: [6, 12], money: 2, xp: 2, level: 1 }
+    - { item: wheat, amount: [3, 6], money: 4, xp: 4, level: 1 }
+    - { item: straw, amount: [3, 6], money: 3, xp: 3, level: 1 }
+    - { item: flour, amount: [2, 4], money: 9, xp: 7, level: 2 }
+    - { item: bread, amount: [1, 3], money: 18, xp: 12, level: 4 }
+
+buildings:                 # level = ab diesem Level baubar, cost = Taler + Waren, recipes = Verarbeitung (abends starten, am nächsten Abend abholen)
+  house: { built: true }
+  well:                    # Brunnen: kaputt, abends reparieren, dann Gießkanne auffüllen
+    level: 1
+    broken: true
+    cost: { money: 40 }
+  mill:
+    level: 2
+    cost: { money: 60, straw: 4 }
+    recipes: [{ in: { wheat: 2 }, out: { flour: 1 }, days: 1 }]
+  shop:
+    level: 3
+    cost: { money: 90, straw: 6 }
+    questSlots: 1          # mehr Auftragsangebote
+  juicer:
+    level: 3
+    cost: { money: 80 }
+    recipes: [{ in: { blue: 6 }, out: { juice: 1 }, days: 1 }]
+  bakery:
+    level: 4
+    cost: { money: 120, straw: 6 }
+    needs: well
+    recipes: [{ in: { flour: 1 }, out: { bread: 1 }, days: 1 }]
+  carpentry:
+    level: 5
+    cost: { money: 150 }
+  workshop:
+    level: 5
+    cost: { money: 180 }
+  dairy:
+    level: 6
+    cost: { money: 200 }
+    needs: cows
+    recipes: [{ in: { milk: 2 }, out: { cheese: 1 }, days: 1 }]
+  cows:
+    level: 6
+    cost: { money: 160, straw: 10 }
+  chickens:
+    level: 6
+    cost: { money: 120, wheat: 6 }
+  silo:
+    level: 7
+    cost: { money: 220 }
+
 # ---------------------------------------------------------------------
-combos:
-  unlockUpgrades: 5        # Upgrades je Waffe, bevor die Kombi angeboten wird
-  convertDamage: 0.10      # +10 % Schaden je nicht passender Spezial-Stufe
-  burn: { damage: 0.5, stacks: 6, duration: 3 }   # Brand der Kombiwaffen (alte Flammenwerfer-Werte, bis die Kombis überarbeitet werden): Schaden je Stapel und Tick, max. Stapel, s
-  shock:                   # "unter Strom" (Sourbow, Chillightning): Gegner knistert, Ticks bei sich und Nachbarn
-    duration: 2            # s
-    tick: 0.5              # s pro Tick
-    radius: 0.5            # m, Nachbarn in diesem Abstand bekommen den Tick auch
-  list:
-    jam:                   # Jam-Bow: Armbrust aus rotem Holz, Spargelbolzen mit Beerenspitze
-      main: asp
-      sub: cran
-      subAmmo: 0.5         # Munition je Preiselbeere
-      ammoPerShot: 1       # je Bolzen
-      damage: 18           # Bolzen
-      range: 8             # m
-      cooldown: 0.75       # s pro Salve
-      burstShots: 3
-      burstGap: 0.1
-      speed: 16
-      width: 0.3
-      blastRadius: 0.5     # m, Explosion bei Kontakt: Blutung für alle im Umkreis
-      blastDamage: 0.5     # Anteil des Bolzenschadens für die anderen im Umkreis
-      keep: [asp_size, cran_pel, cran_mine]   # Bolzenbreite; +1 Bolzen pro Salve; +10 % Explosionsradius
-    cole:                  # Coleateral Bomb: Kohl mit Spargelstacheln, Zeitbombe
-      main: cab
-      sub: asp
-      subAmmo: 0.5
-      ammoPerShot: 1
-      damage: 14           # Explosion
-      radius: 1.5          # m Explosion (Reichweite-Upgrade)
-      cooldown: 1.5
-      throwDistance: 8     # m bei voller Ladung (Aufladewurf wie Kohl, ohne Ladung skills.cab.throwMin); vorher fest 3 m
-      fuse: 1.8            # s, tickt immer schneller (Wurfzeit 0,6 s eingerechnet, Flug dauert je nach Weite länger/kürzer)
-      spikes: 20           # Spargel in 360 Grad
-      spikeDamage: 10
-      spikeRange: 5        # m
-      spikeSpeed: 14
-      spikePierce: 3       # Gegner pro Spargel
-      keep: [asp_pierce, asp_pb, asp_size, cab_mini]   # +1 Durchbohren; Durchbohr-Schaden; Breite; +4 Spargel je Mini-Kohl-Stufe
-    sour:                  # Sourbow: gelbe Armbrust, 3 Pfeile mit Zitronenspitze
-      main: lemon
-      sub: asp
-      subAmmo: 1
-      ammoPerShot: 1
-      damage: 22
-      range: 20            # m
-      cooldown: 1.0
-      arrows: 3
-      arc: 40              # Grad Fächer
-      speed: 24
-      width: 0.3
-      shockDamage: 0.2     # Anteil des Pfeilschadens pro Strom-Tick
-      keep: [asp_size, lemon_tgt, lemon_xfer]  # Breite; +1 Pfeil; +10 Prozentpunkte Strom-Schaden
-    lance:                 # Fire Lance: Spargelstab mit Chili-Bündel, pulsierender Feuerball
-      main: asp
-      sub: chili
-      subAmmo: 0.3
-      ammoPerShot: 1
-      damage: 14
-      radius: 0.5          # m Feuerball
-      range: 9             # m
-      speed: 7
-      cooldown: 0.55
-      burnStacks: 2        # Brand-Stapel bei Berührung
-      keep: [asp_size, chili_tick]   # +30 % Feuerball-Radius; Brandtempo
-    cabboom:               # Cabboomberry: Kohlkopf voller Preiselbeeren
-      main: cab
-      sub: cran
-      subAmmo: 0.25
-      ammoPerShot: 1
-      damage: 8
-      radius: 1.9          # m Explosion + Gift-Debuff wie Kohl (Reichweite-Upgrade); 17.11.2026 1.5 -> 1.9 wie Kohl
-      cooldown: 1.0
-      throwDistance: 8     # m bei voller Ladung (Aufladewurf); vorher fest 1.5 m
-      fuse: 0.5
-      berries: 10          # in 5 Richtungen (72 Grad)
-      directions: 5
-      scatter: [1.2, 3.2]  # m Flugweite der Beeren
-      berryDelay: 1.2      # s am Boden, dann platzen
-      berryDamage: 4
-      berryRadius: 0.5
-      keep: [cab_mini, cran_pel, cran_mine]   # Mini-Kohl; +2 Beeren; +10 % Beerenschaden
-    shock:                 # Shockgun: zitronengelbe Schrotflinte
-      main: cran
-      sub: lemon
-      subAmmo: 4
-      ammoPerShot: 6
-      pellets: 6
-      cone: 70
-      range: 6
-      cooldown: 0.8
-      damage: 5            # pro Blitz-Tick
-      links: 2             # Blitze pro Beere zu den nächsten Beeren
-      linkRange: 2.8       # m
-      linkWidth: 0.35      # m Trefferbreite eines Blitzes
-      ticks: 3
-      tickInterval: 0.5
-      speed: 7             # m/s Flug der Beeren (vorher fest 9-11), langsamer, damit sie unterwegs öfter blitzen (18.11.2026)
-      flightTick: 0.15     # s, im Flug blitzt jede Beere so oft ... (wie der Citrateaser-Kugelblitz, 18.11.2026)
-      flightRadius: 0.6    # m ... den nächsten Gegner in diesem Umkreis ...
-      flightDamage: 0.6    # ... mit diesem Anteil des Schadens (5 -> 3 pro Blitz)
-      keep: [cran_pel, cran_mine, lemon_tgt, lemon_xfer]  # +1 Beere; +10 % Blitzschaden; +1 Blitz pro Beere; +10 % Blitzreichweite
-    hot:                   # Hotgun: Schrotflinte in Chiliform, brennende Beeren
-      main: cran
-      sub: chili
-      subAmmo: 0.5
-      ammoPerShot: 6
-      damage: 6
-      pelletFactor: 1.5    # +50 % Beeren
-      rangeFactor: 1.3     # +30 % Reichweite
-      baseRange: 7         # 18.11.2026: Grundreichweite wie die alte Beeren-Schrotflinte (die Preiselbeer-Schrotflinte hat jetzt 5 m)
-      baseSplash: 0.25     # Platzschaden liegender Beeren wie vorher (die Preiselbeer-Schrotflinte platzt im Grundzustand nicht mehr)
-      pierce: 1            # +1 Durchschuss
-      cooldown: 0.625
-      burnStacks: 2        # Getroffene brennen sofort
-      keep: [cran_pel, cran_mine, chili_tick]
-    rocket:                # Rocabblauncher: Panzerfaust mit Zitronen-Sprengkopf
-      main: lemon
-      sub: cab
-      subAmmo: 1
-      ammoPerShot: 1
-      damage: 70           # in der Mitte, am Rand edge x
-      edge: 0.5
-      radius: 4            # m Explosion (Reichweite-Upgrade)
-      range: 20            # m Flugweite
-      speed: 18
-      size: 0.5            # m Geschoss
-      cooldown: 2.0
-      keep: [cab_mini]     # Mini-Kohl fliegen aus der Explosion
-    kimchi:                # Kimchi: Kohl splittert in 3, die in 3
-      main: cab
-      sub: chili
-      subAmmo: 0.3
-      ammoPerShot: 1
-      damage: 9
-      radius: 1.4          # m (Reichweite-Upgrade)
-      cooldown: 1.4
-      throwDistance: 8     # m bei voller Ladung (Aufladewurf); vorher fest 3 m
-      fuse: 0.45
-      splits: [3, 3]       # Teile je Stufe
-      splitDistance: 1.7   # m
-      splitScale: 0.65     # Radius und Schaden je Stufe x
-      poolDuration: 6      # s brennende Lache
-      poolTick: 0.5
-      poolDamage: 0.2      # Anteil des Schadens pro Tick, dazu 1 Brand-Stapel
-      keep: [chili_tick]
-    chilight:              # Chillightning: Chili-Klinge, Blitzwelle
-      main: chili
-      sub: lemon
-      subAmmo: 3
-      ammoPerShot: 6
-      damage: 26
-      range: 10            # m Länge der Welle (Reichweite-Upgrade)
-      width: 1.0           # m
-      speed: 30            # m/s
-      cooldown: 1.1
-      knockback: 1.6       # m zur nächstgelegenen Seite
-      shockDamage: 0.2     # Anteil des Schadens pro Strom-Tick
-      keep: [chili_sweep, chili_tick, lemon_tgt, lemon_xfer]  # +20 % Breite; schnellere Strom-Ticks; +0,2 m Strom-Radius; +10 Prozentpunkte Strom-Schaden
+# Tutorial-Tag (erster Tag). Texte: die einzige erlaubte Erklärung im Spiel.
+tutorial:
+  raccoonHp: 4             # ein Harkenschlag vertreibt ihn
+  raccoonSteal: 5          # klaut so viele Beeren aus dem Korb
+  raccoonSpeed: 3.0        # m/s auf der Flucht (Spieler 4,6)
+  raccoonStart: 3          # m neben dem Spieler startet die Flucht nach der Cutscene
+  fieldHint: 6             # s bleibt der Hinweis "jeden Tag gießen" stehen
+  texts:
+    water: Blaubeeren gießen
+    waterHere: Gießen
+    meanwhile: In der Zwischenzeit das Feld harken, säen und gießen
+    rake: Harken
+    sow: Säen
+    waterField: Gießen
+    daily: Felder jeden Tag einmal gießen. In 3 Tagen ist der Weizen reif.
+    almost: Die Blaubeeren sind fast reif
+    harvest: Ernten
+    hunger: Hunger!
+    intruder: Vertreib den Eindringling!
+    fight: Kämpfen
+    enough: Ganz schön viel für den ersten Tag.
 
-transitions:               # Pausieren / Weiterspielen (Level-up, Menü …)
-  slow: 0.5                # s, in denen das Spiel bis zum Stillstand langsamer bzw. wieder schneller wird
-  uiFade: 0.25             # s Ein-/Ausblenden der Pause-Oberfläche
-
-hud:
-  hat:                     # Warnung bei wenig Leben (früher Strohhut-Anzeige; Hut ist jetzt Deko, nur vignette* wird noch benutzt)
-    colors:                # [Leben-Anteil, Farbe] – dazwischen wird gemischt
-      - [1.00, "#b8d040"]  # grüngelb, voll
-      - [0.70, "#e6cf3a"]  # gelb
-      - [0.45, "#e8902c"]  # orange
-      - [0.25, "#d8442a"]  # rot
-      - [0.10, "#9e0f12"]  # tiefrot
-    crownShare: 0.65       # Anteil des Lebens, der den Hut-Kopf von oben frisst; der Rest frisst die Krempe
-    blinkBelow: 0.10       # darunter blinkt der Hut leicht
-    pulseBelow: 0.05       # darunter pulsiert er stärker + rote Bildschirmränder
-    vignetteBelow: 0.05
-    vignetteStrength: 0.35 # 0..1, bewusst dezent
-  ammo:                    # Munitionsanzeige der aktiven Waffe
-    showOnSwitch: 1.5      # s sichtbar nach Waffenwechsel
-    lowSeconds: 3          # "geht zur Neige": wenn nur noch so viele Sekunden Dauerfeuer übrig sind
-    lowShow: 1.0           # s sichtbar bei "geht zur Neige"
-    fade: 0.3              # s Ein-/Ausblenden
+# ---------------------------------------------------------------------
+# Hof-Layout nach Bastis Skizze (19.11.2026). x nach rechts, z nach unten (Bildschirm), Mitte = Hofmitte, 1 Einheit = 1 m.
+# rot = Drehung in Grad im Uhrzeigersinn (von oben gesehen). w = Breite (x), d = Tiefe (z).
+hof:
+  clearing: { rx: 22, rz: 16 }     # Lichtung (Ellipse), außen Wald
+  gaps: [-100, -22, 42, 122, 182]  # Waldlücken (rote Pfeile, Grad: 0 = rechts, 90 = unten), nur hier kommen Tiere
+  gapWidth: 5
+  door: { x: 6.0, z: -6.2 }        # Spieler startet vor der Haustür
+  basket: { x: 3.0, z: -6.6 }      # Korb am Lager (neben dem Haus), hier landet die Ernte
+  bush: { x: 0.2, z: -5.0 }        # Blaubeerbusch
+  buildings:
+    house:     { x: 7.4, z: -9.4, w: 8.4, d: 5.2, rot: 18 }
+    shop:      { x: 12.9, z: -6.9, w: 3.2, d: 3.6, rot: 18 }
+    mill:      { x: 1.4, z: -11.2, w: 3.4, d: 3.4, rot: 20 }
+    bakery:    { x: -5.0, z: -10.0, w: 4.2, d: 3.2, rot: -35 }
+    well:      { x: -1.6, z: -7.0, r: 0.9 }
+    carpentry: { x: -12.6, z: -6.6, w: 4.0, d: 3.4, rot: -20 }
+    workshop:  { x: -14.2, z: 6.0, w: 3.6, d: 3.4, rot: 10 }
+    juicer:    { x: 17.0, z: 1.8, w: 3.0, d: 3.0, rot: -10 }
+    dairy:     { x: -9.0, z: 10.6, w: 3.8, d: 3.0, rot: 25 }
+    cows:      { x: -3.6, z: 11.0, w: 5.0, d: 3.6, rot: 0, fence: true }
+    silo:      { x: 2.2, z: 10.2, r: 1.8 }
+    chickens:  { x: 7.4, z: 10.4, w: 5.0, d: 3.4, rot: 0, fence: true }
+  plots:                           # Feldflächen (schwarz in der Skizze), Reihenfolge = Reihenfolge beim Anlegen
+    - { x: -1.5, z: -1.6 }
+    - { x: 1.5, z: -1.6 }
+    - { x: -4.5, z: -1.6 }
+    - { x: 4.5, z: -1.6 }
+    - { x: -1.5, z: 1.4 }
+    - { x: 1.5, z: 1.4 }
+    - { x: -4.5, z: 1.4 }
+    - { x: 4.5, z: 1.4 }
+    - { x: -1.5, z: 4.4 }
+    - { x: 1.5, z: 4.4 }
+    - { x: -4.5, z: 4.4 }
+    - { x: 4.5, z: 4.4 }
+    - { x: -12.6, z: -1.6 }
+    - { x: -9.6, z: -1.6 }
+    - { x: -12.6, z: 1.4 }
+    - { x: -9.6, z: 1.4 }
+    - { x: 11.4, z: -2.2 }
+    - { x: 14.4, z: -2.2 }
+    - { x: 11.4, z: 0.8 }
+    - { x: 14.4, z: 0.8 }
+    - { x: 11.4, z: 3.8 }
+    - { x: 14.4, z: 3.8 }
+    - { x: -6.8, z: 7.6 }
+    - { x: 12.0, z: 6.8 }
+  trees:                           # Bäume (braune Kreise in der Skizze)
+    - { x: -8.2, z: -12.6 }
+    - { x: -16.0, z: -4.2 }
+    - { x: -15.2, z: 1.8 }
+    - { x: -11.6, z: 7.6 }
+    - { x: -7.4, z: 13.0 }
+    - { x: 4.4, z: -13.4 }
+    - { x: 15.2, z: -9.6 }
+    - { x: 18.6, z: -2.4 }
+    - { x: 16.2, z: 8.2 }
+    - { x: -0.4, z: 13.2 }

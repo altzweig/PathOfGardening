@@ -354,8 +354,32 @@ function toad(R: Rig) {
   }
 }
 
+/** hare (19.11.2026, Farming-Gameloop): slim brown-grey body, very long black-tipped ears, long hind legs, white scut */
+function hare(R: Rig) {
+  const body = fur(0x6e5a44, 0x8f7556, 0xe8dcc8, .18), belly = C(0xece2d0), dk = C(0x1a1410), pink = C(0xc89a8a);
+  R.bone('torso', null, [0, .24, 0]);
+  R.blob('torso', [0, .25, -.05], [.12, .14, .2], body, { rot: [-.25, 0, 0], deform: d => 1 + .1 * Math.max(0, -d.z) * Math.max(0, d.y) });
+  R.blob('torso', [0, .25, .1], [.1, .115, .12], body);
+  R.blob('torso', [0, .27, -.24], [.05, .05, .045], (p, d) => mul(belly, .9 + .2 * vn(p.x * 60, p.y * 60, p.z * 60))); // white scut
+  R.bone('neck', 'torso', [0, .31, .16]).blob('neck', [0, .32, .18], [.075, .08, .075], body);
+  R.bone('head', 'neck', [0, .36, .21]);
+  R.blob('head', [0, .375, .24], [.085, .085, .1], (p, d) => d.y < -.3 && d.z > .2 ? belly : body(p, d, 0), { deform: d => 1 + .08 * Math.max(0, d.z) * Math.max(0, -d.y) });
+  R.blob('head', [0, .35, .32], [.05, .045, .05], (p, d) => d.y < -.1 ? belly : body(p, d, 0));
+  R.blob('head', [0, .36, .365], [.016, .012, .01], () => pink);
+  R.bone('eyes', 'head', [0, .395, .29]).eyes([[-.058, .395, .285], [.058, .395, .285]], .019);
+  R.bone('jaw', 'head', [0, .33, .3]).blob('jaw', [0, .322, .325], [.03, .013, .035], () => belly);
+  for (const sx of [-1, 1]) {
+    const n = sx < 0 ? 'earL' : 'earR'; R.bone(n, 'head', [sx * .035, .44, .22]);
+    R.blob(n, [sx * .045, .55, .2], [.032, .12, .014], (p, d) => p.y > .64 ? dk : d.z > .3 ? mul(pink, .95) : body(p, d, 0), { rot: [-.25, 0, -sx * .12] });
+  }
+  const lu = fur(0x6e5a44, 0x7c6448, 0xd8c8b0), paw = solid(0x4a3a2a);
+  legPair(R, true, { hip: [.06, .2, .12], knee: [.065, .1, .15], foot: [.06, .02, .17], r: [.03, .022, .018], up: lu, lo: lu, paw, pawR: [.022, .014, .03] });
+  legPair(R, false, { hip: [.08, .21, -.12], knee: [.09, .11, -.04], foot: [.085, .02, -.13], r: [.06, .035, .022], up: lu, lo: lu, paw, pawR: [.026, .016, .08] });
+  for (const sx of [-1, 1]) R.blob(sx < 0 ? 'bl' : 'br', [sx * .09, .18, -.09], [.055, .085, .1], body, { rot: [.5, 0, 0] }); // big haunches
+}
+
 const BUILD: Record<string, (R: Rig) => void> = {
-  raccoon: R => raccoon(R, false), boss: R => raccoon(R, true), panda, squirrel, hedgehog, sheep, toad,
+  raccoon: R => raccoon(R, false), boss: R => raccoon(R, true), panda, squirrel, hedgehog, sheep, toad, hare,
 };
 
 // ---------------- templates (one per species, shared) ----------------
@@ -371,7 +395,7 @@ function template(key: string): Template {
   t = { bones: R.bones, geo, eyes, spines, h: R.bones[0].pivot[1], w: Math.max(.08, (bb.max.x - bb.min.x) / 2 * .8) }; TPL.set(key, t); return t;
 }
 
-export const ANIMAL_EYE: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070 };
+export const ANIMAL_EYE: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070, hare: 0x2a1a10 };
 const eyeMats = new Map<number, THREE.MeshBasicMaterial>();
 function eyeMat(c: number) { let m = eyeMats.get(c); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, vertexColors: true, toneMapped: false }); eyeMats.set(c, m); } return m; }
 
@@ -434,6 +458,7 @@ const GAIT: Record<EnemyType, { stride: number; amp: number; bob: number; roll: 
   hedgehog: { stride: .26, amp: .75, bob: .012, roll: .05, ref: 1.8 },
   squirrel: { stride: .5, amp: .7, bob: .02, roll: .03, ref: 3 },
   toad: { stride: 1, amp: 0, bob: 0, roll: 0, ref: 2 },
+  hare: { stride: .55, amp: .7, bob: .025, roll: .03, ref: 2.2 },
 };
 const OFF_TROT: Record<string, number> = { fl: 0, br: 0, fr: Math.PI, bl: Math.PI };
 const OFF_GALLOP: Record<string, number> = { fl: 0, fr: .45, bl: Math.PI, br: Math.PI + .45 };

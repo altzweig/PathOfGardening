@@ -549,3 +549,60 @@ export function comboModel(cid: ComboId, a: THREE.Group): ComboModel {
   }
   return { t0, t1, muzzle, base, loaded };
 }
+
+// ================= farm tools (19.11.2026, Farming-Gameloop) =================
+// All tools: hands at the origin, the working end along +z (like the hoe), so the IK can grip them the same way.
+/** rake (Harke): ash pole, forged head with 10 tines at the +z end, tines pointing down (-y) */
+export function rakeTool(L = 1.15) {
+  const K = kit(), g = new THREE.Group(), back = .35;
+  mesh(g, lathe([[.018, 0], [.024, .01], [.025, L * .5], [.023, L - .02], [.02, L]], 14), K.ash, 0, 0, -back).rotation.x = Math.PI / 2;
+  const head = new THREE.Group(); head.position.z = L - back; g.add(head);
+  const n = 10, w = .42;
+  mesh(head, rbox(w + .02, .036, .045, .012), K.iron);
+  mesh(head, rbox(.07, .05, .07, .015), K.iron, 0, .005, -.03);
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + w * (i + .5) / n;
+    mesh(head, sweep([V3(x, -.01, .01), V3(x, -.07, .03), V3(x, -.12, .05)], t => .008 * (1 - t * .7), { radial: 6, steps: 6, caps: true }), K.iron);
+  }
+  g.userData.head = head;
+  return g;
+}
+/** watering can (tin, rose spout along +z); `spout` = where the water comes out, `grip` = handle */
+export function wateringCan() {
+  const K = kit(), g = new THREE.Group();
+  const tin = new THREE.MeshStandardMaterial({ color: 0x7fa6b8, metalness: .55, roughness: .35 }), dark = new THREE.MeshStandardMaterial({ color: 0x4f6f7e, metalness: .5, roughness: .4 });
+  mesh(g, lathe([[.0, -.09], [.085, -.09], [.09, -.07], [.09, .07], [.082, .085], [0, .085]], 22), tin);
+  mesh(g, lathe([[.093, -.004], [.093, .004]], 22), dark, 0, .07, 0);
+  const sp = new THREE.Group(); sp.position.set(0, -.04, .07); sp.rotation.x = .9; g.add(sp);
+  mesh(sp, lathe([[.018, 0], [.014, .28]], 10), tin);
+  mesh(sp, lathe([[.014, 0], [.036, .03], [.036, .04], [0, .042]], 14), dark, 0, .28, 0);
+  const spout = new THREE.Object3D(); spout.position.set(0, .33, 0); sp.add(spout);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(.075, .011, 6, 14, Math.PI), dark); handle.position.set(0, .085, -.01); handle.rotation.y = Math.PI / 2; g.add(handle);
+  const grip = new THREE.Object3D(); grip.position.set(0, .16, -.01); g.add(grip);
+  void K;
+  return { g, spout, grip };
+}
+/** sickle: short handle, crescent iron blade */
+export function sickle() {
+  const K = kit(), g = new THREE.Group();
+  mesh(g, lathe([[.016, -.05], [.02, 0], [.018, .12], [.014, .14]], 12), K.darkWood).rotation.x = Math.PI / 2;
+  const pts: THREE.Vector3[] = []; for (let i = 0; i <= 12; i++) { const a = i / 12 * Math.PI * 1.1; pts.push(V3(Math.sin(a) * .14, 0, .15 + (1 - Math.cos(a)) * .02 + Math.sin(a) * .1)); }
+  mesh(g, sweep(pts, t => .012 * (1 - t * .6), { radial: 6, steps: 18, sx: 2.2, sy: .25, caps: true }), K.iron);
+  return g;
+}
+/** seed bag: linen sack tied with twine */
+export function seedBag() {
+  const K = kit(), g = new THREE.Group();
+  mesh(g, sph(14, 10), K.linen, 0, -.06, 0, .085, .1, .075);
+  mesh(g, lathe([[.03, 0], [.04, .03], [.05, .05]], 12), K.linen, 0, .02, 0);
+  band(g, K.twine, .034, .015, 0).rotation.x = Math.PI / 2;
+  return g;
+}
+/** woven basket with a handle (harvest basket at the Lager) */
+export function basket(r = .32, h = .22) {
+  const K = kit(), g = new THREE.Group();
+  mesh(g, lathe([[r * .75, 0], [r, h * .85], [r * 1.04, h]], 20), K.twine);
+  mesh(g, new THREE.CylinderGeometry(r * .74, r * .74, .02, 20), K.twine, 0, .01, 0);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(r * .9, .015, 6, 18, Math.PI), K.ash); handle.position.y = h; g.add(handle);
+  return g;
+}

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <title>PathOfGardening</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="hurt"></div>
+  <div id="dmg"></div>
+
+  <div id="hud" hidden>
+    <div id="topbar">
+      <div id="lvl">1</div>
+      <div id="xpbar"><div id="xpfill"></div><span id="xptext"></span></div>
+      <button class="ibtn" id="pauseBtn" aria-label="Pause">II</button>
+    </div>
+    <div id="sub">
+      <div id="hpbar"><div id="hpfill"></div><span id="hptext"></span></div>
+      <div id="res"></div>
+      <div id="statusfx"></div>
+      <div id="mates"></div>
+      <div id="wave"></div>
+      <div id="timer">0:00</div>
+    </div>
+    <div class="stick" id="moveStick"><div class="knob"></div></div>
+    <div class="stick" id="aimStick"><div class="knob"></div></div>
+    <div id="btns"></div>
+    <div id="respawn"></div>
+    <div id="placeBar" hidden></div>
+    <div id="placeConfirm" hidden>
+      <div class="pcRow"><div class="pic old" id="pcOld"></div><svg class="pcArrow" viewBox="0 0 40 24"><path d="M3 12h28M24 4l9 8-9 8" fill="none" stroke="#e3b964" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="pic" id="pcNew"></div></div>
+      <div class="pcRow"><button class="pcBtn no" id="pcNo" aria-label="Abbrechen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="#ff8a7a" stroke-width="3" stroke-linecap="round"/></svg></button><button class="pcBtn yes" id="pcYes" aria-label="Überbauen"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#1a1206" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+    <div id="ammoPop"></div>
+    <div id="wcd" hidden></div>
+    <div id="wann" hidden></div>
+    <div id="month" hidden><i></i><span></span></div>
+    <div id="bossbar" hidden><div id="bossfill"></div></div>
+    <button class="ibtn" id="cheatBtn" hidden aria-label="Cheat">E</button>
+    <!-- weapon test room: every weapon, enemies per minute -->
+    <div id="sbBar" hidden><div id="sbWeps"></div><div class="sbRate"><button data-r="-1" aria-label="Weniger Gegner">−</button><b class="sbRateV">0</b><button data-r="1" aria-label="Mehr Gegner">+</button></div></div>
+  </div>
+  <!-- weapon test room: settings (Escape), the game keeps running behind as live preview -->
+  <div id="sbPanel" hidden></div>
+
+  <!-- main menu: character card left, menu right, garden behind -->
+  <div class="ov" id="menu">
+    <div id="mMotes" aria-hidden="true"></div>
+    <section id="mChar" class="rise r3">
+      <input id="mName" maxlength="16" spellcheck="false" autocomplete="off" aria-label="Name">
+      <div id="mStage"><div id="mGlow"></div><canvas id="mCanvas"></canvas><button id="mDice" aria-label="Zufall"></button></div>
+      <div id="mOpts"></div>
+    </section>
+    <section id="mMain">
+      <div id="mLogo" class="rise r1"><div class="mKicker"><svg class="mLeaf" viewBox="0 0 120 24" aria-hidden="true"><path d="M2 12h44M74 12h44" stroke="currentColor" stroke-width="1"/><path d="M60 3c-8 2-12 6-12 9 0 3 4 7 12 9 8-2 12-6 12-9 0-3-4-7-12-9z" fill="currentColor" opacity=".9"/><path d="M60 5v14" stroke="#05080b" stroke-width="1"/><circle cx="46" cy="12" r="1.6" fill="currentColor"/><circle cx="74" cy="12" r="1.6" fill="currentColor"/></svg></div><h1>Path<span>Of</span>Gardening</h1><div class="mRule"></div></div>
+      <nav id="mNav" class="rise r2">
+        <button class="mi main" id="soloBtn">Spielen</button>
+        <button class="mi" id="coopBtn">Koop</button>
+        <button class="mi" id="wtestBtn">Waffentest</button>
+        <button class="mi" id="testBtn">Testmodus</button>
+        <button class="mi" id="optBtn">Optionen</button>
+      </nav>
+      <div class="err" id="menuErr" hidden></div>
+    </section>
+  </div>
+
+  <div class="ov" id="coop" hidden>
+    <h2>Koop</h2>
+    <div class="col">
+      <button class="btn" id="hostBtn">Spiel erstellen</button>
+      <div class="joinrow">
+        <input id="codeIn" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Code">
+        <button class="btn" id="joinBtn">Beitreten</button>
+      </div>
+      <button class="btn sec" id="coopBack">Zurück</button>
+    </div>
+    <div class="err" id="coopErr" hidden></div>
+  </div>
+
+  <div class="ov" id="lobby" hidden>
+    <div id="lobbyCode"></div>
+    <div id="lobbyPlayers"></div>
+    <div class="col">
+      <button class="btn" id="lobbyStart">Start</button>
+      <button class="btn sec" id="lobbyBack">Verlassen</button>
+    </div>
+  </div>
+
+  <div class="ov" id="options" hidden>
+    <h2>Optionen</h2>
+    <div class="col">
+      <button class="btn sec" id="ctrlBtn">Steuerung</button>
+      <button class="btn sec" id="qualBtn">Grafik</button>
+      <button class="btn sec" id="sndBtn">Ton</button>
+      <button class="btn sec" id="credBtn">Credits</button>
+      <button class="btn" id="optBack">Zurück</button>
+    </div>
+  </div>
+
+  <div class="ov" id="credits" hidden>
+    <h2>Credits</h2>
+    <div id="credView"></div>
+    <button class="btn" id="credBack">Zurück</button>
+  </div>
+
+  <div class="ov" id="controls" hidden>
+    <div class="tabs"><button class="tab" data-tab="pc">PC</button><button class="tab" data-tab="mobile">Mobil</button></div>
+    <div id="ctrlView"></div>
+    <button class="btn" id="ctrlBack">Zurück</button>
+  </div>
+
+  <div class="ov" id="levelup" hidden>
+    <h2 id="luTitle"></h2>
+    <div id="cards"></div>
+    <div id="luWait"></div>
+  </div>
+
+  <!-- test mode: cheat menu (key E) -->
+  <div class="ov" id="cheat" hidden>
+    <div id="cheatTop"><b>Testmodus</b><span id="cheatWave"></span><button class="btn" id="cheatClose">Weiter</button></div>
+    <div id="cheatRows"></div>
+  </div>
+
+  <div class="ov" id="pause" hidden>
+    <h2>Pause</h2>
+    <div class="col">
+      <button class="btn" id="resumeBtn">Weiter</button>
+      <button class="btn sec" id="pCtrlBtn">Steuerung</button>
+      <button class="btn sec" id="pQualBtn">Grafik</button>
+      <button class="btn sec" id="pSndBtn">Ton</button>
+      <button class="btn sec" id="restartBtn">Neu starten</button>
+      <button class="btn sec" id="leaveBtn">Hauptmenü</button>
+    </div>
+  </div>
+
+  <div class="ov" id="over" hidden>
+    <h1>Die Ernte ist verloren</h1>
+    <div id="overStats"></div>
+    <div class="row">
+      <button class="btn" id="againBtn">Nochmal</button>
+      <button class="btn sec" id="overMenu">Hauptmenü</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

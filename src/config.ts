@@ -10,7 +10,7 @@ export type CropId = 'ramsons' | 'bean' | 'pea' | 'straw' | 'potato' | 'garlic' 
 export const CROPS: CropId[] = ['ramsons', 'bean', 'pea', 'straw', 'potato', 'garlic', 'lettuce', 'pumpkin', 'leek', 'dandel', 'corn', 'carrot', 'pepper', 'radish', 'rhubarb', 'goose', 'tomato', 'onion'];
 export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | CropId;
 export const isCrop = (t: FruitType): t is CropId => (CROPS as string[]).includes(t);
-export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
+export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel' | 'hare';
 // new weapons at the end: SKILLS indices are used in the snapshot
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'bean'];
 /** weapon families sharing the code: crossbows (salvo, piercing bolts) and shotguns (pellet spread) */

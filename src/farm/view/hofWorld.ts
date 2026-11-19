@@ -8,7 +8,7 @@ import { Inst, instance, loadNature } from '../../view/nature';
 import type { FarmCfg } from '../config';
 import type { Hof } from '../hof';
 
-const SIZE = 110; // ground plane (m)
+const SIZE = 170; // ground plane (m): clearing (rx 32) + forest that fills the view at the widest zoom
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const hsl = (h: number, s: number, l: number) => new THREE.Color().setHSL(h, s, l);
 function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
@@ -79,34 +79,34 @@ export class HofWorld {
     // --- forest ring: a dense wall right at the edge, bigger trees behind; the gaps stay open
     const taken: { x: number; z: number; d: number }[] = [];
     const trees = [
-      { names: [1, 3, 5].map(i => 'CommonTree_' + i), s: .7, n: 60, d: 3, k0: 1.06, k1: 1.9, col: () => hsl(rand(.22, .3), rand(.5, .65), rand(.34, .42)) },
-      { names: [1, 2, 4, 5].map(i => 'Pine_' + i), s: .8, n: 70, d: 2.6, k0: 1.04, k1: 2, col: () => hsl(rand(.22, .3), rand(.3, .45), rand(.62, .78)) },
-      { names: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), s: .4, n: 14, d: 4, k0: 1.2, k1: 1.9, col: () => hsl(rand(.2, .28), rand(.5, .65), rand(.36, .44)) },
+      { names: [1, 3, 5].map(i => 'CommonTree_' + i), s: .7, n: 120, d: 3, k0: 1.06, k1: 1.75, col: () => hsl(rand(.22, .3), rand(.5, .65), rand(.34, .42)) },
+      { names: [1, 2, 4, 5].map(i => 'Pine_' + i), s: .8, n: 140, d: 2.6, k0: 1.04, k1: 1.8, col: () => hsl(rand(.22, .3), rand(.3, .45), rand(.62, .78)) },
+      { names: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), s: .4, n: 26, d: 4, k0: 1.2, k1: 1.75, col: () => hsl(rand(.2, .28), rand(.5, .65), rand(.36, .44)) },
     ];
     for (const T of trees) for (const [name, list] of group(T.names, ring(N(T.n), T.k0, T.k1, T.d, taken)))
       add(name, list.map(p => ({ x: p.x, z: p.z, y: -.1, s: T.s * rand(.8, 1.25) * (p.k > 1.4 ? 1.15 : 1), col: T.col(), shade: rand(.8, 1.05) })), { shadow: true, scale: T.s, gapPad: 1.4 });
     // bushes along the forest edge (the animals come out of here)
-    const bushes = ring(N(110), .97, 1.12, 1.1).map(p => ({ x: p.x, z: p.z, s: rand(.65, 1.1), col: hsl(rand(.25, .33), rand(.5, .62), rand(.3, .38)) }));
+    const bushes = ring(N(170), .97, 1.12, 1.1).map(p => ({ x: p.x, z: p.z, s: rand(.65, 1.1), col: hsl(rand(.25, .33), rand(.5, .62), rand(.3, .38)) }));
     const fl = bushes.filter(() => Math.random() < .3);
     add('Bush_Common', bushes.filter(b => !fl.includes(b)), { shadow: true, gapPad: .2 });
     add('Bush_Common_Flowers', fl, { shadow: true, gapPad: .2 });
     // rocks, ferns, tall grass in the forest
-    add('Rock_Medium_1', ring(N(10), 1.05, 1.8).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .8), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
-    add('Rock_Medium_2', ring(N(8), 1.05, 1.8).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.35, .7), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
-    add('Fern_1', ring(N(90), 1.0, 1.8).map(p => ({ x: p.x, z: p.z, s: rand(.18, .3), tilt: .25, col: hsl(rand(.25, .35), rand(.35, .5), rand(.55, .68)) })), { gapPad: -.5 });
-    add('Grass_Wispy_Tall', ring(N(70), .95, 1.6).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.2, .3), rand(.3, .45), rand(.6, .72)) })), { gapPad: -.5 });
+    add('Rock_Medium_1', ring(N(18), 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .8), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
+    add('Rock_Medium_2', ring(N(14), 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.35, .7), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
+    add('Fern_1', ring(N(160), 1.0, 1.7).map(p => ({ x: p.x, z: p.z, s: rand(.18, .3), tilt: .25, col: hsl(rand(.25, .35), rand(.35, .5), rand(.55, .68)) })), { gapPad: -.5 });
+    add('Grass_Wispy_Tall', ring(N(120), .95, 1.6).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.2, .3), rand(.3, .45), rand(.6, .72)) })), { gapPad: -.5 });
     // single trees on the farm (Bastis brown circles)
     add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
     add('CommonTree_3', this.cfg.hof.trees.filter((_, i) => i % 2 === 1).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
     // lawn on the farm: grass tufts, clover, flowers, pebbles; never on plots, buildings or paths
     const inside = (n: number, pad: number) => ring(n * 3, .05, .97).filter(p => this.free(p.x, p.z, pad)).slice(0, n);
     const grassCol = () => hsl(rand(.2, .3), rand(.35, .5), rand(.58, .7));
-    for (const [name, list] of group(['Grass_Common_Short', 'Grass_Common_Short', 'Grass_Common_Tall'], inside(N(420), .5)))
+    for (const [name, list] of group(['Grass_Common_Short', 'Grass_Common_Short', 'Grass_Common_Tall'], inside(N(800), .5)))
       add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.32, .55), col: grassCol() })));
-    for (const [name, list] of group(['Clover_1', 'Clover_2'], inside(N(80), .4))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.24, .32), .4, rand(.6, .7)) })));
-    for (const [name, list] of group(['Flower_3_Group', 'Flower_4_Group', 'Flower_3_Single', 'Flower_4_Single'], inside(N(60), .4)))
+    for (const [name, list] of group(['Clover_1', 'Clover_2'], inside(N(150), .4))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.24, .32), .4, rand(.6, .7)) })));
+    for (const [name, list] of group(['Flower_3_Group', 'Flower_4_Group', 'Flower_3_Single', 'Flower_4_Single'], inside(N(110), .4)))
       add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.22, .34), col: hsl(rand(.08, .15), .3, .95) })));
-    for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3'], inside(N(40), .3)))
+    for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3'], inside(N(70), .3)))
       add(name, list.map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.6, 1.1), tilt: .3, shade: rand(.85, 1.1) })));
   }
 }

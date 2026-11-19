@@ -49,7 +49,7 @@ export class Tutorial {
         if (b.phase === 'ripe') this.go('harvest');
         break;
       case 'harvest':
-        V.setArrow(P.action ? null : { x: H.bush.x, z: H.bush.z, y: 2.1 }); this.hud.hint(T.harvest, 'hands');
+        V.setArrow(P.action ? null : { x: H.bush.x, z: H.bush.z, y: 2.1 }); this.hud.hint(T.harvest, 'rake');
         if (b.phase === 'empty' && !P.action) this.startCutscene();
         break;
       // ---------------- cutscene: the raccoon ----------------
@@ -130,7 +130,7 @@ export class Tutorial {
     const r = sim.spawn('raccoon', gi, { x: gp.x, z: gp.z, state: 'script', hp: this.cfg.tutorial.raccoonHp, maxHp: this.cfg.tutorial.raccoonHp, shy: false });
     r.path = [{ x: peek.x, z: peek.z, speed: 1 }]; this.rac = r;
     // it will flee through the gap that lies "behind" the player, seen from the basket
-    const bx = P.x - H.basket.x, bz = P.z - H.basket.z; let best = 0, bd = -2;
+    const K = sim.basketAt ?? H.basket, bx = P.x - K.x, bz = P.z - K.z; let best = 0, bd = -2;
     sim.hof.gaps.forEach((g, i) => { const l = Math.hypot(bx, bz) || 1, d = (Math.cos(g.a) * bx + Math.sin(g.a) * bz) / l; if (d > bd) { bd = d; best = i; } });
     this.gap = best;
     this.view.shot = { x: peek.x, z: peek.z + 1.5, zoom: .62 };
@@ -138,7 +138,7 @@ export class Tutorial {
   }
   /** sneak from the forest edge to the basket at the Lager (around the buildings) */
   private sneakPath() {
-    const r = this.rac!, K = this.cfg.hof.basket, sp = 1.7, out: { x: number; z: number; speed: number }[] = [];
+    const r = this.rac!, K = this.sim.basketAt ?? this.cfg.hof.basket, sp = 1.7, out: { x: number; z: number; speed: number }[] = [];
     // walk in steps, sidestepping buildings: sample the straight line and push points out of obstacles
     const n = 8;
     for (let i = 1; i <= n; i++) {

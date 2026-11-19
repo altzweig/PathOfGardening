@@ -241,6 +241,7 @@ export function buildBuilding(id: BuildingId, r: RectCfg, level: number): Buildi
     case 'silo': silo(built, r.r ?? 1.8); break;
     case 'chickens': enclosure(built, w, d, 'chickens'); break;
     case 'cows': enclosure(built, w, d, 'cows'); break;
+    case 'sheep': enclosure(built, w, d, 'cows'); break;
     case 'well': { v.crank = well(built, r.r ?? .9, false).crank; const b = new THREE.Group(); root.add(b); well(b, r.r ?? .9, true); v.broken = b; break; }
   }
   if (id !== 'house' && id !== 'well') site(siteG, r, level);

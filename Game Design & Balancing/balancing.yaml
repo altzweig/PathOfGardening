@@ -34,6 +34,19 @@ names:
     cheese: Käse
     egg: Eier
     plank: Bretter
+    water: Wasser            # im Fass neben dem Brunnen
+    green: Grünschnitt       # vom Jäten
+    slurry: Gülle            # von den Kühen
+    fert: Dünger
+    baerlauch: Bärlauch      # Sammeln am Hofrand
+    sorrel: Sauerampfer
+    mushroom: Pilze
+    wood: Brennholz
+    stone: Steine
+    bramble: Brombeeren      # wilde Brombeersträucher am Hofrand
+    soup: Kräutersuppe       # Küche
+    pan: Pilzpfanne
+    cake: Apfelkuchen
   weapons:
     rake: Harke              # Notwaffe: ohne Waffe oder ohne Munition schlägt man schwertartig mit der Harke
     shotgun: Schrotflinte
@@ -54,10 +67,16 @@ names:
     silo: Güllesilo
     chickens: Hühnergehege
     cows: Kuhweide
+    sheep: Schafe & Ziegen
     plot: Feld
   animals:
     raccoon: Waschbär
     hare: Hase
+  livestock:
+    cow: Kuh
+    sheep: Schaf
+    goat: Ziege
+    chicken: Huhn
 
 # ---------------------------------------------------------------------
 day:
@@ -81,13 +100,27 @@ player:
   hurtStun: 0.25           # s kurzes Zusammenzucken bei einem Biss (bricht die Aktion ab)
 
 # ---------------------------------------------------------------------
-# Aktionen mit Linksklick: Dauer in s. Das passende Werkzeug + Animation kommt automatisch.
+# Aktionen tagsüber (außer Kämpfen). Steht man im Radius eines Ziels (player.hover), wird "[Aktionsname]" eingeblendet,
+# Linksklick führt sie aus, ein kleiner Zeitbalken läuft voll. time = Dauer in s, label = eingeblendeter Name.
+# repeat: läuft von selbst weiter, solange es geht (Busch abernten, Wasser schöpfen ...). Laufen bricht ab.
 actions:
-  water: 2.0               # Gießkanne: Busch oder Feld gießen
-  rake: 3.5                # Harke: Feld harken
-  sow: 2.5                 # Saatgutsack: säen
-  harvestPlot: 3.0         # Sichel: Feld ernten
-  refill: 2.5              # Gießkanne am Brunnen auffüllen
+  water:       { time: 2.0, label: Gießen }           # Busch / Feld, nur wenn trocken (Feld 1x am Tag)
+  plow:        { time: 3.0, label: Pflügen }          # neu angelegtes Feld
+  sow:         { time: 2.0, label: Säen }             # gepflügtes Feld, braucht 1 Weizen
+  weed:        { time: 1.5, label: Jäten }            # Feld: alles Unkraut raus, je Unkraut 1 Grünschnitt
+  fertilize:   { time: 1.5, label: Düngen }           # Feld: 1x am Tag, braucht 1 Dünger
+  harvestPlot: { time: 2.0, label: Ernten, repeat: true }   # reifes Feld, mehrmals (plots.cuts), dann abgeerntet
+  harvestBush: { time: 1.5, label: Ernten, repeat: true }   # Blaubeerbusch
+  refill:      { time: 2.0, label: Kanne füllen }     # Brunnen: Gießkanne auffüllen
+  draw:        { time: 1.5, label: Wasser schöpfen, repeat: true }  # Brunnen -> Fass, bis das Fass voll ist
+  gather:      { time: 1.0, label: Sammeln }          # Bärlauch, Pilze, Brennholz ... am Hofrand
+  weedHof:     { time: 1.0, label: Jäten }            # Unkraut auf dem Hof -> Grünschnitt
+  pickWild:    { time: 1.5, label: Pflücken, repeat: true }  # wilder Brombeerstrauch
+  shake:       { time: 2.0, label: Schütteln }        # Apfelbaum: reife Äpfel fallen herunter
+  feed:        { time: 2.0, label: Füttern }          # Stall: alle Tiere einmal füttern
+  straw:       { time: 2.0, label: Stroh auslegen }   # Stall: 1x am Tag, frisches Stroh = mehr Ertrag
+  milk:        { time: 3.0, label: Melken }           # Kühe, Schafe, Ziegen
+  eggs:        { time: 2.0, label: Eier sammeln }     # Hühner
 
 can:                       # Gießkanne
   capacity: 5              # Füllungen (eine Füllung = einmal gießen)
@@ -95,8 +128,11 @@ can:                       # Gießkanne
 
 bush:                      # Blaubeerbusch (jeden Tag): gießen -> reifen -> ernten -> leer
   ripen: 60                # s nach dem Gießen bis erntereif
-  berries: 17              # Beeren pro Tag
-  pickInterval: 3.5        # s pro Beere beim Ernten (17 Beeren ≈ 1 min Ernten)
+  bigPicks: 8              # so oft gibt es große Beeren (je actions.harvestBush.time = 1,5 s) ...
+  bigBerries: [3, 4]       # ... mit 3-4 Beeren pro Mal: nach ca. 12 s sind 24-32 Beeren im Korb
+  smallPicks: 4            # danach nur noch kleine Beeren ...
+  smallBerries: 1          # ... je 1 Beere, dann ist der Busch leer
+  radius: 0.8              # m Kollision: man steht knapp davor, nicht im Busch
   barDelay: 1              # s nach dem Gießen erscheint der dezente Reife-Balken
   almostAt: 0.75           # Anteil der Reifezeit: Tutorial-Hinweis "fast erntereif"
 
@@ -104,15 +140,38 @@ crops:                     # Feldfrüchte (jetzt nur Weizen): days = gegossene T
   wheat:
     seed: wheat            # verbraucht 1x diese Ware beim Säen
     days: 3
-    yield: { wheat: 4, straw: 3 }
+    yield: { wheat: 2, straw: 1 }   # pro Ernte-Durchgang (ein reifes Feld wird plots.cuts-mal geerntet)
 
 plots:
-  size: 2.6                # m Kantenlänge eines Feldes
+  size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
+  cuts: 3                  # so oft kann ein reifes Feld geerntet werden, dann ist es abgeerntet (wieder säen)
+  fertBonus: 0.3           # je Düngen (1x pro Tag): 30 % mehr Ernte-Durchgänge
+  weeds: { max: 5, every: [35, 70], blockAt: 3 }   # Unkraut pro Feld: wächst alle 35-70 s, Ernten erst bei weniger als 3
   byLevel: [1, 3, 5, 8, 11, 14, 18, 22, 24]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
   cost: 20                 # Taler für ein weiteres Feld (Abend: Bauen)
 
 storage:
   capacity: 999            # pro Ware (Lager-Ausbau kommt später)
+
+wild:                      # was auf dem Hof von selbst wächst (nie im Sichtbereich des Spielers)
+  weeds: { start: 80, max: 200, every: [6, 12] }      # Unkraut auf dem Hof
+  forage:                  # Sammeln am Hofrand (Anteil der Ellipse: band), am Anfang liegt viel herum
+    start: 40
+    max: 70
+    every: [6, 12]         # s bis das nächste Ding nachwächst
+    band: [0.8, 0.97]
+    items: { baerlauch: 3, sorrel: 3, mushroom: 2, wood: 3, stone: 2 }   # Gewichte
+  brambles: { count: 10, berries: 8, regrow: 15, pick: [1, 2] }   # wilde Brombeeren: halb so viel pro Zeit wie der Blaubeerbusch
+  apples: { perTree: 6, shake: [2, 3] }   # Bäume auf dem Hof: reife Äpfel pro Tag, pro Schütteln fallen so viele herunter
+  barrel: 10               # Fass am Brunnen fasst so viel Wasser
+
+stalls:                    # Füttern am Stall (Linksklick), nicht einzelne Tiere. Morgens (1. Tageshälfte) und abends (2.) je einmal Ertrag.
+  strawBonus: 0.3          # frisches Stroh (1x am Tag): 30 % mehr Ertrag
+  strawCost: 1             # Stroh pro Auslegen
+  cows:     { animals: [cow, cow], feed: green, feedCost: 2, maxFed: 3, collect: milk, yield: { milk: 2, slurry: 1 } }
+  sheep:    { animals: [sheep, goat], feed: green, feedCost: 2, maxFed: 2, collect: milk, yield: { milk: 1 } }
+  chickens: { animals: [chicken, chicken, chicken, chicken], feed: wheat, feedCost: 1, maxFed: 1, collect: eggs, yield: { egg: 1 } }
+  # yield = pro Tier bei vollem Futter (weniger Futter = anteilig weniger), feedCost = Ware pro Füttern für den ganzen Stall
 
 start:                     # neuer Spielstand
   money: 15
@@ -173,7 +232,7 @@ animals:
     fleeSpeed: 3.4         # m/s auf der Flucht (langsamer als der Spieler)
     radius: 0.35
     stealInterval: 0.8     # s pro geklauter Ware
-    carryMax: 5
+    carryMax: 4            # klaut höchstens so viel, dann flieht er
     shy: 0.35              # Anteil scheuer Waschbären: hauen ab, sobald man näher als `scare` kommt
     scare: 3.5             # m
     aggro: 3               # m: mutige Waschbären greifen den Spieler an, wenn er so nah ist
@@ -192,13 +251,13 @@ animals:
     xp: 3
 
 spawns:
-  firstAfter: 30           # s nach Tagesbeginn kommt der erste Schub
-  lastBefore: 25           # s vor Tagesende kommt nichts mehr
-  groups: 3                # Schübe pro Tag auf Level 1 ...
-  groupsPerLevel: 0.5      # ... + je weiterem Level
-  size: [1, 2]             # Tiere pro Schub (zufällig)
-  sizePerLevel: 0.25       # + je weiterem Level (Obergrenze)
-  types: { raccoon: 0.55, hare: 0.45 }   # Gewichte
+  wanderers: [2, 3]        # so viele Tiere kommen zufällig über den Tag verteilt (Hasen)
+  wanderTypes: { hare: 1 } # Gewichte
+  raid:                    # genau ein Waschbär-Angriff pro Tag, zufällig in der 2. Tageshälfte
+    from: 0.5              # Anteil des Tages
+    to: 0.88
+    raccoons: 1            # auf Level 1 ...
+    perLevel: 1            # ... + je weiterem Level ein Waschbär mehr
   scaling:                 # Schwierigkeit steigt mit dem Level: + Anteil je Level über 1
     hp: 0.12
     damage: 0.1
@@ -215,65 +274,98 @@ levels:
     3: [shop, juicer]
     4: [bakery]
     5: [carpentry, workshop]
-    6: [dairy, cows, chickens]
+    6: [dairy, cows, chickens, sheep]
     7: [silo]
 
 quests:
   offers: 2                # neue Angebote pro Abend
   maxActive: 3
   start:                   # Startauftrag, liegt vom ersten Abend an bereit
-    need: { blue: 10 }
+    need: { blue: 20 }
     reward: { money: 30, xp: 25, items: { wheat: 2 } }
   pool:                    # Zufallsaufträge: need = Ware, Menge [min, max], Taler + XP pro Stück, ab Level
-    - { item: blue, amount: [6, 12], money: 2, xp: 2, level: 1 }
-    - { item: wheat, amount: [3, 6], money: 4, xp: 4, level: 1 }
-    - { item: straw, amount: [3, 6], money: 3, xp: 3, level: 1 }
-    - { item: flour, amount: [2, 4], money: 9, xp: 7, level: 2 }
-    - { item: bread, amount: [1, 3], money: 18, xp: 12, level: 4 }
+    - { item: blue, amount: [20, 40], money: 1, xp: 1, level: 1 }
+    - { item: wheat, amount: [6, 12], money: 3, xp: 3, level: 1 }
+    - { item: straw, amount: [4, 8], money: 3, xp: 2, level: 1 }
+    - { item: wood, amount: [6, 12], money: 2, xp: 2, level: 1 }
+    - { item: mushroom, amount: [4, 8], money: 3, xp: 2, level: 1 }
+    - { item: baerlauch, amount: [4, 8], money: 3, xp: 2, level: 1 }
+    - { item: green, amount: [10, 20], money: 1, xp: 1, level: 1 }
+    - { item: apple, amount: [6, 12], money: 2, xp: 2, level: 1 }
+    - { item: pan, amount: [1, 3], money: 14, xp: 10, level: 1 }
+    - { item: flour, amount: [3, 6], money: 8, xp: 6, level: 2 }
+    - { item: juice, amount: [2, 4], money: 12, xp: 8, level: 3 }
+    - { item: bread, amount: [2, 4], money: 18, xp: 12, level: 4 }
+    - { item: egg, amount: [4, 8], money: 5, xp: 4, level: 6 }
+    - { item: milk, amount: [4, 8], money: 5, xp: 4, level: 6 }
+    - { item: cheese, amount: [2, 4], money: 20, xp: 14, level: 6 }
 
-buildings:                 # level = ab diesem Level baubar, cost = Taler + Waren, recipes = Verarbeitung (abends starten, am nächsten Abend abholen)
-  house: { built: true }
-  well:                    # Brunnen: kaputt, abends reparieren, dann Gießkanne auffüllen
+buildings:                 # level = ab diesem Level baubar, cost = Taler + Waren
+  # action = was man tagsüber am fertigen Gebäude macht (Linksklick im Radius), recipes = Rezepte, das erste machbare wird genommen
+  house:                   # Haupthaus mit Küche: Kochen braucht Brennholz
+    built: true
+    action: { label: Kochen, time: 3.0 }
+    recipes:
+      - { in: { apple: 2, flour: 1, egg: 1, wood: 1 }, out: { cake: 1 } }
+      - { in: { mushroom: 2, baerlauch: 1, wood: 1 }, out: { pan: 1 } }
+      - { in: { sorrel: 2, water: 1, wood: 1 }, out: { soup: 1 } }
+  well:                    # Brunnen: kaputt, abends reparieren, dann Kanne füllen und Wasser ins Fass schöpfen
     level: 1
     broken: true
     cost: { money: 40 }
   mill:
     level: 2
-    cost: { money: 60, straw: 4 }
-    recipes: [{ in: { wheat: 2 }, out: { flour: 1 }, days: 1 }]
+    cost: { money: 60, straw: 4, stone: 6 }
+    action: { label: Mahlen, time: 3.0 }
+    recipes: [{ in: { wheat: 2 }, out: { flour: 1 } }]
   shop:
     level: 3
-    cost: { money: 90, straw: 6 }
+    cost: { money: 90, wood: 8 }
     questSlots: 1          # mehr Auftragsangebote
   juicer:
     level: 3
-    cost: { money: 80 }
-    recipes: [{ in: { blue: 6 }, out: { juice: 1 }, days: 1 }]
+    cost: { money: 80, wood: 6 }
+    action: { label: Entsaften, time: 3.0 }
+    recipes:
+      - { in: { blue: 8 }, out: { juice: 1 } }
+      - { in: { bramble: 8 }, out: { juice: 1 } }
+      - { in: { apple: 4 }, out: { juice: 1 } }
   bakery:
     level: 4
-    cost: { money: 120, straw: 6 }
+    cost: { money: 120, stone: 10, wood: 6 }
     needs: well
-    recipes: [{ in: { flour: 1 }, out: { bread: 1 }, days: 1 }]
+    action: { label: Backen, time: 4.0 }
+    recipes: [{ in: { flour: 1, water: 1 }, out: { bread: 1 } }]
   carpentry:
     level: 5
-    cost: { money: 150 }
+    cost: { money: 150, wood: 10 }
   workshop:
     level: 5
-    cost: { money: 180 }
+    cost: { money: 180, stone: 10 }
   dairy:
     level: 6
-    cost: { money: 200 }
+    cost: { money: 200, stone: 8 }
     needs: cows
-    recipes: [{ in: { milk: 2 }, out: { cheese: 1 }, days: 1 }]
+    action: { label: Käse machen, time: 3.0 }
+    recipes: [{ in: { milk: 2 }, out: { cheese: 1 } }]
   cows:
     level: 6
-    cost: { money: 160, straw: 10 }
+    cost: { money: 160, straw: 10, wood: 8 }
+  sheep:
+    level: 6
+    cost: { money: 140, wood: 8 }
   chickens:
     level: 6
-    cost: { money: 120, wheat: 6 }
+    cost: { money: 120, wheat: 6, wood: 4 }
   silo:
     level: 7
-    cost: { money: 220 }
+    cost: { money: 220, stone: 12 }
+    action: { label: Dünger machen, time: 3.0 }
+    recipes: [{ in: { green: 3, slurry: 1 }, out: { fert: 2 } }]
+
+camera:                    # Kamera: mittlere Maustaste (PC) bzw. Wischen rechts (Handy) dreht frei um den Spieler
+  rotate: 0.006            # rad pro Pixel
+  pitch: [0.55, 1.25]      # Neigung (rad über dem Boden), Start 0.95
 
 # ---------------------------------------------------------------------
 # Tutorial-Tag (erster Tag). Texte: die einzige erlaubte Erklärung im Spiel.
@@ -299,15 +391,15 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
 
 tutorial:
   raccoonHp: 4             # ein Harkenschlag vertreibt ihn
-  raccoonSteal: 5          # klaut so viele Beeren aus dem Korb
+  raccoonSteal: 4          # klaut so viele Beeren aus dem Korb
   raccoonSpeed: 3.0        # m/s auf der Flucht (Spieler 4,6)
   raccoonStart: 3          # m neben dem Spieler startet die Flucht nach der Cutscene
   fieldHint: 6             # s bleibt der Hinweis "jeden Tag gießen" stehen
   texts:
     water: Blaubeeren gießen
     waterHere: Gießen
-    meanwhile: In der Zwischenzeit das Feld harken, säen und gießen
-    rake: Harken
+    meanwhile: In der Zwischenzeit das Feld pflügen, säen und gießen
+    rake: Pflügen
     sow: Säen
     waterField: Gießen
     daily: Felder jeden Tag einmal gießen. In 3 Tagen ist der Weizen reif.
@@ -322,7 +414,7 @@ tutorial:
 # Hof-Layout nach Bastis Skizze (19.11.2026). x nach rechts, z nach unten (Bildschirm), Mitte = Hofmitte, 1 Einheit = 1 m.
 # rot = Drehung in Grad im Uhrzeigersinn (von oben gesehen). w = Breite (x), d = Tiefe (z).
 hof:
-  clearing: { rx: 22, rz: 16 }     # Lichtung (Ellipse), außen Wald
+  clearing: { rx: 32, rz: 26 }     # Lichtung (Ellipse), außen Wald (ca. 10 m größer als in der Skizze)
   gaps: [-100, -22, 42, 122, 182]  # Waldlücken (rote Pfeile, Grad: 0 = rechts, 90 = unten), nur hier kommen Tiere
   gapWidth: 5
   door: { x: 6.0, z: -6.2 }        # Spieler startet vor der Haustür
@@ -341,6 +433,7 @@ hof:
     cows:      { x: -3.6, z: 11.0, w: 5.0, d: 3.6, rot: 0, fence: true }
     silo:      { x: 2.2, z: 10.2, r: 1.8 }
     chickens:  { x: 7.4, z: 10.4, w: 5.0, d: 3.4, rot: 0, fence: true }
+    sheep:     { x: 14.6, z: 12.4, w: 5.0, d: 3.6, rot: -8, fence: true }   # neu: Schafe & Ziegen
   plots:                           # Feldflächen (schwarz in der Skizze), Reihenfolge = Reihenfolge beim Anlegen
     - { x: -1.5, z: -1.6 }
     - { x: 1.5, z: -1.6 }

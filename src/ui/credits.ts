@@ -8,7 +8,7 @@ const CC0 = { name: 'CC0', url: 'https://creativecommons.org/publicdomain/zero/1
 export const CREDITS: Group[] = [
   {
     title: 'Texturen', author: { name: 'FreeStylized.com', url: 'https://freestylized.com/' },
-    items: ['Grass 01', 'Grass 04', 'Moss Ground 02', 'Ground 02', 'Ground 06', 'Cobblestone 01', 'Cliff Rocks 02', 'Wood Planks 13', 'Wood Planks 20', 'Hay Roof 01', 'Stone Bricks Wall 03']
+    items: ['Grass 01', 'Grass 04', 'Moss Ground 02', 'Ground 02', 'Ground 06', 'Cobblestone 01', 'Cliff Rocks 02', 'Wood Planks 13', 'Wood Planks 20', 'Hay Roof 01', 'Stone Bricks Wall 03', 'Grass 05', 'Grass With Rocks 01', 'Moss Ground 01', 'Moss Ground 03', 'Ground With Roots 01', 'Ground 03', 'Ground 05', 'Ground 07', 'Ground With Rocks 01', 'Ground With Rocks 03', 'Desert Ground 01', 'Ground Tiles 13', 'Ground Tiles 21', 'Cliff Rocks 04', 'Cliff Rocks 05', 'Cliff Rocks 08', 'Rock 01', 'Rocks With Water 01', 'Water 01', 'Water 02', 'Snow 01', 'Ground Tiles With Snow 01']
       .map(name => ({ name, url: 'https://freestylized.com/' })),
   },
   {

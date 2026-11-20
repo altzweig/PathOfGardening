@@ -128,7 +128,7 @@ export class HofWorld {
     for (const list of tiles.values()) {
       const im = new THREE.InstancedMesh(geo, mat, list.length);
       list.forEach((t, i) => { m4.compose(v.set(t.x, 0, t.z), q.setFromEuler(e.set(0, t.ry, 0)), sc.set(t.w, t.h, t.w)); im.setMatrixAt(i, m4); im.setColorAt(i, t.col); });
-      im.receiveShadow = false; im.castShadow = false; im.computeBoundingSphere(); W.add(im); // vertical cards with up-normals would show shadow acne
+      im.receiveShadow = true; im.castShadow = false; im.computeBoundingSphere(); W.add(im);
     }
   }
 }
@@ -156,14 +156,14 @@ function bladeTex() {
   for (let i = 0; i < 16; i++) {
     const x0 = R(.12, .88) * S, top = R(.05, .45) * S, bend = R(-.22, .22) * S, w = R(5, 10);
     const grd = g.createLinearGradient(0, S, 0, top); const l = R(.75, 1);
-    grd.addColorStop(0, `rgb(${95 * l},${120 * l},${70 * l})`); grd.addColorStop(.55, `rgb(${170 * l},${200 * l},${130 * l})`); grd.addColorStop(1, `rgb(${225 * l},${238 * l},${180 * l})`);
+    grd.addColorStop(0, `rgb(${40 * l},${55 * l},${30 * l})`); grd.addColorStop(.3, `rgb(${90 * l},${115 * l},${65 * l})`); grd.addColorStop(.65, `rgb(${170 * l},${200 * l},${130 * l})`); grd.addColorStop(1, `rgb(${225 * l},${238 * l},${180 * l})`);
     g.fillStyle = grd; g.beginPath();
     g.moveTo(x0 - w, S); g.quadraticCurveTo(x0 - w * .6 + bend * .3, (S + top) / 2, x0 + bend, top);
     g.quadraticCurveTo(x0 + w * .6 + bend * .3, (S + top) / 2, x0 + w, S); g.closePath(); g.fill();
   }
   // transparent pixels get a blade colour instead of black, so the mipmaps don't draw dark seams around the blades
   const img = g.getImageData(0, 0, S, S), a = img.data;
-  for (let i = 0; i < a.length; i += 4) if (a[i + 3] === 0) { a[i] = 150; a[i + 1] = 178; a[i + 2] = 110; }
+  for (let i = 0; i < a.length; i += 4) if (a[i + 3] === 0) { a[i] = 110; a[i + 1] = 135; a[i + 2] = 80; }
   const t = new THREE.DataTexture(a, S, S, THREE.RGBAFormat); t.flipY = true; t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t;
 }

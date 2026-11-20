@@ -139,15 +139,31 @@ export class DaySim {
     }
     return null;
   }
+  /** a point near the grass patches (rim, not the dense middle): weeds + sorrel; wet = only the damp meadow behind the well */
+  private grassSpot(hidden: boolean, wet = false) {
+    const ps = this.hof.patches.filter(p => wet ? p.wet : !p.low); if (!ps.length) return null;
+    for (let tries = 0; tries < 40; tries++) {
+      const p = ps[Math.floor(Math.random() * ps.length)], b = this.hof.patchBox(p);
+      const x = rnd(b.x0 - 1, b.x1 + 1), z = rnd(b.z0 - 1, b.z1 + 1), g = this.hof.grass(x, z), raw = this.hof.patchDensity(p, x, z);
+      if (raw <= .02 && Math.random() < .7) continue;                         // next to the patch, not out in the open
+      if (g > .45 || this.hof.pathDist(x, z) < .2 || this.hof.ellipse(x, z) > .97 || this.hof.inGap(x, z, .5)) continue;
+      if (!this.hof.freeSpot(x, z, .4)) continue;
+      if (!hidden && this.visible(x, z)) continue;
+      return { x, z };
+    }
+    return null;
+  }
   private growWeed(any = false) {
     const w = this.s.wild; if (w.weeds.length >= this.cfg.wild.weeds.max) return;
-    const p = this.spot(.08, .95, .5, any); if (p) w.weeds.push({ id: w.seq++, ...p });
+    const p = this.grassSpot(any) ?? this.spot(.08, .95, .5, any); if (p) w.weeds.push({ id: w.seq++, ...p });
   }
   private growForage(any = false) {
     const w = this.s.wild, F = this.cfg.wild.forage; if (w.forage.length >= F.max) return;
-    const p = this.spot(F.band[0], F.band[1], .4, any); if (!p || this.hof.inGap(p.x, p.z)) return;
     const items = Object.entries(F.items), tot = items.reduce((n, [, v]) => n + v, 0); let r = Math.random() * tot, k = items[0][0];
     for (const [id, v] of items) { r -= v; if (r <= 0) { k = id; break; } }
+    const where = F.where?.[k] ?? ['edge'], place = where[Math.floor(Math.random() * where.length)];
+    const p = place === 'edge' ? this.spot(F.band[0], F.band[1], .4, any) : this.grassSpot(any, place === 'wet');
+    if (!p || this.hof.inGap(p.x, p.z) || this.hof.pathDist(p.x, p.z) < .2) return;
     w.forage.push({ id: w.seq++, k, ...p });
   }
   private updateWild(dt: number) {

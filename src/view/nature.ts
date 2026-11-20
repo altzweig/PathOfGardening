@@ -97,6 +97,12 @@ function material(name: string, vc: boolean, scale: number) {
   matCache.set(key, m); return m;
 }
 
+/** a foliage material for a custom texture (same wind, night edge and seasons as the pack's plants) */
+export function plantMaterial(map: THREE.Texture, key: string, wind = .07, side: THREE.Side = THREE.DoubleSide) {
+  const m = new THREE.MeshLambertMaterial({ map, alphaTest: .4, side });
+  return natMat(m, { season: 'leaf', wind }, 'custom' + key);
+}
+
 export interface Part { geo: THREE.BufferGeometry; mat: string; vc: boolean }
 const models = new Map<string, Part[]>();
 

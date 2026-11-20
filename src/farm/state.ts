@@ -9,7 +9,8 @@ export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
 /** berries = big berries left on the bush, small = small picks left after that */
 export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
 /** things that grow on the farm by themselves (kept from day to day) */
-export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number }[]; seq: number; init: boolean }
+const WILD_V = 2;
+export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number }[]; seq: number; init: boolean; /** placement version: older saves grow their weeds + forage anew */ v?: number }
 export interface Quest { id: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean }
 export interface Production { recipe: number; doneDay: number }
 export interface BuildingState { built: boolean; prod?: Production | null }
@@ -45,7 +46,7 @@ export function newState(cfg: FarmCfg): FarmState {
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) buildings[id] = { built: !!cfg.buildings[id]?.built };
   const s: FarmState = {
     v: 1, day: 1, tutorialDone: false, money: cfg.start.money, xp: 0, level: 1, items: { ...cfg.start.items }, water: cfg.can.start,
-    plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false },
+    plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false, v: WILD_V },
     quests: { active: [{ id: 'start', need: { ...cfg.quests.start.need }, reward: { ...cfg.quests.start.reward }, start: true }], offers: [], seq: 1 },
     weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [],
   };
@@ -68,6 +69,7 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
   s.levelUps ??= [];
   s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
+  if (s.wild.v !== WILD_V) s.wild = { weeds: [], forage: [], seq: s.wild.seq, init: false, v: WILD_V }; // 20.11.2026: weeds + forage sit by theme now
   if (s.bush.small === undefined) s.bush = freshBush();
   return s;
 }

@@ -1,8 +1,8 @@
 // Things that grow on the farm by themselves: weed tufts (yard + plots), forage at the forest edge (wild garlic,
 // sorrel, mushrooms, firewood, stones), wild bramble bushes and the apples in the farm's trees. Instanced, cheap.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { scene } from '../../view/core';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { scene, windU } from '../../view/core';
 import { buildPlant } from '../../view/models';
 import type { FarmCfg, ItemId } from '../config';
 import type { FarmState } from '../state';
@@ -40,11 +40,58 @@ const FORAGE: Record<string, () => THREE.BufferGeometry> = {
   stone: () => merge([[0, 0, .1], [.12, .04, .07], [-.08, .1, .06]].map(([x, z, r], i) => tint(at(new THREE.DodecahedronGeometry(r, 0), x, r * .6, z, i, i * 2, 0, [1, .7, 1]), i ? 0x9a948a : 0x86827a))),
 };
 
+// ---------------- sparkling outline for everything that can be picked up ----------------
+/** inverted hull: smooth normals (welded vertices), pushed outwards, drawn back-faced behind the object */
+function hullGeo(g: THREE.BufferGeometry) {
+  const p = new THREE.BufferGeometry(); p.setAttribute('position', g.getAttribute('position').clone());
+  const m = mergeVertices(p, 1e-3); m.computeVertexNormals(); return m;
+}
+const outlineMats = new Map<string, THREE.MeshBasicMaterial>();
+/** soft warm rim; a glint runs over it now and then (different phase per instance / object) */
+function outlineMat(width: number, opacity = .45) {
+  const key = width + ':' + opacity; let m = outlineMats.get(key); if (m) return m;
+  m = new THREE.MeshBasicMaterial({ color: 0xffe8b0, side: THREE.BackSide, transparent: true, opacity, depthWrite: false });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uTime = windU;
+    sh.vertexShader = 'uniform float uTime;\nvarying float vPh;\nvarying float vH;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed += normal * ${width.toFixed(4)};
+      #ifdef USE_INSTANCING
+        vec3 ip = instanceMatrix[3].xyz;
+      #else
+        vec3 ip = (modelMatrix * vec4(0., 0., 0., 1.)).xyz;
+      #endif
+      vPh = fract(sin(dot(ip.xz, vec2(12.9898, 78.233))) * 43758.5453) * 6.283;
+      vH = position.y + position.x * .6;`);
+    sh.fragmentShader = 'uniform float uTime;\nvarying float vPh;\nvarying float vH;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { float cyc = fract(uTime * .28 + vPh * .159);                 // one glint every ~3.5 s
+        float glint = smoothstep(.09, 0., abs(vH * 1.6 - (cyc * 2.2 - .5))) * step(cyc, .55);
+        float breathe = .75 + .25 * sin(uTime * 2.1 + vPh);
+        diffuseColor.rgb *= 1. + glint * 1.4;
+        diffuseColor.a *= clamp(breathe + glint * 1.2, 0., 1.); }`);
+  };
+  m.customProgramCacheKey = () => 'outline' + key;
+  outlineMats.set(key, m); return m;
+}
+/** an outline twin of an instanced mesh: shares its instance matrices (count must be copied after updates) */
+function outlineFor(im: THREE.InstancedMesh, width: number) {
+  const o = new THREE.InstancedMesh(hullGeo(im.geometry), outlineMat(width), 1);
+  o.instanceMatrix = im.instanceMatrix; o.count = 0; o.frustumCulled = false; o.renderOrder = -1; scene.add(o); return o;
+}
+/** outline meshes as children of the given meshes (brambles); returns them so they can be hidden when empty */
+function outlineGroup(g: THREE.Object3D, width: number, opacity: number) {
+  const out: THREE.Mesh[] = [], list: THREE.Mesh[] = [];
+  g.traverse(o => { if ((o as THREE.Mesh).isMesh) list.push(o as THREE.Mesh); });
+  for (const mesh of list) { const o = new THREE.Mesh(hullGeo(mesh.geometry), outlineMat(width, opacity)); o.renderOrder = -1; mesh.add(o); out.push(o); }
+  return out;
+}
+
 export class WildView {
   private weeds: THREE.InstancedMesh;
   private forage = new Map<string, THREE.InstancedMesh>();
-  private brambles: { g: THREE.Group; fruits: THREE.Mesh[] }[] = [];
+  private brambles: { g: THREE.Group; fruits: THREE.Mesh[]; rim: THREE.Mesh[] }[] = [];
   private apples: THREE.InstancedMesh;
+  /** outline twins (weeds, forage kinds, apples) */
+  private rims = new Map<THREE.InstancedMesh, THREE.InstancedMesh>();
   private appleSpots: THREE.Vector3[][] = [];
   private key = ''; private aKey = ''; private bKey = '';
   /** fixed spots for up to `max` weeds per plot (inside the hexagon) */
@@ -53,22 +100,25 @@ export class WildView {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9, flatShading: true });
     const capW = cfg.wild.weeds.max + cfg.hof.plots.length * cfg.plots.weeds.max;
     this.weeds = new THREE.InstancedMesh(weedGeo(), mat, capW); this.weeds.count = 0; this.weeds.castShadow = true; this.weeds.frustumCulled = false; scene.add(this.weeds);
-    for (const [k, mk] of Object.entries(FORAGE)) { const m = new THREE.InstancedMesh(mk(), mat, cfg.wild.forage.max); m.count = 0; m.castShadow = true; m.frustumCulled = false; scene.add(m); this.forage.set(k, m); }
+    this.rims.set(this.weeds, outlineFor(this.weeds, .022));
+    for (const [k, mk] of Object.entries(FORAGE)) { const m = new THREE.InstancedMesh(mk(), mat, cfg.wild.forage.max); m.count = 0; m.castShadow = true; m.frustumCulled = false; scene.add(m); this.forage.set(k, m); this.rims.set(m, outlineFor(m, .02)); }
     const rnd = seeded(11), H = cfg.plots.size / 2;
     this.plotSpots = cfg.hof.plots.map(() => Array.from({ length: cfg.plots.weeds.max }, () => { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * H * .8; return { x: Math.cos(a) * r, z: Math.sin(a) * r, r: rnd() * 7 }; }));
     // brambles: dark leaves, black-purple berries
     const leaf = new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: .9, flatShading: true }), head = new THREE.MeshStandardMaterial({ color: 0x4a2a1a });
     const berry = new THREE.MeshStandardMaterial({ color: 0x2a1030, roughness: .35, emissive: 0x200818, emissiveIntensity: .3 });
     for (const b of hof.brambles) {
-      const p = buildPlant('blue', { leaf, head }); p.g.position.set(b.x, 0, b.z); p.g.scale.set(1.15, .95, 1.15); p.g.rotation.y = rnd() * 7; scene.add(p.g);
+      const p = buildPlant('blue', { leaf, head }); p.g.position.set(b.x, 0, b.z); p.g.scale.set(1.4, 1.15, 1.4); p.g.rotation.y = rnd() * 7; scene.add(p.g);
       p.g.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
-      for (const f of p.fruits) { f.material = berry; f.scale.setScalar(.05); }
-      this.brambles.push({ g: p.g, fruits: p.fruits });
+      for (const f of p.fruits) { f.material = berry; f.scale.setScalar(.06); }
+      const rim = outlineGroup(p.g, .03, .32);
+      this.brambles.push({ g: p.g, fruits: p.fruits, rim });
     }
     // apples in the crowns of the farm's trees
     const amat = new THREE.MeshStandardMaterial({ color: 0xd8382a, roughness: .45, emissive: 0x401008, emissiveIntensity: .25 });
     const per = cfg.wild.apples.perTree;
-    this.apples = new THREE.InstancedMesh(new THREE.SphereGeometry(.075, 8, 6), amat, cfg.hof.trees.length * per); this.apples.count = 0; this.apples.castShadow = true; this.apples.frustumCulled = false; scene.add(this.apples);
+    this.apples = new THREE.InstancedMesh(new THREE.SphereGeometry(.09, 8, 6), amat, cfg.hof.trees.length * per); this.apples.count = 0; this.apples.castShadow = true; this.apples.frustumCulled = false; scene.add(this.apples);
+    this.rims.set(this.apples, outlineFor(this.apples, .018));
     this.appleSpots = cfg.hof.trees.map(t => Array.from({ length: per }, () => { const a = rnd() * Math.PI * 2, r = .7 + rnd() * .45, y = 1.7 + rnd() * .8; return new THREE.Vector3(t.x + Math.cos(a) * r, y, t.z + Math.sin(a) * r); }));
   }
   update(s: FarmState, sim: DaySim | null, now: number) {
@@ -79,13 +129,13 @@ export class WildView {
       this.key = key;
       let n = 0;
       const put = (x: number, z: number, r: number, k: number) => { e.set(0, r, 0); q.setFromEuler(e); m4.compose(p.set(x, 0, z), q, sc.setScalar(k)); this.weeds.setMatrixAt(n, m4); this.weeds.setColorAt(n, col.setHSL(.24 + (r % 1) * .06, .5, .55 + (r * 7 % 1) * .2)); n++; };
-      for (const w of W.weeds) put(w.x, w.z, w.id * 1.7, .8 + (w.id * .37 % 1) * .5);
-      s.plots.forEach((pl, i) => { if (!pl.open) return; const P = this.cfg.hof.plots[i]; for (let k = 0; k < pl.weeds; k++) { const sp = this.plotSpots[i][k]; put(P.x + sp.x, P.z + sp.z, sp.r, .9); } });
+      for (const w of W.weeds) put(w.x, w.z, w.id * 1.7, 1.05 + (w.id * .37 % 1) * .6);
+      s.plots.forEach((pl, i) => { if (!pl.open) return; const P = this.cfg.hof.plots[i]; for (let k = 0; k < pl.weeds; k++) { const sp = this.plotSpots[i][k]; put(P.x + sp.x, P.z + sp.z, sp.r, 1.1); } });
       this.weeds.count = n; this.weeds.instanceMatrix.needsUpdate = true; if (this.weeds.instanceColor) this.weeds.instanceColor.needsUpdate = true;
       const counts = new Map<string, number>();
       for (const f of W.forage) {
         const m = this.forage.get(f.k); if (!m) continue; const i = counts.get(f.k) ?? 0; counts.set(f.k, i + 1);
-        e.set(0, f.id * 2.3, 0); q.setFromEuler(e); m4.compose(p.set(f.x, 0, f.z), q, sc.setScalar(1.1 + (f.id * .41 % 1) * .4)); m.setMatrixAt(i, m4);
+        e.set(0, f.id * 2.3, 0); q.setFromEuler(e); m4.compose(p.set(f.x, 0, f.z), q, sc.setScalar(1.5 + (f.id * .41 % 1) * .5)); m.setMatrixAt(i, m4);
       }
       for (const [k, m] of this.forage) { m.count = counts.get(k) ?? 0; m.instanceMatrix.needsUpdate = true; }
     }
@@ -93,7 +143,7 @@ export class WildView {
     const bKey = sim ? sim.brambles.map(b => b.n).join(',') : 'x';
     if (bKey !== this.bKey) {
       this.bKey = bKey; const max = this.cfg.wild.brambles.berries;
-      this.brambles.forEach((b, i) => { const n = sim ? sim.brambles[i]?.n ?? 0 : max; const shown = Math.ceil(b.fruits.length * n / max); b.fruits.forEach((f, k) => f.visible = k < shown); });
+      this.brambles.forEach((b, i) => { const n = sim ? sim.brambles[i]?.n ?? 0 : max; const shown = Math.ceil(b.fruits.length * n / max); b.fruits.forEach((f, k) => f.visible = k < shown); b.rim.forEach(r => r.visible = n > 0); });
     }
     const aKey = sim ? sim.apples.join(',') : 'x';
     if (aKey !== this.aKey) {
@@ -101,7 +151,14 @@ export class WildView {
       this.appleSpots.forEach((list, i) => { const have = sim ? sim.apples[i] : this.cfg.wild.apples.perTree; for (let k = 0; k < have; k++) { m4.makeTranslation(list[k].x, list[k].y, list[k].z); this.apples.setMatrixAt(n++, m4); } });
       this.apples.count = n; this.apples.instanceMatrix.needsUpdate = true;
     }
+    for (const [m, r] of this.rims) r.count = m.count;
     void now;
+  }
+  /** a random pickable thing for a little sparkle (x, y, z) or null */
+  sparkle(s: FarmState): THREE.Vector3 | null {
+    const W = s.wild, n = W.forage.length + W.weeds.length; if (!n) return null;
+    const i = Math.floor(Math.random() * n), f = i < W.forage.length ? W.forage[i] : W.weeds[i - W.forage.length];
+    return new THREE.Vector3(f.x + (Math.random() - .5) * .3, .15 + Math.random() * .3, f.z + (Math.random() - .5) * .3);
   }
   /** the bush that was picked shakes a little */
   bramble(i: number) { const b = this.brambles[i]; return b?.g ?? null; }

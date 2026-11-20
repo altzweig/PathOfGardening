@@ -75,7 +75,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Busch: alle ~1,5 s 3–4 Beeren (8 Durchgänge), danach 4 Durchgänge mit je 1 kleinen Beere. Der Korb erscheint erst bei der ersten Ernte direkt neben der Spielfigur und bleibt dort für den Tag; Beeren fliegen im Bogen hinein (Sammel-Sound). Busch wackelt, Blätter fliegen (alte Ernteanimation). Busch-Kollision größer (`bush.radius`).
 - Feld: Pflügen (neues Feld), Säen, Gießen 1×/Tag, Jäten (bis 5 Unkräuter je Feld; ab 3 kann nicht geerntet werden), Düngen 1×/Tag (+30 % Ernten), Ernten mehrmals, danach ist das Feld wieder gepflügt.
 - Ställe (Kühe, Schafe & Ziegen, Hühner): Füttern am Stall (Kuh 3×, Schaf/Ziege 2×, Huhn 1×), Stroh auslegen (+30 % Ertrag), Melken / Eier sammeln 1× je Tageshälfte (morgens, abends). Ertrag anteilig zur Fütterung. Hungrige Tiere zeigen ein Napf-Symbol, satte Tiere legen sich hin und schlafen (Zzz).
-- Hof: Unkraut (Start 80, max. 200, alle 6–12 s eins) und Sammelgut am Waldrand (Bärlauch, Sauerampfer, Pilze, Brennholz, Steine; Start 40) wachsen nur dort nach, wo gerade niemand hinschaut. Jäten gibt Grünschnitt. Wilde Brombeeren am Waldrand: etwa halber Ertrag pro Zeit wie der Busch. Apfelbäume schütteln.
+- Hof: Unkraut und Sammelgut (Bärlauch, Sauerampfer, Pilze, Brennholz, Steine; Mengen seit 20.11.2026 halbiert, siehe unten) wachsen nur dort nach, wo gerade niemand hinschaut. Jäten gibt Grünschnitt. Wilde Brombeeren am Waldrand: etwa halber Ertrag pro Zeit wie der Busch. Apfelbäume schütteln.
 - Gebäude-Produktion am Tag statt abends: Mühle (Mahlen), Bäckerei (Backen: Mehl + Wasser → Brot), Saftpresse, Küche im Haupthaus (Kochen), Molkerei (Käse), Güllesilo (Dünger aus Grünschnitt + Gülle).
 - Tiere: am Anfang 2–3 zufällige Hasen, genau 1 Waschbär-Überfall zufällig in der 2. Tageshälfte, +1 Waschbär je Level. Tutorial-Waschbär stiehlt nur 4 Beeren, erste Quest 20 Blaubeeren.
 - Lichtung ca. 10 m größer, Wald bis zur maximalen Sichtweite. Kamera frei drehbar: mittlere Maustaste ziehen (PC) bzw. auf der rechten Bildschirmhälfte wischen (Handy); Laufen richtet sich nach der Kamera.
@@ -87,3 +87,13 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Ställe werden zur Tagesmitte wieder hungrig (= "morgens und abends").
 - "Bäume" = die Apfelbäume auf dem Hof.
 - Pflügen nur für neue Felder; nach der letzten Ernte bleibt das Feld gepflügt und kann direkt neu gesät werden.
+
+## Wilde Grasgruppen und Sammelgut (20.11.2026)
+- Keine Streudeko mehr auf dem Hof (einzelne Grasbüschel, Klee, Blumen, Kiesel). Stattdessen dichte Grasgruppen aus dem Nature MegaKit, nie gleichmäßig verteilt: unregelmäßige Gruppen aus mehreren Flecken, innen dicht und hoch, nach außen lichter und niedriger, mit zerfranstem Rand.
+- Gras-Büschel sind eigene, günstige Kreuzflächen (16 Dreiecke, gemalte Halm-Textur) in 10-m-Kacheln, damit nur sichtbares Gras gezeichnet wird.
+- Gras wächst nur, wo keiner läuft oder mäht: viel auf der feuchten Wiese hinter dem Brunnen, an Gebäuderückseiten, an den geschlossenen Zaunseiten der Ställe (Tor vorne bleibt frei), am Waldrand hinter Büschen und zwischen Bäumen, unter Obstbäumen nur niedrig. Nie auf Wegen, Feldern, in den Waldlücken der Tiere oder vor der Haustür. Unter den Gruppen ist der Boden grüne Grastextur, die an den Rändern zerfranst in den Boden daneben übergeht.
+- Alles Einsammelbare ist etwas größer und hat eine dezente, warm leuchtende Outline, über die ab und zu ein Glanz läuft; in Kameranähe steigen gelegentlich kleine Funken auf.
+- Halb so viel Sammelgut und Unkraut, thematisch: Äste, Pilze und Steine am Waldrand, Bärlauch am Waldrand und auf der feuchten Wiese hinter dem Brunnen, Sauerampfer und Unkraut rund um die dichten Grasflächen, wilde Brombeeren (5) zwischen normalen Büschen am Waldrand.
+- Ältere Spielstände: Unkraut und Sammelgut werden einmal neu verteilt.
+- Werte: `grass` und `wild` in balancing.yaml.
+

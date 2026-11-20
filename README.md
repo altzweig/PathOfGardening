@@ -21,6 +21,15 @@ Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die 
 
 Test-Hilfen: `?q=niedrig` startet mit niedriger Grafik, `?h=12` zeigt eine feste Tageszeit.
 
+## Welt-Editor
+
+`welt.html` (online: `…/PathOfGardening/welt.html`) zeigt den echten Hof und lässt die Welt selbst gestalten:
+
+- **Objekte**: Bäume, Büsche, Pflanzen, Gras, Blumen, Pilze, Steine (Nature MegaKit) und Zaun, Pfosten, Heuballen, Holzstapel setzen, verschieben, drehen, skalieren, löschen; mit dem Pinsel streuen oder entfernen. Bäume, Felsen und Zäune auf dem Hof sind feste Hindernisse.
+- **Boden**: die sechs Boden-Layer des Texturkonzepts malen (Gras, Moos, Feldboden, Pfad, Trockenrasen, Pflaster) (weiche, ausgefranste Übergänge), Wildgras-Halme dazu- oder wegmalen, „Original“ radiert zurück zum generierten Boden.
+- **Speichern**: Der Arbeitsstand bleibt als Entwurf im Browser. *Im Spiel testen* öffnet das Spiel mit dem Entwurf (`?welt=entwurf`). *Ins Spiel übernehmen (GitHub)* schreibt `public/world/welt.json` direkt ins Repo (eigenes fine-grained Token mit „Contents: Read and write“); alternativ `welt.json` herunterladen und nach `public/world/` legen.
+- Ohne `public/world/welt.json` erzeugt das Spiel den Wald wie bisher zufällig.
+
 ## Auf GitHub Pages veröffentlichen
 
 1. Repository auf GitHub anlegen und diesen Ordner pushen (Branch `main`).
@@ -34,6 +43,7 @@ Test-Hilfen: `?q=niedrig` startet mit niedriger Grafik, `?h=12` zeigt eine feste
 - `src/farm/tutorial.ts` – Tutorial-Tag mit Waschbär-Cutscene
 - `src/farm/view/` – Hof, Wald, Gebäude, Felder, Busch, Figur mit Werkzeugen, Kamera
 - `src/farm/input.ts`, `src/farm/ui/` – PC- und Touch-Eingabe, HUD, Abend- und Morgen-Bildschirm, Steuerungsseite
+- `src/world/`, `src/editor/` – Weltdaten (Objekte, Bodenmalerei) und der Welt-Editor (`welt.html`)
 - `src/view/` – gemeinsame Three.js-Bausteine (Licht, Effekte, Tiere, Figur, Natur, Texturen)
 - `archiv/garden-defence-v1/` – das alte Spiel (nicht im Build)
 

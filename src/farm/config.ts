@@ -1,6 +1,7 @@
 // Balancing of the farming game loop (19.11.2026). Read from "Game Design & Balancing/balancing.yaml" at every start.
 import YAML from 'yaml';
 import type { TexCfg } from '../view/textures';
+import { World, loadWorld } from '../world/data';
 
 export type ItemId = string;
 export type WeaponId = 'rake' | 'shotgun' | 'crossbow' | 'sling' | 'mace' | 'cannon';
@@ -58,12 +59,16 @@ export interface FarmCfg {
   texturen?: TexCfg;
   hof: { clearing: { rx: number; rz: number }; gaps: number[]; gapWidth: number; door: { x: number; z: number }; basket: { x: number; z: number }; bush: { x: number; z: number };
     buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number }[] };
+  /** world editor (welt.html): placed objects + painted ground from public/world/welt.json; null = generated as before */
+  world?: World | null;
 }
 
 export async function loadFarmCfg(): Promise<FarmCfg> {
   const res = await fetch('./design/balancing.yaml', { cache: 'no-store' });
   if (!res.ok) throw new Error('balancing.yaml: HTTP ' + res.status);
-  return YAML.parse(await res.text()) as FarmCfg;
+  const cfg = YAML.parse(await res.text()) as FarmCfg;
+  cfg.world = await loadWorld();
+  return cfg;
 }
 export async function loadSounds(): Promise<any> {
   try { const res = await fetch('./design/sounds.yaml', { cache: 'no-store' }); return res.ok ? YAML.parse(await res.text()) : null; } catch { return null; }

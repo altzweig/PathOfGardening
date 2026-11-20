@@ -8,13 +8,17 @@ import { groundMaterial } from '../../view/textures';
 import { SplatMap } from './splat';
 import { Inst, instance, loadNature, plantMaterial } from '../../view/nature';
 import type { FarmCfg } from '../config';
-import type { Hof } from '../hof';
+import type { Hof, Patch } from '../hof';
 import { seeded } from '../hof';
+import type { PropRec } from '../../world/data';
+import { MODEL } from '../../world/catalog';
+import { registerCustomModels } from '../../world/custom';
+import { PropLayer, thin } from '../../world/props';
+import type { WorldPaint } from '../../world/paint';
 
-const SIZE = 170; // ground plane (m): clearing (rx 32) + forest that fills the view at the widest zoom
+export const SIZE = 170; // ground plane (m): clearing (rx 32) + forest that fills the view at the widest zoom
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const hsl = (h: number, s: number, l: number) => new THREE.Color().setHSL(h, s, l);
-function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
 
 // day-night hooks (daynight.ts): the farm has no night yet
 export function setEyeNight(_n: number) { /* no eyes on the farm */ }
@@ -80,30 +84,65 @@ export class HofWorld {
   /** paintable ground layers for the world editor (r moss, g field, b path, a pavement), see splat.ts */
   splat: SplatMap;
   nature: THREE.Group | null = null;
+  /** placed objects (forest, bushes, plants, stones): from the world editor file, or generated */
+  props: PropLayer | null = null;
+  /** the full object list before thinning for lower quality (the editor works on this) */
+  propList: PropRec[] = [];
+  /** painted ground (world editor) and its two shader textures */
+  paint: WorldPaint | null; paintTex: { a: THREE.DataTexture; b: THREE.DataTexture } | null = null;
   /** resolves once the forest, buildings' surroundings and trees are built (loading screen waits for it) */
   ready: Promise<void>;
   constructor(public cfg: FarmCfg, public hof: Hof, private free: (x: number, z: number, pad: number) => boolean) {
+    void this.free;
     this.splat = buildSplat(hof, cfg);
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(this.splat.tex, lushMap(hof), hof));
+    this.paint = cfg.world?.paint ?? null;
+    if (this.paint) {
+      const P = this.paint, T = (d: Uint8Array) => { const t = new THREE.DataTexture(d, P.size, P.size, THREE.RGBAFormat); t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; };
+      P.sync(); this.paintTex = { a: T(P.a), b: T(P.b) };
+    }
+    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(this.splat.tex, lushMap(hof), hof, this.paintTex ?? undefined));
     this.ground.rotation.x = -Math.PI / 2; this.ground.receiveShadow = true; scene.add(this.ground);
     this.ready = loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
   }
+  /** after painting: upload the changed paint maps */
+  paintChanged() { if (this.paintTex) { this.paintTex.a.needsUpdate = true; this.paintTex.b.needsUpdate = true; } }
   private build() {
+    registerCustomModels();
     const W = this.nature = new THREE.Group(); W.name = 'nature'; scene.add(W);
-    const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
+    const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1;
+    this.propList = this.cfg.world?.props ?? this.generate();
+    this.props = new PropLayer(W);
+    this.props.set(thin(this.propList, dens, p => hof.ellipse(p.x, p.z) < .97));
+    // single trees on the farm (Bastis brown circles; gameplay: apples to shake)
+    const add = (name: string, list: Inst[], o: { shadow?: boolean; scale?: number } = {}) => instance(W, name, list, o);
+    add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    add('CommonTree_3', this.cfg.hof.trees.filter((_, i) => i % 2 === 1).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    this.grassDens = gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1;
+    this.rebuildGrass();
+  }
+  /** the generated layout (no world file yet): forest ring with gaps, edge bushes, rocks, ferns, tall grass, bushes beside the brambles */
+  generate(): PropRec[] {
+    const hof = this.hof, out: PropRec[] = [];
     /** random points in the ellipse ring k0..k1 (k = 1 forest edge) */
     const ring = (n: number, k0: number, k1: number, minD = 0, taken: { x: number; z: number; d: number }[] = []) => {
-      const out: { x: number; z: number; k: number; a: number }[] = [];
-      for (let tries = 0; out.length < n && tries < n * 40; tries++) {
+      const res: { x: number; z: number; k: number; a: number }[] = [];
+      for (let tries = 0; res.length < n && tries < n * 40; tries++) {
         const a = rand(0, Math.PI * 2), k = Math.sqrt(rand(k0 * k0, k1 * k1)), x = Math.cos(a) * hof.rx * k, z = Math.sin(a) * hof.rz * k;
         if (minD && taken.some(t => (t.x - x) ** 2 + (t.z - z) ** 2 < (minD + t.d) ** 2 / 4)) continue;
         if (minD) taken.push({ x, z, d: minD });
-        out.push({ x, z, k, a });
+        res.push({ x, z, k, a });
       }
-      return out;
+      return res;
     };
-    const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number; gapPad?: number } = {}) =>
-      instance(W, name, list.filter(p => o.gapPad === undefined || !hof.inGap(p.x, p.z, o.gapPad)), o);
+    const hex = (c: THREE.Color) => '#' + c.getHexString();
+    const add = (name: string | string[], list: (Inst & { tilt?: number })[], gapPad?: number) => {
+      for (const p of list) {
+        if (gapPad !== undefined && hof.inGap(p.x, p.z, gapPad)) continue;
+        const m = Array.isArray(name) ? pick(name) : name, t = p.tilt ?? 0;
+        out.push({ m, x: p.x, z: p.z, y: p.y ?? MODEL.get(m)?.y, ry: rand(0, Math.PI * 2), s: p.s, tx: t ? t * (Math.random() - .5) : undefined, tz: t ? t * (Math.random() - .5) : undefined,
+          c: p.col ? hex(p.col) : undefined, sh: p.col ? undefined : p.shade });
+      }
+    };
     // --- forest ring: a dense wall right at the edge, bigger trees behind; the gaps stay open
     const taken: { x: number; z: number; d: number }[] = [];
     const trees = [
@@ -111,55 +150,57 @@ export class HofWorld {
       { names: [1, 2, 4, 5].map(i => 'Pine_' + i), s: .8, n: 140, d: 2.6, k0: 1.04, k1: 1.8, col: () => hsl(rand(.22, .3), rand(.3, .45), rand(.62, .78)) },
       { names: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), s: .4, n: 26, d: 4, k0: 1.2, k1: 1.75, col: () => hsl(rand(.2, .28), rand(.5, .65), rand(.36, .44)) },
     ];
-    for (const T of trees) for (const [name, list] of group(T.names, ring(N(T.n), T.k0, T.k1, T.d, taken)))
-      add(name, list.map(p => ({ x: p.x, z: p.z, y: -.1, s: T.s * rand(.8, 1.25) * (p.k > 1.4 ? 1.15 : 1), col: T.col(), shade: rand(.8, 1.05) })), { shadow: true, scale: T.s, gapPad: 1.4 });
+    for (const T of trees) add(T.names, ring(T.n, T.k0, T.k1, T.d, taken).map(p => ({ x: p.x, z: p.z, y: -.1, s: T.s * rand(.8, 1.25) * (p.k > 1.4 ? 1.15 : 1), col: T.col() })), 1.4);
     // bushes along the forest edge (the animals come out of here)
-    const bushes = ring(N(170), .97, 1.12, 1.1).map(p => ({ x: p.x, z: p.z, s: rand(.65, 1.1), col: hsl(rand(.25, .33), rand(.5, .62), rand(.3, .38)) }));
-    const fl = bushes.filter(() => Math.random() < .3);
-    add('Bush_Common', bushes.filter(b => !fl.includes(b)), { shadow: true, gapPad: .2 });
-    add('Bush_Common_Flowers', fl, { shadow: true, gapPad: .2 });
+    for (const p of ring(170, .97, 1.12, 1.1)) add(Math.random() < .3 ? 'Bush_Common_Flowers' : 'Bush_Common', [{ x: p.x, z: p.z, s: rand(.65, 1.1), col: hsl(rand(.25, .33), rand(.5, .62), rand(.3, .38)) }], .2);
     // rocks, ferns, tall grass in the forest
-    add('Rock_Medium_1', ring(N(18), 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .8), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
-    add('Rock_Medium_2', ring(N(14), 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.35, .7), tilt: .3, shade: rand(.75, 1) })), { shadow: true, gapPad: .5 });
-    add('Fern_1', ring(N(160), 1.0, 1.7).map(p => ({ x: p.x, z: p.z, s: rand(.18, .3), tilt: .25, col: hsl(rand(.25, .35), rand(.35, .5), rand(.55, .68)) })), { gapPad: -.5 });
-    add('Grass_Wispy_Tall', ring(N(70), 1.08, 1.6).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.2, .3), rand(.3, .45), rand(.6, .72)) })), { gapPad: -.5 });
-    // single trees on the farm (Bastis brown circles)
-    add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
-    add('CommonTree_3', this.cfg.hof.trees.filter((_, i) => i % 2 === 1).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    add('Rock_Medium_1', ring(18, 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .8), tilt: .3, shade: rand(.75, 1) })), .5);
+    add('Rock_Medium_2', ring(14, 1.05, 1.7).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.35, .7), tilt: .3, shade: rand(.75, 1) })), .5);
+    add('Fern_1', ring(160, 1.0, 1.7).map(p => ({ x: p.x, z: p.z, s: rand(.18, .3), tilt: .25, col: hsl(rand(.25, .35), rand(.35, .5), rand(.55, .68)) })), -.5);
+    add('Grass_Wispy_Tall', ring(70, 1.08, 1.6).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: hsl(rand(.2, .3), rand(.3, .45), rand(.6, .72)) })), -.5);
     // a few common bushes right next to each wild bramble, so the brambles grow among the edge bushes
-    const rb = seeded(31), beside: Inst[] = [];
+    const rb = seeded(31);
     for (const b of hof.brambles) {
       const a = Math.atan2(b.z / hof.rz, b.x / hof.rx), n = 2 + Math.floor(rb() * 2);
-      for (let i = 0; i < n; i++) { const da = (i % 2 ? 1 : -1) * (.045 + rb() * .04), e = hof.edge(a + da, hof.ellipse(b.x, b.z) + .02 + rb() * .07); beside.push({ x: e.x, z: e.z, s: .7 + rb() * .45, col: hsl(.25 + rb() * .08, .55, .3 + rb() * .08) }); }
+      for (let i = 0; i < n; i++) { const da = (i % 2 ? 1 : -1) * (.045 + rb() * .04), e = hof.edge(a + da, hof.ellipse(b.x, b.z) + .02 + rb() * .07); add('Bush_Common', [{ x: e.x, z: e.z, s: .7 + rb() * .45, col: hsl(.25 + rb() * .08, .55, .3 + rb() * .08) }]); }
     }
-    add('Bush_Common', beside, { shadow: true });
-    this.grass(W, gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1);
+    return out;
   }
-  /** wild grass patches (hof.patches): dense and tall inside, thinner and lower outwards, ragged border; low = short grass only.
-   *  Cheap tufts: 4 crossed quads (16 triangles, both sides) with a painted blade texture, one InstancedMesh per 10 m tile so the
-   *  camera only draws the tiles it sees. */
-  private grass(W: THREE.Group, dens: number) {
-    const hof = this.hof, rnd = seeded(41), R = (a: number, b: number) => a + rnd() * (b - a);
-    const per = (this.cfg.grass?.perM2 ?? 24) * dens, TILE = 10;
-    const tiles = new Map<string, { x: number; z: number; w: number; h: number; ry: number; col: THREE.Color }[]>();
-    for (const p of hof.patches) {
-      const b = hof.patchBox(p), n = Math.round((b.x1 - b.x0) * (b.z1 - b.z0) * per);
-      for (let i = 0; i < n; i++) {
-        const x = R(b.x0, b.x1), z = R(b.z0, b.z1), d = hof.patchDensity(p, x, z) * hof.grassMask(x, z);
-        if (d <= .02 || rnd() > Math.pow(d, .9)) continue;
-        const wet = p.wet ? .06 : 0, col = hsl(R(.2, .27) + wet * .5, R(.4, .52) + wet, R(.52, .62) - d * .1);
-        const h = p.low ? R(.18, .3) * (.7 + .3 * d) : (.2 + .8 * d) * R(.8, 1.2);   // height (m): low at the rim, tall inside
-        const w = p.low ? R(.35, .5) : R(.4, .6) * (.8 + .4 * d);
-        const k = Math.floor(x / TILE) + ',' + Math.floor(z / TILE); let l = tiles.get(k); if (!l) tiles.set(k, l = []);
-        l.push({ x, z, w, h, ry: rnd() * Math.PI, col });
-      }
+  /** wild grass patches (hof.patches) + painted wild grass: dense and tall inside, thinner and lower outwards, ragged border;
+   *  low = short grass only. Cheap tufts: 4 crossed quads (16 triangles, both sides) with a painted blade texture, one
+   *  InstancedMesh per 10 m tile so the camera only draws the tiles it sees (and the editor rebuilds only touched tiles). */
+  private grassDens = 1;
+  private tiles = new Map<string, THREE.InstancedMesh>();
+  private tuft: { geo: THREE.BufferGeometry; mat: THREE.Material } | null = null;
+  /** rebuild the grass tiles in a world rectangle (default: everything) */
+  rebuildGrass(x0 = -SIZE / 2, z0 = -SIZE / 2, x1 = SIZE / 2, z1 = SIZE / 2) {
+    const T = 10, i0 = Math.floor(x0 / T), i1 = Math.floor(x1 / T), j0 = Math.floor(z0 / T), j1 = Math.floor(z1 / T);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) this.grassTile(i, j);
+  }
+  private grassTile(ti: number, tj: number) {
+    const T = 10, key = ti + ',' + tj, W = this.nature!, hof = this.hof, P = this.paint;
+    const old = this.tiles.get(key); if (old) { W.remove(old); old.dispose(); this.tiles.delete(key); }
+    const x0 = ti * T, z0 = tj * T, x1 = x0 + T, z1 = z0 + T;
+    const near: Patch[] = hof.patches.filter(p => { const b = hof.patchBox(p); return b.x0 < x1 && b.x1 > x0 && b.z0 < z1 && b.z1 > z0; });
+    if (!near.length && !(P && P.maxIn(6, x0, z0, x1, z1) > .01)) return;
+    const rnd = seeded(((ti + 100) * 7919) ^ ((tj + 100) * 104729)), R = (a: number, b: number) => a + rnd() * (b - a);
+    const per = (this.cfg.grass?.perM2 ?? 24) * this.grassDens, n = Math.round(T * T * per);
+    const list: { x: number; z: number; w: number; h: number; ry: number; col: THREE.Color }[] = [];
+    for (let i = 0; i < n; i++) {
+      const x = x0 + rnd() * T, z = z0 + rnd() * T, ry = rnd() * Math.PI, pr = rnd();
+      const g = hof.grassAt(x, z, undefined, near), d = g.d;
+      if (d <= .02 || pr > Math.pow(d, .9)) continue;
+      const wet = g.wet ? .06 : 0, col = hsl(R(.2, .27) + wet * .5, R(.4, .52) + wet, R(.52, .62) - d * .1);
+      const h = g.low ? R(.18, .3) * (.7 + .3 * d) : (.2 + .8 * d) * R(.8, 1.2);   // height (m): low at the rim, tall inside
+      const w = g.low ? R(.35, .5) : R(.4, .6) * (.8 + .4 * d);
+      list.push({ x, z, w, h, ry, col });
     }
-    const geo = tuftGeo(), mat = plantMaterial(bladeTex(), 'tuft', .07, THREE.FrontSide), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
-    for (const list of tiles.values()) {
-      const im = new THREE.InstancedMesh(geo, mat, list.length);
-      list.forEach((t, i) => { m4.compose(v.set(t.x, 0, t.z), q.setFromEuler(e.set(0, t.ry, 0)), sc.set(t.w, t.h, t.w)); im.setMatrixAt(i, m4); im.setColorAt(i, t.col); });
-      im.receiveShadow = true; im.castShadow = false; im.computeBoundingSphere(); W.add(im);
-    }
+    if (!list.length) return;
+    this.tuft ??= { geo: tuftGeo(), mat: plantMaterial(bladeTex(), 'tuft', .07, THREE.FrontSide) };
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+    const im = new THREE.InstancedMesh(this.tuft.geo, this.tuft.mat, list.length);
+    list.forEach((t, i) => { m4.compose(v.set(t.x, 0, t.z), q.setFromEuler(e.set(0, t.ry, 0)), sc.set(t.w, t.h, t.w)); im.setMatrixAt(i, m4); im.setColorAt(i, t.col); });
+    im.receiveShadow = true; im.castShadow = false; im.computeBoundingSphere(); W.add(im); this.tiles.set(key, im);
   }
 }
 

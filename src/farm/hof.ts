@@ -1,5 +1,7 @@
 // Farm geometry shared by simulation and view: building footprints (collision), forest edge, gaps, entry/exit points.
 import { BuildingId, FarmCfg, RectCfg, rotY } from './config';
+import { MODEL } from '../world/catalog';
+import type { PropRec } from '../world/data';
 
 export interface Obb { kind: 'box'; x: number; z: number; hw: number; hd: number; c: number; s: number; id?: string }
 export interface Circ { kind: 'circle'; x: number; z: number; r: number; id?: string }
@@ -32,6 +34,14 @@ export function pushOut(o: Obstacle, x: number, z: number, r: number): { x: numb
     if (px < pz) { nx = Math.sign(lx || 1) * (o.hw + r); nz = lz; } else { nx = lx; nz = Math.sign(lz || 1) * (o.hd + r); }
   }
   return toWorld(o, nx, nz);
+}
+
+/** collision of an object placed in the world editor (null = walk through: plants, grass, small stones) */
+export function propObstacle(p: PropRec): Obstacle | null {
+  const d = MODEL.get(p.m); if (!d) return null;
+  if (d.wall) { const a = p.ry; return { kind: 'box', x: p.x, z: p.z, hw: d.wall[0] * p.s, hd: d.wall[1] * p.s, c: Math.cos(a), s: Math.sin(a), id: 'prop' }; }
+  if (d.solid) return { kind: 'circle', x: p.x, z: p.z, r: d.solid * p.s, id: 'prop' };
+  return null;
 }
 
 /** small seeded random generator: the same layout on every start */
@@ -67,6 +77,8 @@ export class Hof {
     for (const [id, r] of Object.entries(H.buildings) as [BuildingId, RectCfg][]) this.obstacles.push(obstacleOf(r, id));
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
     this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
+    // objects placed in the world editor: trees, rocks, fences on the farm block the way (not in the forest ring, the animals come through there)
+    for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && this.ellipse(p.x, p.z) < .97) this.obstacles.push(o); }
     this.gaps = H.gaps.map(d => { const a = d * Math.PI / 180, e = this.edge(a); return { a, x: e.x, z: e.z }; });
     // brambles: evenly around the edge (seeded jitter), never in a gap
     const rnd = seeded(7), n = cfg.wild?.brambles?.count ?? 0;
@@ -141,8 +153,8 @@ export class Hof {
     for (const t of H.trees) strip('tree', t.x + R(-.3, .3), t.z + R(-.3, .3), R(1.8, 2.6), R(1.6, 2.2), R(0, Math.PI), 3, { low: true, d: .8 });
   }
   /** where grass may grow at all: not on paths, plots, buildings, the door, in the gaps or deep in the forest (0..1) */
-  grassMask(x: number, z: number) {
-    const pd = this.pathDist(x, z); if (pd < 0) return 0;
+  grassMask(x: number, z: number, painted = false) {
+    const pd = painted ? 9 : this.pathDist(x, z); if (pd < 0) return 0;
     let m = sstep(0, .9, pd);
     const h = this.cfg.plots.size / 2;
     for (const p of this.cfg.hof.plots) { const d = Math.max(Math.abs(x - p.x), Math.abs(z - p.z)) - h; if (d < .15) return 0; m *= sstep(.15, .9, d); }
@@ -152,6 +164,7 @@ export class Hof {
       else { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + .05 && Math.abs(lz) < o.hd + .05) return 0; }
     }
     const door = this.cfg.hof.door; m *= sstep(1, 2, Math.hypot(x - door.x, z - door.z));
+    if (painted) return m;
     if (this.ellipse(x, z) > .75 && this.inGap(x, z, .3)) return 0;   // the animals' corridors at the edge stay open
     return m * (1 - sstep(1, 1.12, this.ellipse(x, z)));
   }
@@ -165,11 +178,27 @@ export class Hof {
     }
     return v;
   }
-  /** grass density at a point (all patches + mask) */
-  grass(x: number, z: number, only?: (p: Patch) => boolean) {
-    let v = 0;
-    for (const p of this.patches) { if (only && !only(p)) continue; const b = this.patchBox(p); if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue; v = 1 - (1 - v) * (1 - this.patchDensity(p, x, z)); }
-    return v ? v * this.grassMask(x, z) : 0;
+  /** grass density at a point (all patches + mask + painted wild grass) */
+  grass(x: number, z: number, only?: (p: Patch) => boolean) { return this.grassAt(x, z, only).d; }
+  /** grass at a point: density, low = only short grass (all patches here are low), wet = damp patch (behind the well);
+   *  list = patches to look at (default all) */
+  grassAt(x: number, z: number, only?: (p: Patch) => boolean, list: Patch[] = this.patches) {
+    let v = 0, hi = 0, wet = 0;
+    for (const p of list) {
+      if (only && !only(p)) continue; const b = this.patchBox(p); if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue;
+      const d = this.patchDensity(p, x, z); if (d <= 0) continue;
+      v = 1 - (1 - v) * (1 - d); if (!p.low) hi = Math.max(hi, d); if (p.wet) wet = Math.max(wet, d);
+    }
+    let low = v > 0 && hi < v * .5;
+    v = v ? v * this.grassMask(x, z) : 0;
+    // painted in the world editor: wild grass added (6) / removed (7); added grass ignores paths, but not plots and buildings
+    const P = this.cfg.world?.paint;
+    if (P && !only) {
+      const rem = P.sample(7, x, z), add = P.sample(6, x, z);
+      if (rem > .01) v *= 1 - Math.min(1, rem * 1.2);
+      if (add > .01) { const k = Math.min(1, add * 1.1) * this.grassMask(x, z, true) * (.75 + .25 * (noise(x * .7, z * .7) * .5 + .5)); v = 1 - (1 - v) * (1 - k); if (k > .3) low = false; }
+    }
+    return { d: v, low, wet: wet > .3 };
   }
   private boxes = new Map<Patch, { x0: number; x1: number; z0: number; z1: number }>();
   /** bounding box of a patch (with margin for the ragged border) */

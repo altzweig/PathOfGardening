@@ -114,3 +114,14 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Bäume, Felsen, Zäune, Heuballen, Holzstapel auf dem Hof (innerhalb des Waldrands) sind Hindernisse; im Waldring nicht, damit die Tiere durchkommen.
 - Obstbäume, Brombeeren, Gebäude und Felder bleiben Spielobjekte aus `balancing.yaml` und sind nicht im Editor.
 
+
+## Welt-Editor v2: Landschaft und Hoflogik neu (20.11.2026)
+- Die Landschaft wird komplett neu gedacht: neue Welt = leere Fläche mit trockenem Gras, alles Weitere setzt Basti im Editor.
+- Gebäude vorerst nur das Haupthaus (Lager darin). Alle anderen Gebäude sind aus, solange die Welt eine Logik hat.
+- Kartengröße einstellbar 40–256 m, Standard 128 m (etwa 3–4× so groß wie der bisherige Baubereich).
+- Begehbarer Bereich und Baubereich sind geschlossene Spline-Flächen. Die Spielfigur bleibt im begehbaren Bereich, Felder nur im Baubereich.
+- Felder sind Sechsecke. Der Editor setzt nur die Feldplätze, auf denen später ein Feld stehen kann, sonst nichts. Spielstart mit so vielen Feldern wie bisher (höchstens so viele wie Plätze).
+- Gegner-Spawns: rote Kreise mit Waschbär und Nummer. Die Nummer ist der Bezug für Anweisungen wie „Spawn 1 erhöhen“ (= Häufigkeit dieses Spawns).
+- Interaktionsobjekte mit Logik: Brunnen (Wasser für die Gießkanne), Korb, Blaubeerbusch, Obstbäume, Brombeeren.
+- Boden in Ebenen; bis zu 16 Texturen pro Welt (Grenze des Boden-Shaders, eine Zeichnung für den ganzen Boden).
+- Ohne Weltdatei läuft der bisherige generierte Hof unverändert.

@@ -6,7 +6,7 @@ import { ALL_EXTENSIONS, EXTMeshoptCompression } from '@gltf-transform/extension
 import { weld, simplify, dedup, prune, quantize, reorder, mergeDocuments, unpartition } from '@gltf-transform/functions';
 import { MeshoptSimplifier, MeshoptEncoder } from 'meshoptimizer';
 import path from 'node:path';
-const [src, out] = process.argv.slice(2);
+const [src, out, flag] = process.argv.slice(2);
 await MeshoptSimplifier.ready; await MeshoptEncoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
 // model -> bark simplify ratio (1 = keep)
@@ -22,6 +22,12 @@ const MODELS = {
   Pebble_Round_1: 1, Pebble_Round_2: 1, Pebble_Round_3: 1, Pebble_Round_4: 1, Pebble_Round_5: 1,
   RockPath_Round_Small_1: .22, RockPath_Round_Small_2: .22, RockPath_Round_Small_3: .22,
 };
+// --all: every model of the pack (world editor, 21.11.2026); unknown ones keep all triangles, except bark of trees (.35)
+if (flag === '--all') {
+  const { readdirSync } = await import('node:fs');
+  for (const f of readdirSync(src)) if (f.endsWith('.gltf')) { const n = f.slice(0, -5); if (!(n in MODELS)) MODELS[n] = /Tree|Pine|Birch|Stump|Log/i.test(n) ? .35 : 1; }
+  console.log('models', Object.keys(MODELS).length);
+}
 const target = new Document(); target.createBuffer();
 let tris = 0;
 for (const [name, ratio] of Object.entries(MODELS)) {
@@ -55,3 +61,4 @@ await target.transform(unpartition(), dedup({ propertyTypes: [PropertyType.ACCES
 target.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.FILTER });
 await io.write(out, target);
 console.log('tris', tris);
+console.log('materials', [...new Set(target.getRoot().listMaterials().map(m => m.getName()))].join(' '));

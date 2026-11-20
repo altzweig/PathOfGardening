@@ -61,6 +61,14 @@ function loadKtx(file: string, done: (t: THREE.CompressedTexture) => void) {
     done(t as THREE.CompressedTexture);
   }, undefined, e => console.error('ktx2', file, e));
 }
+/** a KTX2 file of public/textures (cached, also for the world editor's terrain layers) */
+const ktxCache = new Map<string, Promise<THREE.CompressedTexture>>();
+export function ktxFile(file: string): Promise<THREE.CompressedTexture> {
+  let p = ktxCache.get(file);
+  if (!p) { p = new Promise((res, rej) => { ktx ??= new KTX2Loader().setTranscoderPath(import.meta.env.BASE_URL + 'basis/').detectSupport(renderer); ktx.load(BASE + file, t => res(t as THREE.CompressedTexture), undefined, rej); }); ktxCache.set(file, p); p.catch(() => ktxCache.delete(file)); }
+  return p;
+}
+export { NOISE as GLSL_NOISE, ARR_GLSL as GLSL_LAYER, TU as TERRAIN_U, lowTex };
 /** placeholders until the KTX2 file is transcoded (plain colour; flat normals) */
 function flatArray(layers: number, rgb: [number, number, number]) {
   const d = new Uint8Array(4 * layers); for (let i = 0; i < layers; i++) d.set([...rgb, 255], i * 4);

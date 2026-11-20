@@ -2,6 +2,7 @@
 import { BuildingId, FarmCfg, RectCfg, rotY } from './config';
 import { MODEL } from '../world/catalog';
 import type { PropRec } from '../world/data';
+import { Logic, Pt, centroid, closestOnPoly, inPoly, radial, splinePoly } from '../world/logic';
 
 export interface Obb { kind: 'box'; x: number; z: number; hw: number; hd: number; c: number; s: number; id?: string }
 export interface Circ { kind: 'circle'; x: number; z: number; r: number; id?: string }
@@ -72,13 +73,34 @@ export class Hof {
   /** wild bramble bushes along the forest edge */
   brambles: { x: number; z: number }[] = [];
   rx: number; rz: number;
+  /** world editor logic (null = the farm of balancing.yaml): walk area + build area as polygons, spawn weights */
+  logic: Logic | null;
+  walkPoly: Pt[] = []; buildPoly: Pt[] = [];
+  /** centre of the walk area and its radius per degree (the polygon counts as "clearing": 0 = centre, 1 = edge) */
+  cx = 0; cz = 0; private R: Float32Array | null = null;
+  private spawnW: number[] = [];
   constructor(public cfg: FarmCfg) {
     const H = cfg.hof; this.rx = H.clearing.rx; this.rz = H.clearing.rz;
+    const L = this.logic = cfg.world?.logic ?? null;
+    if (L) {
+      this.walkPoly = splinePoly(L.walk); this.buildPoly = splinePoly(L.build);
+      const c = centroid(this.walkPoly); this.cx = c.x; this.cz = c.z; this.R = radial(this.walkPoly, c);
+      let mx = 0, mz = 0; for (const p of this.walkPoly) { mx = Math.max(mx, Math.abs(p.x - c.x)); mz = Math.max(mz, Math.abs(p.z - c.z)); }
+      this.rx = mx; this.rz = mz;
+    }
     for (const [id, r] of Object.entries(H.buildings) as [BuildingId, RectCfg][]) this.obstacles.push(obstacleOf(r, id));
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
     this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
     // objects placed in the world editor: trees, rocks, fences on the farm block the way (not in the forest ring, the animals come through there)
-    for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && this.ellipse(p.x, p.z) < .97) this.obstacles.push(o); }
+    for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && this.ellipse(p.x, p.z) < (L ? 1 : .97)) this.obstacles.push(o); }
+    if (L) {
+      // spawns instead of forest gaps: the "gap" points from the middle towards the spawn
+      this.gaps = L.spawns.map(sp => { const a = Math.atan2(sp.z - this.cz, sp.x - this.cx), e = this.edge(a); return { a, x: e.x, z: e.z }; });
+      this.spawnW = L.spawns.map(sp => Math.max(0, sp.w ?? 1));
+      this.brambles = L.objects.filter(o => o.k === 'bramble').map(o => ({ x: o.x, z: o.z }));
+      for (const b of this.brambles) this.obstacles.push({ kind: 'circle', x: b.x, z: b.z, r: .7, id: 'bramble' });
+      return;   // no generated paths or grass patches: the editor paints them
+    }
     this.gaps = H.gaps.map(d => { const a = d * Math.PI / 180, e = this.edge(a); return { a, x: e.x, z: e.z }; });
     // brambles: evenly around the edge (seeded jitter), never in a gap
     const rnd = seeded(7), n = cfg.wild?.brambles?.count ?? 0;
@@ -179,7 +201,7 @@ export class Hof {
     return v;
   }
   /** grass density at a point (all patches + mask + painted wild grass) */
-  grass(x: number, z: number, only?: (p: Patch) => boolean) { return this.grassAt(x, z, only).d; }
+  grass(x: number, z: number, only?: (p: Patch) => boolean) { return Math.min(1, this.grassAt(x, z, only).d); }
   /** grass at a point: density, low = only short grass (all patches here are low), wet = damp patch (behind the well);
    *  list = patches to look at (default all) */
   grassAt(x: number, z: number, only?: (p: Patch) => boolean, list: Patch[] = this.patches) {
@@ -191,14 +213,14 @@ export class Hof {
     }
     let low = v > 0 && hi < v * .5;
     v = v ? v * this.grassMask(x, z) : 0;
-    // painted in the world editor: wild grass added (6) / removed (7); added grass ignores paths, but not plots and buildings
-    const P = this.cfg.world?.paint;
+    // painted in the world editor (with a logic): density up to 3x, height factor; not on plots and buildings
+    const P = this.logic ? this.cfg.world?.paint : null;
+    let h = 1;
     if (P && !only) {
-      const rem = P.sample(7, x, z), add = P.sample(6, x, z);
-      if (rem > .01) v *= 1 - Math.min(1, rem * 1.2);
-      if (add > .01) { const k = Math.min(1, add * 1.1) * this.grassMask(x, z, true) * (.75 + .25 * (noise(x * .7, z * .7) * .5 + .5)); v = 1 - (1 - v) * (1 - k); if (k > .3) low = false; }
+      const g = P.grass(x, z);
+      if (g.d > .01) { const k = g.d * this.grassMask(x, z, true) * (.75 + .25 * (noise(x * .7, z * .7) * .5 + .5)); v = Math.max(v, k); h = g.h; if (k > .3) low = false; }
     }
-    return { d: v, low, wet: wet > .3 };
+    return { d: v, low, wet: wet > .3, h };
   }
   private boxes = new Map<Patch, { x0: number; x1: number; z0: number; z1: number }>();
   /** bounding box of a patch (with margin for the ragged border) */
@@ -224,19 +246,49 @@ export class Hof {
     if (o.kind === 'circle') return Math.max(0, Math.hypot(x - o.x, z - o.z) - o.r);
     const { lx, lz } = toLocal(o, x, z); return Math.hypot(Math.max(0, Math.abs(lx) - o.hw), Math.max(0, Math.abs(lz) - o.hd));
   }
+  /** radius of the walk area in direction a (world editor logic) */
+  private rad(a: number) { const R = this.R!, n = R.length, f = ((a / (Math.PI * 2)) % 1 + 1) % 1 * n, i = Math.floor(f) % n, u = f - Math.floor(f); return R[i] * (1 - u) + R[(i + 1) % n] * u; }
   /** point on the clearing edge in direction a */
-  edge(a: number, k = 1) { return { x: Math.cos(a) * this.rx * k, z: Math.sin(a) * this.rz * k }; }
-  /** 0 = centre, 1 = forest edge */
-  ellipse(x: number, z: number) { return Math.hypot(x / this.rx, z / this.rz); }
+  edge(a: number, k = 1) {
+    if (this.R) { const r = this.rad(a) * k; return { x: this.cx + Math.cos(a) * r, z: this.cz + Math.sin(a) * r }; }
+    return { x: Math.cos(a) * this.rx * k, z: Math.sin(a) * this.rz * k };
+  }
+  /** 0 = centre, 1 = forest edge (with a logic: the edge of the walk area) */
+  ellipse(x: number, z: number) {
+    if (this.R) { const dx = x - this.cx, dz = z - this.cz; return Math.hypot(dx, dz) / Math.max(.5, this.rad(Math.atan2(dz, dx))); }
+    return Math.hypot(x / this.rx, z / this.rz);
+  }
+  /** in the build area (world editor logic; without one: the inner farm) */
+  inBuild(x: number, z: number) { return this.logic ? inPoly(this.buildPoly, x, z) : this.ellipse(x, z) < .8; }
+  /** spawn index for a new animal (weighted by the spawn's w) */
+  pickGap() {
+    const n = this.gaps.length; if (!n) return 0;
+    if (!this.spawnW.length) return Math.floor(Math.random() * n);
+    let r = Math.random() * this.spawnW.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < n; i++) { r -= this.spawnW[i]; if (r <= 0) return i; }
+    return n - 1;
+  }
+  /** an animal running off through gap g is gone */
+  outside(x: number, z: number, g: number) {
+    if (!this.logic) return this.ellipse(x, z) > 1.35;
+    const o = this.gapOut(g); return Math.hypot(x - o.x, z - o.z) < 1.2 || this.ellipse(x, z) > 1.6;
+  }
   /** inside a gap corridor (animals come and go here) */
   inGap(x: number, z: number, pad = 0) {
+    x -= this.cx; z -= this.cz;
     const r = Math.hypot(x, z);
     return this.gaps.some(g => { const along = x * Math.cos(g.a) + z * Math.sin(g.a), side = Math.abs(-x * Math.sin(g.a) + z * Math.cos(g.a));
-      return along > r * .5 && side < this.cfg.hof.gapWidth / 2 + pad + Math.max(0, this.ellipse(x, z) - 1) * 3; });
+      return along > r * .5 && side < this.cfg.hof.gapWidth / 2 + pad + Math.max(0, this.ellipse(x + this.cx, z + this.cz) - 1) * 3; });
   }
   /** spawn point outside the forest in gap g, and the point just inside the clearing */
-  gapOut(g: number) { return this.edge(this.gaps[g].a, 1.45); }
-  gapIn(g: number) { return this.edge(this.gaps[g].a, .9); }
+  gapOut(g: number) {
+    const sp = this.logic?.spawns[g]; if (sp) return { x: sp.x, z: sp.z };
+    return this.edge(this.gaps[g].a, 1.45);
+  }
+  gapIn(g: number) {
+    const sp = this.logic?.spawns[g]; if (sp && this.ellipse(sp.x, sp.z) < .9) return { x: sp.x, z: sp.z };
+    return this.edge(this.gaps[g].a, .9);
+  }
   nearestGap(x: number, z: number) {
     let best = 0, bd = 1e9;
     this.gaps.forEach((g, i) => { const d = Math.hypot(g.x - x, g.z - z); if (d < bd) { bd = d; best = i; } });
@@ -245,7 +297,10 @@ export class Hof {
   /** keep the player on the farm: inside the clearing (a bit further out in the gaps), out of buildings */
   collide(x: number, z: number, r: number, player: boolean, skip?: string): { x: number; z: number } {
     for (let it = 0; it < 2; it++) for (const o of this.obstacles) { if (o.id === skip) continue; const p = pushOut(o, x, z, r); if (p) { x = p.x; z = p.z; } }
-    if (player) {
+    if (player && this.logic) {
+      // walk area of the world editor: back onto the outline, a hand's width inside
+      if (!inPoly(this.walkPoly, x, z)) { const c = closestOnPoly(this.walkPoly, x, z), dx = this.cx - c.x, dz = this.cz - c.z, l = Math.hypot(dx, dz) || 1; x = c.x + dx / l * .05; z = c.z + dz / l * .05; }
+    } else if (player) {
       const lim = this.inGap(x, z) ? 1.06 : .96, e = this.ellipse(x, z);
       if (e > lim) { x *= lim / e; z *= lim / e; }
     }

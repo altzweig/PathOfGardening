@@ -23,12 +23,15 @@ Test-Hilfen: `?q=niedrig` startet mit niedriger Grafik, `?h=12` zeigt eine feste
 
 ## Welt-Editor
 
-`welt.html` (online: `…/PathOfGardening/welt.html`) zeigt den echten Hof und lässt die Welt selbst gestalten:
+`welt.html` (online: `…/PathOfGardening/welt.html`) baut die Spielwelt von Grund auf. Eine neue Welt ist eine leere Landschaft mit trockenem Gras; „Vorlage: bisheriger Hof“ lädt den alten Hof als Ausgangspunkt. Drei Reiter:
 
-- **Objekte**: Bäume, Büsche, Pflanzen, Gras, Blumen, Pilze, Steine (Nature MegaKit) und Zaun, Pfosten, Heuballen, Holzstapel setzen, verschieben, drehen, skalieren, löschen; mit dem Pinsel streuen oder entfernen. Bäume, Felsen und Zäune auf dem Hof sind feste Hindernisse.
-- **Boden**: die sechs Boden-Layer des Texturkonzepts malen (Gras, Moos, Feldboden, Pfad, Trockenrasen, Pflaster) (weiche, ausgefranste Übergänge), Wildgras-Halme dazu- oder wegmalen, „Original“ radiert zurück zum generierten Boden.
+- **Logik**: Kartengröße (40–256 m, Standard 128 m), begehbarer Bereich und Baubereich als Spline-Flächen (Punkte ziehen, auf die Linie klicken für neue Punkte, „Neu zeichnen“), Feldplätze als Sechsecke (am Raster ausgerichtet, nur im Baubereich), Gegner-Spawns (rote Kreise mit Waschbär und Nummer, Häufigkeit je Spawn), das Haupthaus und Interaktionsobjekte (Brunnen, Korb, Blaubeerbusch, Obstbäume, Brombeeren). Unter „Anzeigen“ lassen sich Grenzen, Felder, Spawns und Nummern ein- und ausblenden.
+- **Objekte**: alle 68 Modelle des Nature MegaKit plus Zaun, Pfosten, Heuballen und Holzstapel; setzen, sprühen (Dichte, Überlappen, Größe, Streuung, Drehung zufällig oder fest), entfernen. Größe, Drehung, Neigung und Höhe per Regler mit Zurücksetzen-Knopf.
+- **Boden**: Texturen in Ebenen wie in einem Malprogramm (sichtbar/aus, hoch/runter, löschen, füllen, Grundboden wählen), bis zu 16 verschiedene Texturen pro Welt aus 29 FreeStylized-Bodentexturen. Pinselformen: Kreis, Noise-Masken mit Verlauf nach außen und die Effekt-Masken (Flammen, Feuer, Rauch, Glühen, Stern, Schneeflocke, Blatt, Splitter). Größe ab 10 cm stufenlos, Stärke, Härte, Abstand, Streuung, Drehung. Wildgras dichter (bis 300 %) und höher (bis ×3) malen oder wegnehmen.
+- Alle Regler: ziehen, Wert direkt eintippen oder mit einem Klick zurücksetzen.
 - **Speichern**: Der Arbeitsstand bleibt als Entwurf im Browser. *Im Spiel testen* öffnet das Spiel mit dem Entwurf (`?welt=entwurf`). *Ins Spiel übernehmen (GitHub)* schreibt `public/world/welt.json` direkt ins Repo (eigenes fine-grained Token mit „Contents: Read and write“); alternativ `welt.json` herunterladen und nach `public/world/` legen.
-- Ohne `public/world/welt.json` erzeugt das Spiel den Wald wie bisher zufällig.
+- Das Spiel liest die Logik der Welt: nur das Haupthaus (und der Brunnen, falls gesetzt), Felder auf den Sechseck-Plätzen, Waschbären und Hasen kommen aus den Spawns (nach Häufigkeit gewichtet), die Spielfigur bleibt im begehbaren Bereich.
+- Ohne `public/world/welt.json` spielt das Spiel den bisherigen, generierten Hof.
 
 ## Auf GitHub Pages veröffentlichen
 

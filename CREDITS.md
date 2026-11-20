@@ -14,6 +14,7 @@ Mit `tools/build-textures.mjs` nach KTX2 (Basis Universal ETC1S, mit Mipmaps) ko
 | Textur | Datei im Spiel | Verwendet für |
 |---|---|---|
 | grass_01, moss_ground_02, ground_02, ground_06, grass_04, cobblestone_01 | `terrain/terrain_c_1024.ktx2`, `terrain_c_512.ktx2`, `terrain_n_1024.ktx2` (Array-Texturen, ein Layer je Textur) | Boden: Gras, Waldboden/feuchte Stellen, Feldboden, Trampelpfade, trockene Flecken, Pflaster auf dem Hofplatz |
+| alle 29 Bodentexturen für den Welt-Editor: grass_01, moss_ground_02, ground_02, ground_06, grass_04, cobblestone_01, grass_05, grass_with_rocks_01, moss_ground_01, moss_ground_03, ground_with_roots_01, ground_03, ground_05, ground_07, ground_with_rocks_01, ground_with_rocks_03, desert_ground_01, ground_tiles_13, ground_tiles_21, cliff_rocks_02, cliff_rocks_04, cliff_rocks_05, cliff_rocks_08, rock_01, rocks_with_water_01, water_01, water_02, snow_01, ground_tiles_with_snow_01 | `terrain/<id>_c_1024.ktx2`, `_c_512.ktx2`, `_n_1024.ktx2`, Vorschau `swatch/<id>.jpg` (Liste in `terrain/terrain.json`) | Bodenebenen im Welt-Editor (21.11.2026) |
 | wood_planks_20, wood_planks_13 | `props/wood_planks_20_*.ktx2`, `props/wood_planks_13_*.ktx2` | Holzwände, Tore; Schuppen und Zäune |
 | hay_roof_01 | `props/hay_roof_01_*.ktx2` | alle Dächer |
 | stone_bricks_wall_03 | `props/stone_bricks_wall_03_*.ktx2` | Sockel, Brunnen, Kamine, Fundamente |

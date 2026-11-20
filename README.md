@@ -26,7 +26,7 @@ Test-Hilfen: `?q=niedrig` startet mit niedriger Grafik, `?h=12` zeigt eine feste
 `welt.html` (online: `…/PathOfGardening/welt.html`) zeigt den echten Hof und lässt die Welt selbst gestalten:
 
 - **Objekte**: Bäume, Büsche, Pflanzen, Gras, Blumen, Pilze, Steine (Nature MegaKit) und Zaun, Pfosten, Heuballen, Holzstapel setzen, verschieben, drehen, skalieren, löschen; mit dem Pinsel streuen oder entfernen. Bäume, Felsen und Zäune auf dem Hof sind feste Hindernisse.
-- **Boden**: Gras, saftiges Gras, Grasnarbe, Trockenrasen, Erde und Kies malen (weiche, ausgefranste Übergänge), Wildgras-Halme dazu- oder wegmalen, „Original“ radiert zurück zum generierten Boden.
+- **Boden**: die sechs Boden-Layer des Texturkonzepts malen (Gras, Moos, Feldboden, Pfad, Trockenrasen, Pflaster) (weiche, ausgefranste Übergänge), Wildgras-Halme dazu- oder wegmalen, „Original“ radiert zurück zum generierten Boden.
 - **Speichern**: Der Arbeitsstand bleibt als Entwurf im Browser. *Im Spiel testen* öffnet das Spiel mit dem Entwurf (`?welt=entwurf`). *Ins Spiel übernehmen (GitHub)* schreibt `public/world/welt.json` direkt ins Repo (eigenes fine-grained Token mit „Contents: Read and write“); alternativ `welt.json` herunterladen und nach `public/world/` legen.
 - Ohne `public/world/welt.json` erzeugt das Spiel den Wald wie bisher zufällig.
 

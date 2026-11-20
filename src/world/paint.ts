@@ -2,7 +2,8 @@
 // 0..5 = how much of each ground texture is painted here (their sum <= 1, the rest stays the generated ground),
 // 6 = wild grass added, 7 = wild grass removed. Two RGBA byte planes go straight to the ground shader.
 // Texel row 0 = world z +extent/2 (matches the uv of the ground plane, v = 0 at +z).
-export const PAINT_CH = ['grass', 'lush', 'grassdirt', 'dry', 'dirt', 'pebble', 'wild', 'nowild'] as const;
+// 0..5 follow the terrain layers of the texture concept (20.11.2026): grass_01, moss_ground_02, ground_02, ground_06, grass_04, cobblestone_01
+export const PAINT_CH = ['grass', 'moss', 'field', 'path', 'dry', 'pave', 'wild', 'nowild'] as const;
 export type PaintCh = typeof PAINT_CH[number];
 export const TEX_CH = 6;
 

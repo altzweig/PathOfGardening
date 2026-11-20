@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { envU, renderer, windU } from './core';
+import { rockMaps } from './textures';
 
 const BASE = import.meta.env.BASE_URL + 'nature/';
 const texLoader = new THREE.TextureLoader();
@@ -94,6 +95,8 @@ function material(name: string, vc: boolean, scale: number) {
   const wind = d.kind === 'leaf' ? .012 / scale : d.kind === 'plant' || d.kind === 'flower' ? .07 : 0;
   const season = d.kind === 'glow' ? 'none' : d.kind === 'leaf' && name !== 'Leaves_Pine' ? 'leaf' : d.kind === 'plant' || d.kind === 'flower' ? 'leaf' : 'ever';
   natMat(m, { season, wind, glow: d.kind === 'glow' ? 1.4 : d.kind === 'flower' ? .3 : 0, glowCol: d.kind === 'glow' ? 0xb8a0ff : 0xffffff, edge: d.kind !== 'glow' }, key);
+  // texture concept 20.11.2026: the big rocks wear FreeStylized cliff_rocks_02 (mossy), on the model UVs (flipY false -> green flipped)
+  if (name === 'Rocks') { const s = m as THREE.MeshStandardMaterial; rockMaps(r => { s.map = r.c; s.normalMap = r.n; s.normalScale.set(1, -1); s.color.set(0xc4c8c4); s.needsUpdate = true; }); }
   matCache.set(key, m); return m;
 }
 

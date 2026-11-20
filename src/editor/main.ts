@@ -47,12 +47,13 @@ const IC = {
 // ---------------- ground brushes ----------------
 type Brush = number | 'wild' | 'nowild' | 'erase';
 const BRUSHES: { id: Brush; label: string; tex?: string; css?: string }[] = [
-  { id: 0, label: 'Gras', tex: 'grass' },
-  { id: 1, label: 'Saftiges Gras', tex: 'grass', css: 'filter:saturate(1.5) hue-rotate(12deg) brightness(1.05)' },
-  { id: 2, label: 'Grasnarbe', tex: 'grassdirt' },
-  { id: 3, label: 'Trockenrasen', tex: 'dry' },
-  { id: 4, label: 'Erde', tex: 'dirt' },
-  { id: 5, label: 'Kies', tex: 'pebble' },
+  // the six terrain layers of the texture concept (src/view/textures.ts TERRAIN_LAYERS), preview = swatch/<layer>.jpg
+  { id: 0, label: 'Gras', tex: 'swatch/grass_01' },
+  { id: 1, label: 'Moos', tex: 'swatch/moss_ground_02' },
+  { id: 2, label: 'Feldboden', tex: 'swatch/ground_02' },
+  { id: 3, label: 'Pfad', tex: 'swatch/ground_06' },
+  { id: 4, label: 'Trockenrasen', tex: 'swatch/grass_04' },
+  { id: 5, label: 'Pflaster', tex: 'swatch/cobblestone_01' },
   { id: 'wild', label: 'Wildgras' },
   { id: 'nowild', label: 'Kein Wildgras' },
   { id: 'erase', label: 'Original' },

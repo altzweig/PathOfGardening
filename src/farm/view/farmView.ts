@@ -9,7 +9,7 @@ import {
 } from '../../view/core';
 import { updateDayNight, dayNow, resetDayNight } from '../../view/daynight';
 import { updateSeasons } from '../../view/seasons';
-import { bedMaterial } from '../../view/textures';
+import { setTexCfg } from '../../view/textures';
 import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
 import { animate, makeAnimal, Animal as AView } from '../../view/animals';
 import { Rig, animateArms, animateLegs, buildFarmer, disposeFarmer } from '../../view/farmer';
@@ -143,6 +143,7 @@ export class FarmView {
       }
       return Math.hypot(x - H.door.x, z - H.door.z) > 1.5 + pad;
     };
+    setTexCfg(cfg.texturen);
     this.world = new HofWorld(cfg, hof, free);
     scene.add(this.dyn);
     // buildings

@@ -33,12 +33,14 @@ void noTile(sampler2D C, sampler2D N, vec2 uv, float k, inout vec3 col, inout ve
 }`;
 
 /** world-space ground: lawn (3 textures) around a dirt garden (2 textures), paths + dark rim from the control map */
-export function groundMaterial(control: THREE.Texture) {
+const noLush = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); noLush.needsUpdate = true;
+/** control: r dirt, g patchiness, b brightness; lush (optional, r): pure green lawn under the wild grass patches, ragged soft border */
+export function groundMaterial(control: THREE.Texture, lush: THREE.Texture = noLush) {
   const T = { grass: pair('grass'), grassdirt: pair('grassdirt'), dry: pair('dry'), dirt: pair('dirt'), pebble: pair('pebble') };
   const mat = new THREE.MeshStandardMaterial({ map: control, roughness: 1 });
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, {
-      tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
+      tLush: { value: lush }, tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
       uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn,
       tDry: { value: T.dry.c }, nDry: { value: T.dry.n }, tDirt: { value: T.dirt.c }, nDirt: { value: T.dirt.n }, tPeb: { value: T.pebble.c }, nPeb: { value: T.pebble.n },
     });
@@ -47,7 +49,7 @@ export function groundMaterial(control: THREE.Texture) {
 uniform float uDay;
 uniform float uSnow;
 uniform float uAutumn;
-uniform sampler2D tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
+uniform sampler2D tLush, tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
 vec3 gNor = vec3(0.);
 ${NOISE}
 ` + sh.fragmentShader
@@ -58,9 +60,11 @@ ${NOISE}
   float k = tNoise(p*.35);                     // no-tile index
   // dirt vs lawn: soft, ragged border
   float wDirtAll = smoothstep(.35,.65, ctl.r + (n3-.5)*.55 + (n1-.5)*.25);
+  float lush = smoothstep(.3,.7, texture2D(tLush, vMapUv).r + (n3-.5)*.45 + (n1-.5)*.3);   // under wild grass: green lawn, frayed edge
+  wDirtAll *= 1.-lush;
   float wLawn = 1.-wDirtAll;
   // lawn: grass, worn grass-dirt and dry straw patches
-  float gd = smoothstep(.45,.75, n1*.8 + ctl.g*.35), dr = smoothstep(.55,.8, n2) * (1.-gd);
+  float gd = smoothstep(.45,.75, n1*.8 + ctl.g*.35) * (1.-lush), dr = smoothstep(.55,.8, n2) * (1.-gd) * (1.-lush);
   float wGrass = wLawn*(1.-gd)*(1.-dr), wGD = wLawn*gd, wDry = wLawn*dr;
   // garden dirt with pebbly spots
   float pb = smoothstep(.55,.78, n2*.7 + n3*.4);
@@ -77,6 +81,7 @@ ${NOISE}
   gc = mix(gc, gc * vec3(1.25, .98, .6), uAutumn * wLawn * .7);
   float sn = uSnow * smoothstep(.3, .62, n1*.7 + n3*.45 + uSnow*.45 - wDirtAll*.2);
   gc = mix(gc, vec3(.93, .96, 1.) * (.82 + .18*n3) * dim * 1.25, sn);
+  gc = mix(gc, gc * vec3(.82, 1.12, .62) * 1.05, lush);   // lush lawn under the wild grass: greener
   diffuseColor.rgb *= gc;`)
       .replace('#include <normal_fragment_maps>', /* glsl */`
   { vec3 tn = normalize(vec3(gNor.xy*.9, max(gNor.z, .2)));

@@ -48,13 +48,30 @@ function control(hof: Hof) {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
 }
 
+/** where the ground is pure green lawn: under the wild grass patches (a bit wider than the grass), never on paths */
+function lushMap(hof: Hof) {
+  const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const px = (v: number) => (v / SIZE + .5) * S, m = S / SIZE;
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.globalCompositeOperation = 'lighter';
+  for (const pa of hof.patches) for (const b of pa.blobs) {
+    g.save(); g.translate(px(b.x), px(b.z)); g.rotate(b.a); g.scale(b.rx * m * 1.35, b.rz * m * 1.35);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1), k = Math.min(1, b.d) * (pa.low ? .8 : 1);
+    gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(.55, `rgba(255,255,255,${k * .7})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(-1, -1, 2, 2); g.restore();
+  }
+  g.globalCompositeOperation = 'source-over'; g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round'; g.filter = 'blur(4px)';
+  for (const p of hof.paths) { g.lineWidth = p.w * m; g.beginPath(); p.pts.forEach((q, i) => i ? g.lineTo(px(q.x), px(q.z)) : g.moveTo(px(q.x), px(q.z))); g.stroke(); }
+  g.filter = 'none';
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
+}
+
 export class HofWorld {
   ground: THREE.Mesh;
   nature: THREE.Group | null = null;
   /** resolves once the forest, buildings' surroundings and trees are built (loading screen waits for it) */
   ready: Promise<void>;
   constructor(public cfg: FarmCfg, public hof: Hof, private free: (x: number, z: number, pad: number) => boolean) {
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(control(hof)));
+    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(control(hof), lushMap(hof)));
     this.ground.rotation.x = -Math.PI / 2; this.ground.receiveShadow = true; scene.add(this.ground);
     this.ready = loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
   }
@@ -110,7 +127,7 @@ export class HofWorld {
    *  camera only draws the tiles it sees. */
   private grass(W: THREE.Group, dens: number) {
     const hof = this.hof, rnd = seeded(41), R = (a: number, b: number) => a + rnd() * (b - a);
-    const per = (this.cfg.grass?.perM2 ?? 30) * dens, TILE = 10;
+    const per = (this.cfg.grass?.perM2 ?? 24) * dens, TILE = 10;
     const tiles = new Map<string, { x: number; z: number; w: number; h: number; ry: number; col: THREE.Color }[]>();
     for (const p of hof.patches) {
       const b = hof.patchBox(p), n = Math.round((b.x1 - b.x0) * (b.z1 - b.z0) * per);

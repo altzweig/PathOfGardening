@@ -1,5 +1,6 @@
 // Balancing of the farming game loop (19.11.2026). Read from "Game Design & Balancing/balancing.yaml" at every start.
 import YAML from 'yaml';
+import type { TexCfg } from '../view/textures';
 
 export type ItemId = string;
 export type WeaponId = 'rake' | 'shotgun' | 'crossbow' | 'sling' | 'mace' | 'cannon';
@@ -53,6 +54,8 @@ export interface FarmCfg {
   buildings: Record<BuildingId, BuildingCfg>;
   loading: { minTime: number; tipEvery: number; fade: number; tips: string[] };
   tutorial: { raccoonHp: number; raccoonSteal: number; raccoonSpeed: number; raccoonStart: number; fieldHint: number; texts: Record<string, string> };
+  /** texture concept (20.11.2026): tile sizes, blend sharpness etc. (src/view/textures.ts) */
+  texturen?: TexCfg;
   hof: { clearing: { rx: number; rz: number }; gaps: number[]; gapWidth: number; door: { x: number; z: number }; basket: { x: number; z: number }; bush: { x: number; z: number };
     buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number }[] };
 }

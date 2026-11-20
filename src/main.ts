@@ -3,6 +3,7 @@
 import './style.css';
 import './farm/farm.css';
 import { applyQuality, gfx, isTouch } from './view/core';
+import { updateTexQuality } from './view/textures';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio, stopAllLoops } from './audio';
 import { StartMenu } from './ui/startmenu';
 import { creditsHtml } from './ui/credits';
@@ -46,7 +47,7 @@ class Game {
     setSoundConfig(await loadSounds());
     load.loaders(.2, .9); // models + textures
     const q = new URLSearchParams(location.search).get('q'); if (q && q in QL) { gfx.quality = q as typeof gfx.quality; gfx.auto = false; } // ?q=niedrig (tests, slow devices)
-    applyQuality();
+    applyQuality(); updateTexQuality();
     this.hof = new Hof(this.cfg);
     this.s = loadState(this.cfg) ?? newState(this.cfg);
     this.view = new FarmView(this.cfg, this.hof, this.s);
@@ -83,7 +84,7 @@ class Game {
     click('#ctrlBack', () => this.only(this.backTo));
     click('#credBtn', () => { $('#credView').innerHTML = creditsHtml(); this.only('#credits'); });
     click('#credBack', () => this.only('#options'));
-    for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOpt(); });
+    for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); updateTexQuality(); this.updateOpt(); });
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); if (!audio.on) stopAllLoops(); this.updateOpt(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
     click('#fPause', () => this.togglePause());

@@ -117,3 +117,28 @@ body[data-input=touch] #fBtns{display:flex}
   #bAct{width:88px;height:88px} #bAtk{width:70px;height:70px;margin-bottom:40px}
   .fo .panel{padding:10px;gap:7px} .fo .ttl b{font-size:21px} .row{padding:5px 8px} .hb.big{padding:8px;font-size:17px}
 }
+
+/* ---------- save games (local, named) ---------- */
+.sName{font:700 22px var(--f-display);letter-spacing:.04em;text-align:center;background:#0b1016;color:var(--parch);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 12px;min-width:0;user-select:text;-webkit-user-select:text}
+.sName:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px #e3b96433}
+#saveList{box-sizing:border-box;display:flex;flex-direction:column;gap:8px;width:min(520px,100%);max-height:min(60vh,520px);overflow:auto;padding:2px;touch-action:pan-y}
+.sv{box-sizing:border-box;position:relative;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:12px;background:linear-gradient(180deg,#1d252d,#0f1418);border:1px solid #3a4550;cursor:pointer;color:var(--parch);text-align:left;font:inherit;width:100%}
+.sv:hover,.sv:focus-visible{border-color:var(--gold);outline:none;box-shadow:0 0 18px #e3b96433}
+.sv .sMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.sv b{font:700 19px var(--f-display);color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sv .sInfo{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font:700 15px var(--f-body);color:var(--parch);font-variant-numeric:tabular-nums}
+.sv .sInfo span{display:flex;align-items:center;gap:3px}
+.sv .sInfo svg{width:18px;height:18px}
+.sv .sInfo .lv{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2b3e9c,#0e1640);border:1px solid var(--gold-dim);font:800 12px var(--f-body);color:#dfe6ff}
+.sv .sInfo time{color:var(--mut);font-weight:600}
+.sv .sDel{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #5a2a24;background:#1a0f0e;color:#e07a6a;display:grid;place-items:center;cursor:pointer}
+.sv .sDel svg{width:20px;height:20px}
+.sv.ask{border-color:#c0503f;background:linear-gradient(180deg,#2a1714,#160c0b)}
+.sv.ask .sDel.yes{background:#c0503f;color:#fff;border-color:#ff8a7a}
+.sv .sDel.no{border-color:#3a4550;background:#0b1016;color:var(--parch)}
+#saveIco{position:fixed;z-index:60;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:34px;height:34px;color:var(--gold);opacity:0;pointer-events:none;transition:opacity .4s;filter:drop-shadow(0 2px 4px #000)}
+#saveIco svg{width:100%;height:100%}
+#saveIco.on{opacity:.95;animation:savePulse 1.2s ease-in-out}
+@keyframes savePulse{0%{transform:scale(.7)}30%{transform:scale(1.08)}60%{transform:scale(1)}}
+.btn.done{background:linear-gradient(180deg,#a8e08a,#5c9c3c);color:#0d1a08}
+.hMenu{margin-left:4px}.hMenu svg{width:22px;height:22px}

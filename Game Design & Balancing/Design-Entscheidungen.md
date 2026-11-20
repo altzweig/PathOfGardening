@@ -4,14 +4,18 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop-Skizze). Die Regeln des alten Wellen-Survivals liegen unverändert in `archiv/garden-defence-v1/design/Design-Entscheidungen.md`. Ablauf, Phasen und Annahmen des Umbaus: `Farming-Gameloop.md`.
 
 ## Grundsätze
-- **Keine Erklärtexte im Spiel.** Mechaniken werden nicht erklärt, Spieler entdecken selbst. Ausnahmen: der **Tutorial-Tag** (Tag 1), Texte in `tutorial.texts`, und die **Tipps im Ladebildschirm** (`loading.tips`).
+- **Keine Erklärtexte im Spiel.** Mechaniken werden nicht erklärt, Spieler entdecken selbst. Ausnahmen: der **Tutorial-Tag** (eigener Modus im Hauptmenü), Texte in `tutorial.texts`, und die **Tipps im Ladebildschirm** (`loading.tips`).
 - **Ladebildschirm** beim Start: Vorschaubild der Farm (`public/loading/farm.jpg`), Ladebalken, darunter alle `loading.tipEvery` s ein neuer zufälliger Tipp. Bleibt mindestens `loading.minTime` s stehen, damit man den ersten Tipp lesen kann.
 - **Charakter-Editor:** Würfeln dreht die Figur einmal ganz herum, sie landet immer mit Blick nach vorne.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil.
 - Im Abend- und Morgen-Bildschirm nur Icons, Zahlen und Namen, keine Sätze.
 - PC- und Mobile-Steuerung werden immer parallel gebaut.
 - Arbeitstitel: **PathOfGardening**.
-- Spielstand wird im Browser gespeichert (localStorage), Menü: *Weiterspielen* / *Neues Spiel*. Koop ist vorerst aus (Code im Archiv).
+- **Spielstände (20.11.2026, Basti):** lokal im Browser (localStorage), keine Cloud. Mehrere Spielstände mit Namen. Menü: *Weiterspielen* (neuester Spielstand), *Neues Spiel* (Name vergeben, startet ohne Tutorial mit dem ersten Morgen), *Laden* (Liste mit Name, Tag, Level, Taler, Zeit; Löschen mit Bestätigung), *Tutorial*, *Optionen*. Koop ist vorerst aus (Code im Archiv).
+  - *Speichern* jederzeit im Pausemenü (auch abends und morgens über das Menü-Symbol im Haus). Autospeichern alle `saves.autosave` s, außerdem bei jedem Tageswechsel, beim Verlassen ins Hauptmenü und beim Schließen/Wechseln des Browser-Tabs. Ein kleines Blatt-Symbol unten rechts zeigt das Speichern.
+  - Speichern mitten am Tag merkt sich Uhrzeit, Position, Leben, Tagesbilanz, Stall, Regen und den Tierplan des restlichen Tages; Tiere, die gerade auf dem Hof sind, verschwinden beim Laden, was sie tragen, liegt dann am Boden.
+  - Spielstände liegen nur in diesem Browser auf diesem Gerät. Browserdaten löschen löscht sie. Der alte Einzel-Spielstand wird beim ersten Start einmal als „<Name>s Hof“ übernommen.
+- **Tutorial ist ein eigener Modus** im Hauptmenü: frischer Hof, Tutorial-Tag, danach zurück ins Hauptmenü. Es wird nichts gespeichert.
 
 ## Tagesablauf (Gameloop)
 1. **Morgen:** genau **eine Waffe** und **eine Munitionssorte** wählen (Menge per Regler). Gesperrte Waffen sind sichtbar (Schloss oder ★Level). Ohne Waffe = nur Harke.
@@ -59,7 +63,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 - **Ohnmacht bei 0 HP:** man wacht abends im Haus auf, der Rest des Tages ist verloren, gegossene Felder sind wieder trocken (wachsen nicht). Kein anderer Schaden. Man kann nicht verlieren.
 - Nachtmodus kommt später.
 
-## Tutorial-Tag (Tag 1)
+## Tutorial-Tag (Modus „Tutorial“)
 Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gießen“ → Ladebalken nach 1 s → „In der Zwischenzeit das Feld harken, säen und gießen“ (Unterhinweise Harken / Säen / Gießen) → „Felder jeden Tag einmal gießen. In 3 Tagen ist der Weizen reif.“ → „Die Blaubeeren sind fast reif“ → „Ernten“ → Cutscene: Rascheln + Waschbär-Laut, Kamera zum Waldrand, Waschbär lugt heraus mit Gedankenblase „Hunger!“, schleicht zum Korb am Lager (Kamera folgt), klaut 5 Beeren, rennt über den Hof am Spieler vorbei → „Vertreib den Eindringling!“ → Waschbär startet 3 m neben dem Spieler Richtung Wald (langsamer als der Spieler) → Spiel pausiert, Karte zeigt rechte Maustaste bzw. Angriffs-Knopf „Kämpfen“ → erster Schlag setzt das Spiel fort → Beute zurück oder weg → „Ganz schön viel für den ersten Tag.“ → Spieler geht heim, schwarz, Abend. Keine Schrotflinte im Tutorial. Erster Abend: Startauftrag abgeben, Brunnen reparieren (Startgeld + Auftragsgeld).
 
 ## Texturen und Credits

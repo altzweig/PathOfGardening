@@ -70,6 +70,15 @@ const EDIBLE = (id: ItemId) => !NOT_EDIBLE.has(id);
 /** which targets win when several are in reach: buildings, plots, bush first, then forage, weeds last */
 const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, stall: 0, tree: 1, bramble: 1, forage: 2, weed: 3 };
 
+/** the running day in a save made during the day (animals on the farm are not kept, the plan of the rest of the day is) */
+export interface DaySnap {
+  t: number; player: { x: number; z: number; f: number; hp: number };
+  got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xpGained: number;
+  basketAt: { x: number; z: number } | null; stalls: Record<StallId, Stall>; apples: number[]; brambles: { n: number; t: number }[];
+  plan: { at: number; type: AnimalType; gap: number }[]; half: number; rain: { at: number; dur: number; t: number } | null;
+  loot: { item: ItemId; x: number; z: number; fresh?: boolean }[];
+}
+
 export class DaySim {
   t = 0;
   length: number;
@@ -738,6 +747,29 @@ export class DaySim {
     this.ev.push({ k: 'hurt', x: P.x, z: P.z, dmg, from: from?.id });
   }
   /** ripe plots carry their main yield as "yieldLeft" (animals can eat it) */
+  /** save during the day: what is needed to go on from here */
+  snapshot(): DaySnap {
+    const P = this.player, c = <T>(o: T): T => JSON.parse(JSON.stringify(o));
+    // goods a raccoon is carrying away count as dropped where it is (they lie on the ground after loading)
+    const loot: DaySnap['loot'] = this.loot.map(l => ({ item: l.item, x: l.x, z: l.z, fresh: l.fresh }));
+    for (const a of this.animals) if (!a.gone) for (const [k, n] of Object.entries(a.carry)) for (let i = 0; i < n; i++) loot.push({ item: k, x: a.x, z: a.z });
+    return {
+      t: this.t, player: { x: P.x, z: P.z, f: P.f, hp: P.hp }, got: c(this.got), lost: c(this.lost), driven: this.driven, xpGained: this.xpGained,
+      basketAt: c(this.basketAt), stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
+      plan: c(this.plan), half: this.half, rain: c(this.rain), loot,
+    };
+  }
+  restore(d: DaySnap) {
+    this.t = Math.min(d.t, this.length - 1);
+    Object.assign(this.player, d.player); this.player.hp = Math.max(1, Math.min(this.player.maxHp, d.player.hp));
+    this.got = d.got ?? {}; this.lost = d.lost ?? {}; this.driven = d.driven ?? 0; this.xpGained = d.xpGained ?? 0;
+    this.basketAt = d.basketAt ?? null;
+    for (const id of STALL_IDS) if (d.stalls?.[id]) this.stalls[id] = d.stalls[id];
+    if (d.apples?.length === this.apples.length) this.apples = d.apples;
+    if (d.brambles?.length === this.brambles.length) this.brambles = d.brambles;
+    this.plan = d.plan ?? []; this.half = d.half ?? 0; this.rain = d.rain ?? null;
+    for (const l of d.loot ?? []) this.loot.push({ id: this.nid++, item: l.item, x: l.x, z: l.z, y: 0, vx: 0, vz: 0, vy: 0, t: 99, fresh: l.fresh });
+  }
   initRipe() { for (const p of this.s.plots) if (p.open && p.stage === 'ripe' && p.crop && p.yieldLeft <= 0) p.yieldLeft = ripeCuts(this.cfg, p); }
   /** faint: watered plots are dry again */
   applyFaint() { if (this.cfg.faint.dryFields) for (const p of this.s.plots) p.watered = false; }

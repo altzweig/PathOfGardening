@@ -173,6 +173,10 @@ stalls:                    # Füttern am Stall (Linksklick), nicht einzelne Tier
   chickens: { animals: [chicken, chicken, chicken, chicken], feed: wheat, feedCost: 1, maxFed: 1, collect: eggs, yield: { egg: 1 } }
   # yield = pro Tier bei vollem Futter (weniger Futter = anteilig weniger), feedCost = Ware pro Füttern für den ganzen Stall
 
+saves:                     # Spielstände: lokal im Browser (localStorage), mehrere mit Namen, keine Cloud
+  autosave: 300            # s Autospeichern während des Spiels (Basti: alle 5 Minuten); zusätzlich bei jedem Tageswechsel
+  nameMax: 24              # Zeichen im Spielstandnamen
+
 start:                     # neuer Spielstand
   money: 15
   items: { wheat: 1 }      # 1x Weizen-Saatgut

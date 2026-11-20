@@ -67,11 +67,12 @@
   </div>
   <div id="fBars"><i></i><i></i></div>
   <div id="fFade"></div>
+  <div id="saveIco" aria-hidden="true"></div>
 
   <!-- evening in the house -->
   <div class="fo" id="fHouse" hidden>
     <div class="panel">
-      <header><div class="ttl"><span class="moonI"></span><b>Abend</b><small>Tag <span id="hDay">1</span></small></div><div class="stat" id="hLvl"></div><div class="stat" id="hMoney"></div></header>
+      <header><div class="ttl"><span class="moonI"></span><b>Abend</b><small>Tag <span id="hDay">1</span></small></div><div class="stat" id="hLvl"></div><div class="stat" id="hMoney"></div><button class="ibtn hMenu" aria-label="Pause"></button></header>
       <div id="hTop"></div>
       <nav id="hTabs"></nav>
       <div id="hBody"></div>
@@ -82,7 +83,7 @@
   <!-- morning: one weapon + one ammo -->
   <div class="fo" id="fMorning" hidden>
     <div class="panel">
-      <header><div class="ttl"><b>Morgen</b><small>Tag <span id="mDay">1</span></small></div></header>
+      <header><div class="ttl"><b>Morgen</b><small>Tag <span id="mDay">1</span></small></div><button class="ibtn hMenu" aria-label="Pause"></button></header>
       <div id="mWeapons"></div>
       <div id="mAmmo"></div>
       <footer><button class="hb big go" id="mGo"></button></footer>
@@ -100,20 +101,31 @@
     <section id="mMain">
       <div id="mLogo" class="rise r1"><div class="mKicker"><svg class="mLeaf" viewBox="0 0 120 24" aria-hidden="true"><path d="M2 12h44M74 12h44" stroke="currentColor" stroke-width="1"/><path d="M60 3c-8 2-12 6-12 9 0 3 4 7 12 9 8-2 12-6 12-9 0-3-4-7-12-9z" fill="currentColor" opacity=".9"/><path d="M60 5v14" stroke="#05080b" stroke-width="1"/><circle cx="46" cy="12" r="1.6" fill="currentColor"/><circle cx="74" cy="12" r="1.6" fill="currentColor"/></svg></div><h1>Path<span>Of</span>Gardening</h1><div class="mRule"></div></div>
       <nav id="mNav" class="rise r2">
-        <button class="mi main" id="playBtn">Spielen</button>
+        <button class="mi main" id="playBtn">Weiterspielen</button>
         <button class="mi" id="newBtn">Neues Spiel</button>
+        <button class="mi" id="loadBtn">Laden</button>
+        <button class="mi" id="tutBtn">Tutorial</button>
         <button class="mi" id="optBtn">Optionen</button>
       </nav>
       <div class="err" id="menuErr" hidden></div>
     </section>
   </div>
 
-  <div class="ov" id="confirmNew" hidden>
+  <div class="ov" id="newGame" hidden>
     <h2>Neues Spiel</h2>
-    <div class="row">
-      <button class="btn" id="newYes">Neu starten</button>
-      <button class="btn sec" id="newNo">Zurück</button>
-    </div>
+    <form id="newForm" class="col" autocomplete="off">
+      <input id="newName" class="sName" maxlength="24" spellcheck="false" aria-label="Name">
+      <div class="row">
+        <button class="btn" id="newYes" type="submit">Starten</button>
+        <button class="btn sec" id="newNo" type="button">Zurück</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="ov" id="saves" hidden>
+    <h2>Laden</h2>
+    <div id="saveList"></div>
+    <button class="btn" id="savesBack">Zurück</button>
   </div>
 
   <div class="ov" id="options" hidden>
@@ -143,6 +155,7 @@
     <h2>Pause</h2>
     <div class="col">
       <button class="btn" id="resumeBtn">Weiter</button>
+      <button class="btn sec" id="saveBtn">Speichern</button>
       <button class="btn sec" id="pCtrlBtn">Steuerung</button>
       <button class="btn sec" id="pQualBtn">Grafik</button>
       <button class="btn sec" id="pSndBtn">Ton</button>

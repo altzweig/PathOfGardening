@@ -44,6 +44,7 @@ export interface FarmCfg {
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
   camera: { rotate: number; pitch: [number, number] };
   storage: { capacity: number };
+  saves: { autosave: number; nameMax: number };
   start: { money: number; items: Record<ItemId, number>; plots: number };
   weapons: { rake: { damage: number; range: number; arc: number; cooldown: number; swing: number; knockback: number; stun: number } } & Record<Exclude<WeaponId, 'rake'>, GunCfg>;
   ammo: Record<ItemId, { damage: number; freeze?: number }>;

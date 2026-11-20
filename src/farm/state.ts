@@ -1,4 +1,4 @@
-// Persistent farm state (save game in localStorage): goods, money, XP, plots, bush, buildings, quests, loadout.
+// Persistent farm state (saved by saves.ts): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
 import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, QuestPoolEntry, STALL_IDS, WeaponId, levelFor, plotsAllowed } from './config';
 
@@ -54,26 +54,25 @@ export function newState(cfg: FarmCfg): FarmState {
 }
 export const newPlot = (open: boolean): PlotState => ({ open, stage: open ? 'empty' : 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0, weeds: 0, fert: 0, fertDay: 0 });
 export const freshBush = (): BushState => ({ phase: 'dry', t: 0, berries: 0, small: 0, picked: 0 });
+/** the save of the first farm version (single save, before named saves) */
 export function loadState(cfg: FarmCfg): FarmState | null {
-  try {
-    const raw = localStorage.getItem(KEY); if (!raw) return null;
-    const s = JSON.parse(raw) as FarmState; if (s.v !== 1) return null;
-    // new plots / buildings from a changed layout
-    while (s.plots.length < cfg.hof.plots.length) s.plots.push(newPlot(false));
-    s.plots.length = cfg.hof.plots.length;
-    for (const p of s.plots) { p.weeds ??= 0; p.fert ??= 0; p.fertDay ??= 0; }
-    for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) s.buildings[id] ??= { built: !!cfg.buildings[id]?.built };
-    for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
-    s.levelUps ??= [];
-    s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
-    if (s.wild.v !== WILD_V) s.wild = { weeds: [], forage: [], seq: s.wild.seq, init: false, v: WILD_V }; // 20.11.2026: weeds + forage sit by theme now
-    if (s.bush.small === undefined) s.bush = freshBush();
-    return s;
-  } catch { return null; }
+  try { const raw = localStorage.getItem(KEY); return raw ? normalizeState(cfg, JSON.parse(raw)) : null; } catch { return null; }
 }
-export function saveState(s: FarmState) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode: no save */ } }
-export function hasSave() { try { return !!localStorage.getItem(KEY); } catch { return false; } }
-export function clearSave() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } }
+/** fills in what older saves do not have yet (changed layout, new fields) */
+export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): FarmState | null {
+  if (!s || s.v !== 1) return null;
+  // new plots / buildings from a changed layout
+  while (s.plots.length < cfg.hof.plots.length) s.plots.push(newPlot(false));
+  s.plots.length = cfg.hof.plots.length;
+  for (const p of s.plots) { p.weeds ??= 0; p.fert ??= 0; p.fertDay ??= 0; }
+  for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) s.buildings[id] ??= { built: !!cfg.buildings[id]?.built };
+  for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
+  s.levelUps ??= [];
+  s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
+  if (s.wild.v !== WILD_V) s.wild = { weeds: [], forage: [], seq: s.wild.seq, init: false, v: WILD_V }; // 20.11.2026: weeds + forage sit by theme now
+  if (s.bush.small === undefined) s.bush = freshBush();
+  return s;
+}
 
 // ---------------- goods + money ----------------
 export const count = (s: FarmState, id: ItemId) => s.items[id] ?? 0;

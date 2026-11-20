@@ -37,8 +37,27 @@ export function pushOut(o: Obstacle, x: number, z: number, r: number): { x: numb
 /** small seeded random generator: the same layout on every start */
 export function seeded(seed: number) { let t = seed >>> 0; return () => { t += 0x6d2b79f5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
 
+/** one soft blob of a grass patch (ellipse rotated by a, peak density d) */
+export interface Blob { x: number; z: number; rx: number; rz: number; a: number; d: number }
+/** a grass patch: overlapping blobs, dense inside, thinning out; low = only short grass (under fruit trees);
+ *  wet = damp spot (behind the well), wild garlic likes it there */
+export interface Patch { blobs: Blob[]; low?: boolean; wet?: boolean; tag: string }
+export interface PathLine { pts: { x: number; z: number }[]; w: number }
+
+const sstep = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** cheap smooth value noise (-1..1) for ragged patch borders */
+function noise(x: number, z: number) { return Math.sin(x * 1.7 + Math.sin(z * 1.3) * 1.4) * .5 + Math.sin(z * 2.3 - x * .9 + 1.7) * .3 + Math.sin((x + z) * 3.9) * .2; }
+function segDist(px: number, pz: number, a: { x: number; z: number }, b: { x: number; z: number }) {
+  const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz, t = l2 ? Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / l2)) : 0;
+  return Math.hypot(px - a.x - dx * t, pz - a.z - dz * t);
+}
+
 export class Hof {
   obstacles: Obstacle[] = [];
+  /** trodden paths over the yard (ground texture + no grass here) */
+  paths: PathLine[] = [];
+  /** grass patches where nobody walks or mows: behind the well, behind buildings, along closed fences, at the forest edge, under fruit trees */
+  patches: Patch[] = [];
   gaps: { a: number; x: number; z: number }[] = [];
   /** wild bramble bushes along the forest edge */
   brambles: { x: number; z: number }[] = [];
@@ -56,7 +75,108 @@ export class Hof {
       if (this.inGap(e.x, e.z, 2) || !this.freeSpot(e.x, e.z, 1)) continue;
       this.brambles.push(e);
     }
-    for (const b of this.brambles) this.obstacles.push({ kind: 'circle', x: b.x, z: b.z, r: .6, id: 'bramble' });
+    for (const b of this.brambles) this.obstacles.push({ kind: 'circle', x: b.x, z: b.z, r: .7, id: 'bramble' });
+    this.buildPaths();
+    this.buildPatches();
+  }
+  private buildPaths() {
+    const H = this.cfg.hof, B = H.buildings, P = (pts: { x: number; z: number }[], w: number) => this.paths.push({ pts, w });
+    const yard = { x: 3, z: -5.6 };
+    P([{ x: -6, z: -6.2 }, yard, { x: 11, z: -5.4 }], 3.2);                       // yard in front of the house
+    P([yard, { x: H.door.x, z: H.door.z }], 2);
+    for (const gp of this.gaps) { const e = this.edge(gp.a, 1.15); P([yard, { x: (yard.x + e.x) / 2 + Math.sin(gp.a) * 1.5, z: (yard.z + e.z) / 2 }, e], 1.6); }
+    P([yard, { x: B.mill.x, z: B.mill.z + 2 }], 1.4); P([yard, { x: B.bakery.x + 1, z: B.bakery.z + 2 }], 1.4);
+    P([{ x: 0, z: 6.5 }, { x: B.silo.x, z: B.silo.z - 1.5 }, { x: B.chickens.x, z: B.chickens.z - 2 }], 1.4);
+    P([{ x: 0, z: 6.5 }, { x: B.cows.x, z: B.cows.z - 2 }, { x: B.dairy.x + 1, z: B.dairy.z - 1.5 }], 1.4);
+    P([{ x: -7.5, z: -5 }, { x: B.carpentry.x + 1.5, z: B.carpentry.z + 1.5 }], 1.4);
+    P([{ x: -7.5, z: 4 }, { x: B.workshop.x + 1.5, z: B.workshop.z - 1.2 }], 1.4);
+    P([{ x: 8, z: -2 }, { x: B.juicer.x - 1.5, z: B.juicer.z }], 1.4);
+  }
+  /** distance to the edge of the nearest path (negative = on it) */
+  pathDist(x: number, z: number) {
+    let d = 1e9;
+    for (const p of this.paths) for (let i = 1; i < p.pts.length; i++) d = Math.min(d, segDist(x, z, p.pts[i - 1], p.pts[i]) - p.w / 2);
+    return d;
+  }
+  private buildPatches() {
+    const rnd = seeded(23), R = (a: number, b: number) => a + rnd() * (b - a), H = this.cfg.hof, G = { well: 1, back: 1, edge: 40, ...this.cfg.grass };
+    /** a ragged patch along a line: centre, length, width, direction; n blobs of different size, the middle ones densest */
+    const strip = (tag: string, cx: number, cz: number, len: number, wid: number, ang: number, n: number, o: { low?: boolean; wet?: boolean; d?: number } = {}) => {
+      const blobs: Blob[] = [], c = Math.cos(ang), s = Math.sin(ang);
+      for (let i = 0; i < n; i++) {
+        const t = n === 1 ? 0 : (i / (n - 1) - .5) * len * R(.75, 1.05) + R(-.3, .3) * len / n, q = R(-.35, .35) * wid, mid = 1 - Math.abs(t) / (len / 2 + .01);
+        const r = (wid / 2) * R(.7, 1.25) * (.75 + .5 * mid);
+        blobs.push({ x: cx + c * t - s * q, z: cz + s * t + c * q, rx: r * R(1, 1.8), rz: r * R(.7, 1.1), a: ang + R(-.5, .5), d: (o.d ?? 1) * R(.75, 1) * (.7 + .3 * mid) });
+      }
+      this.patches.push({ blobs, tag, low: o.low, wet: o.wet });
+    };
+    // 1) behind the well (wet, lots): on the side away from the yard
+    const W = H.buildings.well, yard = { x: 3, z: -5.6 }, wa = Math.atan2(W.z - yard.z, W.x - yard.x) + .9;
+    strip('well', W.x + Math.cos(wa) * 2.4, W.z + Math.sin(wa) * 2.4, 6 * G.well, 3.6 * G.well, wa + Math.PI / 2, 7, { wet: true, d: 1.1 });
+    strip('well', W.x + Math.cos(wa + .9) * 2.2, W.z + Math.sin(wa + .9) * 2.2, 3 * G.well, 2 * G.well, wa, 3, { wet: true });
+    // 2) behind buildings (local -z = back wall), along the closed sides of the pens (gate at the front)
+    for (const [id, r] of Object.entries(H.buildings)) {
+      if (r.r !== undefined || id === 'well') continue;
+      const o = obstacleOf(r) as Obb, w = r.w ?? 3, d = r.d ?? 3;
+      const at = (lx: number, lz: number) => toWorld(o, lx, lz), along = Math.atan2(-o.s, o.c); // world direction of local +x
+      if (r.fence) {
+        const b = at(R(-.4, .4), -d / 2 - .45); strip('fence', b.x, b.z, w * R(.8, 1.05), 1.2, along, 4, { d: .95 });
+        for (const sx of [-1, 1]) if (rnd() < .85) { const p = at(sx * (w / 2 + .45), R(-.6, -.1)); strip('fence', p.x, p.z, d * R(.6, .95), 1.1, along + Math.PI / 2, 3, { d: .85 }); }
+      } else {
+        const b = at(R(-.3, .3) * w, -d / 2 - .7); strip('back', b.x, b.z, w * R(.85, 1.2), 1.8 * G.back, along, rnd() < .5 ? 4 : 3);
+        if (rnd() < .6) { const sx = rnd() < .5 ? -1 : 1, p = at(sx * (w / 2 + .5), -d / 2 + R(0, .5)); strip('back', p.x, p.z, 1.6, 1.1, along + Math.PI / 2, 2, { d: .8 }); }
+      }
+    }
+    // round buildings (silo): behind, away from the middle of the farm
+    { const S = H.buildings.silo, a = Math.atan2(S.z, S.x); strip('back', S.x + Math.cos(a) * ((S.r ?? 1.8) + .7), S.z + Math.sin(a) * ((S.r ?? 1.8) + .7), 3.5, 1.6, a + Math.PI / 2, 3); }
+    // 3) forest edge, behind the bushes and between the trees: patches of every size, never in a gap
+    const nEdge = Math.round(G.edge);
+    for (let i = 0, k = 0; i < nEdge && k < nEdge * 6; k++) {
+      const a = (i + R(-.35, .35)) / nEdge * Math.PI * 2, e = this.edge(a, R(.9, 1.0));
+      if (this.inGap(e.x, e.z, 1.5)) { i++; continue; }
+      const big = rnd(); strip('edge', e.x, e.z, big < .3 ? R(1.5, 2.5) : big < .8 ? R(3, 5) : R(5.5, 8), big < .3 ? R(1, 1.6) : R(1.6, 2.6), a + Math.PI / 2, big < .3 ? 2 : big < .8 ? 4 : 6);
+      i++;
+    }
+    // 4) around the fruit trees: low grass only
+    for (const t of H.trees) strip('tree', t.x + R(-.3, .3), t.z + R(-.3, .3), R(1.8, 2.6), R(1.6, 2.2), R(0, Math.PI), 3, { low: true, d: .8 });
+  }
+  /** where grass may grow at all: not on paths, plots, buildings, the door, in the gaps or deep in the forest (0..1) */
+  grassMask(x: number, z: number) {
+    const pd = this.pathDist(x, z); if (pd < 0) return 0;
+    let m = sstep(0, .9, pd);
+    const h = this.cfg.plots.size / 2;
+    for (const p of this.cfg.hof.plots) { const d = Math.max(Math.abs(x - p.x), Math.abs(z - p.z)) - h; if (d < .15) return 0; m *= sstep(.15, .9, d); }
+    for (const o of this.obstacles) {
+      if (o.id === 'bramble') continue;
+      if (o.kind === 'circle') { if (Math.hypot(x - o.x, z - o.z) < o.r + (o.id === 'tree' ? -.2 : .1)) return 0; }
+      else { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + .05 && Math.abs(lz) < o.hd + .05) return 0; }
+    }
+    const door = this.cfg.hof.door; m *= sstep(1, 2, Math.hypot(x - door.x, z - door.z));
+    if (this.ellipse(x, z) > .75 && this.inGap(x, z, .3)) return 0;   // the animals' corridors at the edge stay open
+    return m * (1 - sstep(1, 1.12, this.ellipse(x, z)));
+  }
+  /** density of one patch at a point (0..1, without the mask) */
+  patchDensity(p: Patch, x: number, z: number) {
+    let v = 0; const n = noise(x, z) * .32;
+    for (const b of p.blobs) {
+      const dx = x - b.x, dz = z - b.z, c = Math.cos(b.a), s = Math.sin(b.a), lx = dx * c + dz * s, lz = -dx * s + dz * c;
+      const e = Math.hypot(lx / b.rx, lz / b.rz) + n; if (e >= 1) continue;
+      const k = sstep(0, 1, 1 - e) * b.d; v = 1 - (1 - v) * (1 - Math.min(1, k));
+    }
+    return v;
+  }
+  /** grass density at a point (all patches + mask) */
+  grass(x: number, z: number, only?: (p: Patch) => boolean) {
+    let v = 0;
+    for (const p of this.patches) { if (only && !only(p)) continue; const b = this.patchBox(p); if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue; v = 1 - (1 - v) * (1 - this.patchDensity(p, x, z)); }
+    return v ? v * this.grassMask(x, z) : 0;
+  }
+  private boxes = new Map<Patch, { x0: number; x1: number; z0: number; z1: number }>();
+  /** bounding box of a patch (with margin for the ragged border) */
+  patchBox(p: Patch) {
+    let b = this.boxes.get(p);
+    if (!b) { b = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9 }; for (const q of p.blobs) { const r = Math.max(q.rx, q.rz) * 1.35; b.x0 = Math.min(b.x0, q.x - r); b.x1 = Math.max(b.x1, q.x + r); b.z0 = Math.min(b.z0, q.z - r); b.z1 = Math.max(b.z1, q.z + r); } this.boxes.set(p, b); }
+    return b;
   }
   /** no building, tree, bush or plot here (pad = extra distance) */
   freeSpot(x: number, z: number, pad = 0) {

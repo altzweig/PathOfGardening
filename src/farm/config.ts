@@ -35,8 +35,10 @@ export interface FarmCfg {
   bush: { ripen: number; bigPicks: number; bigBerries: [number, number]; smallPicks: number; smallBerries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, { seed: ItemId; days: number; yield: Record<ItemId, number> }>;
   plots: { size: number; cuts: number; fertBonus: number; weeds: { max: number; every: [number, number]; blockAt: number }; byLevel: number[]; cost: number };
-  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number> };
+  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
     brambles: { count: number; berries: number; regrow: number; pick: [number, number] }; apples: { perTree: number; shake: [number, number] }; barrel: number };
+  /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */
+  grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
   camera: { rotate: number; pitch: [number, number] };
   storage: { capacity: number };

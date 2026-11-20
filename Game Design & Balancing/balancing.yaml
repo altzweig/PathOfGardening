@@ -154,16 +154,28 @@ storage:
   capacity: 999            # pro Ware (Lager-Ausbau kommt später)
 
 wild:                      # was auf dem Hof von selbst wächst (nie im Sichtbereich des Spielers)
-  weeds: { start: 80, max: 200, every: [6, 12] }      # Unkraut auf dem Hof
-  forage:                  # Sammeln am Hofrand (Anteil der Ellipse: band), am Anfang liegt viel herum
-    start: 40
-    max: 70
+  weeds: { start: 40, max: 100, every: [6, 12] }      # Unkraut auf dem Hof, wächst rund um die dichten Grasflächen (halb so viel wie vorher)
+  forage:                  # Sammeln, am Anfang liegt einiges herum (halb so viel wie vorher)
+    start: 20
+    max: 35
     every: [6, 12]         # s bis das nächste Ding nachwächst
-    band: [0.8, 0.97]
+    band: [0.84, 0.96]     # Waldrand-Streifen (Anteil der Ellipse)
     items: { baerlauch: 3, sorrel: 3, mushroom: 2, wood: 3, stone: 2 }   # Gewichte
-  brambles: { count: 10, berries: 8, regrow: 15, pick: [1, 2] }   # wilde Brombeeren: halb so viel pro Zeit wie der Blaubeerbusch
+    where:                 # wo was wächst: edge = Waldrand, wet = feuchte Wiese hinter dem Brunnen, grass = Rand der dichten Grasflächen
+      wood: [edge]
+      mushroom: [edge]
+      baerlauch: [edge, wet]
+      sorrel: [grass]
+      stone: [edge]
+  brambles: { count: 5, berries: 8, regrow: 15, pick: [1, 2] }   # wilde Brombeeren neben den Waldrand-Büschen: halb so viel pro Zeit wie der Blaubeerbusch
   apples: { perTree: 6, shake: [2, 3] }   # Bäume auf dem Hof: reife Äpfel pro Tag, pro Schütteln fallen so viele herunter
   barrel: 10               # Fass am Brunnen fasst so viel Wasser
+
+grass:                     # wilde Grasgruppen: wachsen nur, wo keiner läuft oder mäht (hinter dem Brunnen, Gebäuderückseiten, geschlossene Zaunseiten, Waldrand, unter Obstbäumen nur niedrig)
+  perM2: 20                # Gras-Büschel pro m² bei voller Dichte (Grafik mittel 55 %, niedrig 30 %)
+  well: 1                  # Größe der feuchten Wiese hinter dem Brunnen
+  back: 1                  # Breite der Streifen an Gebäuderückseiten
+  edge: 40                 # Anzahl Gruppen am Waldrand
 
 stalls:                    # Füttern am Stall (Linksklick), nicht einzelne Tiere. Morgens (1. Tageshälfte) und abends (2.) je einmal Ertrag.
   strawBonus: 0.3          # frisches Stroh (1x am Tag): 30 % mehr Ertrag

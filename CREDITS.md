@@ -4,14 +4,31 @@ Alle Credits stehen auch im Spiel unter *Optionen → Credits* (`src/ui/credits.
 
 ## Texturen
 
+### FreeStylized (Texturkonzept 20.11.2026, Hof)
+
+Von **FreeStylized.com** – https://freestylized.com/
+Lizenz: Royalty Free, frei für kommerzielle und nicht-kommerzielle Nutzung, Credit erbeten (laut `license.txt` im Paket).
+Credit-Zeile: „Textures: FreeStylized.com“.
+Mit `tools/build-textures.mjs` nach KTX2 (Basis Universal ETC1S, mit Mipmaps) konvertiert, nur Farbe und Normal-Map (GL). Liegen in `public/textures/terrain/` und `public/textures/props/`.
+
+| Textur | Datei im Spiel | Verwendet für |
+|---|---|---|
+| grass_01, moss_ground_02, ground_02, ground_06, grass_04, cobblestone_01 | `terrain/terrain_c_1024.ktx2`, `terrain_c_512.ktx2`, `terrain_n_1024.ktx2` (Array-Texturen, ein Layer je Textur) | Boden: Gras, Waldboden/feuchte Stellen, Feldboden, Trampelpfade, trockene Flecken, Pflaster auf dem Hofplatz |
+| wood_planks_20, wood_planks_13 | `props/wood_planks_20_*.ktx2`, `props/wood_planks_13_*.ktx2` | Holzwände, Tore; Schuppen und Zäune |
+| hay_roof_01 | `props/hay_roof_01_*.ktx2` | alle Dächer |
+| stone_bricks_wall_03 | `props/stone_bricks_wall_03_*.ktx2` | Sockel, Brunnen, Kamine, Fundamente |
+| cliff_rocks_02 | `props/cliff_rocks_02_*.ktx2` | große Felsen im Wald |
+
+### juliovii
+
 Von **juliovii** – https://juliovii.itch.io/
 Lizenz: [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) (laut den itch.io-Seiten).
-Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu als JPEG komprimiert, liegen in `public/textures/`.
+Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu als JPEG komprimiert, liegen in `public/textures/`. Seit dem Texturkonzept nur noch im VFX-Labor (`vfx.html`) und für die Beete des alten Spiels.
 
 | Asset-Paket | Link | Verwendete Texturen | Datei im Spiel | Verwendet für |
 |---|---|---|---|---|
-| FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03, GroundDirt_06 | `grass`, `grassdirt`, `dry` | Rasen rund um den Garten |
-| | | GroundDirt_05, GroundDirt_01 | `dirt`, `pebble` | Gartenboden in der Mitte |
+| FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03 | `grass`, `grassdirt` | Boden im VFX-Labor |
+| | | GroundDirt_05 | `dirt` | Boden im VFX-Labor |
 | | | GroundMud_01 | `mud` | Beete (Felder) |
 | FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | (früher Steine am Gartenrand, derzeit nicht verwendet) |
 | FTP Stylized Mix Stones 01 | https://juliovii.itch.io/ftp-stylized-mix-stones-01 | Stylized_LavaRock_02 (+ Emissive) | `lava` | Chili-Beet |

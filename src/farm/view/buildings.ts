@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { BuildingId, RectCfg } from '../config';
+import { propMaterial } from '../../view/textures';
 
 // ---------------- painted textures ----------------
 let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const R = (a: number, b: number) => a + rnd() * (b - a);
@@ -12,34 +13,9 @@ function canvasTex(W: number, H: number, paint: (g: CanvasRenderingContext2D) =>
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 const TEX = {
-  tiles: () => canvasTex(256, 256, g => { // red clay roof tiles in staggered rows
-    g.fillStyle = '#7a3524'; g.fillRect(0, 0, 256, 256);
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 9; c++) {
-      const x = c * 32 - (r % 2) * 16, y = r * 32, v = R(-18, 18);
-      g.fillStyle = `rgb(${150 + v},${68 + v * .5},${46 + v * .4})`; g.beginPath(); g.moveTo(x + 1, y); g.lineTo(x + 31, y); g.lineTo(x + 31, y + 22); g.quadraticCurveTo(x + 16, y + 34, x + 1, y + 22); g.closePath(); g.fill();
-      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 1, y + 26, 30, 5);
-      g.fillStyle = 'rgba(255,220,180,.12)'; g.fillRect(x + 4, y + 2, 10, 14);
-    }
-  }),
-  shingles: () => canvasTex(256, 256, g => { // grey-brown wooden shingles
-    g.fillStyle = '#4a3a2c'; g.fillRect(0, 0, 256, 256);
-    for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) { const x = c * 26 - (r % 2) * 13, y = r * 26, v = R(-14, 14); g.fillStyle = `rgb(${96 + v},${80 + v},${64 + v})`; g.fillRect(x + 1, y, 24, 22); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x + 1, y + 20, 24, 4); }
-  }),
-  planks: (base: [number, number, number]) => canvasTex(256, 256, g => { // vertical boards
-    g.fillStyle = `rgb(${base})`; g.fillRect(0, 0, 256, 256);
-    for (let x = 0; x < 256; x += 32) {
-      const v = R(-16, 16); g.fillStyle = `rgb(${base[0] + v},${base[1] + v},${base[2] + v})`; g.fillRect(x + 1, 0, 30, 256);
-      for (let i = 0; i < 18; i++) { g.strokeStyle = `rgba(0,0,0,${R(.05, .18)})`; g.lineWidth = R(.5, 1.5); const xx = x + R(3, 29); g.beginPath(); g.moveTo(xx, 0); g.lineTo(xx + R(-3, 3), 256); g.stroke(); }
-      g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x, 0, 2, 256);
-    }
-  }),
   plaster: () => canvasTex(256, 256, g => {
     g.fillStyle = '#e6dcc6'; g.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 90; i++) { const x = R(0, 256), y = R(0, 256), r = R(10, 40), grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, rnd() < .5 ? 'rgba(160,140,110,.18)' : 'rgba(255,250,235,.25)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
-  }),
-  stone: () => canvasTex(256, 256, g => { // fieldstone wall
-    g.fillStyle = '#4c4a44'; g.fillRect(0, 0, 256, 256);
-    for (let r = 0; r < 8; r++) { let x = -R(0, 30); while (x < 256) { const w = R(28, 52), v = R(-20, 20); g.fillStyle = `rgb(${128 + v},${124 + v},${114 + v})`; g.beginPath(); g.roundRect(x + 2, r * 32 + 2, w - 4, 28, 9); g.fill(); g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(x + 6, r * 32 + 5, w * .4, 6); x += w; } }
   }),
 };
 const MAT: Record<string, THREE.Material> = {};
@@ -49,12 +25,14 @@ function mat(key: string): THREE.MeshStandardMaterial {
   const m = ({
     plaster: () => S({ map: TEX.plaster(), color: 0xffffff }),
     timber: () => S({ color: 0x3e2a1c, roughness: .8 }),
-    wood: () => S({ map: TEX.planks([126, 92, 60]), color: 0xffffff }),
-    woodGrey: () => S({ map: TEX.planks([120, 108, 92]), color: 0xffffff }),
-    woodRed: () => S({ map: TEX.planks([140, 52, 40]), color: 0xffffff }),
-    tiles: () => S({ map: TEX.tiles(), color: 0xffffff, roughness: .75 }),
-    shingles: () => S({ map: TEX.shingles(), color: 0xffffff }),
-    stone: () => S({ map: TEX.stone(), color: 0xffffff, roughness: .95 }),
+    // texture concept 20.11.2026 (FreeStylized, KTX2): planks, thatch and the stone base are tri-planar PBR materials
+    wood: () => propMaterial('wood_planks_20', 'holz'),
+    woodGrey: () => propMaterial('wood_planks_13', 'holzSchuppen', { color: 0xd8d2c8 }),
+    woodRed: () => propMaterial('wood_planks_20', 'holz', { color: 0xe07a68 }),
+    fence: () => propMaterial('wood_planks_13', 'holzSchuppen'),
+    tiles: () => propMaterial('hay_roof_01', 'dach', { roughness: .95 }),
+    shingles: () => propMaterial('hay_roof_01', 'dach', { color: 0xd0c4b0, roughness: .95 }),
+    stone: () => propMaterial('stone_bricks_wall_03', 'stein', { roughness: .95 }),
     window: () => S({ color: 0x2a3440, roughness: .2, metalness: .1, emissive: 0xffb860, emissiveIntensity: 0 }),
     frame: () => S({ color: 0xece4d0 }),
     door: () => S({ color: 0x5a2e1c }),
@@ -169,8 +147,8 @@ function silo(g: THREE.Group, r: number) {
   const cap = new THREE.Mesh(new THREE.ConeGeometry(r + .15, 1.1, 28), mat('iron')); cap.position.y = H + .95; cap.castShadow = true; g.add(cap);
 }
 function enclosure(g: THREE.Group, w: number, d: number, animal: 'chickens' | 'cows') {
-  const post = (x: number, z: number) => box(g, mat('wood'), .1, .9, .1, x, .45, z);
-  const rail = (x0: number, z0: number, x1: number, z1: number) => { for (const y of [.35, .75]) { const l = Math.hypot(x1 - x0, z1 - z0), b = box(g, mat('wood'), l, .06, .05, (x0 + x1) / 2, y, (z0 + z1) / 2); b.rotation.y = -Math.atan2(z1 - z0, x1 - x0); } };
+  const post = (x: number, z: number) => box(g, mat('fence'), .1, .9, .1, x, .45, z);
+  const rail = (x0: number, z0: number, x1: number, z1: number) => { for (const y of [.35, .75]) { const l = Math.hypot(x1 - x0, z1 - z0), b = box(g, mat('fence'), l, .06, .05, (x0 + x1) / 2, y, (z0 + z1) / 2); b.rotation.y = -Math.atan2(z1 - z0, x1 - x0); } };
   const W = w / 2, D = d / 2, pts: [number, number][] = [[-W, -D], [W, -D], [W, D], [-W, D]];
   for (let i = 0; i < 4; i++) { const [x0, z0] = pts[i], [x1, z1] = pts[(i + 1) % 4], n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 1.2); for (let k = 0; k < n; k++) post(x0 + (x1 - x0) * k / n, z0 + (z1 - z0) * k / n); if (i !== 2) rail(x0, z0, x1, z1); else { rail(x0, z0, x0 + (x1 - x0) * .4, z0); rail(x0 + (x1 - x0) * .6, z0, x1, z1); } }
   const s = new THREE.Group(); s.position.set(-W + 1.1, 0, -D + .9); g.add(s);

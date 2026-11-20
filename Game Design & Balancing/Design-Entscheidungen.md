@@ -69,6 +69,16 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 ## Texturen und Credits
 - Texturen immer natürlich gemischt, kein sichtbares Tiling. Fremd-Assets mit Credits (Name, Link, Lizenz) in `src/ui/credits.ts`.
 
+## Texturkonzept (20.11.2026)
+- Ein Stil: nur FreeStylized-Texturen (kommerziell frei, Credit „Textures: FreeStylized.com“). Nicht verwendet: GroundDirt (zu realistisch), Handpainted-Paket (anderer, gelbstichiger Stil), Schnee, Beton, Metall, Fantasy. Quelle: `Blender/Texturen/PBR_Material/Sammlung_Stylized-Mix`, Konvertierung mit `tools/build-textures.mjs`.
+- Gelände: grass_01 als Basis, moss_ground_02 für Waldboden und feuchte Stellen, ground_02 um die Felder, ground_06 für Trampelpfade, grass_04 als trockene Flecken (per Rauschen, nicht gemalt), cobblestone_01 als Pflaster auf dem Hofplatz vor dem Haus und zur Haustür.
+- Gebäude: wood_planks_20 (Holzwände, Pfosten, Zaun), wood_planks_13 (Schuppen, rote Tore, getönt), hay_roof_01 (alle Dächer), stone_bricks_wall_03 (Sockel, Brunnen, Kamine). Felsen im Wald: cliff_rocks_02. Putz und Fachwerk bleiben gemalt.
+- Splatmap (RGBA, ca. 33 cm pro Texel): r Moos, g Feld, b Pfad, a Pflaster, Gras ist die Basis. Wird beim Start aus dem Hof-Layout gebaut; der Welt-Editor kann sie über `HofWorld.splat` bemalen (`paint`, `fill`, `save`/`load`, siehe `src/farm/view/splat.ts`). Unter den wilden Grasgruppen bleibt der Boden reines grass_01.
+- Kein sichtbares Tiling: jeder Layer wird zweimal gelesen, mit pro Rauschzelle zufällig gedrehter und verschobener UV, weich überblendet. Dazu großflächige Farb- und Helligkeitsschwankung per Low-Frequency-Noise und ausgefranste Layer-Ränder.
+- Performance: Texturen als KTX2 (Basis Universal ETC1S, mit Mipmaps). Gelände 1024 px, Gebäude und Felsen 512 px. Pro Material nur Farbe und Normal-Map, Rauheit als Konstante, kein Height, kein AO. Alle Gelände-Layer liegen in einer Array-Textur (Farbe) und einer (Normalen): das Gelände ist ein Material und ein Draw Call. Grafik „niedrig“ und Handy: Gelände 512 px ohne Normal-Maps.
+- Gebäude sind tri-planar im Objektraum texturiert (Meter-Maßstab, unabhängig von der Kistengröße; Dachstroh läuft auf beiden Dachseiten nach unten).
+- Werte (Kachelgrößen, Mischschärfe, Ausfransen, Farbvariation, Normalstärke): `texturen` in balancing.yaml.
+
 ## Gebäude und Tagesaktionen (19.11.2026, Bastis Aktionsliste)
 - Jede Aktion (außer Kämpfen) geht nur, wenn das Gebäude gebaut ist. Steht man im Radius, erscheint "[Aktionsname]" über dem Ziel (PC mit Linksklick-Symbol, rot mit fehlenden Waren, wenn es gerade nicht geht). Linksklick (Handy: Aktionsknopf) startet sie, ein kleiner Zeitbalken (1–4 s) füllt sich. Zeiten und Namen: `actions` in balancing.yaml.
 - Wiederholbare Aktionen laufen von selbst weiter, solange die Bedingung gilt: Busch ernten bis leer, Brombeeren pflücken, Feld ernten, Wasser schöpfen bis das Fass voll ist.

@@ -7,6 +7,11 @@ const CC0 = { name: 'CC0', url: 'https://creativecommons.org/publicdomain/zero/1
 
 export const CREDITS: Group[] = [
   {
+    title: 'Texturen', author: { name: 'FreeStylized.com', url: 'https://freestylized.com/' },
+    items: ['Grass 01', 'Grass 04', 'Moss Ground 02', 'Ground 02', 'Ground 06', 'Cobblestone 01', 'Cliff Rocks 02', 'Wood Planks 13', 'Wood Planks 20', 'Hay Roof 01', 'Stone Bricks Wall 03']
+      .map(name => ({ name, url: 'https://freestylized.com/' })),
+  },
+  {
     title: 'Texturen', author: { name: 'juliovii', url: 'https://juliovii.itch.io/' }, license: CC_BY,
     items: [
       { name: 'FTP Dirt Ground', url: 'https://juliovii.itch.io/ftp-dirt-ground' },

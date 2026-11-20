@@ -177,6 +177,17 @@ grass:                     # wilde Grasgruppen: wachsen nur, wo keiner läuft od
   back: 1                  # Breite der Streifen an Gebäuderückseiten
   edge: 40                 # Anzahl Gruppen am Waldrand
 
+texturen:                  # Texturkonzept (20.11.2026): FreeStylized, KTX2. Kachel = Meter pro Texturwiederholung.
+  gelaende:                # Boden: Splatmap (r Moos, g Feld, b Pfad, a Pflaster) über Gras, Trockengras per Rauschen
+    kachel: { gras: 3.5, moos: 3, feld: 3, pfad: 2.6, trocken: 3.8, pflaster: 2.2 }
+    mischschaerfe: 2.5     # Übergänge zwischen den Layern: 1 = sehr weich .. 6 = hart
+    rauschen: 0.55         # wie stark die Ränder der Splatmap ausfransen (0 = glatt)
+    farbvariation: 0.3     # großflächige Hell/Dunkel- und Farbschwankung (0 = aus)
+    normalstaerke: 0.9     # Relief der Normal-Maps (auf Grafik niedrig und am Handy aus)
+  gebaeude:                # Gebäude und Felsen: tri-planar, Kachel = Meter pro Wiederholung
+    kachel: { holz: 2, holzSchuppen: 1.6, dach: 2.2, stein: 1.8 }
+    normalstaerke: 1
+
 stalls:                    # Füttern am Stall (Linksklick), nicht einzelne Tiere. Morgens (1. Tageshälfte) und abends (2.) je einmal Ertrag.
   strawBonus: 0.3          # frisches Stroh (1x am Tag): 30 % mehr Ertrag
   strawCost: 1             # Stroh pro Auslegen

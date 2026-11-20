@@ -1,10 +1,11 @@
-// The farm's ground and surroundings: lawn with trodden yard paths (juliovii textures, no visible tiling), a forest ring
+// The farm's ground and surroundings: splatmap ground (FreeStylized texture concept, no visible tiling), a forest ring
 // around the clearing with five gaps (Quaternius Nature MegaKit), single trees on the farm and wild grass patches where
 // nobody walks or mows (behind the well, behind buildings, along closed fences, at the forest edge, low under fruit trees).
 // Also provides the hooks the day-night module drives (fog look, torch level, eyes: not used on the farm by day).
 import * as THREE from 'three';
 import { gfx, rand, scene } from '../../view/core';
 import { groundMaterial } from '../../view/textures';
+import { SplatMap } from './splat';
 import { Inst, instance, loadNature, plantMaterial } from '../../view/nature';
 import type { FarmCfg } from '../config';
 import type { Hof } from '../hof';
@@ -20,37 +21,46 @@ export function setEyeNight(_n: number) { /* no eyes on the farm */ }
 export function setFogLook(_c: THREE.Color, _m: number, _n = 1) { /* no drifting fog by day */ }
 export function setTorchLevel(_l: number) { /* house lamps follow the lantern */ }
 
-/** control map for the ground shader: r = bare dirt (yard + paths), g = worn patches, b = brightness */
-function control(hof: Hof) {
-  const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
-  const px = (v: number) => (v / SIZE + .5) * S, m = S / SIZE;
-  g.fillStyle = 'rgb(0,0,0)'; g.fillRect(0, 0, S, S);
-  g.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 700; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(6, 26); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,110,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
-  // trodden yard + paths (red)
-  g.strokeStyle = 'rgba(170,0,0,1)'; g.lineCap = 'round'; g.lineJoin = 'round'; g.filter = 'blur(5px)';
-  for (const p of hof.paths) { g.lineWidth = p.w * m; g.beginPath(); p.pts.forEach((q, i) => i ? g.lineTo(px(q.x), px(q.z)) : g.moveTo(px(q.x), px(q.z))); g.stroke(); }
-  g.filter = 'none';
-  // under the wild grass patches the lawn stays lush (no worn spots)
-  g.globalCompositeOperation = 'multiply';
-  for (const pa of hof.patches) for (const b of pa.blobs) {
-    g.save(); g.translate(px(b.x), px(b.z)); g.rotate(b.a); g.scale(b.rx * m * 1.3, b.rz * m * 1.3);
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, `rgba(255,0,255,${Math.min(1, b.d)})`); gr.addColorStop(1, 'rgba(255,0,255,0)');
+/** splatmap from the hof layout (texture concept 20.11.2026): moss on the forest floor and in damp spots, field earth around
+ *  the plots, trodden paths, cobblestone in the yard in front of the house. The world editor paints on top (HofWorld.splat). */
+function buildSplat(hof: Hof, cfg: FarmCfg) {
+  const sp = new SplatMap(SIZE), S = 1024, px = (v: number) => (v / SIZE + .5) * S, m = S / SIZE;
+  const layer = (paint: (g: CanvasRenderingContext2D) => void) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+    g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.globalCompositeOperation = 'lighter'; paint(g); return cv;
+  };
+  const blob = (g: CanvasRenderingContext2D, x: number, z: number, rx: number, rz: number, a: number, k: number) => {
+    g.save(); g.translate(px(x), px(z)); g.rotate(a); g.scale(rx * m, rz * m);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(.6, `rgba(255,255,255,${k * .75})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr; g.fillRect(-1, -1, 2, 2); g.restore();
-  }
-  // brightness (blue): full light on the farm, a little darker deep in the forest
-  g.globalCompositeOperation = 'lighter';
-  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, 1);
-  void grd;
-  g.save(); g.translate(S / 2, S / 2); g.scale(hof.rx * m, hof.rz * m);
-  const b = g.createRadialGradient(0, 0, .9, 0, 0, 2.2); b.addColorStop(0, 'rgba(0,0,255,1)'); b.addColorStop(1, 'rgba(0,0,120,1)');
-  g.fillStyle = b; g.fillRect(-4, -4, 8, 8); g.restore();
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
+  };
+  const line = (g: CanvasRenderingContext2D, list: typeof hof.paths, blur: number) => {
+    g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineJoin = 'round'; g.filter = `blur(${blur}px)`;
+    for (const p of list) { g.lineWidth = p.w * m; g.beginPath(); p.pts.forEach((q, i) => i ? g.lineTo(px(q.x), px(q.z)) : g.moveTo(px(q.x), px(q.z))); g.stroke(); }
+    g.filter = 'none';
+  };
+  const rnd = seeded(77);
+  // moss: the forest floor (soft rise from the edge outwards), damp patches (behind the well) and loose spots along the edge
+  sp.fromCanvas('moos', layer(g => {
+    g.save(); g.translate(S / 2, S / 2); g.scale(hof.rx * m, hof.rz * m);
+    const f = g.createRadialGradient(0, 0, .93, 0, 0, 1.12); f.addColorStop(0, 'rgba(255,255,255,0)'); f.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = f; g.fillRect(-4, -4, 8, 8); g.restore();
+    for (const pa of hof.patches) if (pa.wet) for (const b of pa.blobs) blob(g, b.x, b.z, b.rx * 1.2, b.rz * 1.2, b.a, .8);
+    for (let i = 0; i < 40; i++) { const a = rnd() * Math.PI * 2, e = hof.edge(a, .8 + rnd() * .18); blob(g, e.x, e.z, 1.2 + rnd() * 2.5, 1 + rnd() * 1.8, rnd() * 3, .55 + rnd() * .4); }
+  }));
+  // field earth: a little wider than each plot (also the ones not laid out yet), worn rather than bare, so the raked bed
+  // decals sit on matching soil and the garden still reads as part of the lawn
+  const half = (cfg.plots?.size ?? 3) / 2 + .45;
+  sp.fromCanvas('feld', layer(g => { g.filter = 'blur(6px)'; g.fillStyle = 'rgba(255,255,255,.62)'; g.globalCompositeOperation = 'lighten'; for (const p of cfg.hof.plots) { g.beginPath(); g.roundRect(px(p.x - half), px(p.z - half), half * 2 * m, half * 2 * m, 1.2 * m); g.fill(); } g.filter = 'none'; }));
+  // trodden paths everywhere except the yard; the yard in front of the house and the way to the door are paved
+  const paved = hof.paths.slice(0, 2), trodden = hof.paths.slice(2);
+  sp.fromCanvas('pfad', layer(g => line(g, trodden, 4)));
+  sp.fromCanvas('pflaster', layer(g => line(g, paved, 3)));
+  return sp;
 }
-
-/** where the ground is pure green lawn: under the wild grass patches (a bit wider than the grass), never on paths */
+/** where the ground is pure grass_01 (512 px is plenty for these soft blobs): under the wild grass patches (a bit wider than the grass), never on paths */
 function lushMap(hof: Hof) {
-  const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
   const px = (v: number) => (v / SIZE + .5) * S, m = S / SIZE;
   g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.globalCompositeOperation = 'lighter';
   for (const pa of hof.patches) for (const b of pa.blobs) {
@@ -59,7 +69,7 @@ function lushMap(hof: Hof) {
     gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(.55, `rgba(255,255,255,${k * .7})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr; g.fillRect(-1, -1, 2, 2); g.restore();
   }
-  g.globalCompositeOperation = 'source-over'; g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round'; g.filter = 'blur(4px)';
+  g.globalCompositeOperation = 'source-over'; g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round'; g.filter = 'blur(2px)';
   for (const p of hof.paths) { g.lineWidth = p.w * m; g.beginPath(); p.pts.forEach((q, i) => i ? g.lineTo(px(q.x), px(q.z)) : g.moveTo(px(q.x), px(q.z))); g.stroke(); }
   g.filter = 'none';
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
@@ -67,11 +77,14 @@ function lushMap(hof: Hof) {
 
 export class HofWorld {
   ground: THREE.Mesh;
+  /** paintable ground layers for the world editor (r moss, g field, b path, a pavement), see splat.ts */
+  splat: SplatMap;
   nature: THREE.Group | null = null;
   /** resolves once the forest, buildings' surroundings and trees are built (loading screen waits for it) */
   ready: Promise<void>;
   constructor(public cfg: FarmCfg, public hof: Hof, private free: (x: number, z: number, pad: number) => boolean) {
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(control(hof), lushMap(hof)));
+    this.splat = buildSplat(hof, cfg);
+    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(this.splat.tex, lushMap(hof), hof));
     this.ground.rotation.x = -Math.PI / 2; this.ground.receiveShadow = true; scene.add(this.ground);
     this.ready = loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
   }

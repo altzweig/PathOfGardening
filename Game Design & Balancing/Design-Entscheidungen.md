@@ -93,3 +93,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Ältere Spielstände: Unkraut und Sammelgut werden einmal neu verteilt.
 - Werte: `grass` und `wild` in balancing.yaml.
 
+## Welt-Editor (20.11.2026)
+- Basti gestaltet die Welt selbst in `welt.html`: Objekte setzen/verschieben/drehen/skalieren/löschen/streuen, Bodentexturen und Wildgras malen.
+- Gespeichert wird `public/world/welt.json` (Objektliste + Bodenmalerei). Das Spiel liest sie beim Start; ohne Datei wird der Wald wie bisher generiert. Sobald die Datei existiert, ist die Welt bei jedem Start gleich.
+- Gemalter Boden ersetzt den generierten nur dort, wo gemalt wurde; Übergänge immer mit Rauschen ausgefranst (kein sichtbarer Pinselrand, kein Tiling).
+- Bäume, Felsen, Zäune, Heuballen, Holzstapel auf dem Hof (innerhalb des Waldrands) sind Hindernisse; im Waldring nicht, damit die Tiere durchkommen.
+- Obstbäume, Brombeeren, Gebäude und Felder bleiben Spielobjekte aus `balancing.yaml` und sind nicht im Editor.
+

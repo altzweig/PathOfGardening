@@ -598,7 +598,7 @@ export class FarmView {
     // buildings: mill sails, well crank, window glow at dusk
     const mill = this.buildings.get('mill'); if (mill?.sails && this.s.buildings.mill.built) mill.sails.rotation.z += dt * .6;
     // light: hour from the clock (light[0] in the morning .. light[1] at the end of the day)
-    const L = this.cfg.day.light, hour = mode === 'menu' ? 10.5 : mode === 'evening' ? 16.45 : lerp(L[0], L[1], sim ? sim.k : 0);
+    const L = this.cfg.day.light, hour = this.hour ?? (mode === 'menu' ? 10.5 : mode === 'evening' ? 16.45 : lerp(L[0], L[1], sim ? sim.k : 0));
     updateDayNight(dt, hour, 24, 16);
     updateSeasons(dt, 7, !!sim?.raining && day);
     const dn = dayNow().day; setWindowGlow(1 - dn); setArsenalLight(dn);
@@ -621,7 +621,7 @@ export class FarmView {
     let tx: number, tz: number, z = this.zoom;
     const P = sim?.player, door = this.cfg.hof.door;
     if (mode === 'evening') { tx = door.x - 1; tz = door.z + 2; z = .8; }
-    else { tx = P ? P.x : door.x; tz = P ? P.z : door.z; }
+    else { tx = P ? P.x : this.focus?.x ?? door.x; tz = P ? P.z : this.focus?.z ?? door.z; }
     this.shotK = clamp(this.shotK + (this.shot ? dt : -dt) * 1.4, 0, 1);
     const k = this.shotK * this.shotK * (3 - 2 * this.shotK);
     if (this.shot) { this.lastShot = this.shot; }
@@ -640,7 +640,11 @@ export class FarmView {
     setListener(P ? P.x : this.camX, P ? P.z : this.camZ);
     this.sun(this.camX, this.camZ);
   }
-  private lastShot: CamShot = null; private camZoom = 1;
+  private lastShot: CamShot = null; camZoom = 1;
+  /** camera target without a player (world editor) */
+  focus: { x: number; z: number } | null = null;
+  /** fixed hour of the light (world editor) */
+  hour: number | null = null;
   /** directional light follows the view so the shadow map stays sharp */
   private sun(x: number, z: number) {
     const d = moon.position.clone(); // set by daynight around the origin

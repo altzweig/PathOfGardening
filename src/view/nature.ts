@@ -103,7 +103,8 @@ export function plantMaterial(map: THREE.Texture, key: string, wind = .07, side:
   return natMat(m, { season: 'leaf', wind }, 'custom' + key);
 }
 
-export interface Part { geo: THREE.BufferGeometry; mat: string; vc: boolean }
+/** one mesh of a model; m = own material (custom models like the fence), otherwise the shared pack material by name */
+export interface Part { geo: THREE.BufferGeometry; mat: string; vc: boolean; m?: THREE.Material }
 const models = new Map<string, Part[]>();
 
 /** quantized glTF attributes -> plain floats, node transform baked in */
@@ -157,6 +158,17 @@ export function loadNature() {
   return loading;
 }
 export const hasModel = (name: string) => models.has(name);
+/** all loaded model names (pack + custom) */
+export const modelNames = () => [...models.keys()];
+/** add a custom model (built in code, e.g. fence) so it can be instanced like the pack models */
+export function registerModel(name: string, parts: Part[]) { models.set(name, parts); }
+/** bounding box of a model at scale 1 */
+const boxes = new Map<string, THREE.Box3>();
+export function modelBox(name: string) {
+  let b = boxes.get(name); if (b) return b;
+  b = new THREE.Box3(); for (const p of models.get(name) ?? []) { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox!); }
+  boxes.set(name, b); return b;
+}
 
 const white = new THREE.Color(1, 1, 1), tc = new THREE.Color();
 /** foliage takes the instance tint, wood/stone only a slight brightness variation */
@@ -164,16 +176,17 @@ function tint(kind: Kind | undefined, it: Inst) {
   if (kind === 'leaf' || kind === 'plant' || kind === 'flower') return it.col ?? white;
   const v = it.shade ?? 1; return tc.setRGB(v, v, v);
 }
-export interface Inst { x: number; z: number; y?: number; s: number; ry?: number; tilt?: number; col?: THREE.Color; shade?: number }
+/** tilt = random lean up to this angle; tx/tz = fixed lean (world editor, same on every start) */
+export interface Inst { x: number; z: number; y?: number; s: number; ry?: number; tilt?: number; tx?: number; tz?: number; col?: THREE.Color; shade?: number }
 /** one InstancedMesh per material of the model; returns the meshes (already added to parent) */
 export function instance(parent: THREE.Object3D, name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) {
   const parts = models.get(name); if (!parts || !list.length) return [];
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const out: THREE.InstancedMesh[] = [];
   for (const part of parts) {
-    const im = new THREE.InstancedMesh(part.geo, material(part.mat, part.vc, o.scale ?? 1), list.length);
+    const im = new THREE.InstancedMesh(part.geo, part.m ?? material(part.mat, part.vc, o.scale ?? 1), list.length);
     list.forEach((it, i) => {
-      e.set((it.tilt ?? 0) * (Math.random() - .5), it.ry ?? Math.random() * Math.PI * 2, (it.tilt ?? 0) * (Math.random() - .5));
+      e.set(it.tx ?? (it.tilt ?? 0) * (Math.random() - .5), it.ry ?? Math.random() * Math.PI * 2, it.tz ?? (it.tilt ?? 0) * (Math.random() - .5));
       m4.compose(p.set(it.x, it.y ?? 0, it.z), q.setFromEuler(e), s.setScalar(it.s)); im.setMatrixAt(i, m4);
       im.setColorAt(i, tint(MAT_DEF[part.mat]?.kind, it));
     });

@@ -35,12 +35,14 @@ void noTile(sampler2D C, sampler2D N, vec2 uv, float k, inout vec3 col, inout ve
 /** world-space ground: lawn (3 textures) around a dirt garden (2 textures), paths + dark rim from the control map */
 const noLush = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); noLush.needsUpdate = true;
 /** control: r dirt, g patchiness, b brightness; lush (optional, r): pure green lawn under the wild grass patches, ragged soft border */
-export function groundMaterial(control: THREE.Texture, lush: THREE.Texture = noLush) {
+const noPaint = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); noPaint.needsUpdate = true;
+/** paint (world editor, optional): a = grass, lush grass, grass-dirt, dry; b = dirt, pebbles, wild grass added, wild grass removed */
+export function groundMaterial(control: THREE.Texture, lush: THREE.Texture = noLush, paint: { a: THREE.Texture; b: THREE.Texture } = { a: noPaint, b: noPaint }) {
   const T = { grass: pair('grass'), grassdirt: pair('grassdirt'), dry: pair('dry'), dirt: pair('dirt'), pebble: pair('pebble') };
   const mat = new THREE.MeshStandardMaterial({ map: control, roughness: 1 });
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, {
-      tLush: { value: lush }, tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
+      tLush: { value: lush }, tPaintA: { value: paint.a }, tPaintB: { value: paint.b }, tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
       uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn,
       tDry: { value: T.dry.c }, nDry: { value: T.dry.n }, tDirt: { value: T.dirt.c }, nDirt: { value: T.dirt.n }, tPeb: { value: T.pebble.c }, nPeb: { value: T.pebble.n },
     });
@@ -49,7 +51,7 @@ export function groundMaterial(control: THREE.Texture, lush: THREE.Texture = noL
 uniform float uDay;
 uniform float uSnow;
 uniform float uAutumn;
-uniform sampler2D tLush, tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
+uniform sampler2D tLush, tPaintA, tPaintB, tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
 vec3 gNor = vec3(0.);
 ${NOISE}
 ` + sh.fragmentShader
@@ -69,6 +71,28 @@ ${NOISE}
   // garden dirt with pebbly spots
   float pb = smoothstep(.55,.78, n2*.7 + n3*.4);
   float wDirt = wDirtAll*(1.-pb), wPeb = wDirtAll*pb;
+  // painted ground (world editor): replaces the generated mix where painted; ragged borders from noise, between two
+  // painted textures a noise "height" decides (height blend), so strokes never show a clean round brush edge
+  vec4 pA = texture2D(tPaintA, vMapUv), pB = texture2D(tPaintB, vMapUv);
+  float pS = pA.r+pA.g+pA.b+pA.a+pB.r+pB.g;
+  if (pS > .004) {
+    float cov = clamp(pS + (n3-.5)*1.6*pS*(1.-pS) + (n1-.5)*.6*pS*(1.-pS), 0., 1.);
+    cov = smoothstep(0., 1., cov);
+    float iS = 1./pS;
+    float t0 = pA.r*iS + (tFbm(p*.42+1.3)-.5)*.7, t1 = pA.g*iS + (tFbm(p*.42+4.1)-.5)*.7, t2 = pA.b*iS + (tFbm(p*.42+7.7)-.5)*.7;
+    float t3 = pA.a*iS + (tFbm(p*.42+9.2)-.5)*.7, t4 = pB.r*iS + (tFbm(p*.42+12.5)-.5)*.7, t5 = pB.g*iS + (tFbm(p*.42+15.9)-.5)*.7;
+    t0 = pA.r > .004 ? t0 : -9.; t1 = pA.g > .004 ? t1 : -9.; t2 = pA.b > .004 ? t2 : -9.; t3 = pA.a > .004 ? t3 : -9.; t4 = pB.r > .004 ? t4 : -9.; t5 = pB.g > .004 ? t5 : -9.;
+    float mx = max(max(max(t0,t1),max(t2,t3)),max(t4,t5)) - .22;
+    float q0 = max(t0-mx,0.), q1 = max(t1-mx,0.), q2 = max(t2-mx,0.), q3 = max(t3-mx,0.), q4 = max(t4-mx,0.), q5 = max(t5-mx,0.);
+    float qs = 1./max(q0+q1+q2+q3+q4+q5, 1e-4);
+    float k0 = 1.-cov;
+    wGrass = wGrass*k0 + cov*(q0+q1)*qs; wGD = wGD*k0 + cov*q2*qs; wDry = wDry*k0 + cov*q3*qs;
+    wDirt = wDirt*k0 + cov*q4*qs; wPeb = wPeb*k0 + cov*q5*qs;
+    lush = lush*k0 + cov*q1*qs;
+    wLawn = wGrass + wGD + wDry; wDirtAll = wDirt + wPeb;
+  }
+  // painted wild grass: green lawn under it, none where it was removed
+  lush = clamp(lush*(1.-smoothstep(.1,.8,pB.a + (n3-.5)*.4)) + smoothstep(.1,.7,pB.b + (n3-.5)*.4)*.9*wLawn, 0., 1.);
   vec3 gc = vec3(0.);
   if (wGrass>.002) noTile(tGrass, nGrass, p/3.6, k, gc, gNor, wGrass);
   if (wGD>.002) noTile(tGD, nGD, p/4.1, k, gc, gNor, wGD);

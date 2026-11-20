@@ -86,6 +86,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 
 ## Wilde Grasgruppen und Sammelgut (20.11.2026)
 - Keine Streudeko mehr auf dem Hof (einzelne Grasbüschel, Klee, Blumen, Kiesel). Stattdessen dichte Grasgruppen aus dem Nature MegaKit, nie gleichmäßig verteilt: unregelmäßige Gruppen aus mehreren Flecken, innen dicht und hoch, nach außen lichter und niedriger, mit zerfranstem Rand.
+- Gras-Büschel sind eigene, günstige Kreuzflächen (16 Dreiecke, gemalte Halm-Textur) in 10-m-Kacheln, damit nur sichtbares Gras gezeichnet wird.
 - Gras wächst nur, wo keiner läuft oder mäht: viel auf der feuchten Wiese hinter dem Brunnen, an Gebäuderückseiten, an den geschlossenen Zaunseiten der Ställe (Tor vorne bleibt frei), am Waldrand hinter Büschen und zwischen Bäumen, unter Obstbäumen nur niedrig. Nie auf Wegen, Feldern, in den Waldlücken der Tiere oder vor der Haustür. Unter den Gruppen bleibt der Boden sattgrün.
 - Alles Einsammelbare ist etwas größer und hat eine dezente, warm leuchtende Outline, über die ab und zu ein Glanz läuft; in Kameranähe steigen gelegentlich kleine Funken auf.
 - Halb so viel Sammelgut und Unkraut, thematisch: Äste, Pilze und Steine am Waldrand, Bärlauch am Waldrand und auf der feuchten Wiese hinter dem Brunnen, Sauerampfer und Unkraut rund um die dichten Grasflächen, wilde Brombeeren (5) zwischen normalen Büschen am Waldrand.

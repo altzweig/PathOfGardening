@@ -172,7 +172,7 @@ wild:                      # was auf dem Hof von selbst wächst (nie im Sichtber
   barrel: 10               # Fass am Brunnen fasst so viel Wasser
 
 grass:                     # wilde Grasgruppen: wachsen nur, wo keiner läuft oder mäht (hinter dem Brunnen, Gebäuderückseiten, geschlossene Zaunseiten, Waldrand, unter Obstbäumen nur niedrig)
-  perM2: 20                # Gras-Büschel pro m² bei voller Dichte (Grafik mittel 55 %, niedrig 30 %)
+  perM2: 30                # Gras-Büschel (je 16 Dreiecke) pro m² bei voller Dichte (Grafik mittel 55 %, niedrig 30 %)
   well: 1                  # Größe der feuchten Wiese hinter dem Brunnen
   back: 1                  # Breite der Streifen an Gebäuderückseiten
   edge: 40                 # Anzahl Gruppen am Waldrand

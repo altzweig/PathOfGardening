@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { gfx, rand, scene } from '../../view/core';
 import { groundMaterial } from '../../view/textures';
-import { Inst, instance, loadNature } from '../../view/nature';
+import { Inst, instance, loadNature, plantMaterial } from '../../view/nature';
 import type { FarmCfg } from '../config';
 import type { Hof } from '../hof';
 import { seeded } from '../hof';
@@ -105,24 +105,65 @@ export class HofWorld {
     add('Bush_Common', beside, { shadow: true });
     this.grass(W, gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1);
   }
-  /** wild grass patches (hof.patches): dense and tall inside, thinner and lower outwards, ragged border; low = short grass only */
+  /** wild grass patches (hof.patches): dense and tall inside, thinner and lower outwards, ragged border; low = short grass only.
+   *  Cheap tufts: 4 crossed quads (16 triangles, both sides) with a painted blade texture, one InstancedMesh per 10 m tile so the
+   *  camera only draws the tiles it sees. */
   private grass(W: THREE.Group, dens: number) {
     const hof = this.hof, rnd = seeded(41), R = (a: number, b: number) => a + rnd() * (b - a);
-    const per = (this.cfg.grass?.perM2 ?? 20) * dens, out = new Map<string, Inst[]>();
-    const put = (name: string, it: Inst) => { let l = out.get(name); if (!l) out.set(name, l = []); l.push(it); };
+    const per = (this.cfg.grass?.perM2 ?? 30) * dens, TILE = 10;
+    const tiles = new Map<string, { x: number; z: number; w: number; h: number; ry: number; col: THREE.Color }[]>();
     for (const p of hof.patches) {
       const b = hof.patchBox(p), n = Math.round((b.x1 - b.x0) * (b.z1 - b.z0) * per);
       for (let i = 0; i < n; i++) {
         const x = R(b.x0, b.x1), z = R(b.z0, b.z1), d = hof.patchDensity(p, x, z) * hof.grassMask(x, z);
         if (d <= .02 || rnd() > Math.pow(d, .9)) continue;
-        const wet = p.wet ? .06 : 0, col = hsl(R(.2, .27) + wet * .5, R(.38, .5) + wet, R(.64, .74) - d * .12);
-        if (p.low) { put(rnd() < .8 ? 'Grass_Common_Short' : 'Grass_Wispy_Short', { x, z, s: R(.28, .42) * (.7 + .3 * d), col }); continue; }
-        const h = (.3 + .75 * d) * R(.8, 1.15), r = rnd();
-        if (d > .55) put(r < .6 ? 'Grass_Common_Tall' : r < .66 ? 'Grass_Wispy_Tall' : 'Grass_Common_Short', { x, z, s: h * (r < .66 ? .9 : 1.35), col });
-        else if (d > .25) put(r < .25 ? 'Grass_Common_Tall' : r < .4 ? 'Grass_Wispy_Short' : 'Grass_Common_Short', { x, z, s: h * (r < .25 ? .8 : 1.15), col });
-        else put(r < .3 ? 'Grass_Wispy_Short' : 'Grass_Common_Short', { x, z, s: h * R(.85, 1.1), col });
+        const wet = p.wet ? .06 : 0, col = hsl(R(.2, .27) + wet * .5, R(.4, .52) + wet, R(.52, .62) - d * .1);
+        const h = p.low ? R(.18, .3) * (.7 + .3 * d) : (.2 + .8 * d) * R(.8, 1.2);   // height (m): low at the rim, tall inside
+        const w = p.low ? R(.35, .5) : R(.4, .6) * (.8 + .4 * d);
+        const k = Math.floor(x / TILE) + ',' + Math.floor(z / TILE); let l = tiles.get(k); if (!l) tiles.set(k, l = []);
+        l.push({ x, z, w, h, ry: rnd() * Math.PI, col });
       }
     }
-    for (const [name, list] of out) instance(W, name, list, { receive: true });
+    const geo = tuftGeo(), mat = plantMaterial(bladeTex(), 'tuft', .07, THREE.FrontSide), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+    for (const list of tiles.values()) {
+      const im = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((t, i) => { m4.compose(v.set(t.x, 0, t.z), q.setFromEuler(e.set(0, t.ry, 0)), sc.set(t.w, t.h, t.w)); im.setMatrixAt(i, m4); im.setColorAt(i, t.col); });
+      im.receiveShadow = false; im.castShadow = false; im.computeBoundingSphere(); W.add(im); // vertical cards with up-normals would show shadow acne
+    }
   }
+}
+
+/** grass tuft (16 triangles): 4 vertical quads crossed around the centre, slightly leaning out; 1 m high, 1 m wide (scaled per instance).
+ *  Normals point up so the tuft is lit evenly from every side. */
+function tuftGeo() {
+  const pos: number[] = [], uv: number[] = [], nor: number[] = [], idx: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * Math.PI + (i % 2) * .2, c = Math.cos(a) * .5, s = Math.sin(a) * .5, lean = (i % 2 ? .08 : -.06), lx = -s * lean * 2, lz = c * lean * 2;
+    const o = pos.length / 3;
+    pos.push(-c, 0, -s, c, 0, s, c + lx, 1, s + lz, -c + lx, 1, -s + lz);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    for (let k = 0; k < 4; k++) nor.push(0, 1, 0);
+    idx.push(o, o + 1, o + 2, o, o + 2, o + 3, o, o + 2, o + 1, o, o + 3, o + 2); // both windings: the back keeps the up-normal (DoubleSide would flip it and turn black)
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx); return g;
+}
+/** painted blades (alpha): tapered, slightly bent, dark at the root and light at the tip; tinted per instance */
+function bladeTex() {
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const rb = seeded(5), R = (a: number, b: number) => a + rb() * (b - a);
+  for (let i = 0; i < 16; i++) {
+    const x0 = R(.12, .88) * S, top = R(.05, .45) * S, bend = R(-.22, .22) * S, w = R(5, 10);
+    const grd = g.createLinearGradient(0, S, 0, top); const l = R(.75, 1);
+    grd.addColorStop(0, `rgb(${95 * l},${120 * l},${70 * l})`); grd.addColorStop(.55, `rgb(${170 * l},${200 * l},${130 * l})`); grd.addColorStop(1, `rgb(${225 * l},${238 * l},${180 * l})`);
+    g.fillStyle = grd; g.beginPath();
+    g.moveTo(x0 - w, S); g.quadraticCurveTo(x0 - w * .6 + bend * .3, (S + top) / 2, x0 + bend, top);
+    g.quadraticCurveTo(x0 + w * .6 + bend * .3, (S + top) / 2, x0 + w, S); g.closePath(); g.fill();
+  }
+  // transparent pixels get a blade colour instead of black, so the mipmaps don't draw dark seams around the blades
+  const img = g.getImageData(0, 0, S, S), a = img.data;
+  for (let i = 0; i < a.length; i += 4) if (a[i + 3] === 0) { a[i] = 150; a[i + 1] = 178; a[i + 2] = 110; }
+  const t = new THREE.DataTexture(a, S, S, THREE.RGBAFormat); t.flipY = true; t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t;
 }

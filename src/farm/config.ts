@@ -2,6 +2,7 @@
 import YAML from 'yaml';
 import type { TexCfg } from '../view/textures';
 import { World, loadWorld } from '../world/data';
+import { applyLogic } from '../world/logic';
 
 export type ItemId = string;
 export type WeaponId = 'rake' | 'shotgun' | 'crossbow' | 'sling' | 'mace' | 'cannon';
@@ -64,11 +65,14 @@ export interface FarmCfg {
   world?: World | null;
 }
 
-export async function loadFarmCfg(): Promise<FarmCfg> {
+export async function loadFarmCfg(o: { world?: boolean } = {}): Promise<FarmCfg> {
   const res = await fetch('./design/balancing.yaml', { cache: 'no-store' });
   if (!res.ok) throw new Error('balancing.yaml: HTTP ' + res.status);
   const cfg = YAML.parse(await res.text()) as FarmCfg;
+  if (o.world === false) return cfg;
   cfg.world = await loadWorld();
+  // a world from the editor with its own logic replaces the farm layout (hof:) of the yaml
+  if (cfg.world?.logic) applyLogic(cfg, cfg.world.logic);
   return cfg;
 }
 export async function loadSounds(): Promise<any> {

@@ -65,3 +65,18 @@ add('Holzstapel', 'Holzstapel', 'Hof', { s: 1, vary: [.9, 1.1], shadow: true, wa
 
 export const MODELS = D;
 export const MODEL = new Map(D.map(d => [d.m, d]));
+
+/** models of nature.glb without an entry above (the whole MegaKit can be packed with build-nature.mjs --all):
+ *  added with a category guessed from the name, so the editor lists every model of the pack */
+export function syncCatalog(names: string[]) {
+  for (const m of names) {
+    if (MODEL.has(m)) continue;
+    const cat: Cat = /Tree|Pine|Birch|Trunk|Stump/i.test(m) ? 'Bäume' : /Bush|Hedge/i.test(m) ? 'Büsche' : /Grass/i.test(m) ? 'Gras' : /Flower|Petal/i.test(m) ? 'Blumen'
+      : /Mushroom/i.test(m) ? 'Pilze' : /Rock|Pebble|Stone|Cliff/i.test(m) ? 'Steine' : 'Pflanzen';
+    const tree = cat === 'Bäume', stone = cat === 'Steine';
+    const d: ModelDef = { m, label: m.replace(/_/g, ' '), cat, s: tree ? .6 : .6, vary: [.85, 1.15], shadow: tree || cat === 'Büsche' || /Medium|Big|Large/.test(m),
+      solid: tree ? .5 : stone && /Medium|Big|Large/.test(m) ? 1 : undefined, tint: tree ? leafCommon : cat === 'Gras' ? grass : cat === 'Blumen' ? flower : stone ? null : bush,
+      shade: stone || tree ? [.85, 1.1] : undefined, wind: tree ? .6 : undefined, y: tree ? -.1 : undefined };
+    D.push(d); MODEL.set(m, d);
+  }
+}

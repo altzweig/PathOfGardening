@@ -1,18 +1,22 @@
-// World editor data (welt.html): placed objects + painted ground, saved as public/world/welt.json.
-// The game reads the file at start; without it the farm is generated as before.
+// World editor data (welt.html): placed objects + painted ground + game logic, saved as public/world/welt.json.
+// The game reads the file at start; without it the farm is generated as before (balancing.yaml hof:).
+// Version 2 (21.11.2026): logic (map size, boundaries, fields, spawns, house, objects) + layered ground.
 // ?welt=entwurf (from the editor's "Im Spiel testen") loads the editor's browser draft instead.
 import { WorldPaint } from './paint';
+import { Logic, cleanLogic } from './logic';
 
 /** one placed object: model, position, turn (rad), scale, fixed lean, tint (foliage) or shade (wood, stone) */
 export interface PropRec { m: string; x: number; z: number; y?: number; ry: number; s: number; tx?: number; tz?: number; c?: string; sh?: number }
 export interface WorldFile {
-  version: 1; saved?: string;
-  /** null = the forest is generated (procedural) */
+  version: 1 | 2; saved?: string;
+  /** null = the forest is generated (procedural, version 1 only) */
   props: PropRec[] | null;
-  /** painted ground, deflate + base64 of the raw bytes (see WorldPaint) */
-  paint: { size: number; extent: number; data: string } | null;
+  /** painted ground, deflate + base64 of the raw bytes (see WorldPaint); version 2 adds base + layers */
+  paint: ({ size: number; extent: number; data: string } & Partial<ReturnType<WorldPaint['meta']>>) | null;
+  logic?: Logic;
 }
-export interface World { props: PropRec[] | null; paint: WorldPaint | null }
+/** logic null = an old file (version 1): the editor turns it into a world with the old farm as logic */
+export interface World { props: PropRec[] | null; paint: WorldPaint | null; logic: Logic | null }
 
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 export function cleanProp(p: PropRec): PropRec {
@@ -28,17 +32,24 @@ async function pipe(bytes: Uint8Array, s: CompressionStream | DecompressionStrea
 function b64(u: Uint8Array) { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); }
 function unb64(s: string) { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
 
-export async function encodeWorld(w: World): Promise<WorldFile> {
+export async function encodeWorld(w: { props: PropRec[]; paint: WorldPaint; logic: Logic }): Promise<WorldFile> {
   return {
-    version: 1, saved: new Date().toISOString(),
-    props: w.props ? w.props.map(cleanProp) : null,
-    paint: w.paint && !w.paint.empty() ? { size: w.paint.size, extent: w.paint.extent, data: b64(await pipe(w.paint.toBytes(), new CompressionStream('deflate'))) } : null,
+    version: 2, saved: new Date().toISOString(),
+    logic: cleanLogic(w.logic),
+    props: w.props.map(cleanProp),
+    paint: { ...w.paint.meta(), data: b64(await pipe(w.paint.toBytes(), new CompressionStream('deflate'))) },
   };
 }
 export async function decodeWorld(f: WorldFile): Promise<World> {
   let paint: WorldPaint | null = null;
-  if (f.paint?.data) { paint = new WorldPaint(f.paint.size, f.paint.extent); paint.fromBytes(await pipe(unb64(f.paint.data), new DecompressionStream('deflate'))); }
-  return { props: f.props ?? null, paint };
+  const raw = f.paint?.data ? await pipe(unb64(f.paint.data), new DecompressionStream('deflate')) : null;
+  if (f.version === 2 && f.logic) {
+    paint = raw && f.paint?.layers ? WorldPaint.fromBytes(f.paint as ReturnType<WorldPaint['meta']>, raw) : new WorldPaint(1024, f.logic.size);
+    if (f.paint?.base) paint.base = f.paint.base;
+    return { props: f.props ?? [], paint, logic: f.logic };
+  }
+  if (raw && f.paint) paint = WorldPaint.fromV1(f.paint.size, f.paint.extent, raw);
+  return { props: f.props ?? null, paint, logic: null };
 }
 
 // ---------------- browser draft (IndexedDB: the file can be a few MB while painting) ----------------

@@ -132,7 +132,7 @@ export class DaySim {
   }
   private spot(k0: number, k1: number, pad: number, hidden: boolean) {
     for (let tries = 0; tries < 30; tries++) {
-      const a = rnd(0, Math.PI * 2), k = Math.sqrt(rnd(k0 * k0, k1 * k1)), x = Math.cos(a) * this.hof.rx * k, z = Math.sin(a) * this.hof.rz * k;
+      const a = rnd(0, Math.PI * 2), k = Math.sqrt(rnd(k0 * k0, k1 * k1)), { x, z } = this.hof.edge(a, k);
       if (!this.hof.freeSpot(x, z, pad)) continue;
       if (!hidden && this.visible(x, z)) continue;
       return { x, z };
@@ -141,6 +141,7 @@ export class DaySim {
   }
   /** a point near the grass patches (rim, not the dense middle): weeds + sorrel; wet = only the damp meadow behind the well */
   private grassSpot(hidden: boolean, wet = false) {
+    if (this.hof.logic) return this.paintedGrassSpot(hidden);
     const ps = this.hof.patches.filter(p => wet ? p.wet : !p.low); if (!ps.length) return null;
     for (let tries = 0; tries < 40; tries++) {
       const p = ps[Math.floor(Math.random() * ps.length)], b = this.hof.patchBox(p);
@@ -148,6 +149,16 @@ export class DaySim {
       if (raw <= .02 && Math.random() < .7) continue;                         // next to the patch, not out in the open
       if (g > .45 || this.hof.pathDist(x, z) < .2 || this.hof.ellipse(x, z) > .97 || this.hof.inGap(x, z, .5)) continue;
       if (!this.hof.freeSpot(x, z, .4)) continue;
+      if (!hidden && this.visible(x, z)) continue;
+      return { x, z };
+    }
+    return null;
+  }
+  /** world editor: at the rim of the painted wild grass (some grass, not the dense middle) */
+  private paintedGrassSpot(hidden: boolean) {
+    for (let tries = 0; tries < 60; tries++) {
+      const a = rnd(0, Math.PI * 2), { x, z } = this.hof.edge(a, Math.sqrt(Math.random()) * .97), g = this.hof.grass(x, z);
+      if (g < .08 || g > .6 || this.hof.inGap(x, z, .5) || !this.hof.freeSpot(x, z, .4)) continue;
       if (!hidden && this.visible(x, z)) continue;
       return { x, z };
     }
@@ -603,9 +614,10 @@ export class DaySim {
     const n = rint(S.wanderers);
     for (let i = 0; i < n; i++) {
       let r = Math.random() * tot, type = types[0][0]; for (const [k, v] of types) { r -= v; if (r <= 0) { type = k; break; } }
-      this.plan.push({ at: this.length * (.08 + .82 * (i + rnd(.15, .85)) / n), type, gap: Math.floor(Math.random() * gaps) });
+      this.plan.push({ at: this.length * (.08 + .82 * (i + rnd(.15, .85)) / n), type, gap: this.hof.pickGap() });
     }
-    const at = this.length * rnd(S.raid.from, S.raid.to), gap = Math.floor(Math.random() * gaps), m = S.raid.raccoons + Math.floor(L * S.raid.perLevel);
+    if (!gaps) { this.plan.length = 0; return; }
+    const at = this.length * rnd(S.raid.from, S.raid.to), gap = this.hof.pickGap(), m = S.raid.raccoons + Math.floor(L * S.raid.perLevel);
     for (let i = 0; i < m; i++) this.plan.push({ at: at + i * .9, type: 'raccoon', gap });
     this.plan.sort((a, b) => a.at - b.at);
   }
@@ -711,7 +723,7 @@ export class DaySim {
           const out = this.hof.gapOut(a.gap), inn = this.hof.gapIn(a.gap);
           const target = this.hof.ellipse(a.x, a.z) < .85 ? inn : out;
           this.moveTo(a, target.x, target.z, fsp, dt, this.hof.ellipse(a.x, a.z) > .8 || a.t > 4); // never stuck for long: after 4 s it slips through
-          if (this.hof.ellipse(a.x, a.z) > 1.35) {
+          if (this.hof.outside(a.x, a.z, a.gap)) {
             a.gone = true;
             for (const [k, n] of Object.entries(a.carry)) this.lost[k] = (this.lost[k] ?? 0) + n;
             this.ev.push({ k: 'gone', id: a.id, type: a.type, carry: a.carryN });

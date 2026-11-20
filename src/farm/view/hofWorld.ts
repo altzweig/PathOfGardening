@@ -6,15 +6,16 @@ import * as THREE from 'three';
 import { gfx, rand, scene } from '../../view/core';
 import { groundMaterial } from '../../view/textures';
 import { SplatMap } from './splat';
-import { Inst, instance, loadNature, plantMaterial } from '../../view/nature';
+import { Inst, instance, loadNature, modelNames, plantMaterial } from '../../view/nature';
 import type { FarmCfg } from '../config';
 import type { Hof, Patch } from '../hof';
 import { seeded } from '../hof';
 import type { PropRec } from '../../world/data';
-import { MODEL } from '../../world/catalog';
+import { MODEL, syncCatalog } from '../../world/catalog';
 import { registerCustomModels } from '../../world/custom';
 import { PropLayer, thin } from '../../world/props';
-import type { WorldPaint } from '../../world/paint';
+import type { WorldPaint, Rect } from '../../world/paint';
+import { GroundWeights, layeredGround } from '../../view/terrain';
 
 export const SIZE = 170; // ground plane (m): clearing (rx 32) + forest that fills the view at the widest zoom
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -88,31 +89,48 @@ export class HofWorld {
   props: PropLayer | null = null;
   /** the full object list before thinning for lower quality (the editor works on this) */
   propList: PropRec[] = [];
-  /** painted ground (world editor) and its two shader textures */
-  paint: WorldPaint | null; paintTex: { a: THREE.DataTexture; b: THREE.DataTexture } | null = null;
+  /** painted ground (world editor, with a logic): texture layers -> weight maps of the ground shader */
+  paint: WorldPaint | null = null; weights: GroundWeights | null = null; private layered: ReturnType<typeof layeredGround> | null = null;
+  /** edge length of the ground (m): the map of the world editor, else SIZE */
+  extent = SIZE;
   /** resolves once the forest, buildings' surroundings and trees are built (loading screen waits for it) */
   ready: Promise<void>;
   constructor(public cfg: FarmCfg, public hof: Hof, private free: (x: number, z: number, pad: number) => boolean) {
     void this.free;
-    this.splat = buildSplat(hof, cfg);
-    this.paint = cfg.world?.paint ?? null;
-    if (this.paint) {
-      const P = this.paint, T = (d: Uint8Array) => { const t = new THREE.DataTexture(d, P.size, P.size, THREE.RGBAFormat); t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; };
-      P.sync(); this.paintTex = { a: T(P.a), b: T(P.b) };
+    const P = hof.logic ? cfg.world?.paint ?? null : null;
+    if (P) {
+      // world editor: painted layers on a base texture, the map size of the logic (+ a darkening margin around it)
+      this.paint = P; this.extent = P.extent; this.splat = new SplatMap(8, 2);
+      this.weights = new GroundWeights(P); this.weights.compose(P.full(), false);
+      this.layered = layeredGround(this.weights);
+      this.ground = new THREE.Mesh(new THREE.PlaneGeometry(P.extent + 140, P.extent + 140), this.layered.mat);
+    } else {
+      this.splat = buildSplat(hof, cfg);
+      this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(this.splat.tex, lushMap(hof), hof));
     }
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), groundMaterial(this.splat.tex, lushMap(hof), hof, this.paintTex ?? undefined));
     this.ground.rotation.x = -Math.PI / 2; this.ground.receiveShadow = true; scene.add(this.ground);
     this.ready = loadNature().then(() => this.build()).catch(e => console.error('nature models', e));
   }
-  /** after painting: upload the changed paint maps */
-  paintChanged() { if (this.paintTex) { this.paintTex.a.needsUpdate = true; this.paintTex.b.needsUpdate = true; } }
+  /** after painting: recompute + upload the weights of a texel rect (layers added/removed/reordered: slots first) */
+  paintChanged(R?: Rect) {
+    if (!this.weights || !this.layered) return;
+    if (this.weights.updateSlots()) { void this.layered.setSlots(); R = undefined; }
+    this.weights.compose(R ?? this.paint!.full());
+  }
+  /** the editor changed the map size: new paint object, new ground plane */
+  setPaint(P: WorldPaint) {
+    this.paint = P; this.extent = P.extent; if (this.cfg.world) this.cfg.world.paint = P;
+    this.weights = new GroundWeights(P); this.weights.compose(P.full(), false);
+    const old = this.layered; this.layered = layeredGround(this.weights); this.ground.material = this.layered.mat; old?.mat.dispose();
+    this.ground.geometry.dispose(); this.ground.geometry = new THREE.PlaneGeometry(P.extent + 140, P.extent + 140);
+  }
   private build() {
-    registerCustomModels();
+    registerCustomModels(); syncCatalog(modelNames());
     const W = this.nature = new THREE.Group(); W.name = 'nature'; scene.add(W);
     const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1;
-    this.propList = this.cfg.world?.props ?? this.generate();
+    this.propList = this.cfg.world?.props ?? (hof.logic ? [] : this.generate());
     this.props = new PropLayer(W);
-    this.props.set(thin(this.propList, dens, p => hof.ellipse(p.x, p.z) < .97));
+    this.props.set(thin(this.propList, dens, p => hof.ellipse(p.x, p.z) < (hof.logic ? 1.05 : .97)));
     // single trees on the farm (Bastis brown circles; gameplay: apples to shake)
     const add = (name: string, list: Inst[], o: { shadow?: boolean; scale?: number } = {}) => instance(W, name, list, o);
     add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
@@ -121,8 +139,10 @@ export class HofWorld {
     this.rebuildGrass();
   }
   /** the generated layout (no world file yet): forest ring with gaps, edge bushes, rocks, ferns, tall grass, bushes beside the brambles */
-  generate(): PropRec[] {
-    const hof = this.hof, out: PropRec[] = [];
+  generate(): PropRec[] { return this.generateFor(this.hof); }
+  /** forest/deco props of the generated farm around a given hof (editor template) */
+  generateFor(hof: Hof): PropRec[] {
+    const out: PropRec[] = [];
     /** random points in the ellipse ring k0..k1 (k = 1 forest edge) */
     const ring = (n: number, k0: number, k1: number, minD = 0, taken: { x: number; z: number; d: number }[] = []) => {
       const res: { x: number; z: number; k: number; a: number }[] = [];
@@ -173,7 +193,7 @@ export class HofWorld {
   private tiles = new Map<string, THREE.InstancedMesh>();
   private tuft: { geo: THREE.BufferGeometry; mat: THREE.Material } | null = null;
   /** rebuild the grass tiles in a world rectangle (default: everything) */
-  rebuildGrass(x0 = -SIZE / 2, z0 = -SIZE / 2, x1 = SIZE / 2, z1 = SIZE / 2) {
+  rebuildGrass(x0 = -this.extent / 2, z0 = -this.extent / 2, x1 = this.extent / 2, z1 = this.extent / 2) {
     const T = 10, i0 = Math.floor(x0 / T), i1 = Math.floor(x1 / T), j0 = Math.floor(z0 / T), j1 = Math.floor(z1 / T);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) this.grassTile(i, j);
   }
@@ -182,16 +202,18 @@ export class HofWorld {
     const old = this.tiles.get(key); if (old) { W.remove(old); old.dispose(); this.tiles.delete(key); }
     const x0 = ti * T, z0 = tj * T, x1 = x0 + T, z1 = z0 + T;
     const near: Patch[] = hof.patches.filter(p => { const b = hof.patchBox(p); return b.x0 < x1 && b.x1 > x0 && b.z0 < z1 && b.z1 > z0; });
-    if (!near.length && !(P && P.maxIn(6, x0, z0, x1, z1) > .01)) return;
+    const pmax = P ? P.grassMax(x0, z0, x1, z1) : 0;
+    if (!near.length && pmax <= .01) return;
     const rnd = seeded(((ti + 100) * 7919) ^ ((tj + 100) * 104729)), R = (a: number, b: number) => a + rnd() * (b - a);
-    const per = (this.cfg.grass?.perM2 ?? 24) * this.grassDens, n = Math.round(T * T * per);
+    // painted grass can be up to 3x as dense: more candidates in such tiles
+    const mx = Math.max(1, Math.ceil(pmax - .001)), per = (this.cfg.grass?.perM2 ?? 24) * this.grassDens, n = Math.round(T * T * per * mx);
     const list: { x: number; z: number; w: number; h: number; ry: number; col: THREE.Color }[] = [];
     for (let i = 0; i < n; i++) {
       const x = x0 + rnd() * T, z = z0 + rnd() * T, ry = rnd() * Math.PI, pr = rnd();
-      const g = hof.grassAt(x, z, undefined, near), d = g.d;
-      if (d <= .02 || pr > Math.pow(d, .9)) continue;
+      const g = hof.grassAt(x, z, undefined, near), d = Math.min(1, g.d);
+      if (g.d <= .02 || pr * mx > Math.pow(g.d, .9)) continue;
       const wet = g.wet ? .06 : 0, col = hsl(R(.2, .27) + wet * .5, R(.4, .52) + wet, R(.52, .62) - d * .1);
-      const h = g.low ? R(.18, .3) * (.7 + .3 * d) : (.2 + .8 * d) * R(.8, 1.2);   // height (m): low at the rim, tall inside
+      const h = (g.low ? R(.18, .3) * (.7 + .3 * d) : (.2 + .8 * d) * R(.8, 1.2)) * g.h;   // height (m): low at the rim, tall inside; painted height factor
       const w = g.low ? R(.35, .5) : R(.4, .6) * (.8 + .4 * d);
       list.push({ x, z, w, h, ry, col });
     }

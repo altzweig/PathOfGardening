@@ -6,12 +6,19 @@
 //   terrain/terrain_n_1024.ktx2                       normal maps (GL), same layers, ETC1S with the normal-map preset (linear)
 //   props/<name>_c.ktx2, props/<name>_n.ktx2          buildings and rocks (512 px)
 // Only colour + normal are converted: roughness is a constant in the game, no height, no AO.
+//
+// World editor (21.11.2026): with --layers tools/terrain-layers.json every listed texture also gets its own files
+//   terrain/<id>_c_1024.ktx2, terrain/<id>_c_512.ktx2, terrain/<id>_n_1024.ktx2   one texture each (the game puts only the
+//                                                                                 ones a world uses into its array texture)
+//   swatch/<id>.jpg                                                               128 px preview for the editor
+//   terrain/terrain.json                                                          the list (id, label, tile, cat) the editor + game read
+//   node tools/build-textures.mjs "<Sammlung_Stylized-Mix>" public/textures --layers tools/terrain-layers.json
 import { readdirSync, mkdirSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import { NodeBasisEncoder } from 'ktx2-encoder';
 
-const [SRC, OUT] = process.argv.slice(2);
+const [SRC, OUT, flag, LIST] = process.argv.slice(2);
 if (!SRC || !OUT) { console.error('usage: build-textures.mjs <src> <out>'); process.exit(1); }
 
 /** terrain layers, index = layer in the array texture (src/view/textures.ts TERRAIN_LAYERS) */
@@ -69,6 +76,20 @@ function save(rel, buf) {
   console.log(rel.padEnd(34), (buf.length / 1024).toFixed(0).padStart(6), 'KB');
 }
 
+if (flag === '--layers') {
+  // one set of files per terrain texture + previews + the list
+  const { readFileSync } = await import('node:fs');
+  const list = JSON.parse(readFileSync(LIST, 'utf8'));
+  for (const L of list) {
+    const c = mapFile(L.id, 'c');
+    for (const size of [1024, 512]) save(`terrain/${L.id}_c_${size}.ktx2`, await encode([await raw(c, size)], false));
+    save(`terrain/${L.id}_n_1024.ktx2`, await encode([await raw(mapFile(L.id, 'n'), 1024)], true));
+    const jpg = await sharp(c).resize(128, 128, { kernel: 'lanczos3' }).jpeg({ quality: 82 }).toBuffer();
+    save(`swatch/${L.id}.jpg`, jpg);
+  }
+  save('terrain/terrain.json', Buffer.from(JSON.stringify(list, null, 1) + '\n'));
+  process.exit(0);
+}
 for (const size of [1024, 512]) save(`terrain/terrain_c_${size}.ktx2`, await encode(await Promise.all(TERRAIN.map(n => raw(mapFile(n, 'c'), size))), false));
 save('terrain/terrain_n_1024.ktx2', await encode(await Promise.all(TERRAIN.map(n => raw(mapFile(n, 'n'), 1024))), true));
 for (const [name, size] of Object.entries(PROPS)) {

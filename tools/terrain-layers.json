@@ -1,0 +1,8 @@
+[
+ { "id": "grass_01", "label": "Gras", "cat": "Gras", "tile": 3.5 },
+ { "id": "moss_ground_02", "label": "Moos", "cat": "Waldboden", "tile": 3 },
+ { "id": "ground_02", "label": "Feldboden", "cat": "Erde", "tile": 3 },
+ { "id": "ground_06", "label": "Pfad", "cat": "Erde", "tile": 2.6 },
+ { "id": "grass_04", "label": "Trockenrasen", "cat": "Gras", "tile": 3.8 },
+ { "id": "cobblestone_01", "label": "Pflaster", "cat": "Stein", "tile": 2.2 }
+]

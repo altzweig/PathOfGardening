@@ -89,8 +89,11 @@ void layerS(sampler2DArray C, sampler2DArray N, float L, vec2 uv, float k, inout
 
 /** world-space ground. splat (RGBA, paintable): r moss, g field earth, b trodden path, a pavement; grass is the base.
  *  lush (r): pure grass_01 under the wild grass patches (no moss, no dry spots), ragged soft border.
- *  rim: clearing radii, the ground darkens towards the deep forest. */
-export function groundMaterial(splat: THREE.Texture, lush: THREE.Texture, rim: { rx: number; rz: number }) {
+ *  rim: clearing radii, the ground darkens towards the deep forest.
+ *  paint (world editor, optional, src/world/paint.ts): a = grass, moss, field, path; b = dry grass, pavement, wild grass
+ *  added, wild grass removed. Where painted it replaces the generated mix (noise-frayed, height blend between strokes). */
+const noPaint = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); noPaint.needsUpdate = true;
+export function groundMaterial(splat: THREE.Texture, lush: THREE.Texture, rim: { rx: number; rz: number }, paint: { a: THREE.Texture; b: THREE.Texture } = { a: noPaint, b: noPaint }) {
   const low = lowTex(), n = TERRAIN_LAYERS.length;
   updateTexQuality();
   const U = { tCol: { value: flatArray(n, [70, 92, 48]) as THREE.Texture }, tNor: { value: flatArray(n, [128, 128, 255]) as THREE.Texture } };
@@ -98,12 +101,12 @@ export function groundMaterial(splat: THREE.Texture, lush: THREE.Texture, rim: {
   if (!low) loadKtx('terrain/terrain_n_1024.ktx2', t => { U.tNor.value = t; });
   const mat = new THREE.MeshStandardMaterial({ map: splat, roughness: 1 });
   mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, TU, U, { tLush: { value: lush }, uRim: { value: new THREE.Vector2(rim.rx, rim.rz) }, uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn });
+    Object.assign(sh.uniforms, TU, U, { tLush: { value: lush }, tPaintA: { value: paint.a }, tPaintB: { value: paint.b }, uRim: { value: new THREE.Vector2(rim.rx, rim.rz) }, uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vWP;
 uniform float uDay, uSnow, uAutumn, uTile[6], uSharp, uFray, uVary, uNorK, uNorOn;
 uniform vec2 uRim;
-uniform sampler2D tLush;
+uniform sampler2D tLush, tPaintA, tPaintB;
 uniform sampler2DArray tCol, tNor;
 vec3 gNor = vec3(0.);
 ${NOISE}
@@ -116,6 +119,9 @@ ${ARR_GLSL}
   float k = tNoise(p*.35);                     // anti-tiling cell index
   float e = .5/max(uSharp, .5);                // blend width (balancing: mischschaerfe)
   float lush = smoothstep(.3, .7, texture2D(tLush, vMapUv).r + (n3-.5)*.45 + (n1-.5)*.3);
+  vec4 pA = texture2D(tPaintA, vMapUv), pB = texture2D(tPaintB, vMapUv);
+  // painted wild grass (editor): pure grass under it, none where it was removed
+  lush = clamp(lush*(1.-smoothstep(.1, .8, pB.a + (n3-.5)*.4)) + smoothstep(.1, .7, pB.b + (n3-.5)*.4)*.9, 0., 1.);
   float co = smoothstep(.5-e, .5+e, sp.a + (n3-.5)*uFray*.6 + (n1-.5)*uFray*.3);
   float pa = smoothstep(.5-e, .5+e, sp.b + (n3-.5)*uFray + (n1-.5)*uFray*.45);
   float fi = smoothstep(.5-e, .5+e, sp.g + (n3-.5)*uFray*.8 + (n2-.5)*uFray*.5);
@@ -127,6 +133,20 @@ ${ARR_GLSL}
   float wFi = fi*r0; r0 *= 1.-fi;
   float wMo = mo*r0; r0 *= 1.-mo;
   float wDr = dr*r0, wGr = r0*(1.-dr);
+  // painted ground (world editor): replaces the generated mix where painted; ragged borders from noise, between two
+  // painted layers a noise "height" decides, so strokes never show a clean round brush edge
+  float pS = pA.r+pA.g+pA.b+pA.a+pB.r+pB.g;
+  if (pS > .004) {
+    float cov = smoothstep(0., 1., clamp(pS + (n3-.5)*1.6*pS*(1.-pS) + (n1-.5)*.6*pS*(1.-pS), 0., 1.));
+    float iS = 1./pS;
+    float t0 = pA.r > .004 ? pA.r*iS + (tFbm(p*.42+1.3)-.5)*.7 : -9., t1 = pA.g > .004 ? pA.g*iS + (tFbm(p*.42+4.1)-.5)*.7 : -9.;
+    float t2 = pA.b > .004 ? pA.b*iS + (tFbm(p*.42+7.7)-.5)*.7 : -9., t3 = pA.a > .004 ? pA.a*iS + (tFbm(p*.42+9.2)-.5)*.7 : -9.;
+    float t4 = pB.r > .004 ? pB.r*iS + (tFbm(p*.42+12.5)-.5)*.7 : -9., t5 = pB.g > .004 ? pB.g*iS + (tFbm(p*.42+15.9)-.5)*.7 : -9.;
+    float mx = max(max(max(t0,t1),max(t2,t3)),max(t4,t5)) - .22;
+    float q0 = max(t0-mx,0.), q1 = max(t1-mx,0.), q2 = max(t2-mx,0.), q3 = max(t3-mx,0.), q4 = max(t4-mx,0.), q5 = max(t5-mx,0.);
+    float qs = cov/max(q0+q1+q2+q3+q4+q5, 1e-4), k0 = 1.-cov;
+    wGr = wGr*k0 + q0*qs; wMo = wMo*k0 + q1*qs; wFi = wFi*k0 + q2*qs; wPa = wPa*k0 + q3*qs; wDr = wDr*k0 + q4*qs; wCo = wCo*k0 + q5*qs;
+  }
   bool useN = uNorOn > .5;
   vec3 gc = vec3(0.);
   if (wGr>.003) layerS(tCol, tNor, 0., p/uTile[0], k, gc, gNor, wGr, useN);

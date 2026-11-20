@@ -569,6 +569,8 @@ export class FarmView {
     this.animBush(dt, day, sim, now);
     this.updateBits(dt);
     this.wild.update(this.s, day ? sim : null, now);
+    // pickable things twinkle now and then (tiny rising glints near the camera)
+    if (day && Math.random() < dt * 9) { const p = this.wild.sparkle(this.s); if (p && Math.hypot(p.x - this.camX, p.z - this.camZ) < 15) PART.spawn(p, V(0, rand(.15, .3), 0), 0xfff4d0, .06, rand(.6, .9), { s1: 0, a: .9 }); }
     this.animPens(dt, now, day ? sim : null, day);
     this.animPlayer(day ? sim : null, dt);
     this.animAnimals(day ? sim : null, dt, now);

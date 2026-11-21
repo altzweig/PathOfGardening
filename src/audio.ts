@@ -162,6 +162,22 @@ const SYNTH_EXTRA: Record<string, () => void> = {
   /** lava breathing under the chili field: soft low rumble + tiny crackle */
   ember() { noise({ t: .5, vol: .03, type: 'lowpass', f: 260, f2: 140, at: .2 }); if (Math.random() < .5) noise({ t: .04, vol: .03, type: 'highpass', f: 3500, when: rand(.05, .3) }); },
   wilt() { tone({ type: 'sine', f: 300, f2: 90, t: .8, vol: .07 }); noise({ t: .6, vol: .06, type: 'bandpass', f: 1400, f2: 300, q: 1.5 }); },
+  /** nightfall warning (21.11.2026): deep drum, a falling dark horn chord and a distant howl rising over it */
+  nightfall() {
+    tone({ f: 70, f2: 38, t: 1.1, vol: .34 }); noise({ t: .5, vol: .1, type: 'lowpass', f: 380, f2: 90 });
+    tone({ f: 62, f2: 36, t: 1.2, vol: .26, when: .42 }); noise({ t: .4, vol: .06, type: 'lowpass', f: 300, f2: 80, when: .42 });
+    for (const [f, w] of [[147, 0], [175, .02], [220, .04]] as const) tone({ type: 'sawtooth', f, f2: f * .94, t: 2.2, vol: .045, at: .25, when: .15 + w, filt: { type: 'lowpass', f: 700 } });
+    tone({ type: 'sine', f: 420, f2: 610, t: 1.5, vol: .05, at: .5, when: 1.1, vib: 9, vibF: 5 });
+    tone({ type: 'sine', f: 610, f2: 470, t: 1.3, vol: .04, at: .1, when: 2.5, vib: 12, vibF: 5 });
+  },
+  /** a wave of the night comes out of the forest: low drum + rustling */
+  nightWave() { tone({ f: 82, f2: 44, t: .6, vol: .26 }); noise({ t: .45, vol: .09, type: 'bandpass', f: 900, f2: 2600, q: .8, at: .05, when: .1 }); },
+  /** cutscene: muffled heartbeat (lub-dub) */
+  heartbeat() { tone({ f: 58, f2: 40, t: .22, vol: .32, at: .01 }); noise({ t: .12, vol: .05, type: 'lowpass', f: 160 }); tone({ f: 52, f2: 36, t: .2, vol: .22, at: .01, when: .24 }); },
+  /** cutscene: a slow, heavy breath */
+  breath() { noise({ t: 1.2, vol: .05, type: 'bandpass', f: 600, f2: 900, q: .7, at: .5 }); noise({ t: 1.4, vol: .04, type: 'bandpass', f: 800, f2: 420, q: .7, at: .3, when: 1.25 }); },
+  /** cutscene: the head sinks back onto the ground */
+  fall() { noise({ t: .35, vol: .1, type: 'lowpass', f: 600, f2: 120 }); tone({ f: 90, f2: 50, t: .3, vol: .16 }); noise({ t: .4, vol: .04, type: 'bandpass', f: 2400, f2: 1200, q: .6, when: .05 }); },
 };
 function entry(key: string): SndEntry | null {
   if (!SC) return null; let o: any = SC; for (const p of key.split('.')) { o = o?.[p]; if (o === undefined) return null; } return o;

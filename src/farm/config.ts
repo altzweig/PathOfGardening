@@ -13,7 +13,7 @@ export type StallId = 'cows' | 'sheep' | 'chickens';
 export const STALL_IDS: StallId[] = ['cows', 'sheep', 'chickens'];
 export type Livestock = 'cow' | 'sheep' | 'goat' | 'chicken';
 export type AnimalType = 'raccoon' | 'hare';
-export type ActionKind = 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
+export type ActionKind = 'repair' | 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
 /** handrake = kleine einhändige Handharke (Jäten, Notwaffe), 21.11.2026 */
 export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket';
 export interface ActionCfg { time: number; label: string; repeat?: boolean }
@@ -35,6 +35,15 @@ export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: 
 /** perennial wild harvest (trees, brambles): ripe every `every` days, `picks` passes with `shake`/`pick` pieces */
 export interface PerennialCfg { every: number; picks: number; shake: number }
 export type TreeKind = 'apple' | 'nut';
+/** night attack after every day (Basti 21.11.2026): waves of aggressive hares (eat the fields) and raccoons (rob the player) */
+export interface NightWave { at: number; hare?: number; raccoon?: number }
+export interface NightCfg {
+  length: number; dusk: number; warn: number; light: [number, number]; flee: number;
+  waves: NightWave[]; grow: number; max: { base: number; perLevel: number };
+  hare: { hp: number; speed: number; biteInterval: number; plotDamage: number; xp: number };
+  raccoon: { hp: number; speed: number; damage: number; biteInterval: number; steal: number; bites: number; xp: number };
+  plotHp: number; brokenShow: number;
+}
 export interface DailyQuestCfg { count: number; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; xpShare?: number; money: number; moneyLevel: number; minMoney: number }
 
 export interface FarmCfg {
@@ -60,7 +69,9 @@ export interface FarmCfg {
   ammo: Record<ItemId, { damage: number; freeze?: number }>;
   animals: Record<AnimalType, AnimalCfg>;
   spawns: { wanderers: [number, number]; wanderTypes: Partial<Record<AnimalType, number>>; raid: { from: number; to: number; raccoons: number; perLevel: number }; scaling: { hp: number; damage: number; speed: number } };
-  faint: { dryFields: boolean };
+  /** 0 HP: the worst case of the night (Basti 21.11.2026): the harvest of the day is gone, every field is broken */
+  faint: { loseHarvest: boolean; breakFields: boolean };
+  night: NightCfg;
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   buildings: Record<BuildingId, BuildingCfg>;
@@ -113,3 +124,19 @@ export const otherXp = (cfg: FarmCfg, item: ItemId, cuts: number) => {
 /** kind of the i-th farm tree (wild.trees repeats) */
 export const treeKind = (cfg: FarmCfg, i: number): TreeKind => { const t = cfg.wild.trees?.length ? cfg.wild.trees : ['apple' as TreeKind]; return t[i % t.length]; };
 export const treeCfg = (cfg: FarmCfg, i: number): PerennialCfg => treeKind(cfg, i) === 'nut' ? (cfg.wild.nuts ?? cfg.wild.apples) : cfg.wild.apples;
+
+/** the animals of one night: waves of night 1 from the yaml, every further night `grow` more per wave (raccoon, hare, raccoon ...),
+ *  but never more than max.base + max.perLevel x (level - 1) in the whole night, so a low level never gets too hard */
+export function nightPlan(cfg: FarmCfg, night: number, level: number): { at: number; hare: number; raccoon: number }[] {
+  const N = cfg.night, extra = Math.max(0, Math.round(N.grow * (Math.max(1, night) - 1)));
+  const waves = N.waves.map(w => ({ at: w.at, hare: (w.hare ?? 0) + Math.floor(extra / 2), raccoon: (w.raccoon ?? 0) + Math.ceil(extra / 2) }));
+  const cap = Math.max(waves.length, N.max.base + N.max.perLevel * Math.max(0, level - 1));
+  let total = waves.reduce((n, w) => n + w.hare + w.raccoon, 0);
+  while (total > cap) { // take from the biggest wave (the type it has more of), every wave keeps at least one animal
+    const w = waves.reduce((a, b) => (b.hare + b.raccoon >= a.hare + a.raccoon ? b : a));
+    if (w.hare + w.raccoon <= 1) break;
+    if (w.raccoon > w.hare) w.raccoon--; else w.hare--;
+    total--;
+  }
+  return waves;
+}

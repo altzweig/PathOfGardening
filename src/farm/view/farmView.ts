@@ -20,7 +20,7 @@ import type { Look } from '../../look';
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, StallId } from '../config';
 import type { FarmState } from '../state';
-import { ripeCuts } from '../state';
+import { growMul, ripeCuts } from '../state';
 import type { Hof } from '../hof';
 import type { Animal, DaySim, Ev, Target } from '../sim';
 import { HofWorld } from './hofWorld';
@@ -55,7 +55,23 @@ const G_GREEN = new THREE.Color(0x5e9a38), G_GOLD = new THREE.Color(0xe0b448), G
 interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandardMaterial; wetMat: THREE.MeshStandardMaterial; seeds: THREE.Group;
   stems: THREE.InstancedMesh; ears: THREE.InstancedMesh; spots: { x: number; z: number; r: number; s: number }[]; key: string; drop: THREE.Sprite; wet: number; shake: number;
   /** plants of every crop except wheat (built when the crop is sown) */
-  crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null }
+  crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null;
+  /** growth timer over the field (21.11.2026): small bar + remaining time "0:00" after it */
+  timer: { bar: THREE.Group; txt: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string } }
+/** remaining seconds as "m:ss" */
+export const clockText = (sec: number) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const TIMER_W = .9, TIMER_TXT = .62;
+function timerText() {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 52;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const txt = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, toneMapped: false, color: 0xd8d8d8 }));
+  txt.scale.set(TIMER_TXT, TIMER_TXT * 52 / 128, 1); txt.renderOrder = 999; txt.visible = false; scene.add(txt);
+  return { txt, g: cv.getContext('2d')!, tex };
+}
+function drawTimer(g: CanvasRenderingContext2D, s: string) {
+  g.clearRect(0, 0, 128, 52); g.font = '800 40px "Alegreya Sans", sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.lineJoin = 'round'; g.lineWidth = 9; g.strokeStyle = 'rgba(20,14,8,.85)'; g.strokeText(s, 6, 28); g.fillStyle = '#fff'; g.fillText(s, 6, 28);
+}
 /** 20.11.2026 (Fruchttabelle): which existing plant model a field crop uses; tint = fruit colour, leaf = leaf colour for crops without their own model */
 const CROP_MODEL: Record<string, { m: FruitType; tint?: number; leaf?: number }> = {
   carrot: { m: 'carrot' }, potato: { m: 'potato' }, onion: { m: 'onion' }, garlic: { m: 'garlic' }, pea: { m: 'pea' }, radish: { m: 'radish' },
@@ -155,7 +171,7 @@ export class FarmView {
     const free = (x: number, z: number, pad: number) => {
       for (const p of H.plots) if (Math.abs(x - p.x) < half + pad && Math.abs(z - p.z) < half + pad) return false;
       for (const o of hof.obstacles) {
-        if (o.kind === 'circle') { if (Math.hypot(x - o.x, z - o.z) < o.r + pad + .3) return false; }
+        if (o.kind === 'circle' || o.kind === 'poly') { if (Math.hypot(x - o.x, z - o.z) < o.r + pad + .3) return false; }
         else { const dx = x - o.x, dz = z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c; if (Math.abs(lx) < o.hw + pad + .6 && Math.abs(lz) < o.hd + pad + 1.2) return false; }
       }
       return Math.hypot(x - H.door.x, z - H.door.z) > 1.5 + pad;
@@ -227,7 +243,9 @@ export class FarmView {
     for (let k = 0; k < STEMS; k++) { const p = inHex(H * .88); spots.push({ x: p.x, z: p.z, r: rand(0, 7), s: rand(.85, 1.15) }); }
     const drop = dropSprite(); drop.position.set(x, 1.1, z); drop.visible = false; scene.add(drop);
     void i;
-    return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null };
+    const bar = makeBar(TIMER_W, .1, 0x9ad65a); bar.visible = false;
+    const timer = { bar, ...timerText(), last: '' };
+    return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null, timer };
   }
   private updatePlot(v: PlotView, i: number, dt: number, day: boolean) {
     const p = this.s.plots[i], C = p.crop ? this.cfg.crops[p.crop] : null;
@@ -237,6 +255,17 @@ export class FarmView {
     v.wetMat.opacity = v.wet * .95;
     v.drop.visible = day && p.open && p.stage === 'sown' && !p.watered;
     if (v.drop.visible) v.drop.position.y = 1 + Math.sin(performance.now() / 300 + i) * .06;
+    // growth timer: bar + time left while the crop grows (watered, after sprouting)
+    const T = v.timer, growing = day && p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C;
+    T.bar.visible = T.txt.visible = growing;
+    if (growing) {
+      const pos = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), left = gm > 0 ? (C!.grow - p.grow) / gm : C!.grow;
+      // phone upright: everything is smaller on screen, so the timer grows a bit
+      const k = innerHeight > innerWidth ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
+      T.bar.position.set(pos.x - rx.x * off, y, pos.z - rx.z * off); T.bar.quaternion.copy(camera.quaternion); T.bar.scale.setScalar(k); setBar(T.bar, C0);
+      T.txt.position.set(pos.x + rx.x * tx, y, pos.z + rx.z * tx); T.txt.scale.set(TIMER_TXT * k, TIMER_TXT * k * 52 / 128, 1);
+      const txt = clockText(left); if (txt !== T.last) { T.last = txt; drawTimer(T.g, txt); T.tex.needsUpdate = true; }
+    }
     v.shake = Math.max(0, v.shake - dt * 2.5);
     v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;
     if (key === v.key) return; v.key = key;
@@ -577,13 +606,19 @@ export class FarmView {
         const p = sim.targetPos(e.target);
         if (e.kind === 'sow') { burst(V(p.x, .2, p.z), 0x6a4a30, 16, 1.6, .12, .6, { g: 6 }); sfx('player.till', p.x, p.z); }
         if (e.kind === 'weed' || e.kind === 'weedHof') { burst(V(p.x, .2, p.z), 0x5e8e2c, 12, 1.4, .1, .6, { g: 6 }); burst(V(p.x, .1, p.z), 0x6a4a30, 6, 1, .08, .5, { g: 6 }); play('rustle'); }
-        if (e.kind === 'gather') { burst(V(p.x, .2, p.z), 0xd8d0a0, 8, 1.2, .08, .5, { g: 5 }); }
+        if (e.kind === 'gather') { burst(V(P.x, .2, P.z), 0xd8d0a0, 8, 1.2, .08, .5, { g: 5 }); }
         if (e.kind === 'fertilize') { burst(V(p.x, .25, p.z), 0x4a3a20, 20, 1.6, .1, .6, { g: 6 }); play('throw'); }
         if (e.kind === 'straw') { const b = this.hof.building((e.target as { id: BuildingId }).id); if (b) burst(V(b.x, .3, b.z), 0xe8d488, 24, 2, .1, .7, { g: 5 }); play('rustle'); }
         if (e.kind === 'produce' || e.kind === 'milk' || e.kind === 'eggs') { const f = sim.facePoint(e.target); burst(V(f.x, 1, f.z), 0xfff4d0, 14, 1.6, .1, .6, { g: -1 }); play('ready'); }
         if (e.kind === 'draw') sfx('ui.confirm');
         if (e.kind === 'harvestPlot') { const b = this.plots[(e.target as { i: number }).i]; if (b) b.shake = 1; }
-        if (e.kind === 'harvestPlot') { const p = sim.targetPos(e.target); burst(V(p.x, .5, p.z), 0xe8c860, 30, 2.4, .12, .8, { g: 5 }); sfx('collect.ammo', p.x, p.z); }
+        if (e.kind === 'harvestPlot') {
+          const p = sim.targetPos(e.target), pl = this.s.plots[(e.target as { i: number }).i];
+          burst(V(p.x, .5, p.z), 0xe8c860, 30, 2.4, .12, .8, { g: 5 });
+          sfx('harvest.ok', p.x, p.z); sfx('plants.produce.' + (pl?.crop ?? 'wheat'), p.x, p.z);
+          if (pl && pl.stage !== 'ripe') sfx('harvest.done', p.x, p.z);
+        }
+        if (e.kind === 'gather') { sfx('harvest.ok', P.x, P.z); play('rustle'); }
         if (e.kind === 'water') { const p = sim.targetPos(e.target); decal(p.x, p.z, 0x10161e, 1.2, 3, { op: .3 }); }
         if (e.kind === 'refill') sfx('ui.confirm');
         break;
@@ -594,11 +629,11 @@ export class FarmView {
         this.bush.shake = 1; play('rustle');
         for (let i = 0; i < 5; i++) this.leafAt(B.x + rand(-.4, .4), rand(.4, .8), B.z + rand(-.4, .4));
         for (let i = 0; i < e.n; i++) this.berryTo(B.x, B.z, to, !!e.small, i * .09);
-        sfx('plants.produce.blue', B.x, B.z);
+        sfx('plants.produce.blue', B.x, B.z); sfx('harvest.ok', B.x, B.z); if (e.small) sfx('harvest.done', B.x, B.z);
         break;
       }
-      case 'bramble': { const g = this.wild.bramble(e.i); if (g) { this.brambleShake.push({ g, t: .7 }); const p = g.position; for (let i = 0; i < 3; i++) this.leafAt(p.x + rand(-.3, .3), rand(.4, .8), p.z + rand(-.3, .3)); } play('rustle'); break; }
-      case 'shake': for (let i = 0; i < 10; i++) this.leafAt(e.x + rand(-1, 1), rand(1.8, 2.6), e.z + rand(-1, 1), .3); play('rustle'); sfx('plants.produce.nut', e.x, e.z); break;
+      case 'bramble': { const g = this.wild.bramble(e.i); if (g) { this.brambleShake.push({ g, t: .7 }); const p = g.position; for (let i = 0; i < 3; i++) this.leafAt(p.x + rand(-.3, .3), rand(.4, .8), p.z + rand(-.3, .3)); sfx('harvest.ok', p.x, p.z); } play('rustle'); break; }
+      case 'shake': for (let i = 0; i < 10; i++) this.leafAt(e.x + rand(-1, 1), rand(1.8, 2.6), e.z + rand(-1, 1), .3); play('rustle'); sfx('plants.produce.nut', e.x, e.z); sfx('harvest.ok', e.x, e.z); break;
       case 'fed': { const b = this.hof.building(e.id); if (b) { burst(V(b.x, .4, b.z), e.id === 'chickens' ? 0xe0b850 : 0x6a9a3a, 16, 1.6, .1, .6, { g: 5 }); if (e.id === 'sheep') sfx('sheep.wave', b.x, b.z); } play('throw'); break; }
       case 'hungry': if (this.s.buildings.sheep?.built) { const b = this.hof.building('sheep'); if (b) sfx('sheep.wave', b.x, b.z); } break;
       case 'swing': sfx('player.slash', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
@@ -614,7 +649,9 @@ export class FarmView {
       case 'drop': burst(V(e.x, .5, e.z), 0xffffff, 8, 1.5, .1, .4); break;
       case 'pickup': sfx('collect.xp', e.x, e.z); break;
       case 'hurt': this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); break;
-      case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); play('ready'); break; }
+      case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); sfx('plants.ripe'); break; }
+      // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
+      case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
       case 'deny': play('imm'); break;
     }
   }

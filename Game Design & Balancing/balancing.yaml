@@ -191,7 +191,7 @@ plots:
   clear: 1                 # s nach der letzten Ernte, dann ist das Feld wieder bestellbereit
   fertBonus: 0.3           # je Düngen (1x pro Tag): 30 % mehr Ernte-Durchgänge
   weeds: { max: 5, every: [35, 70], blockAt: 3 }   # Unkraut pro Feld: wächst alle 35-70 s, Ernten erst bei weniger als 3
-  byLevel: [1, 3, 5, 8, 11, 14, 18, 22, 24]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
+  byLevel: [3, 4, 5, 6, 8, 10, 12, 14, 16, 18]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
   cost: 20                 # Taler für ein weiteres Feld (Abend: Bauen)
 
 storage:
@@ -255,7 +255,7 @@ saves:                     # Spielstände: lokal im Browser (localStorage), mehr
 start:                     # neuer Spielstand
   money: 15
   items: { wheat: 1 }      # 1x Weizen-Saatgut
-  plots: 1                 # ein Feld
+  plots: 3                 # drei Felder (Referenz: 3 Weizenfelder, ca. 1000-1200 Weizen am Tag)
 
 # ---------------------------------------------------------------------
 # Kampf (Rechtsklick). Morgens wählt man genau eine Waffe und eine Munition.
@@ -356,28 +356,20 @@ levels:
     6: [dairy, cows, chickens, sheep]
     7: [silo]
 
-quests:
-  offers: 2                # neue Angebote pro Abend
-  maxActive: 3
-  start:                   # Startauftrag, liegt vom ersten Abend an bereit
-    need: { blue: 12 }       # Busch gibt jetzt 3 x 5 = 15 Beeren, der Waschbär klaut 4
-    reward: { money: 30, xp: 25, items: { wheat: 2 } }
-  pool:                    # Zufallsaufträge: need = Ware, Menge [min, max], Taler + XP pro Stück, ab Level
-    - { item: blue, amount: [20, 40], money: 1, xp: 1, level: 1 }
-    - { item: wheat, amount: [6, 12], money: 3, xp: 3, level: 1 }
-    - { item: straw, amount: [4, 8], money: 3, xp: 2, level: 1 }
-    - { item: wood, amount: [6, 12], money: 2, xp: 2, level: 1 }
-    - { item: mushroom, amount: [4, 8], money: 3, xp: 2, level: 1 }
-    - { item: baerlauch, amount: [4, 8], money: 3, xp: 2, level: 1 }
-    - { item: green, amount: [10, 20], money: 1, xp: 1, level: 1 }
-    - { item: apple, amount: [6, 12], money: 2, xp: 2, level: 1 }
-    - { item: pan, amount: [1, 3], money: 14, xp: 10, level: 1 }
-    - { item: flour, amount: [3, 6], money: 8, xp: 6, level: 2 }
-    - { item: juice, amount: [2, 4], money: 12, xp: 8, level: 3 }
-    - { item: bread, amount: [2, 4], money: 18, xp: 12, level: 4 }
-    - { item: egg, amount: [4, 8], money: 5, xp: 4, level: 6 }
-    - { item: milk, amount: [4, 8], money: 5, xp: 4, level: 6 }
-    - { item: cheese, amount: [2, 4], money: 20, xp: 14, level: 6 }
+quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automatisch angenommen, abends verfallen die offenen
+  daily:
+    count: 3               # Aufträge pro Tag, alle zusammen an einem Tag schaffbar
+    load: 0.55             # Anteil der Feld-Sekunden des Tages (Felder x Taglänge), den die 3 Aufträge zusammen belegen
+    cycle: 10              # s Arbeit pro Feld-Durchgang ohne Wachstum (Säen, Keimen, Gießen, Ernten, Räumen)
+    objectives: [1, 1, 2, 2, 2, 3]   # höchstens so viele Ziele pro Auftrag auf Level 1, 2, 3, ...
+    blue: { max: 10, min: 5, sec: 8 }  # Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
+    daysPerLevel: 1.5      # alle 3 Aufträge eines Tages bringen 1/1,5 Level an XP
+    money: 0.12            # Taler pro Feld-Sekunde Arbeit ...
+    moneyLevel: 0.15       # ... plus so viel Anteil je Level über 1
+    minMoney: 15           # mindestens so viele Taler pro Auftrag (Tag 1 ohne Brunnen: kleine Aufträge, trotzdem reicht es abends für die Reparatur)
+  titles:                  # 3-5 Wörter; {item} = Name der Ware
+    one: ["{item} für den Markt", "Eine Kiste {item}", "Der Händler will {item}", "{item} für das Dorffest", "Ein Korb voll {item}", "Die Nachbarin braucht {item}", "{item} für das Gasthaus"]
+    many: ["Gemüsekorb für das Dorf", "Bestellung vom Wochenmarkt", "Einkauf für das Gasthaus", "Lieferung für die Nachbarn", "Proviant für die Wanderer", "Vorräte für das Dorffest", "Großer Korb für die Mühle"]
 
 buildings:                 # level = ab diesem Level baubar, cost = Taler + Waren
   # action = was man tagsüber am fertigen Gebäude macht (Linksklick im Radius), recipes = Rezepte, das erste machbare wird genommen
@@ -400,7 +392,6 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
   shop:
     level: 3
     cost: { money: 90, wood: 8 }
-    questSlots: 1          # mehr Auftragsangebote
   juicer:
     level: 3
     cost: { money: 80, wood: 6 }
@@ -454,7 +445,7 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
   fade: 0.6                # s Ausblenden
   tips:                    # zufällige Reihenfolge, Ausnahme von "keine Erklärtexte" (Basti 19.11.2026)
     - Nach dem Säen einmal gießen, dann wächst die Frucht.
-    - Das Saatgut-Symbol unten links wählt, was du säst. Mit jedem Level kommen neue Früchte dazu.
+    - Das Saatgut-Symbol oben rechts wählt, was du säst. Mit jedem Level kommen neue Früchte dazu.
     - Die Gießkanne füllst du am Brunnen auf.
     - Regen gießt alle Felder und den Busch.
     - Waschbären klauen aus dem Korb am Lager. Triff sie, dann lassen sie die Beute fallen.

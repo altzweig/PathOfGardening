@@ -3,7 +3,8 @@ import { fruitIcon, skillIcon } from '../../ui/icons';
 
 const svg = (body: string) => `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 const ICON: Record<string, string> = {
-  coin: `<circle cx="20" cy="21" r="14" fill="#8a5a10"/><circle cx="20" cy="19" r="14" fill="#f0c040"/><circle cx="20" cy="19" r="10" fill="none" stroke="#b8860b" stroke-width="2"/><path d="M20 12v14M16 15h6a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h6" stroke="#8a5a10" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+  // Gefallen des Dorfes (21.11.2026, ersetzt Taler): goldene Marke mit Herz
+  coin: `<circle cx="20" cy="21" r="14" fill="#8a5a10"/><circle cx="20" cy="19" r="14" fill="#f0c040"/><circle cx="20" cy="19" r="10.5" fill="none" stroke="#b8860b" stroke-width="2"/><path d="M20 27s-7-4.4-7-9.2a3.7 3.7 0 0 1 7-1.6 3.7 3.7 0 0 1 7 1.6c0 4.8-7 9.2-7 9.2z" fill="#d8403a" stroke="#7a1810" stroke-width="1.4"/>`,
   drop: `<path d="M20 5c7 10 11 15 11 21a11 11 0 0 1-22 0c0-6 4-11 11-21z" fill="#4aa8ff" stroke="#163a66" stroke-width="2"/><circle cx="16" cy="25" r="3" fill="#d8f0ff"/>`,
   dropEmpty: `<path d="M20 5c7 10 11 15 11 21a11 11 0 0 1-22 0c0-6 4-11 11-21z" fill="#18222c" stroke="#3a4a5a" stroke-width="2"/>`,
   heart: `<path d="M20 34S5 25 5 15a7.5 7.5 0 0 1 15-2 7.5 7.5 0 0 1 15 2c0 10-15 19-15 19z" fill="#e8404a" stroke="#6a1018" stroke-width="2"/>`,

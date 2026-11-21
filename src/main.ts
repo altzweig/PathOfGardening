@@ -9,7 +9,7 @@ import { StartMenu } from './ui/startmenu';
 import { creditsHtml } from './ui/credits';
 import { loadLook } from './look';
 import { FarmCfg, loadFarmCfg, loadSounds } from './farm/config';
-import { FarmState, endDay, newState, nextDay, takeLoadout } from './farm/state';
+import { FarmState, checkQuests, endDay, newState, nextDay, takeLoadout } from './farm/state';
 import { SaveMeta, createSave, deleteSave, freeName, listSaves, migrateOldSave, readSave, writeSave } from './farm/saves';
 import type { DaySnap } from './farm/sim';
 import { Hof } from './farm/hof';
@@ -120,6 +120,7 @@ class Game {
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); if (!audio.on) stopAllLoops(); this.updateOpt(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
     click('#fPause', () => this.togglePause());
+    addEventListener('keydown', e => { if (e.code === 'KeyQ' && !e.repeat && this.mode === 'day' && !this.paused) { this.hud.toggleQuests(); sfx('ui.click'); } });
     click('#resumeBtn', () => this.togglePause());
     click('#leaveBtn', () => this.leave());
     this.input.onPause = () => { if (this.mode !== 'menu') this.togglePause(); };
@@ -315,6 +316,8 @@ class Game {
       if (e.k === 'store' && e.item !== 'blue') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
       if (e.k === 'faint') this.endOfDay('faint');
     }
+    // daily orders: delivered as soon as all goods are in the storage (reward in the evening)
+    if (this.s.tutorialDone) for (const q of checkQuests(this.cfg, this.s)) { sfx('ui.levelup'); this.hud.float(sim.player.x, sim.player.z, `${ic('check')}${q.title ?? ''}`, 'xp'); }
     if (sim.finished === 'time' && !this.tut) this.endOfDay('time');
     this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
   }

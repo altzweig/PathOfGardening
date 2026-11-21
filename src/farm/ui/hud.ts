@@ -2,7 +2,8 @@
 // tool icon at the cursor (what a click does), touch buttons, floating numbers, tutorial hint box.
 import type { FarmCfg } from '../config';
 import { cropsFor, nextLevelXp } from '../config';
-import type { FarmState } from '../state';
+import type { FarmState, Quest } from '../state';
+import { questProgress } from '../state';
 import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
@@ -17,6 +18,8 @@ const LABEL_Y: Record<string, number> = { bld: 2.4, stall: 1.9, well: 2.8, tree:
 export class FarmHud {
   private key = '';
   private s: FarmState | null = null;
+  /** quest list open (Q / tap on the box) */
+  questsOpen = true; private qKey = '';
   private nums: { el: HTMLElement; x: number; y: number; z: number; t: number }[] = [];
   constructor(public cfg: FarmCfg) {
     // seed choice (20.11.2026): what the next sowing plants; new crops come with the levels
@@ -25,7 +28,21 @@ export class FarmHud {
       e.stopPropagation(); const b = (e.target as HTMLElement).closest('button'); if (!b || !this.s) return;
       this.s.seed = b.dataset.c!; this.key = ''; this.seedPanel(false);
     });
+    $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
+  }
+  toggleQuests() { this.questsOpen = !this.questsOpen; this.qKey = ''; }
+  /** daily orders at the top right: title + reward, objectives "- 0/5 [icon] Name", green tick when done; collapsed only "Quests [Q]" */
+  private quests(s: FarmState, touch: boolean) {
+    const P = questProgress(s), list = s.tutorialDone ? s.quests.active : [];
+    const key = [this.questsOpen, touch, list.map(q => q.done + ':' + Object.values(P.get(q) ?? {}).join(',')).join('|')].join('/');
+    if (key === this.qKey) return; this.qKey = key;
+    const head = `<div class="qh">Quests${touch ? '' : ' <kbd>[Q]</kbd>'}</div>`;
+    const name = (k: string) => this.cfg.names.items[k] ?? k;
+    const one = (q: Quest) => { const p = P.get(q) ?? {};
+      return `<div class="qq${q.done ? ' done' : ''}"><div class="qt">${q.done ? ic('check') : ''}<b>${q.title ?? ''}</b><span class="qr"><span>${ic('xp')}${q.reward.xp}</span><span>${ic('coin')}${q.reward.money}</span></span></div>
+        ${Object.entries(q.need).map(([k, v]) => `<div class="qo${(p[k] ?? 0) >= v ? ' ok' : ''}">- <i>${p[k] ?? 0}/${v}</i>${ic(k)}${name(k)}</div>`).join('')}</div>`; };
+    $('#fQuests').innerHTML = list.length ? head + (this.questsOpen ? list.map(one).join('') : '') : '';
   }
   show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedPanel(false); }
   private seedPanel(on: boolean) {
@@ -56,6 +73,7 @@ export class FarmHud {
       $('#fWeap').innerHTML = gun ? `${ic(s.weapon!)}<span>${ic(s.ammo!)}<b>${s.ammoCount}</b></span>` : ic('rake');
       $('#bAtk').innerHTML = gun && s.ammoCount > 0 ? ic(s.weapon!) : ic('rake');
     }
+    this.quests(s, touch);
     // tool at the cursor (PC) / on the action button (touch)
     const tool = hoverInfo ? TOOL_ICON[hoverInfo.tool] : null;
     const cur = $('#fCursor');

@@ -20,7 +20,7 @@ export interface ActionCfg { time: number; label: string; repeat?: boolean }
 /** Taler + goods */
 export type Cost = { money?: number } & Record<string, number | undefined>;
 export interface Recipe { in: Record<ItemId, number>; out: Record<ItemId, number> }
-export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; questSlots?: number; action?: { label: string; time: number } }
+export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; action?: { label: string; time: number } }
 export interface StallCfg { animals: Livestock[]; feed: ItemId; feedCost: number; maxFed: number; collect: 'milk' | 'eggs'; yield: Record<ItemId, number> }
 export interface RectCfg { x: number; z: number; w?: number; d?: number; r?: number; rot?: number; fence?: boolean }
 export interface GunCfg { available: boolean; level: number; ammo: ItemId[]; ammoPerShot?: number; cooldown?: number; pellets?: number; cone?: number; range?: number; speed?: number; damage?: number }
@@ -32,7 +32,7 @@ export interface CropCfg { level: number; rarity: 'Common' | 'Uncommon' | 'Rare'
 /** perennial wild harvest (trees, brambles): ripe every `every` days, `picks` passes with `shake`/`pick` pieces */
 export interface PerennialCfg { every: number; picks: number; shake: number }
 export type TreeKind = 'apple' | 'nut';
-export interface QuestPoolEntry { item: ItemId; amount: [number, number]; money: number; xp: number; level: number }
+export interface DailyQuestCfg { count: number; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; money: number; moneyLevel: number; minMoney: number }
 
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
@@ -58,7 +58,7 @@ export interface FarmCfg {
   spawns: { wanderers: [number, number]; wanderTypes: Partial<Record<AnimalType, number>>; raid: { from: number; to: number; raccoons: number; perLevel: number }; scaling: { hp: number; damage: number; speed: number } };
   faint: { dryFields: boolean };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
-  quests: { offers: number; maxActive: number; start: { need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> } }; pool: QuestPoolEntry[] };
+  quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   buildings: Record<BuildingId, BuildingCfg>;
   loading: { minTime: number; tipEvery: number; fade: number; tips: string[] };
   tutorial: { raccoonHp: number; raccoonSteal: number; raccoonSpeed: number; raccoonStart: number; fieldHint: number; texts: Record<string, string> };

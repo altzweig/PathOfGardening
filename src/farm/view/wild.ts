@@ -1,5 +1,5 @@
-// Things that grow on the farm by themselves: weed tufts (yard + plots), forage at the forest edge (wild garlic,
-// sorrel, mushrooms, firewood, stones), wild bramble bushes and the apples in the farm's trees. Instanced, cheap.
+// Things that grow on the farm by themselves: wild herb tufts in the yard (weed + wild garlic + sorrel + dandelion),
+// weed tufts on the plots, forage at the forest edge (mushrooms, firewood, stones), wild bramble bushes and the apples in the farm's trees. Instanced, cheap.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { scene, windU } from '../../view/core';
@@ -29,18 +29,27 @@ function weedGeo() {
   parts.push(tint(at(new THREE.SphereGeometry(.1, 6, 4), 0, .04, 0, 0, 0, 0, [1.3, .35, 1]), 0x4f7a26));
   return merge(parts);
 }
-const FORAGE: Record<string, () => THREE.BufferGeometry> = {
+/** the small plants a wild herb tuft is made of (21.11.2026: no longer separate forage) */
+const HERB: Record<string, () => THREE.BufferGeometry> = {
   baerlauch: () => { const p: THREE.BufferGeometry[] = []; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; p.push(tint(at(new THREE.SphereGeometry(.06, 5, 3), Math.cos(a) * .07, .12, Math.sin(a) * .07, 0, -a, .5, [.6, 2.4, .25]), 0x3f8a2a)); }
     for (let i = 0; i < 3; i++) p.push(tint(at(new THREE.SphereGeometry(.03, 5, 4), (i - 1) * .05, .3, (i % 2) * .04), 0xf8f8f0)); p.push(tint(at(new THREE.CylinderGeometry(.008, .008, .28, 4), 0, .14, 0), 0x5a9a3a)); return merge(p); },
   sorrel: () => { const p: THREE.BufferGeometry[] = []; for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; p.push(tint(at(new THREE.SphereGeometry(.07, 5, 3), Math.cos(a) * .08, .09, Math.sin(a) * .08, 0, -a, .9, [.5, 1.8, .25]), i % 2 ? 0x6a9a2a : 0x8a5a2a)); }
     p.push(tint(at(new THREE.CylinderGeometry(.01, .012, .32, 4), 0, .16, 0), 0x9a3a2a)); for (let i = 0; i < 4; i++) p.push(tint(at(new THREE.SphereGeometry(.018, 4, 3), 0, .2 + i * .04, 0), 0xb83a2a)); return merge(p); },
-  mushroom: () => { const p: THREE.BufferGeometry[] = []; for (const [x, z, s] of [[0, 0, 1], [.1, .06, .7], [-.07, .09, .55]] as const) {
-    p.push(tint(at(new THREE.CylinderGeometry(.025 * s, .03 * s, .12 * s, 6), x, .06 * s, z), 0xf0e8d8));
-    p.push(tint(at(new THREE.SphereGeometry(.07 * s, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), x, .11 * s, z, 0, 0, 0, [1, .7, 1]), 0xa0522d)); } return merge(p); },
   // Löwenzahn (20.11.2026): flat serrated rosette + two yellow flowers on stalks
   dandel: () => { const p: THREE.BufferGeometry[] = []; for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; p.push(tint(at(new THREE.SphereGeometry(.06, 5, 3), Math.cos(a) * .09, .03, Math.sin(a) * .09, 0, -a, 1.3, [.45, 2.2, .2]), 0x4f8a2a)); }
     for (const [x, z, h] of [[0, 0, .22], [.05, .04, .16]] as const) { p.push(tint(at(new THREE.CylinderGeometry(.008, .009, h, 4), x, h / 2, z), 0x6a9a3a)); p.push(tint(at(new THREE.SphereGeometry(.045, 7, 4), x, h, z, 0, 0, 0, [1, .55, 1]), 0xf8d020)); }
     return merge(p); },
+};
+/** wild herb tuft (Basti 21.11.2026): weed, wild garlic, sorrel and dandelion as one small mixed clump */
+const HERB_MIX: [string, number, number, number, number][] = [['weed', 0, 0, .8, 0], ['baerlauch', .17, -.08, .75, 1.1], ['sorrel', -.15, -.1, .7, 2.3], ['dandel', .02, .17, .8, .4], ['weed', -.12, .14, .55, 2.9]];
+const herbPart = (g: THREE.BufferGeometry, x: number, z: number, s: number, ry: number) => { g.scale(s, s, s); g.rotateY(ry); g.translate(x, 0, z); return g; };
+function herbGeo() { return merge(HERB_MIX.map(([k, x, z, s, ry]) => herbPart(k === 'weed' ? weedGeo() : HERB[k](), x, z, s, ry))); }
+/** outline of a herb tuft: low leafy blobs only, so the thin stalks and flowers keep their colour */
+function herbHull() { return merge(HERB_MIX.map(([, x, z, s, ry]) => herbPart(weedGeo(), x, z, s * .8, ry))); }
+const FORAGE: Record<string, () => THREE.BufferGeometry> = {
+  mushroom: () => { const p: THREE.BufferGeometry[] = []; for (const [x, z, s] of [[0, 0, 1], [.1, .06, .7], [-.07, .09, .55]] as const) {
+    p.push(tint(at(new THREE.CylinderGeometry(.025 * s, .03 * s, .12 * s, 6), x, .06 * s, z), 0xf0e8d8));
+    p.push(tint(at(new THREE.SphereGeometry(.07 * s, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), x, .11 * s, z, 0, 0, 0, [1, .7, 1]), 0xa0522d)); } return merge(p); },
   wood: () => merge([0, 1, 2].map(i => tint(at(new THREE.CylinderGeometry(.045, .05, .5, 7), (i - 1) * .1, .05 + (i === 1 ? .07 : 0), 0, Math.PI / 2, (i - 1) * .25), i === 1 ? 0x7a5432 : 0x6a4428))),
   stone: () => merge([[0, 0, .1], [.12, .04, .07], [-.08, .1, .06]].map(([x, z, r], i) => tint(at(new THREE.DodecahedronGeometry(r, 0), x, r * .6, z, i, i * 2, 0, [1, .7, 1]), i ? 0x9a948a : 0x86827a))),
 };
@@ -78,8 +87,8 @@ function outlineMat(width: number, opacity = .45) {
   outlineMats.set(key, m); return m;
 }
 /** an outline twin of an instanced mesh: shares its instance matrices (count must be copied after updates) */
-function outlineFor(im: THREE.InstancedMesh, width: number) {
-  const o = new THREE.InstancedMesh(hullGeo(im.geometry), outlineMat(width), 1);
+function outlineFor(im: THREE.InstancedMesh, width: number, shape = im.geometry) {
+  const o = new THREE.InstancedMesh(hullGeo(shape), outlineMat(width), 1);
   o.instanceMatrix = im.instanceMatrix; o.count = 0; o.frustumCulled = false; o.renderOrder = -1; scene.add(o); return o;
 }
 /** outline meshes as children of the given meshes (brambles); returns them so they can be hidden when empty */
@@ -92,6 +101,8 @@ function outlineGroup(g: THREE.Object3D, width: number, opacity: number) {
 
 export class WildView {
   private weeds: THREE.InstancedMesh;
+  /** wild herb tufts in the yard (plots keep the plain weed tufts) */
+  private herbs: THREE.InstancedMesh;
   private forage = new Map<string, THREE.InstancedMesh>();
   private brambles: { g: THREE.Group; fruits: THREE.Mesh[]; rim: THREE.Mesh[] }[] = [];
   private apples: THREE.InstancedMesh;
@@ -104,6 +115,8 @@ export class WildView {
     const capW = cfg.wild.weeds.max + cfg.hof.plots.length * cfg.plots.weeds.max;
     this.weeds = new THREE.InstancedMesh(weedGeo(), mat, capW); this.weeds.count = 0; this.weeds.castShadow = true; this.weeds.frustumCulled = false; scene.add(this.weeds);
     this.rims.set(this.weeds, outlineFor(this.weeds, .022));
+    this.herbs = new THREE.InstancedMesh(herbGeo(), mat, cfg.wild.weeds.max); this.herbs.count = 0; this.herbs.castShadow = true; this.herbs.frustumCulled = false; scene.add(this.herbs);
+    this.rims.set(this.herbs, outlineFor(this.herbs, .02, herbHull()));
     for (const [k, mk] of Object.entries(FORAGE)) { const m = new THREE.InstancedMesh(mk(), mat, cfg.wild.forage.max); m.count = 0; m.castShadow = true; m.frustumCulled = false; scene.add(m); this.forage.set(k, m); this.rims.set(m, outlineFor(m, .02)); }
     const rnd = seeded(11);
     // brambles: dark leaves, black-purple berries
@@ -132,9 +145,14 @@ export class WildView {
       this.key = key;
       let n = 0;
       const put = (x: number, z: number, r: number, k: number) => { e.set(0, r, 0); q.setFromEuler(e); m4.compose(p.set(x, 0, z), q, sc.setScalar(k)); this.weeds.setMatrixAt(n, m4); this.weeds.setColorAt(n, col.setHSL(.24 + (r % 1) * .06, .5, .55 + (r * 7 % 1) * .2)); n++; };
-      for (const w of W.weeds) put(w.x, w.z, w.id * 1.7, 1.05 + (w.id * .37 % 1) * .6);
       s.plots.forEach((pl, i) => { if (!pl.open) return; const P = this.cfg.hof.plots[i]; for (let k = 0; k < pl.weeds; k++) { const sp = this.hof.plotWeeds[i][k]; put(P.x + sp.x, P.z + sp.z, sp.r, 1.1); } });
       this.weeds.count = n; this.weeds.instanceMatrix.needsUpdate = true; if (this.weeds.instanceColor) this.weeds.instanceColor.needsUpdate = true;
+      let h = 0;
+      for (const w of W.weeds) {
+        const r = w.id * 1.7; e.set(0, r, 0); q.setFromEuler(e); m4.compose(p.set(w.x, 0, w.z), q, sc.setScalar(1.3 + (w.id * .37 % 1) * .5)); this.herbs.setMatrixAt(h, m4);
+        this.herbs.setColorAt(h, col.setHSL(.2, .25, .82 + (r * 7 % 1) * .18)); h++;   // light tint only, the yellow + white flowers stay
+      }
+      this.herbs.count = h; this.herbs.instanceMatrix.needsUpdate = true; if (this.herbs.instanceColor) this.herbs.instanceColor.needsUpdate = true;
       const counts = new Map<string, number>();
       for (const f of W.forage) {
         const m = this.forage.get(f.k); if (!m) continue; const i = counts.get(f.k) ?? 0; counts.set(f.k, i + 1);

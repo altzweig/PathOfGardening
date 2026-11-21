@@ -164,3 +164,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Hofladen ab Level 2, kostet nur Gefallen: nach Tag 1 noch nicht, nach Tag 2 sicher bezahlbar (Preis knapp über dem Maximum von Tag 1, simuliert).
 - Tiere: am Anfang 1-2 Hasen nahe den Feldern. Erste Annäherung: Flucht 15 m. Zweite: 1 Minute ganz weg. Sie stehlen nichts. Waschbären vorerst nicht (später per Level). Tiere schauen immer in Laufrichtung.
 
+
+## Wildkräuter statt Unkraut, Bärlauch, Löwenzahn, Sauerampfer (Basti, 21.11.2026)
+- Unkraut auf dem Hof (außerhalb der Felder), Bärlauch, Löwenzahn und Sauerampfer sind jetzt **eine** Pflanze: ein kleines gemischtes Büschel (Unkrauthalme, Bärlauchblätter mit weißen Blüten, Sauerampfer-Stängel, Löwenzahn-Rosette mit gelber Blüte). Unkraut auf den Feldern bleibt wie es ist.
+- Häufigkeit wie bisher das Hof-Unkraut (`wild.weeds`: Start 40, höchstens 100, alle 6-12 s eins nach). Bärlauch, Löwenzahn und Sauerampfer wachsen nicht mehr einzeln, nur Pilze, Brennholz und Steine bleiben Sammelgut.
+- Jäten (Handharke, 1 s) würfelt die Ausbeute (`wild.herbs`): Roll 1 gibt zu 90 % 1 Unkraut (= 1 Grünschnitt), zu 10 % 2 gleiche zufällige Kräuter. Dann 2 weitere Rolls, jeder mit je 10 % für Bärlauch, Löwenzahn oder Sauerampfer (70 % nichts). Ergebnis: 44 % keine Kräuter, 38 % eins, 13 % zwei, 4 % drei, 1 % vier. Im Schnitt 0,8 Kräuter pro Büschel.
+- **XP:** Unkraut gibt weiterhin keine XP. Jedes gefundene Kraut gibt so viel wie früher ein Sammelvorgang (`xpPicks: 3`: Bärlauch 2, Löwenzahn/Sauerampfer 3). Pro Büschel im Schnitt etwa 2 XP.
+- Alte Spielstände: Hof-Unkraut und Sammelgut wachsen einmal neu (Platzierungsversion 3).

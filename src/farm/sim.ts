@@ -184,6 +184,8 @@ export class DaySim {
   }
   private growWeed(any = false) {
     const w = this.s.wild; if (w.weeds.length >= this.cfg.wild.weeds.max) return;
+    // world editor: weeds / wild herbs on the farm only grow on the wild plant spots painted there
+    if (this.hof.hasWildSpots) { const q = this.hof.wildSpot((x, z) => (any || !this.visible(x, z)) && !w.weeds.some(f => (f.x - x) ** 2 + (f.z - z) ** 2 < .36)); if (q) w.weeds.push({ id: w.seq++, ...q }); return; }
     const p = this.grassSpot(any) ?? this.spot(.08, .95, .5, any); if (p) w.weeds.push({ id: w.seq++, ...p });
   }
   /** k = a wild plant kind (wild.forage.plants), else firewood / stones by weight */

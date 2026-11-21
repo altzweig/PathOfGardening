@@ -166,7 +166,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 
 
 ## Welt-Editor: Wildpflanzen-Punkte, Gebäude, Entwürfe (Basti, 21.11.2026)
-- Wildpflanzen-Spawnpunkte (Logik-Reiter „Wildpflanzen“: Einzeln, Sprühen mit Dichte, Entfernen): legen nur fest, WO Wildpflanzen (alle Einträge unter `wild.forage.plants`) wachsen dürfen. Wie oft bleibt in balancing.yaml. Sind Punkte gesetzt, wachsen Wildpflanzen nur dort (±0,3 m), sonst wie bisher am Waldrand / Grasrand. Brennholz und Steine bleiben am Waldrand.
+- Wildpflanzen-Spawnpunkte (Logik-Reiter „Wildpflanzen“: Einzeln, Sprühen mit Dichte, Entfernen): legen nur fest, WO Wildpflanzen (alle Einträge unter `wild.forage.plants`) wachsen dürfen. Wie oft bleibt in balancing.yaml. Sind Punkte gesetzt, wachsen Wildpflanzen und das Hof-Unkraut (Wildkräuter) nur dort (±0,3 m), sonst wie bisher am Waldrand / Grasrand. Brennholz und Steine bleiben am Waldrand.
 - Alle Gebäude (außer Haupthaus und Brunnen, die eigene Werkzeuge haben) frei platzierbar (Logik-Reiter „Gebäude“, Q/E drehen). Im Editor halbtransparent, darunter kann gemalt und bepflanzt werden. Grundriss und Freischalt-Level kommen aus balancing.yaml. Nicht platzierte Gebäude gibt es in dieser Welt nicht (Baumenü, Freischaltungen).
 - Im Spiel ist ein ungebautes Gebäude unsichtbar: keine Baustelle, keine Ruine, kein Hindernis; dort ist, was im Editor gemalt/platziert wurde. Wird es gebaut, verschwinden Objekte, Gras und Wildpflanzen unter seinem Grundriss.
 - Ältere Welten ohne Gebäudeliste: der Hofladen steht wie bisher automatisch neben dem Haupthaus; der Editor übernimmt diesen Platz beim Öffnen.

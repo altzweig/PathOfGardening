@@ -48,8 +48,36 @@ function mat(key: string): THREE.MeshStandardMaterial {
   } as Record<string, () => THREE.MeshStandardMaterial>)[key]();
   MAT[key] = m; return m;
 }
-/** windows glow at dusk */
-export function setWindowGlow(k: number) { mat('window').emissiveIntensity = k * 1.6; }
+/** warm light that spills out of the windows at night (21.11.2026): a soft halo around the pane (blooms), a faint light shaft and a
+ *  warm pool on the ground in front of it. All additive, no real lights (cheap on phones). Shared materials, faded by setWindowGlow. */
+const softTex = (W: number, H: number, paint: (g: CanvasRenderingContext2D) => void) => { const t = canvasTex(W, H, paint); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; };
+const GLOW = {
+  halo: new THREE.MeshBasicMaterial({ map: softTex(128, 128, g => { const r = g.createRadialGradient(64, 64, 6, 64, 64, 64); r.addColorStop(0, 'rgba(255,214,150,1)'); r.addColorStop(.35, 'rgba(255,170,90,.55)'); r.addColorStop(1, 'rgba(255,140,60,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }),
+    color: 0xffb070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+  pool: new THREE.MeshBasicMaterial({ map: softTex(128, 128, g => { const r = g.createRadialGradient(64, 40, 4, 64, 56, 64); r.addColorStop(0, 'rgba(255,190,120,.9)'); r.addColorStop(.5, 'rgba(255,150,80,.35)'); r.addColorStop(1, 'rgba(255,120,60,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }),
+    color: 0xffa860, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+  shaft: new THREE.MeshBasicMaterial({ map: softTex(64, 128, g => { const r = g.createLinearGradient(0, 0, 0, 128); r.addColorStop(0, 'rgba(255,190,120,.8)'); r.addColorStop(1, 'rgba(255,150,80,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 128);
+    const e = g.createLinearGradient(0, 0, 64, 0); e.addColorStop(0, 'rgba(0,0,0,1)'); e.addColorStop(.25, 'rgba(0,0,0,0)'); e.addColorStop(.75, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(0,0,0,1)'); g.globalCompositeOperation = 'destination-out'; g.fillStyle = e; g.fillRect(0, 0, 64, 128); }),
+    color: 0xffb070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+};
+const PLANE = new THREE.PlaneGeometry(1, 1);
+/** windows glow at dusk; k = darkness 0..1 */
+export function setWindowGlow(k: number) {
+  mat('window').emissiveIntensity = k * 2.4;
+  GLOW.halo.opacity = k * .55; GLOW.pool.opacity = k * .5; GLOW.shaft.opacity = k * .16;
+  const on = k > .02; GLOW.halo.visible = GLOW.pool.visible = GLOW.shaft.visible = on;
+}
+/** world points of every lit window (cutscene: the lights of the house) */
+export const WINDOWS: THREE.Object3D[] = [];
+function windowLight(g: THREE.Group, y: number, w: number, h: number) {
+  const halo = new THREE.Mesh(PLANE, GLOW.halo); halo.scale.set(w * 2.6, h * 2.4, 1); halo.position.z = .07; halo.renderOrder = 5;
+  const pool = new THREE.Mesh(PLANE, GLOW.pool); pool.rotation.x = -Math.PI / 2; pool.scale.set(w * 3.2, 3.2, 1); pool.position.set(0, -y + .04, 1.55);
+  // shaft: from the pane down and out to the pool
+  const len = Math.hypot(y, 1.5), shaft = new THREE.Mesh(PLANE, GLOW.shaft); shaft.scale.set(w * 1.15, len, 1);
+  shaft.position.set(0, -y / 2, .78); shaft.rotation.x = -Math.atan2(1.5, y); shaft.renderOrder = 4;
+  for (const m of [halo, pool, shaft]) { m.castShadow = false; m.receiveShadow = false; g.add(m); }
+  WINDOWS.push(g);
+}
 
 // ---------------- primitives ----------------
 const box = (p: THREE.Object3D, m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number, round = 0) => {
@@ -83,6 +111,7 @@ function windowAt(p: THREE.Object3D, x: number, y: number, z: number, w = .7, h 
   box(g, mat('frame'), w + .12, h + .12, .06, 0, 0, 0); box(g, mat('window'), w, h, .07, 0, 0, .01);
   box(g, mat('frame'), .05, h, .08, 0, 0, .02); box(g, mat('frame'), w, .05, .08, 0, 0, .02);
   box(g, mat('green'), .3, h + .1, .04, -w / 2 - .2, 0, .02); box(g, mat('green'), .3, h + .1, .04, w / 2 + .2, 0, .02); // shutters
+  windowLight(g, y, w, h);
   return g;
 }
 function doorAt(p: THREE.Object3D, x: number, z: number, w = 1, h = 2, m = mat('door')) {

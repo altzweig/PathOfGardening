@@ -62,5 +62,8 @@ Regen/Gewitter (`rain_light.mp3`, `rain_heavy.mp3` als nahtlose 24-s-Stereo-Loop
 | rain_light | [Rain and Drips](https://freesound.org/s/853565/) | hoshisato | CC0 |
 | rain_heavy, thunder_1–5 | [ThunderRain_SFX](https://freesound.org/s/867416/) | kbro935 | CC0 |
 | amb_day | „calm birds“ (Freesound, aus Bastis Sound-Sammlung, Ausschnitt als Loop) | – | CC0 |
+| ripe_1 | „clear notification“ (koiroylers, aus Bastis Sound-Sammlung, `sfx/ui/koiroylers-clear-notification-355970.mp3`, gekürzt) | koiroylers | laut Basti frei nutzbar |
+| harvest_pop | „pop sound“ (soundreality, aus Bastis Sound-Sammlung, `sfx/collect/soundreality-pop-sound-423716.mp3`, Ausschnitt) | soundreality | laut Basti frei nutzbar |
+| harvest_ding | „menu beep accept glass b“ (liecio, aus Bastis Sound-Sammlung, `sfx/ui/liecio-menu_beep_accept_glass_b-533781.mp3`, gekürzt) | liecio | laut Basti frei nutzbar |
 
 (Nicht verwendet: [Flamethrower weapon long bursts](https://freesound.org/s/395039/) von aslakhostaker.)

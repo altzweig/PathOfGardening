@@ -210,3 +210,17 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Jäten (Handharke, 1 s) würfelt die Ausbeute (`wild.herbs`): Roll 1 gibt zu 90 % 1 Unkraut (= 1 Grünschnitt), zu 10 % 2 gleiche zufällige Kräuter. Dann 2 weitere Rolls, jeder mit je 10 % für Bärlauch, Löwenzahn oder Sauerampfer (70 % nichts). Ergebnis: 44 % keine Kräuter, 38 % eins, 13 % zwei, 4 % drei, 1 % vier. Im Schnitt 0,8 Kräuter pro Büschel.
 - **XP:** Unkraut gibt weiterhin keine XP. Jedes gefundene Kraut gibt so viel wie früher ein Sammelvorgang (`xpPicks: 3`: Bärlauch 2, Löwenzahn/Sauerampfer 3). Pro Büschel im Schnitt etwa 2 XP.
 - Alte Spielstände: Hof-Unkraut und Sammelgut wachsen einmal neu (Platzierungsversion 3).
+
+## Arbeitsrhythmus, Feldanzeige, Third-Person-Steuerung (Basti, 21.11.2026)
+- **Pause zwischen Arbeitsschritten:** Nach jedem fertigen Schritt (Jäten, Kanne füllen, Sammeln, Ernten …) gibt es immer 0,5 s Pause (`player.actionGap`), erst dann startet automatisch der nächste Schritt. Man bleibt dabei in der Hocke.
+- **Weiter zum nächsten Feld:** Wird die Aktion gehalten und am Feld gibt es nichts mehr zu tun, steht die Figur auf und geht von selbst zum nächsten Feld mit Arbeit (höchstens `player.nextField` = 5 m entfernt).
+- **Feldanzeige nur in der Nähe:** Wachstumsbalken, Restzeit und darüber der Name der Pflanze (`crops.<id>.name`, z. B. „Weizen“, „Kartoffel“) werden nur eingeblendet, wenn man nah dran ist (`plots.info`: bis 2,6 m voll, ab 3,6 m weg, weich überblendet). Gilt auch für den Blaubeerbusch.
+- **Erntebereit:** Ein reifes Feld zeigt in der Nähe den Namen, einen goldenen Balken (= verbleibende Erntevorgänge) und ein Häkchen.
+- **Schlafen (aufsteigende „Z“):** Felder, deren Restwachstum länger ist als der Rest des Tages, wachsen über Nacht fertig und sind am nächsten Morgen erntereif; statt der Restzeit steigen kleine „Z“ auf. Ebenso beim leer gepflückten Blaubeerbusch, bei leer geschüttelten Obst-/Nussbäumen und leeren Brombeeren (nur in der Nähe). Ein gegossener, noch wachsender Blaubeerbusch ist am nächsten Morgen reif.
+- **Steuerung PC (Third Person):** Maus wird beim ersten Klick gefangen und dreht die Kamera, WASD laufen relativ zur Kamera (W = Blickrichtung). Linke Maustaste oder **E** = Aktion am nächsten Ziel vor der Figur (halten = weiter), rechte Maustaste oder **Leertaste** = Kämpfen (zielt automatisch auf das nächste Tier). Mausrad = Zoom, mittlere Maustaste ist frei. Esc gibt die Maus frei und pausiert. Die Kamera kann tiefer geneigt werden (`camera.pitch` ab 0,35).
+- **Freie Sicht auf die Figur:** Alles zwischen Kamera und Figur (Bäume, Büsche, Gebäude, Zäune) wird rund um die Figur sanft ausgeblendet (feines Dithering, ein leichter Schatten des Objekts bleibt sichtbar). Gras und Beete bleiben.
+
+### Annahmen (bitte prüfen)
+- Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
+- Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.
+- Name, Balken und „Z“ erscheinen nur in der Nähe, auch bei Bäumen und Brombeeren.

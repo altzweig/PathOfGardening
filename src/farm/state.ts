@@ -2,8 +2,9 @@
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
 import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, STALL_IDS, WeaponId, levelFor, plotsAllowed } from './config';
 
-export type PlotStage = 'wild' | 'empty' | 'raked' | 'sown' | 'ripe' | 'done';
-/** yieldLeft = harvest passes left on a ripe plot; weeds 0..plots.weeds.max; fert = times fertilised (this crop), fertDay = day of the last time;
+/** 21.11.2026: no ploughing / raking any more: an open plot is 'empty' (ready to sow) right away and again after the harvest */
+export type PlotStage = 'wild' | 'empty' | 'sown' | 'ripe' | 'done';
+/** yieldLeft = harvest passes left on a ripe plot; weeds 0..plots.weeds.max (grow only in the morning, slow the growth); fert = times fertilised (this crop), fertDay = day of the last time;
  *  t = s left of a short step (sprouting after sowing, clearing after the last harvest), grow = s grown since watering (20.11.2026) */
 export interface PlotState { open: boolean; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number }
 export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
@@ -32,7 +33,7 @@ export interface FarmState {
   wild: WildState;
   buildings: Record<BuildingId, BuildingState>;
   quests: { active: Quest[]; offers: Quest[]; seq: number };
-  weapon: WeaponId | null;     // chosen in the morning (null = only the rake)
+  weapon: WeaponId | null;     // null = only the hand rake (21.11.2026: no morning choice, the game starts without a weapon)
   ammo: ItemId | null;
   ammoCount: number;           // taken out of the storage for the day, the rest goes back in the evening
   phase: 'morning' | 'day' | 'evening';
@@ -41,6 +42,8 @@ export interface FarmState {
   seed: string;                // crop that is sown next (seed button in the HUD)
   /** perennial wild harvest: day from which each farm tree / bramble is ripe again */
   perennial: { trees: number[]; brambles: number[] };
+  /** day whose morning weeds were rolled (once per day, also for a save made during the day) */
+  weedDay?: number;
 }
 
 const KEY = 'pog-farm-v1';
@@ -73,13 +76,18 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   s.plots.length = cfg.hof.plots.length;
   for (const p of s.plots) {
     p.weeds ??= 0; p.fert ??= 0; p.fertDay ??= 0; p.t ??= 0; p.grow ??= 0;
-    if (p.crop && !cfg.crops[p.crop]) Object.assign(p, { stage: 'raked', crop: null, watered: false, yieldLeft: 0 });
+    if (p.crop && !cfg.crops[p.crop]) Object.assign(p, { stage: 'empty', crop: null, watered: false, yieldLeft: 0 });
+    if ((p.stage as string) === 'raked') p.stage = 'empty'; // 21.11.2026: ploughing is gone
+    p.weeds = Math.min(p.weeds, cfg.plots.weeds.max);
   }
   if (!s.seed || !cfg.crops[s.seed]) s.seed = 'wheat';
   s.perennial ??= { trees: [], brambles: [] };
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) s.buildings[id] ??= { built: !!cfg.buildings[id]?.built };
   for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
   s.levelUps ??= [];
+  // 21.11.2026: no weapon choice in the morning any more: ammo taken out goes back into the storage
+  if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
+  s.weapon = null; s.ammo = null; s.ammoCount = 0;
   s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
   if (s.wild.v !== WILD_V) s.wild = { weeds: [], forage: [], seq: s.wild.seq, init: false, v: WILD_V }; // 20.11.2026: weeds + forage sit by theme now
   if (s.bush.small === undefined) s.bush = freshBush();
@@ -190,10 +198,12 @@ export function rollDaily(cfg: FarmCfg, s: FarmState) {
       need[p.item] = n; water -= Math.ceil(n / p.per); sec += n * p.sec;
     }
     if (!Object.keys(need).length) { // no water left: berries from the bush are always possible
-      if (blueLeft >= D.blue.min) { need.blue = D.blue.min; blueLeft -= D.blue.min; sec += D.blue.min * D.blue.sec; } else continue;
+      if (blueLeft >= D.blue.min && !s.quests.active.some(x => x.need.blue)) { need.blue = D.blue.min; blueLeft -= D.blue.min; sec += D.blue.min * D.blue.sec; } else continue;
     }
     const items = Object.keys(need), list = items.length > 1 ? T.many : T.one;
-    const title = list[Math.floor(Math.random() * list.length)].replace('{item}', name(items[0]));
+    // never two orders with the same title on one day
+    const used = new Set(s.quests.active.map(x => x.title)), titles = list.map(t => t.replace('{item}', name(items[0])));
+    const free = titles.filter(t => !used.has(t)), title = (free.length ? free : titles)[Math.floor(Math.random() * (free.length || titles.length))];
     const frac = sec / share;
     s.quests.active.push({ id: 'q' + s.quests.seq++, title, need,
       reward: { money: Math.max(D.minMoney, Math.round(sec * D.money * (1 + D.moneyLevel * (L - 1)))), xp: Math.max(1, Math.round(xpQuest * Math.max(.75, frac))) } });
@@ -226,7 +236,7 @@ export function openPlot(cfg: FarmCfg, s: FarmState) {
 /** evening: crops keep their growth (they only grow during the day), short steps finish, unused ammo goes back into the storage */
 export function endDay(cfg: FarmCfg, s: FarmState) {
   for (const p of s.plots) {
-    if (p.stage === 'done') Object.assign(p, { stage: 'raked', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0 });
+    if (p.stage === 'done') Object.assign(p, { stage: 'empty', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0 });
     p.t = 0;
   }
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
@@ -240,10 +250,20 @@ export function nextDay(cfg: FarmCfg, s: FarmState) {
   claimQuests(cfg, s); s.day++; s.bush = freshBush(); s.phase = 'morning'; s.summary = null; s.levelUps = [];
   rollDaily(cfg, s);
 }
-/** morning: take weapon + ammo for the day */
-export function takeLoadout(cfg: FarmCfg, s: FarmState, weapon: WeaponId | null, ammo: ItemId | null, n: number) {
-  s.weapon = weapon; s.ammo = weapon ? ammo : null;
-  s.ammoCount = s.ammo ? Math.max(0, Math.min(count(s, s.ammo), Math.floor(n))) : 0;
-  if (s.ammo && s.ammoCount) addItem(cfg, s, s.ammo, -s.ammoCount);
-  s.phase = 'day';
+/** growth speed of a plot: every weed slows it down (plots.weeds.slow, Basti 21.11.2026) */
+export function growMul(cfg: FarmCfg, p: PlotState) {
+  const sl = cfg.plots.weeds.slow; if (p.weeds <= 0 || !sl?.length) return 1;
+  return Math.max(0, 1 - sl[Math.min(sl.length, p.weeds) - 1]);
+}
+/** morning: new weeds on every open plot (0/1/2 by plots.weeds.morning, at most max). Only once per day.
+ *  tutorial: exactly one weed on the first plot, so weeding is shown once */
+export function morningWeeds(cfg: FarmCfg, s: FarmState, tutorial = false) {
+  if (s.weedDay === s.day) return; s.weedDay = s.day;
+  const W = cfg.plots.weeds, ch = W.morning ?? [1];
+  s.plots.forEach((p, i) => {
+    if (!p.open) return;
+    if (tutorial) { p.weeds = i === 0 ? 1 : 0; return; }
+    let r = Math.random(), n = 0; for (; n < ch.length - 1; n++) { r -= ch[n]; if (r < 0) break; }
+    p.weeds = Math.min(W.max, p.weeds + n);
+  });
 }

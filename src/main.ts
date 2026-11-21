@@ -1,4 +1,5 @@
-// PathOfGardening: farming game loop (19.11.2026). Menu -> day on the farm -> evening in the house -> morning loadout -> next day.
+// PathOfGardening: farming game loop (19.11.2026). Menu -> day on the farm -> evening in the house -> next day
+// (21.11.2026: no weapon choice in the morning any more, the day starts right away with the hand rake).
 // The old wave survival game lives in archiv/garden-defence-v1/.
 import './style.css';
 import './farm/farm.css';
@@ -9,7 +10,7 @@ import { StartMenu } from './ui/startmenu';
 import { creditsHtml } from './ui/credits';
 import { loadLook } from './look';
 import { FarmCfg, loadFarmCfg, loadSounds } from './farm/config';
-import { FarmState, checkQuests, endDay, newState, nextDay, takeLoadout } from './farm/state';
+import { FarmState, checkQuests, endDay, morningWeeds, newState, nextDay } from './farm/state';
 import { SaveMeta, createSave, deleteSave, freeName, listSaves, migrateOldSave, readSave, writeSave } from './farm/saves';
 import type { DaySnap } from './farm/sim';
 import { Hof } from './farm/hof';
@@ -37,7 +38,7 @@ const MENU_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const farmName = (n: string) => (n.trim() || 'Mein') === 'Mein' ? 'Mein Hof' : /[sßxz]$/i.test(n.trim()) ? `${n.trim()}' Hof` : `${n.trim()}s Hof`;
 const when = (ms: number) => { const d = new Date(ms), p = (x: number) => String(x).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}. ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
-type Mode = 'menu' | 'day' | 'evening' | 'morning';
+type Mode = 'menu' | 'day' | 'evening';
 
 class Game {
   cfg!: FarmCfg; hof!: Hof; s!: FarmState;
@@ -130,7 +131,6 @@ class Game {
     this.house.onSound = k => sfx(k);
     this.house.onChange = () => { this.view.syncBuildings(); this.persist(false); };
     this.house.onSleep = () => this.sleep();
-    this.house.onStart = (w, a, n) => this.startMorning(w, a, n);
   }
   private updateOpt() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
@@ -217,7 +217,7 @@ class Game {
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     this.autoT = 0;
     if (this.s.phase === 'evening') this.toEvening(false);
-    else if (this.s.phase === 'morning') this.toMorning();
+    else if (this.s.phase === 'morning') this.startDay();
     else { this.startDay(); if (snap && this.sim) { this.sim.restore(snap); this.view.snapCamera(this.sim.player.x, this.sim.player.z); } }
   }
   private leave() {
@@ -228,7 +228,7 @@ class Game {
     }
     this.paused = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
-    this.house.showEvening(false); this.house.showMorning(false);
+    this.house.showEvening(false);
     this.house.s = this.s; this.view.setState(this.s);
     this.only('#menu'); this.updateMenu();
   }
@@ -241,7 +241,9 @@ class Game {
   }
   startDay() {
     const s = this.s, tutorial = !s.tutorialDone;
-    if (tutorial) { s.water = this.cfg.can.capacity; s.weapon = null; s.ammo = null; s.ammoCount = 0; }
+    if (tutorial) s.water = this.cfg.can.capacity;
+    s.weapon = null; s.ammo = null; s.ammoCount = 0; // no weapons for now: the hand rake is always there
+    morningWeeds(this.cfg, s, tutorial);             // new weeds on the plots, once per morning
     s.phase = 'day';
     this.sim = new DaySim(this.cfg, s, this.hof, { tutorial }); this.sim.initRipe();
     // weeds + forage only grow where nobody is looking
@@ -277,13 +279,8 @@ class Game {
   private async sleep() {
     this.hud.fade(true, true); await wait(1500);
     this.house.showEvening(false);
-    nextDay(this.cfg, this.s); this.persist(false);
-    this.toMorning(); this.hud.fade(false, true);
-  }
-  private toMorning() { this.mode = 'morning'; this.view.setState(this.s); this.house.s = this.s; this.house.showMorning(true); }
-  private startMorning(w: Parameters<typeof takeLoadout>[2], a: string | null, n: number) {
-    takeLoadout(this.cfg, this.s, w, a, n);
-    this.house.showMorning(false); this.startDay(); this.persist(false);
+    nextDay(this.cfg, this.s);
+    this.startDay(); this.persist(false); this.hud.fade(false, true);
   }
 
   // ---------------- per frame ----------------
@@ -313,7 +310,7 @@ class Game {
     if (this.tut) it = this.tut.update(dt, it);
     sim.update(dt, it);
     for (const e of sim.ev) {
-      if (e.k === 'store' && e.item !== 'blue') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
+      if (e.k === 'store') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
       if (e.k === 'faint') this.endOfDay('faint');
     }
     // daily orders: delivered as soon as all goods are in the storage (reward in the evening)

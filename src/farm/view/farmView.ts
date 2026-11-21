@@ -1,4 +1,4 @@
-// 3D view of the farm: buildings, plots, the blueberry bush, the basket at the Lager, the farmer with automatic tools,
+// 3D view of the farm: buildings, plots, the blueberry bush, the farmer with automatic tools (hand rake, kneeling at ground work),
 // raccoons + hares, pellets, loot, effects, highlight of the hovered target, camera (follow + cutscene shots).
 // Reads FarmState + DaySim; never changes them.
 import * as THREE from 'three';
@@ -14,7 +14,7 @@ import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
 import type { FruitType } from '../../config';
 import { animate, makeAnimal, Animal as AView } from '../../view/animals';
 import { Rig, animateArms, animateLegs, buildFarmer, disposeFarmer } from '../../view/farmer';
-import { basket, cranGun, rakeTool, seedBag, setArsenalEnv, setArsenalLight, sickle, wateringCan } from '../../view/arsenal';
+import { cranGun, handRake, seedBag, setArsenalEnv, setArsenalLight, sickle, wateringCan } from '../../view/arsenal';
 import { play, setListener, sfx } from '../../audio';
 import type { Look } from '../../look';
 import type { BuildingId, FarmCfg, ItemId } from '../config';
@@ -34,7 +34,7 @@ const ITEM_HEX: Record<string, number> = { blue: 0x4a64f0, wheat: 0xe0b850, stra
 export const itemHex = (id: ItemId) => ITEM_HEX[id] ?? 0xcccccc;
 const itemMats = new Map<string, THREE.MeshStandardMaterial>();
 function itemMat(id: ItemId) { let m = itemMats.get(id); if (!m) { m = new THREE.MeshStandardMaterial({ color: itemHex(id), roughness: .55, emissive: itemHex(id), emissiveIntensity: .15 }); itemMats.set(id, m); } return m; }
-/** small world model of a good (loot, carry pile, basket) */
+/** small world model of a good (loot, carry pile) */
 function itemMesh(id: ItemId, s = 1): THREE.Object3D {
   if (id === 'blue') return fruitMesh('blue', .9 * s);
   const g = new THREE.Group();
@@ -50,10 +50,9 @@ const earGeo = (() => { const g = new THREE.CapsuleGeometry(.022, .11, 3, 6); g.
 const stemMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8 });
 const earMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .7 });
 const seedMat = new THREE.MeshStandardMaterial({ color: 0xd8b060, roughness: .8 });
-const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6f9a3a, roughness: .9, flatShading: true });
 const G_GREEN = new THREE.Color(0x5e9a38), G_GOLD = new THREE.Color(0xe0b448), G_EAR = new THREE.Color(0xf0c860);
-/** plot = natural hexagon bed (earth decals from the old game) + wet layer, grass while not ploughed yet, seeds, wheat */
-interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandardMaterial; wetMat: THREE.MeshStandardMaterial; grass: THREE.Group; seeds: THREE.Group;
+/** plot = natural hexagon bed (earth decals from the old game) + wet layer, seeds, wheat (weeds: wild.ts) */
+interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandardMaterial; wetMat: THREE.MeshStandardMaterial; seeds: THREE.Group;
   stems: THREE.InstancedMesh; ears: THREE.InstancedMesh; spots: { x: number; z: number; r: number; s: number }[]; key: string; drop: THREE.Sprite; wet: number; shake: number;
   /** plants of every crop except wheat (built when the crop is sown) */
   crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null }
@@ -115,19 +114,22 @@ const zzzSprite = () => canvasSprite(128, 96, g => {
 
 // ---------------- player ----------------
 interface PlayerView {
-  rig: Rig; g: THREE.Group; body: THREE.Group; rake: THREE.Group; rakeIn: THREE.Group; can: ReturnType<typeof wateringCan>; canG: THREE.Group; bag: THREE.Group; sick: THREE.Group;
+  rig: Rig; g: THREE.Group; body: THREE.Group; hr: THREE.Group; can: ReturnType<typeof wateringCan>; canG: THREE.Group; bag: THREE.Group; sick: THREE.Group;
   gun: ReturnType<typeof cranGun>; rot: number; walk: number; stepN: number; twist: number; recoil: number; lookKey: string; actT: number;
+  /** 0 standing .. 1 down (crouch / kneel), kneel 0 crouch (waddle) .. 1 on one knee; strike = last hand rake hit into the soil (dust) */
+  low: number; kneel: number; strike: number; lean: number;
 }
 interface AnimalView { v: AView; bar: THREE.Group; key: string; frozen: number }
 
 export type CamShot = { x: number; z: number; zoom?: number } | null;
+/** screen points (NDC) whose view rays bound the shadow area: corners + edge middles */
+const SHADOW_RAYS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 1], [0, -1], [-1, 0], [1, 0]];
 
 export class FarmView {
   world: HofWorld;
   buildings = new Map<BuildingId, BuildingView>();
   plots: PlotView[] = [];
   bush: { g: THREE.Group; fruits: THREE.Mesh[]; bar: THREE.Group; leaf: THREE.MeshStandardMaterial; unripe: THREE.MeshStandardMaterial; drop: THREE.Sprite; shake: number; sy: number[] };
-  basketG: THREE.Group; basketPile = new THREE.Group(); private pileKey = '';
   wild: WildView;
   /** livestock per stall: animals wander in the pen (local coordinates of the building), hunger bubble / Zzz above */
   pens = new Map<StallId, { list: LivestockView[]; hw: number; hd: number; hunger: THREE.Sprite; zzz: THREE.Sprite; root: THREE.Group }>();
@@ -188,9 +190,6 @@ export class FarmView {
       const hunger = hungerSprite(), zzz = zzzSprite(); hunger.visible = zzz.visible = false; scene.add(hunger, zzz);
       this.pens.set(id, { list, hw, hd, hunger, zzz, root });
     }
-    // harvest basket at the Lager
-    this.basketG = basket(.34, .24); this.basketG.position.set(H.basket.x, 0, H.basket.z); this.basketG.add(this.basketPile); this.basketG.visible = false; scene.add(this.basketG);
-    this.basketG.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     // highlight
     const mat = new THREE.MeshBasicMaterial({ color: 0xfff2c0, transparent: true, opacity: .7, depthWrite: false, toneMapped: false });
     const ring = new THREE.Mesh(GEO.ring, mat); ring.rotation.x = -Math.PI / 2; scene.add(ring);
@@ -219,9 +218,6 @@ export class FarmView {
     const earthMesh = bed.children[0] as THREE.Mesh, wetMesh = bed.children[1] as THREE.Mesh;
     const earth = (earthMesh.material as THREE.MeshStandardMaterial).clone(); earthMesh.material = earth;
     const wetMat = wetMesh.material as THREE.MeshStandardMaterial; wetMat.opacity = 0;
-    // not ploughed yet: grass tufts over a faint bed
-    const grass = new THREE.Group(); g.add(grass);
-    for (let k = 0; k < 18; k++) { const p = inHex(H * .95), w = new THREE.Mesh(GEO.lo, tuftMat); w.scale.set(rand(.08, .16), rand(.06, .14), rand(.08, .16)); w.position.set(p.x, .04, p.z); w.rotation.y = rand(0, 7); w.castShadow = true; grass.add(w); }
     const seeds = new THREE.Group(); g.add(seeds);
     for (let k = 0; k < 30; k++) { const p = inHex(H * .85), w = new THREE.Mesh(GEO.sph, seedMat); w.scale.setScalar(.022); w.position.set(p.x, .04, p.z); seeds.add(w); }
     // wheat
@@ -231,7 +227,7 @@ export class FarmView {
     for (let k = 0; k < STEMS; k++) { const p = inHex(H * .88); spots.push({ x: p.x, z: p.z, r: rand(0, 7), s: rand(.85, 1.15) }); }
     const drop = dropSprite(); drop.position.set(x, 1.1, z); drop.visible = false; scene.add(drop);
     void i;
-    return { g, bed, earth, wetMat, grass, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null };
+    return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null };
   }
   private updatePlot(v: PlotView, i: number, dt: number, day: boolean) {
     const p = this.s.plots[i], C = p.crop ? this.cfg.crops[p.crop] : null;
@@ -245,9 +241,7 @@ export class FarmView {
     v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;
     if (key === v.key) return; v.key = key;
     v.g.visible = p.open;
-    const ploughed = p.stage !== 'empty';
-    v.grass.visible = p.open && !ploughed;
-    v.earth.opacity = ploughed ? 1 : .45; v.earth.color.setHex(ploughed ? 0xffffff : 0xb8c890);
+    v.earth.opacity = 1; // 21.11.2026: no ploughing any more, an open plot is always worked soil
     // sown: seeds while sprouting, then a little sprout that grows once it was watered (20.11.2026: growth in s, not in days)
     v.seeds.visible = p.open && p.stage === 'sown' && p.t > 0;
     const grow = !p.open ? 0 : p.stage === 'sown' ? (p.t > 0 ? 0 : .08 + .92 * C0) : p.stage === 'ripe' ? 1 : 0;
@@ -303,7 +297,7 @@ export class FarmView {
       v.built.visible = built; v.site.visible = !built; if (v.broken) v.broken.visible = !built;
     }
   }
-  setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) p.key = ''; this.pileKey = ''; }
+  setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) p.key = ''; }
 
   // ---------------- player ----------------
   setLook(look: Look) {
@@ -312,49 +306,77 @@ export class FarmView {
     if (this.player) { this.dyn.remove(this.player.g); disposeFarmer(this.player.rig); }
     const rig = buildFarmer(look), g = new THREE.Group(), body = new THREE.Group(); g.add(body); body.add(rig.root);
     rig.root.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
-    const rake = new THREE.Group(), rakeIn = rakeTool(1.55); rake.add(rakeIn); body.add(rake);
+    const hr = handRake(); body.add(hr);
     const canG = new THREE.Group(), can = wateringCan(); canG.add(can.g); body.add(canG);
     const bag = seedBag(); body.add(bag); const sick = sickle(); body.add(sick);
     const gun = cranGun(true); gun.g.position.set(.2, .78, .22); body.add(gun.g);
-    for (const o of [rakeIn, can.g, bag, sick, gun.g]) o.traverse(c => { if ((c as THREE.Mesh).isMesh) c.castShadow = true; });
+    for (const o of [hr, can.g, bag, sick, gun.g]) o.traverse(c => { if ((c as THREE.Mesh).isMesh) c.castShadow = true; });
     this.dyn.add(g);
-    this.player = { rig, g, body, rake, rakeIn, can, canG, bag, sick, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0 };
+    this.player = { rig, g, body, hr, can, canG, bag, sick, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0, low: 0, kneel: 0, strike: 0, lean: 0 };
   }
   private animPlayer(sim: DaySim | null, dt: number) {
     const v = this.player; if (!v) return;
-    const P = sim?.player, H = this.cfg.hof;
+    const P = sim?.player, H = this.cfg.hof, R0 = v.rig;
     const px = P ? P.x : H.door.x, pz = P ? P.z : H.door.z + .4;
     v.g.visible = !!sim && !sim.finished;
-    const spd = P ? P.speed : 0;
-    v.walk = lerp(v.walk, clamp(spd / 2.2, 0, 1), 1 - Math.exp(-dt * 10));
+    const spd = P ? P.speed : 0, swing = P?.swing, act = P?.action;
+    // down on the ground: kneeling while working, a deep crouch (waddle) while moving with the button held
+    const lowAct = !!act && !!sim && sim.low(act.target, act.info);
+    v.low = lerp(v.low, P?.crouch && !swing ? 1 : 0, 1 - Math.exp(-dt * 9));
+    v.kneel = lerp(v.kneel, lowAct && spd < .25 ? 1 : 0, 1 - Math.exp(-dt * 7));
+    const crouchSp = this.cfg.player.crouchSpeed;
+    v.walk = lerp(v.walk, clamp(spd / (v.low > .5 ? crouchSp : 2.2), 0, 1), 1 - Math.exp(-dt * 10));
     v.g.position.set(px, 0, pz);
-    const swing = P?.swing, act = P?.action;
     v.rot = lerpAngle(v.rot, P ? P.f : 0, swing ? .6 : .25); v.g.rotation.y = v.rot;
     const wk = P ? P.walk : 0;
-    v.body.position.y = Math.abs(Math.sin(wk)) * .04 * v.walk;
+    v.body.position.y = Math.abs(Math.sin(wk)) * .04 * v.walk * (1 - v.low * .6);
     const stepN = Math.floor(wk / Math.PI); if (stepN !== v.stepN) { if (v.walk > .2) sfx('player.step', px, pz); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt);
     const gunDay = !!sim && sim.canShoot(), tool = act?.info.tool ?? null;
     v.actT = act ? v.actT + dt : 0;
     v.gun.g.visible = gunDay && !act && !swing; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2;
     v.canG.visible = tool === 'can'; v.bag.visible = tool === 'seed'; v.sick.visible = tool === 'sickle';
-    v.rake.visible = tool === 'rake' || !!swing || (!gunDay && !act);
-    const kind = act?.info.kind;
-    const R = v.rake, t = v.actT;
-    let twist = 0, lean = 0;
-    // --- rake
-    if (swing) { // sword-like slash from right to left
-      const W = this.cfg.weapons.rake, e = 1 - Math.pow(1 - clamp(swing.t / W.swing, 0, 1), 2), yaw = lerp(1.25, -1.25, e);
-      R.position.set(.04, .9, .16); R.rotation.set(.12, yaw, 0, 'YXZ'); v.rakeIn.position.z = .1; twist = yaw * .35; lean = .12;
-    } else if (tool === 'rake' && kind === 'harvestBush') { // comb the rake up through the bush
-      const ph = Math.sin(t * 5.2), th = .25 + ph * .2;
-      R.position.set(.04, .95 + ph * .12, .24 + ph * .1); R.rotation.set(th, Math.sin(t * 2.6) * .3, 0, 'YXZ'); v.rakeIn.position.z = .05; lean = .12 + ph * .05; twist = Math.sin(t * 2.6) * .2;
-    } else if (tool === 'rake') { // pull the rake through the soil
-      const ph = Math.sin(t * 4.2), th = .66;
-      R.position.set(.02, .8 + ph * .05, .22 + ph * .16); R.rotation.set(th, 0, 0, 'YXZ'); v.rakeIn.position.z = 0; lean = .18 + ph * .06;
-      if (Math.random() < dt * 14) { const hx = px + Math.sin(v.rot) * 1.3, hz = pz + Math.cos(v.rot) * 1.3; PART.spawn(V(hx + rand(-.2, .2), .1, hz + rand(-.2, .2)), V(rand(-.5, .5), rand(.5, 1.2), rand(-.5, .5)), 0x5a3e2a, .07, .5, { g: 6, a: .9 }); }
-    } else { // carried diagonally
-      const q = .2; R.position.lerp(V(.16, .74, .14), q); R.rotation.x = lerp(R.rotation.x, .62, q); R.rotation.y = lerp(R.rotation.y, -.45, q); v.rakeIn.position.z = lerp(v.rakeIn.position.z, -.15, q);
+    // the hand rake is always in the right hand, except while that hand needs to be free (can, seeds, sickle, picking)
+    v.hr.visible = !!swing || tool === 'handrake' || (!act && !gunDay);
+    const kind = act?.info.kind, t = v.actT;
+    let twist = 0, lean = v.low * (.25 + .45 * v.kneel);
+    // body pose first (legs, pelvis down), so the shoulders are where the hands are aimed from
+    animateLegs(R0, dt, wk, v.walk, { k: v.low, kneel: v.kneel });
+    const wp = act && sim ? (lowAct ? sim.workPoint(act.target, act.info.kind) : sim.facePoint(act.target)) : null;
+    let tR: THREE.Vector3 | null = null, tL: THREE.Vector3 | null = null; // right hand (arm 1), left hand (arm 0)
+    const HR = v.hr;
+    // body frame helpers: world point from (right, up, forward) offsets around the player
+    const fw = V(Math.sin(v.rot), 0, Math.cos(v.rot)), rt = V(-fw.z, 0, fw.x); // rt = the farmer's right (-x local)
+    const at = (r: number, y: number, f: number) => V(px + rt.x * r + fw.x * f, y, pz + rt.z * r + fw.z * f);
+    /** put the hand rake: grip at a world point, yaw (local), pitch (+ = tines down), roll */
+    const holdHR = (grip: THREE.Vector3, yaw: number, pitch: number, roll = 0) => {
+      v.body.updateMatrixWorld(true); HR.position.copy(v.body.worldToLocal(grip.clone())); HR.rotation.set(pitch, yaw, roll, 'YXZ');
+    };
+    if (swing) {
+      // one-handed slash with the hand rake: a quick backhand from the left across to the right (120° cone), body turns along
+      const W = this.cfg.weapons.rake, e = 1 - Math.pow(1 - clamp(swing.t / W.swing, 0, 1), 2.2), yaw = lerp(1.15, -1.15, e);
+      const r = .5, y = (1 - v.low) * .98 + v.low * .62;
+      tR = at(-Math.sin(yaw) * r * .9 + .05, y, Math.cos(yaw) * r + .1);
+      holdHR(tR, yaw, -.15, -1.35);
+      twist = yaw * .45; lean = Math.max(lean, .12);
+    } else if (tool === 'handrake' && act && wp) {
+      // weeding on one knee: lift, chop the claws into the soil, scratch back towards the body; the left hand pulls the weed out at the end
+      const cyc = (t * 2.1) % 1, chop = cyc < .35 ? cyc / .35 : 1 - (cyc - .35) / .65; // 0 down .. 1 up
+      const dx = px - wp.x, dz = pz - wp.z, l = Math.hypot(dx, dz) || 1, toMe = V(dx / l, 0, dz / l);
+      const pull = cyc < .35 ? 0 : (cyc - .35) / .65 * .12;
+      const grip = V(wp.x + toMe.x * (.2 + pull), .1 + chop * .16, wp.z + toMe.z * (.2 + pull));
+      holdHR(grip, Math.atan2(-toMe.x, -toMe.z) - v.rot, .55 - chop * .7);
+      tR = grip;
+      if (cyc > .33 && v.strike < .33) { PART.spawn(V(wp.x, .06, wp.z), V(rand(-.4, .4), rand(.6, 1.1), rand(-.4, .4)), 0x5a3e2a, .07, .45, { g: 7 }); if (Math.random() < .5) play('rustle'); }
+      v.strike = cyc;
+      for (let i = 0; i < 2; i++) if (Math.random() < dt * 10) PART.spawn(V(wp.x + rand(-.12, .12), .05, wp.z + rand(-.12, .12)), V(rand(-.3, .3), rand(.3, .8), rand(-.3, .3)), 0x6a4a30, .05, .4, { g: 6 });
+      const k = clamp((t / act.info.dur - .7) / .3, 0, 1);
+      tL = k > 0 ? V(wp.x - toMe.z * .08, .06 + k * k * .35, wp.z + toMe.x * .08) : null;
+    } else if (!act) {
+      // carried in the right hand, claws down
+      const y = (1 - v.low) * .55 + v.low * .3;
+      tR = at(.2, y + Math.sin(wk) * .02 * v.walk, .06 + Math.sin(wk + Math.PI) * .06 * v.walk);
+      holdHR(tR, -.1, 1.05 + v.low * .3);
     }
     // --- watering can (water + refill)
     if (tool === 'can' && act) {
@@ -369,51 +391,53 @@ export class FarmView {
       } else if (refill && Math.random() < dt * 30) { const p0 = v.can.g.getWorldPosition(V()); PART.spawn(V(p0.x, p0.y + .45, p0.z), V(rand(-.1, .1), -2, rand(-.1, .1)), 0x8ad0ff, .08, .25, { g: 4, a: .8 }); if (Math.random() < .2) play('pour'); }
       lean = .1;
     }
-    // --- sowing: bag in the left hand, the right hand throws seeds
+    // --- sowing (on one knee): bag in the left hand, the right hand throws seeds over the plot
     let throwHand: THREE.Vector3 | null = null;
     if (tool === 'seed' && act) {
-      v.bag.position.set(-.18, .72, .3);
+      const y0 = (1 - v.low) * .72 + v.low * .5;
+      v.bag.position.set(.18 * v.low - .18 * (1 - v.low), y0, .3 + v.low * .08); // kneeling: held over the front knee
       const ph = (t * 1.6) % 1, k = Math.sin(ph * Math.PI);
-      throwHand = v.g.localToWorld(V(.25 - k * .1, .78 + k * .25, .25 + k * .25));
+      throwHand = at(-.22 + k * .12, y0 + .06 + k * .2, .25 + k * .25);
       if (ph > .45 && ph < .55 && Math.random() < .6) { const tp = sim!.targetPos(act.target); for (let i = 0; i < 6; i++) { const tx = tp.x + rand(-1, 1), tz = tp.z + rand(-1, 1), tt = .45; PART.spawn(throwHand, V((tx - throwHand.x) / tt, (-throwHand.y + .5 * 9.8 * tt * tt) / tt, (tz - throwHand.z) / tt), 0xd8b060, .06, tt, { g: 9.8 }); } play('throw'); }
     }
-    // --- sickle: horizontal cuts
+    // --- sickle: low horizontal cuts at the crop
     if (tool === 'sickle' && act) {
-      const ph = Math.sin(t * 6); v.sick.position.set(.15 + ph * .25, .45, .45); v.sick.rotation.set(0, ph * 1.1, -.3); lean = .4;
-      if (Math.random() < dt * 10) { const tp = sim!.targetPos(act.target); PART.spawn(V(tp.x + rand(-1, 1), .5, tp.z + rand(-1, 1)), V(rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6)), 0xe8c860, .08, .7, { g: 4 }); }
+      const ph = Math.sin(t * 6), y = (1 - v.low) * .45 + v.low * .22;
+      v.sick.position.set(-.15 + ph * .25, y, .45); v.sick.rotation.set(0, ph * 1.1, -.3); lean = Math.max(lean, .4);
+      if (Math.random() < dt * 10) { const tp = wp ?? sim!.targetPos(act.target); PART.spawn(V(tp.x + rand(-.6, .6), .4, tp.z + rand(-.6, .6)), V(rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6)), 0xe8c860, .08, .7, { g: 4 }); }
       if (Math.random() < dt * 3) play('rustle');
     }
-    // --- hands: reach into the target (pick, pull weeds, feed, shake a tree, work at a building), bucket at the well
+    // --- hands: reach into the target (pick, gather, feed, shake a tree, work at a building), bucket at the well
     let pick: [THREE.Vector3, THREE.Vector3] | null = null;
     if ((tool === 'hands' || tool === 'bucket') && act && sim) {
-      const fp = sim.facePoint(act.target), dx = fp.x - px, dz = fp.z - pz, l = Math.hypot(dx, dz) || 1, reach = Math.min(l, .55);
+      const fp = wp ?? sim.facePoint(act.target), dx = fp.x - px, dz = fp.z - pz, l = Math.hypot(dx, dz) || 1, reach = Math.min(l, lowAct ? .62 : .55);
       const hx = px + dx / l * reach, hz = pz + dz / l * reach, sx = -dz / l * .16, sz = dx / l * .16;
-      const k0 = act.target.k, low = k0 === 'forage' || k0 === 'weed' || k0 === 'plot', high = k0 === 'tree';
-      const y = low ? .3 : high ? 1.55 : kind === 'feed' || kind === 'straw' || kind === 'eggs' ? .7 : .9, sp = high ? 9 : tool === 'bucket' ? 2.6 : 3.4, ph = t * sp;
+      const k0 = act.target.k, high = k0 === 'tree';
+      const y = lowAct ? .14 : high ? 1.55 : kind === 'feed' || kind === 'straw' || kind === 'eggs' ? .7 : .9, sp = high ? 9 : tool === 'bucket' ? 2.6 : 3.4, ph = t * sp;
       const a0 = Math.sin(ph), a1 = Math.sin(ph + (high ? 0 : 1.4));
-      pick = [V(hx + sx + a0 * .08, y + a0 * (high ? .05 : .12), hz + sz), V(hx - sx + a1 * .08, y + a1 * (high ? .05 : .12), hz - sz)];
-      lean = low ? .55 : high ? -.05 : .2;
+      pick = [V(hx + sx + a0 * .08, y + Math.max(0, a0) * (high ? .05 : .14), hz + sz), V(hx - sx + a1 * .08, y + Math.max(0, a1) * (high ? .05 : .14), hz - sz)];
+      if (!lowAct) lean = high ? -.05 : .2;
       if (k0 === 'bush' || k0 === 'bramble' || k0 === 'weed' || k0 === 'plot') { if (Math.random() < dt * 2) play('rustle'); }
       if (tool === 'bucket') { const w = this.buildings.get('well'); if (w?.crank) w.crank.rotation.x += dt * 4; if (Math.random() < dt * 12) PART.spawn(V(fp.x + rand(-.3, .3), .55, fp.z + rand(-.3, .3)), V(rand(-.2, .2), rand(.4, .9), rand(-.2, .2)), 0x8ad0ff, .07, .4, { g: 6, a: .8 }); }
       if (kind === 'produce' && Math.random() < dt * 6) PART.spawn(V(fp.x + rand(-.3, .3), rand(.6, 1.1), fp.z + rand(-.3, .3)), V(rand(-.2, .2), rand(.3, .7), rand(-.2, .2)), 0xf4ead0, .06, .6, { a: .7 });
       if (high && Math.random() < dt * 5) { const tr = this.cfg.hof.trees[(act.target as { i: number }).i]; if (tr) this.leafAt(tr.x + rand(-.8, .8), rand(1.8, 2.6), tr.z + rand(-.8, .8), .4); }
     }
-    v.twist = lerp(v.twist, twist, .4);
-    const R0 = v.rig;
-    animateLegs(R0, dt, wk, v.walk);
-    R0.torso.rotation.y += v.twist; R0.torso.rotation.x += lean;
+    v.twist = lerp(v.twist, twist, .4); v.lean = lerp(v.lean, lean, 1 - Math.exp(-dt * 10));
+    R0.torso.rotation.y += v.twist; R0.torso.rotation.x += v.lean;
     v.g.updateMatrixWorld(true);
-    let t0: THREE.Vector3 | null = null, t1: THREE.Vector3 | null = null;
+    // hands: arm 0 = left, arm 1 = right (the farmer faces +z, his right is -x)
+    let t0: THREE.Vector3 | null = tL, t1: THREE.Vector3 | null = tR;
     if (pick) { t0 = pick[0]; t1 = pick[1]; }
-    else if (v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
-    else if (v.canG.visible) { t0 = v.can.grip.getWorldPosition(V()); }
-    else if (v.bag.visible) { t1 = v.bag.localToWorld(V(0, .05, 0)); t0 = throwHand; }
-    else if (v.sick.visible) { t0 = v.sick.localToWorld(V(0, 0, 0)); }
-    else if (v.rake.visible) { t0 = v.rake.localToWorld(V(0, 0, .02)); t1 = v.rake.localToWorld(V(0, 0, -.32)); }
+    else if (v.gun.g.visible) { t1 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t0 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
+    else if (v.canG.visible) { t1 = v.can.grip.getWorldPosition(V()); t0 = null; }
+    else if (v.bag.visible) { t0 = v.bag.localToWorld(V(0, .05, 0)); t1 = throwHand; }
+    else if (v.sick.visible) { t1 = v.sick.localToWorld(V(0, 0, 0)); t0 = null; }
+    // the free left hand rests on the front knee while kneeling
+    if (!t0 && v.kneel > .5 && v.low > .5) { const kp = R0.legs[0].knee.getWorldPosition(V()); kp.y += .05; t0 = kp; }
     animateArms(R0, dt, wk, [t0, t1]);
-    // action progress bar over the head (not for the berry picking: it runs until the bush is empty)
+    // action progress bar over the head (lower while kneeling)
     const showBar = !!act;
-    this.actBar.visible = showBar; if (showBar) { this.actBar.position.set(px, 2.05, pz); this.actBar.quaternion.copy(camera.quaternion); setBar(this.actBar, act!.t / act!.info.dur); }
+    this.actBar.visible = showBar; if (showBar) { this.actBar.position.set(px, 2.05 - v.low * .55, pz); this.actBar.quaternion.copy(camera.quaternion); setBar(this.actBar, act!.t / act!.info.dur); }
   }
 
   // ---------------- animals ----------------
@@ -483,14 +507,6 @@ export class FarmView {
     const bar = this.bush.bar, showBar = b.phase === 'growing' && b.t >= B.barDelay;
     bar.visible = showBar; if (showBar) { bar.position.set(this.cfg.hof.bush.x, 1.55, this.cfg.hof.bush.z); bar.quaternion.copy(camera.quaternion); setBar(bar, growK); }
     this.bush.drop.visible = day && b.phase === 'dry' && this.s.tutorialDone;
-    // the harvest basket: only there once it was set down for the harvest (it stays for the rest of the day)
-    const at = day && sim ? sim.basketAt : null;
-    this.basketG.visible = !!at; if (at) this.basketG.position.set(at.x, 0, at.z);
-    const nb = Math.min(24, this.s.items.blue ?? 0), key = '' + nb;
-    if (key !== this.pileKey) {
-      this.pileKey = key; this.basketPile.clear();
-      for (let i = 0; i < nb; i++) { const L = Math.floor(i / 8), a = i / 8 * Math.PI * 2 + L * .4, r = .2 - L * .06; const m = itemMesh('blue', .75); m.position.set(Math.cos(a) * r, .18 + L * .06, Math.sin(a) * r); this.basketPile.add(m); }
-    }
   }
   /** one leaf whirling out of a bush / crown */
   private leafAt(x: number, y: number, z: number, up = 1) {
@@ -498,18 +514,18 @@ export class FarmView {
     const a = rand(0, 7), sp = rand(.6, 1.6);
     this.bits.push({ m, vx: Math.cos(a) * sp, vy: rand(1.6, 3) * up, vz: Math.sin(a) * sp, t: 0, life: rand(1, 1.6), leaf: true, spin: rand(6, 14) * (Math.random() < .5 ? -1 : 1), s0: rand(.8, 1.4) });
   }
-  /** a berry flies on an arc from (x, z) into the basket; the collect sound plays when it lands */
+  /** a berry flies on an arc from (x, z) to the farmer (into the Lager); the collect sound plays when it lands */
   private berryTo(x: number, z: number, to: { x: number; z: number }, small: boolean, delay: number) {
     const m = itemMesh('blue', small ? .6 : .95); m.visible = false; this.dyn.add(m);
     const from = V(x + rand(-.35, .35), rand(.4, .8), z + rand(-.35, .35));
     m.position.copy(from);
-    this.bits.push({ m, vx: 0, vy: 0, vz: 0, t: -delay, life: rand(.45, .6), leaf: false, spin: 0, s0: 1, from, to: V(to.x + rand(-.08, .08), .22, to.z + rand(-.08, .08)) });
+    this.bits.push({ m, vx: 0, vy: 0, vz: 0, t: -delay, life: rand(.45, .6), leaf: false, spin: 0, s0: 1, from, to: V(to.x + rand(-.08, .08), .9, to.z + rand(-.08, .08)) });
   }
   private updateBits(dt: number) {
     for (let i = this.bits.length - 1; i >= 0; i--) {
       const b = this.bits[i], m = b.m; b.t += dt; if (b.t < 0) continue;
       const k = b.t / b.life;
-      if (b.to && b.from) { // berry arc into the basket
+      if (b.to && b.from) { // berry arc to the farmer
         m.visible = true; const e = Math.min(1, k);
         m.position.lerpVectors(b.from, b.to, e); m.position.y += Math.sin(e * Math.PI) * .9;
         if (k >= 1) { if (!b.snd) { b.snd = true; sfx('collect.xp', b.to.x, b.to.z); } this.dyn.remove(m); this.bits.splice(i, 1); }
@@ -554,10 +570,10 @@ export class FarmView {
   event(e: Ev, sim: DaySim) {
     const P = sim.player;
     switch (e.k) {
-      case 'act': if (e.kind === 'plow') sfx('player.till', P.x, P.z); break;
+      case 'act': if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z); break;
       case 'actDone': {
         const p = sim.targetPos(e.target);
-        if (e.kind === 'plow' || e.kind === 'sow') { burst(V(p.x, .2, p.z), 0x6a4a30, 16, 1.6, .12, .6, { g: 6 }); sfx('player.till', p.x, p.z); }
+        if (e.kind === 'sow') { burst(V(p.x, .2, p.z), 0x6a4a30, 16, 1.6, .12, .6, { g: 6 }); sfx('player.till', p.x, p.z); }
         if (e.kind === 'weed' || e.kind === 'weedHof') { burst(V(p.x, .2, p.z), 0x5e8e2c, 12, 1.4, .1, .6, { g: 6 }); burst(V(p.x, .1, p.z), 0x6a4a30, 6, 1, .08, .5, { g: 6 }); play('rustle'); }
         if (e.kind === 'gather') { burst(V(p.x, .2, p.z), 0xd8d0a0, 8, 1.2, .08, .5, { g: 5 }); }
         if (e.kind === 'fertilize') { burst(V(p.x, .25, p.z), 0x4a3a20, 20, 1.6, .1, .6, { g: 6 }); play('throw'); }
@@ -570,21 +586,20 @@ export class FarmView {
         if (e.kind === 'refill') sfx('ui.confirm');
         break;
       }
-      // one pass of the rake through the bush: it wobbles, leaves whirl out, the berries arc into the basket
+      // one pass through the bush: it wobbles, leaves whirl out, the berries hop into the farmer's hands (straight into the Lager)
       case 'berry': {
-        const B = this.cfg.hof.bush, to = sim.basketAt ?? { x: e.bx ?? B.x, z: e.bz ?? B.z };
+        const B = this.cfg.hof.bush, to = { x: P.x, z: P.z };
         this.bush.shake = 1; play('rustle');
         for (let i = 0; i < 5; i++) this.leafAt(B.x + rand(-.4, .4), rand(.4, .8), B.z + rand(-.4, .4));
         for (let i = 0; i < e.n; i++) this.berryTo(B.x, B.z, to, !!e.small, i * .09);
         sfx('plants.produce.blue', B.x, B.z);
         break;
       }
-      case 'basket': burst(V(e.x, .1, e.z), 0xb89a6a, 8, 1, .08, .4, { g: 5 }); sfx('player.step', e.x, e.z); break;
       case 'bramble': { const g = this.wild.bramble(e.i); if (g) { this.brambleShake.push({ g, t: .7 }); const p = g.position; for (let i = 0; i < 3; i++) this.leafAt(p.x + rand(-.3, .3), rand(.4, .8), p.z + rand(-.3, .3)); } play('rustle'); break; }
       case 'shake': for (let i = 0; i < 10; i++) this.leafAt(e.x + rand(-1, 1), rand(1.8, 2.6), e.z + rand(-1, 1), .3); play('rustle'); sfx('plants.produce.nut', e.x, e.z); break;
       case 'fed': { const b = this.hof.building(e.id); if (b) { burst(V(b.x, .4, b.z), e.id === 'chickens' ? 0xe0b850 : 0x6a9a3a, 16, 1.6, .1, .6, { g: 5 }); if (e.id === 'sheep') sfx('sheep.wave', b.x, b.z); } play('throw'); break; }
       case 'hungry': if (this.s.buildings.sheep?.built) { const b = this.hof.building('sheep'); if (b) sfx('sheep.wave', b.x, b.z); } break;
-      case 'swing': sfx('player.slash', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc * Math.PI / 180, .2); break;
+      case 'swing': sfx('player.slash', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
       case 'rakeHit': if (e.n) { punchStar(e.x, e.z, 1); play('punches', e.n); this.shake = Math.max(this.shake, .25); } break;
       case 'shot': { this.player && (this.player.recoil = .18); play('shot'); const dx = Math.sin(e.dir), dz = Math.cos(e.dir); burst(V(e.x + dx * .9, .8, e.z + dz * .9), itemHex(e.ammo), 10, 3, .1, .25); this.shake = Math.max(this.shake, .15); break; }
       case 'pelletHit': burst(V(e.x, .6, e.z), itemHex(e.ammo), 6, 1.5, .1, .35); play('hit'); break;
@@ -689,11 +704,36 @@ export class FarmView {
   focus: { x: number; z: number } | null = null;
   /** fixed hour of the light (world editor) */
   hour: number | null = null;
-  /** directional light follows the view so the shadow map stays sharp */
+  /**
+   * shadow map fitted to what the camera sees (21.11.2026, Basti: "Schattenbereich zu klein"): the view rays through the
+   * screen edges hit the ground (capped by the fog), those points and the same points a few metres up (trees, roofs) are
+   * wrapped by the light's box. The box is square and snapped to whole shadow texels so the shadows do not shimmer.
+   */
   private sun(x: number, z: number) {
-    const d = moon.position.clone(); // set by daynight around the origin
-    moon.target.position.set(x, 0, z); moon.position.set(x + d.x, d.y, z + d.z);
-    Object.assign(moon.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 }); moon.shadow.camera.updateProjectionMatrix();
+    const L = moon.position.clone(); // direction to the light, set by daynight around the origin
+    if (L.lengthSq() < 1e-6) L.set(0, 1, 0); L.normalize();
+    camera.updateMatrixWorld();
+    const o = camera.position, maxT = Math.min(70, (scene.fog as THREE.Fog | null)?.far ?? 60);
+    const ax = new THREE.Vector3().crossVectors(V(0, 1, 0), L); if (ax.lengthSq() < 1e-6) ax.set(1, 0, 0); ax.normalize();
+    const ay = new THREE.Vector3().crossVectors(L, ax);
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, d0 = 1e9, d1 = -1e9;
+    const add = (px: number, py: number, pz: number) => {
+      const lx = px * ax.x + py * ax.y + pz * ax.z, ly = px * ay.x + py * ay.y + pz * ay.z, ld = px * L.x + py * L.y + pz * L.z;
+      x0 = Math.min(x0, lx); x1 = Math.max(x1, lx); y0 = Math.min(y0, ly); y1 = Math.max(y1, ly); d0 = Math.min(d0, ld); d1 = Math.max(d1, ld);
+    };
+    const dir = new THREE.Vector3();
+    for (const [nx, ny] of SHADOW_RAYS) {
+      dir.set(nx, ny, .5).unproject(camera).sub(o).normalize();
+      const t = Math.min(maxT, dir.y < -1e-3 ? -o.y / dir.y : maxT), gx = o.x + dir.x * t, gz = o.z + dir.z * t;
+      add(gx, 0, gz); add(gx, 7, gz);
+    }
+    add(x, 0, z); // the player (camera target) always lies inside
+    const S = moon.shadow.mapSize.x || 1024, size = Math.min(84, Math.max(x1 - x0, y1 - y0) + 3), texel = size / S;
+    const cx = Math.round((x0 + x1) / 2 / texel) * texel, cy = Math.round((y0 + y1) / 2 / texel) * texel, back = d1 + 25;
+    const c = ax.clone().multiplyScalar(cx).addScaledVector(ay, cy);
+    moon.position.copy(c).addScaledVector(L, back); moon.target.position.copy(c).addScaledVector(L, back - 1);
+    const h = size / 2;
+    Object.assign(moon.shadow.camera, { left: -h, right: h, top: h, bottom: -h, near: .5, far: back - d0 + 6 }); moon.shadow.camera.updateProjectionMatrix();
     void hemi;
   }
   /** screen point -> ground point */

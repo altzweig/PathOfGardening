@@ -91,7 +91,9 @@ function material(name: string, vc: boolean, scale: number) {
   const cut = d.kind === 'leaf' || d.kind === 'plant' || d.kind === 'flower';
   // foliage: Lambert (no specular) - PBR fresnel lit the crown edges up as a bright rim
   m = cut ? new THREE.MeshLambertMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, alphaTest: .35, side: THREE.DoubleSide, vertexColors: vc })
-    : new THREE.MeshStandardMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, roughness: d.kind === 'rock' ? .92 : .85, metalness: 0, vertexColors: vc });
+    : new THREE.MeshStandardMaterial({ map: tex(d.file), color: d.color ?? 0xffffff, roughness: d.kind === 'rock' ? .92 : .85, metalness: 0, vertexColors: vc,
+      // some Quaternius bark/mushroom meshes have flipped triangles (seen as missing/inverted faces): render both sides
+      side: d.kind === 'bark' || d.kind === 'glow' ? THREE.DoubleSide : THREE.FrontSide });
   const wind = d.kind === 'leaf' ? .012 / scale : d.kind === 'plant' || d.kind === 'flower' ? .07 : 0;
   const season = d.kind === 'glow' ? 'none' : d.kind === 'leaf' && name !== 'Leaves_Pine' ? 'leaf' : d.kind === 'plant' || d.kind === 'flower' ? 'leaf' : 'ever';
   natMat(m, { season, wind, glow: d.kind === 'glow' ? 1.4 : d.kind === 'flower' ? .3 : 0, glowCol: d.kind === 'glow' ? 0xb8a0ff : 0xffffff, edge: d.kind !== 'glow' }, key);

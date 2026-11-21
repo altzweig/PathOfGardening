@@ -1,5 +1,5 @@
-// Tutorial day (day 1), exactly as Basti wrote it: water the bush, meanwhile rake/sow/water the field, harvest the
-// berries, then the raccoon cutscene ("Hunger!", steals from the basket at the Lager, runs past the player),
+// Tutorial day (day 1), exactly as Basti wrote it: water the bush, meanwhile weed/sow/water the field (21.11.2026: no
+// ploughing, one weed on the field), harvest the berries, then the raccoon cutscene ("Hunger!", steals from the Lager, runs past the player),
 // "Vertreib den Eindringling!", a short pause that explains fighting, chase, end cutscene, night.
 // The only place in the game with explaining text (texts in balancing.yaml -> tutorial.texts).
 import type { FarmCfg } from './config';
@@ -33,9 +33,10 @@ export class Tutorial {
         break;
       case 'field': {
         const p = H.plots[0]; V.setArrow({ x: p.x, z: p.z, y: 1.6 });
-        const sub = plot.stage === 'empty' ? ['rake', T.rake] : plot.stage === 'raked' ? ['seed', T.sow] : ['can', T.waterField];
-        this.hud.hint(this.t < 4 || !near(p.x, p.z) ? T.meanwhile : sub[1], sub[0]);
-        if (plot.stage === 'sown' && plot.watered && !P.action) { this.go('daily'); V.setArrow(null); }
+        // what the field needs now (the action the button / click would do there)
+        const a = sim.actionFor({ k: 'plot', i: 0 }), sub = a?.kind === 'weed' ? ['rake', T.weed] : a?.kind === 'sow' ? ['seed', T.sow] : ['can', T.waterField];
+        this.hud.hint(this.t < 4 || !near(p.x, p.z) ? T.meanwhile : P.action && T.hold ? T.hold : sub[1], sub[0]);
+        if (plot.stage === 'sown' && plot.watered && plot.weeds <= 0 && !P.action) { this.go('daily'); V.setArrow(null); }
         break;
       }
       case 'daily':
@@ -49,7 +50,7 @@ export class Tutorial {
         if (b.phase === 'ripe') this.go('harvest');
         break;
       case 'harvest':
-        V.setArrow(P.action ? null : { x: H.bush.x, z: H.bush.z, y: 2.1 }); this.hud.hint(T.harvest, 'rake');
+        V.setArrow(P.action ? null : { x: H.bush.x, z: H.bush.z, y: 2.1 }); this.hud.hint(T.harvest, 'hands');
         if (b.phase === 'empty' && !P.action) this.startCutscene();
         break;
       // ---------------- cutscene: the raccoon ----------------
@@ -119,7 +120,7 @@ export class Tutorial {
     return it;
   }
   /** cutscene: no movement, no fight; inputLocked would also drop the scripted walk home */
-  private lock(it: Intent): Intent { return { ...it, mx: 0, mz: 0, act: null, attack: false }; }
+  private lock(it: Intent): Intent { return { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false }; }
 
   private startCutscene() {
     const sim = this.sim, H = this.cfg.hof, P = sim.player;
@@ -129,16 +130,16 @@ export class Tutorial {
     const gi = sim.hof.nearestGap(H.bush.x, H.bush.z), gp = sim.hof.edge(sim.hof.gaps[gi].a, 1.08), peek = sim.hof.edge(sim.hof.gaps[gi].a, .97);
     const r = sim.spawn('raccoon', gi, { x: gp.x, z: gp.z, state: 'script', hp: this.cfg.tutorial.raccoonHp, maxHp: this.cfg.tutorial.raccoonHp, shy: false });
     r.path = [{ x: peek.x, z: peek.z, speed: 1 }]; this.rac = r;
-    // it will flee through the gap that lies "behind" the player, seen from the basket
-    const K = sim.basketAt ?? H.basket, bx = P.x - K.x, bz = P.z - K.z; let best = 0, bd = -2;
+    // it will flee through the gap that lies "behind" the player, seen from the Lager
+    const K = H.basket, bx = P.x - K.x, bz = P.z - K.z; let best = 0, bd = -2;
     sim.hof.gaps.forEach((g, i) => { const l = Math.hypot(bx, bz) || 1, d = (Math.cos(g.a) * bx + Math.sin(g.a) * bz) / l; if (d > bd) { bd = d; best = i; } });
     this.gap = best;
     this.view.shot = { x: peek.x, z: peek.z + 1.5, zoom: .62 };
     this.go('cutIn');
   }
-  /** sneak from the forest edge to the basket at the Lager (around the buildings) */
+  /** sneak from the forest edge to the Lager next to the house (around the buildings) */
   private sneakPath() {
-    const r = this.rac!, K = this.sim.basketAt ?? this.cfg.hof.basket, sp = 1.7, out: { x: number; z: number; speed: number }[] = [];
+    const r = this.rac!, K = this.cfg.hof.basket, sp = 1.7, out: { x: number; z: number; speed: number }[] = [];
     // walk in steps, sidestepping buildings: sample the straight line and push points out of obstacles
     const n = 8;
     for (let i = 1; i <= n; i++) {

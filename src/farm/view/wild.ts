@@ -99,16 +99,13 @@ export class WildView {
   private rims = new Map<THREE.InstancedMesh, THREE.InstancedMesh>();
   private appleSpots: THREE.Vector3[][] = [];
   private key = ''; private aKey = ''; private bKey = '';
-  /** fixed spots for up to `max` weeds per plot (inside the hexagon) */
-  private plotSpots: { x: number; z: number; r: number }[][];
   constructor(public cfg: FarmCfg, public hof: Hof) {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9, flatShading: true });
     const capW = cfg.wild.weeds.max + cfg.hof.plots.length * cfg.plots.weeds.max;
     this.weeds = new THREE.InstancedMesh(weedGeo(), mat, capW); this.weeds.count = 0; this.weeds.castShadow = true; this.weeds.frustumCulled = false; scene.add(this.weeds);
     this.rims.set(this.weeds, outlineFor(this.weeds, .022));
     for (const [k, mk] of Object.entries(FORAGE)) { const m = new THREE.InstancedMesh(mk(), mat, cfg.wild.forage.max); m.count = 0; m.castShadow = true; m.frustumCulled = false; scene.add(m); this.forage.set(k, m); this.rims.set(m, outlineFor(m, .02)); }
-    const rnd = seeded(11), H = cfg.plots.size / 2;
-    this.plotSpots = cfg.hof.plots.map(() => Array.from({ length: cfg.plots.weeds.max }, () => { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * H * .8; return { x: Math.cos(a) * r, z: Math.sin(a) * r, r: rnd() * 7 }; }));
+    const rnd = seeded(11);
     // brambles: dark leaves, black-purple berries
     const leaf = new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: .9, flatShading: true }), head = new THREE.MeshStandardMaterial({ color: 0x4a2a1a });
     const berry = new THREE.MeshStandardMaterial({ color: 0x2a1030, roughness: .35, emissive: 0x200818, emissiveIntensity: .3 });
@@ -136,7 +133,7 @@ export class WildView {
       let n = 0;
       const put = (x: number, z: number, r: number, k: number) => { e.set(0, r, 0); q.setFromEuler(e); m4.compose(p.set(x, 0, z), q, sc.setScalar(k)); this.weeds.setMatrixAt(n, m4); this.weeds.setColorAt(n, col.setHSL(.24 + (r % 1) * .06, .5, .55 + (r * 7 % 1) * .2)); n++; };
       for (const w of W.weeds) put(w.x, w.z, w.id * 1.7, 1.05 + (w.id * .37 % 1) * .6);
-      s.plots.forEach((pl, i) => { if (!pl.open) return; const P = this.cfg.hof.plots[i]; for (let k = 0; k < pl.weeds; k++) { const sp = this.plotSpots[i][k]; put(P.x + sp.x, P.z + sp.z, sp.r, 1.1); } });
+      s.plots.forEach((pl, i) => { if (!pl.open) return; const P = this.cfg.hof.plots[i]; for (let k = 0; k < pl.weeds; k++) { const sp = this.hof.plotWeeds[i][k]; put(P.x + sp.x, P.z + sp.z, sp.r, 1.1); } });
       this.weeds.count = n; this.weeds.instanceMatrix.needsUpdate = true; if (this.weeds.instanceColor) this.weeds.instanceColor.needsUpdate = true;
       const counts = new Map<string, number>();
       for (const f of W.forage) {

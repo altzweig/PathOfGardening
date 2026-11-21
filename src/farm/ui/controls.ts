@@ -17,6 +17,7 @@ export function pcControls() {
   ${key(150, 60, 80, 80, 'W')}${key(60, 150, 80, 80, 'A')}${key(150, 150, 80, 80, 'S')}${key(240, 150, 80, 80, 'D')}
   ${label(190, 280, 'Laufen')}
   ${key(60, 318, 90, 60, 'Esc', 24)}${label(170, 358, 'Pause', 'start')}
+  ${key(300, 318, 60, 60, 'B')}${icon(ic('book'), 372, 322, 52)}${label(432, 358, 'Buch', 'start')}
   ${key(60, 393, 90, 60, 'E')}${label(170, 433, 'Arbeiten', 'start')}
   ${key(60, 468, 210, 60, 'Leertaste', 24)}${label(290, 508, 'Kämpfen', 'start')}
   <g transform="translate(560 90)">
@@ -53,5 +54,7 @@ export function mobileControls() {
   <g transform="translate(560 300)"><circle r="30" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="7 6"/><circle r="9" fill="${TXT}"/></g>
   ${label(560, 360, 'Tippen', 'middle', 24, TXT)}
   ${turn(560, 150, 90)}${label(560, 210, 'Wischen: Kamera drehen', 'middle', 24, TXT)}
+  <g transform="translate(872 104)"><rect x="-30" y="-30" width="60" height="60" rx="14" fill="#161d24" stroke="${GOLD}" stroke-width="3"/>${icon(ic('book'), -24, -24, 48)}</g>
+  ${label(800, 114, 'Buch', 'end', 28)}
 </svg>`;
 }

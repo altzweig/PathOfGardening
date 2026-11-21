@@ -61,7 +61,7 @@ export class FarmHud {
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fClock').innerHTML = CLOCK;
-    $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
+    $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fBook').innerHTML = ic('book'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
   }
   private cdKey = '';
   /** sun clock: by day the sun rises out of the horizon, crosses the arc and sinks behind it at nightfall, the countdown shows the

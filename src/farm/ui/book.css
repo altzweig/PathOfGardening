@@ -243,3 +243,12 @@
 .book .unl{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px dashed #6a44264d}
 .book .unl .lv{min-width:44px}.book .unl>span{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.book .unl svg{width:32px;height:32px}
 .book .unl i{font:800 15px Alegreya,Georgia,serif;font-style:normal;color:var(--ink)}
+
+/* the book during the day (key B / book button): the paused farm blurred behind instead of the room */
+#hClose{display:none}
+#fHouse.dayBook{background:#0b0704a6;-webkit-backdrop-filter:blur(7px) saturate(.9);backdrop-filter:blur(7px) saturate(.9)}
+#fHouse.dayBook #hBg{display:none}
+#fHouse.dayBook #hSleep{display:none}
+#fHouse.dayBook #hClose{display:flex;width:auto;margin-left:auto;padding:9px 22px;font-size:19px}
+@media (max-height:560px){#fHouse.dayBook #hClose{padding:6px 16px;font-size:16px}#fHouse.dayBook #hClose svg{width:24px;height:24px}}
+@media (max-width:699px) and (orientation:portrait){#fHouse.dayBook #hClose{padding:7px 12px;font-size:15px}}

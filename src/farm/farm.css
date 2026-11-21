@@ -69,6 +69,7 @@
 #fQuests .qo{display:flex;align-items:center;gap:4px;padding-left:4px;font-size:14px;color:#d8d0bc;margin-top:3px}#fQuests .qo svg{width:20px;height:20px}#fQuests .qo i{font-style:normal;min-width:44px}
 @media (max-width:600px){#fQuests{max-width:min(250px,64vw);padding:6px 9px;font-size:13px}#fQuests .qt b{font-size:13px}#fQuests .qo{font-size:12.5px}#fQuests .qo svg{width:16px;height:16px}#fQuests .qo i{min-width:38px}#fQuests .qr{font-size:12px}}
 #fQuests .qo.ok{color:#8fe36a}#fQuests .qq.done .qt b{color:#8fe36a}#fQuests .qq.done .qo{opacity:.7}
+#fBook{padding:0}#fBook svg{width:30px;height:30px}
 #fPause{color:var(--gold)}#fPause svg{width:22px;height:22px}
 #fHint{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 86px);transform:translateX(-50%);display:flex;align-items:center;gap:10px;
   max-width:min(620px,92vw);padding:10px 18px 10px 12px;border-radius:14px;background:#0b1016d9;border:2px solid var(--gold-dim);box-shadow:0 6px 24px #000a;

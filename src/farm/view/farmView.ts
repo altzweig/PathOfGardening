@@ -160,7 +160,7 @@ export class FarmView {
   private arrow: THREE.Group; arrowAt: { x: number; z: number; y?: number } | null = null;
   private bubble: { s: THREE.Sprite; id: number; text: string } | null = null;
   private actBar = makeBar(.8, .08, 0xffe08a);
-  camX = 0; camZ = 0; zoom = 1; shot: CamShot = null; private shotK = 0; shake = 0;
+  camX = 0; camZ = 0; zoom = 1; shot: CamShot = null; private shotK = 0; shake = 0; private pourStop: (() => void) | undefined;
   hover: Target | null = null; hoverOk = true;
   hurtT = 0;
   private dyn = new THREE.Group();
@@ -416,8 +416,7 @@ export class FarmView {
       if (!refill && v.actT > .25) {
         const p0 = v.can.spout.getWorldPosition(V()), T = .3, n = Math.max(1, Math.round(dt * 80));
         for (let i = 0; i < n; i++) { const tx = tp.x + rand(-.45, .45), tz = tp.z + rand(-.45, .45), tt = T * rand(.9, 1.1); PART.spawn(p0, V((tx - p0.x) / tt, (-p0.y + .5 * 9.8 * tt * tt) / tt, (tz - p0.z) / tt), Math.random() < .5 ? 0x4aa8ff : 0x9ad8ff, rand(.07, .11), tt, { g: 9.8, a: .8, s1: .05 }); }
-        play('pour');
-      } else if (refill && Math.random() < dt * 30) { const p0 = v.can.g.getWorldPosition(V()); PART.spawn(V(p0.x, p0.y + .45, p0.z), V(rand(-.1, .1), -2, rand(-.1, .1)), 0x8ad0ff, .08, .25, { g: 4, a: .8 }); if (Math.random() < .2) play('pour'); }
+      } else if (refill && Math.random() < dt * 30) { const p0 = v.can.g.getWorldPosition(V()); PART.spawn(V(p0.x, p0.y + .45, p0.z), V(rand(-.1, .1), -2, rand(-.1, .1)), 0x8ad0ff, .08, .25, { g: 4, a: .8 }); }
       lean = .1;
     }
     // --- sowing (on one knee): bag in the left hand, the right hand throws seeds over the plot
@@ -601,7 +600,11 @@ export class FarmView {
   event(e: Ev, sim: DaySim) {
     const P = sim.player;
     switch (e.k) {
-      case 'act': if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z); break;
+      case 'act':
+        if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z);
+        if (e.kind === 'water') { this.pourStop?.(); this.pourStop = sfx('can.pour', P.x, P.z); } // sounds.yaml can.*: pouring, filling at the well
+        if (e.kind === 'refill') sfx('can.fill', P.x, P.z);
+        break;
       case 'actDone': {
         const p = sim.targetPos(e.target);
         if (e.kind === 'sow') { burst(V(p.x, .2, p.z), 0x6a4a30, 16, 1.6, .12, .6, { g: 6 }); sfx('player.till', p.x, p.z); }
@@ -620,7 +623,6 @@ export class FarmView {
         }
         if (e.kind === 'gather') { sfx('harvest.ok', P.x, P.z); play('rustle'); }
         if (e.kind === 'water') { const p = sim.targetPos(e.target); decal(p.x, p.z, 0x10161e, 1.2, 3, { op: .3 }); }
-        if (e.kind === 'refill') sfx('ui.confirm');
         break;
       }
       // one pass through the bush: it wobbles, leaves whirl out, the berries hop into the farmer's hands (straight into the Lager)
@@ -652,7 +654,8 @@ export class FarmView {
       case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); sfx('plants.ripe'); break; }
       // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
-      case 'deny': play('imm'); break;
+      case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
+      case 'deny': if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
     }
   }
   floatXp: ((x: number, z: number, xp: number) => void) | null = null;

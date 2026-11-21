@@ -50,6 +50,7 @@ Von **Kenney** – https://kenney.nl/assets/particle-pack (Particle Pack 1.1), L
 
 Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
 Regen/Gewitter (`rain_light.mp3`, `rain_heavy.mp3` als nahtlose 24-s-Stereo-Loops, `thunder_1–6.mp3`) sind mit `tools/build-rain.py` aus den vier Regen-Aufnahmen gemischt (Lizenzen laut Basti, Freesound-Seiten aus der Cloud nicht erreichbar).
+Gießkanne (`can_pour_*`, `can_fill_*`, `can_empty`, 21.11.2026) mit `tools/build-can.py` geschnitten; Rohdateien liegen in den Projektdateien unter `giesskanne/rohsounds/`.
 
 | Datei im Spiel | Quelle | Autor | Lizenz |
 |---|---|---|---|
@@ -61,6 +62,10 @@ Regen/Gewitter (`rain_light.mp3`, `rain_heavy.mp3` als nahtlose 24-s-Stereo-Loop
 | rain_light | [Rooftop Rain Perspective A](https://freesound.org/s/869487/) | thelittlecrow | CC0 |
 | rain_light | [Rain and Drips](https://freesound.org/s/853565/) | hoshisato | CC0 |
 | rain_heavy, thunder_1–5 | [ThunderRain_SFX](https://freesound.org/s/867416/) | kbro935 | CC0 |
+| can_pour_1–3 (Gießen) | [Watering sound](https://freesound.org/s/625061/) | nokta | noch offen (Freesound aus der Cloud nicht erreichbar) |
+| can_pour_1–3 (leise, tiefpassgefiltert darunter) | [Watering](https://freesound.org/s/488401/) | wobesound | noch offen |
+| can_fill_1–9 (Kanne am Brunnen füllen) | [Foley Object Watering Can Steel Water Movement Single](https://freesound.org/s/711528/) | nox_sound | noch offen |
+| can_empty (Kanne leer) | [Hit Metallic Watering Can, Flicking a Metal Watering Can 01](https://freesound.org/s/406558/) | anthousai | noch offen |
 | amb_day | „calm birds“ (Freesound, aus Bastis Sound-Sammlung, Ausschnitt als Loop) | – | CC0 |
 | ripe_1 | „clear notification“ (koiroylers, aus Bastis Sound-Sammlung, `sfx/ui/koiroylers-clear-notification-355970.mp3`, gekürzt) | koiroylers | laut Basti frei nutzbar |
 | harvest_pop | „pop sound“ (soundreality, aus Bastis Sound-Sammlung, `sfx/collect/soundreality-pop-sound-423716.mp3`, Ausschnitt) | soundreality | laut Basti frei nutzbar |

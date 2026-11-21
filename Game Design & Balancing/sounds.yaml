@@ -92,6 +92,12 @@ player:
   till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Hacke schlägt in den Boden (Harken-Geräusch, bei jedem Hackschlag)
   slash:  { synth: whoosh, gap: 0.08 }                                                                            # Schwung mit der Hacke (comicartiges Wusch)
 
+can:                                                  # Gießkanne (21.11.2026, Freesound, geschnitten mit tools/build-can.py)
+  pour:   { files: [can_pour_1, can_pour_2, can_pour_3], vol: 0.55, pitch: [0.96, 1.03] }   # Gießen: Plätschern aus nokta (gut 1 Halbton tiefer) + leise, tiefpassgefiltert wobesound
+  fill:   { files: [can_fill_1, can_fill_2, can_fill_3, can_fill_4, can_fill_5, can_fill_6, can_fill_7, can_fill_8, can_fill_9], vol: 0.4, pitch: [0.92, 1.06], gap: 0.3 }   # Kanne am Brunnen füllen: Wasser schwappt in die Kanne (nox_sound), je Füllen ein Schwapper
+  empty:  { files: [can_empty], vol: 0.35, pitch: [1.0, 1.04], gap: 0.6 }                   # gießen wollen, Kanne leer: Fingerschnippen gegen das Blech (anthousai) ...
+  empty2: { files: [can_empty], vol: 0.25, pitch: [0.76, 0.8], gap: 0.6, delay: [0.17, 0.17] }   # ... gleich danach ein zweites, tieferes
+
 harvest:                                              # erfolgreiches Ernten, egal ob Feld, Blaubeerbusch, Brombeeren, Obstbaum oder Wildpflanze (21.11.2026)
   ok:   { files: [harvest_pop], vol: 0.3, pitch: [0.88, 1.12], gap: 0.06 }   # Ernte-Plopp bei jedem Erntedurchgang (aus soundreality "pop sound")
   done: { files: [harvest_ding], vol: 0.2, pitch: [1.0, 1.08], gap: 0.3 }    # letzter Durchgang: Feld/Busch leer geerntet (Glas-Ding)

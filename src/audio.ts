@@ -167,7 +167,8 @@ function entry(key: string): SndEntry | null {
   if (!SC) return null; let o: any = SC; for (const p of key.split('.')) { o = o?.[p]; if (o === undefined) return null; } return o;
 }
 /** play a sound event from sounds.yaml at a world position (distance-attenuated, panned) */
-export function sfx(key: string, x?: number, z?: number, volMul = 1) {
+/** returns a stop function (short fade) for clips that may need to end early, e.g. pouring when the action is cancelled */
+export function sfx(key: string, x?: number, z?: number, volMul = 1): (() => void) | undefined {
   if (!AC || !audio.on || !SC) return;
   const e = entry(key); if (!e) return;
   const now = AC.currentTime;
@@ -197,6 +198,7 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
   if (e.lp) { const bq = AC.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = e.lp; bq.Q.value = .5; src.connect(bq); bq.connect(g); } else src.connect(g);
   node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
+  return () => { if (!AC) return; const t = AC.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .15); try { src.stop(t + .16); } catch { /* already ended */ } };
 }
 /** looping sounds (e.g. the flamethrower roar), one per id: fades in/out, follows its world position */
 const loops = new Map<string, { src: AudioBufferSourceNode; g: GainNode; pan: StereoPannerNode | null; vol: number }>();

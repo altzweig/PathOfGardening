@@ -3,7 +3,8 @@
 // clock. Works on the persistent FarmState; the view only reads.
 import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, otherXp, treeCfg, treeKind } from './config';
 import { FarmState, addItem, count, gainXp, growMul, ripeCuts } from './state';
-import { Hof } from './hof';
+import { Hof, Obstacle, obsDist } from './hof';
+import { NavGrid, navFor } from './nav';
 
 export type Target =
   | { k: 'bush' } | { k: 'well' } | { k: 'plot'; i: number }
@@ -59,6 +60,8 @@ export interface Animal {
   home?: { x: number; z: number }; dest?: { x: number; z: number } | null; idle?: number; scared?: number;
   /** tutorial: walks a fixed list of points, no AI */
   path?: { x: number; z: number; speed: number }[];
+  /** pathfinding (nav.ts): goal of the current route, its corner points, age; none = no way found (then straight) */
+  route?: { gx: number; gz: number; pts: { x: number; z: number }[]; t: number; none: boolean } | null;
 }
 export interface Pellet { x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId }
 /** goods on the ground: dropped by a raccoon (stolen) or shaken off a tree (new) */
@@ -112,6 +115,7 @@ export class DaySim {
   visible: (x: number, z: number) => boolean = (x, z) => dist(x, z, this.player.x, this.player.z) < 22;
   private plan: { at: number; type: AnimalType; gap: number; near?: boolean }[] = [];
   private nid = 1;
+  private pelletBuf: Obstacle[] = [];
   private half = 0;
   private weedT: number; private forageT: number;
   /** s until the next wild plant of each kind grows (wild.forage.plants) */
@@ -128,6 +132,7 @@ export class DaySim {
     this.brambles = hof.brambles.map((_, i) => ({ n: (per.brambles[i] ?? 0) <= s.day ? W.brambles.picks : 0, t: 0 }));
     this.weedT = rnd(...W.weeds.every); this.forageT = rnd(...W.forage.every);
     for (const [k, v] of Object.entries(W.forage.plants ?? {})) this.plantT[k] = v.spawn * rnd(.3, 1);
+    void this.nav; // bake the walk grid now (once per farm), not when the first animal needs it
     if (!s.wild.init) this.seedWild();
     if (o.tutorial) { this.clockRuns = false; this.spawns = false; }
     else { this.planSpawns(); if (Math.random() < cfg.day.rain.chance) { const [a, b] = cfg.day.rain.duration; this.rain = { at: rnd(.15, .7) * this.length, dur: rnd(a, b), t: 0 }; } }
@@ -646,7 +651,7 @@ export class DaySim {
         if (a.gone || a.state === 'script') continue;
         if (segDist(x0, z0, p.x, p.z, a.x, a.z) < this.cfg.animals[a.type].radius + .1) { this.hitAnimal(a, p.dmg, { freeze: p.freeze, fromX: p.x - p.vx, fromZ: p.z - p.vz, knock: .08 }); hit = true; break; }
       }
-      if (!hit) for (const o of this.hof.obstacles) { if (o.id === 'bush') continue; const q = o.kind === 'circle' ? dist(p.x, p.z, o.x, o.z) < o.r : false; if (q) { hit = true; break; } }
+      if (!hit) for (const o of this.hof.near(p.x, p.z, .05, this.pelletBuf)) { if (o.id === 'bush' || o.kind === 'box') continue; if (obsDist(o, p.x, p.z) <= 0) { hit = true; break; } }
       if (hit || p.life <= 0) { if (hit) this.ev.push({ k: 'pelletHit', x: p.x, z: p.z, ammo: p.ammo }); this.pellets.splice(i, 1); }
     }
   }
@@ -776,9 +781,36 @@ export class DaySim {
     if (!r) return p;
     const an = Math.atan2(a.z - p.z, a.x - p.x); return { x: p.x + Math.cos(an) * r, z: p.z + Math.sin(an) * r };
   }
-  private moveTo(a: Animal, x: number, z: number, speed: number, dt: number, ghost = false) {
+  /** next point to steer at on the way to (x, z): straight when the line is free, else along an A* route (re-planned
+   *  when the goal moves, after getting stuck or every few seconds). null = no way (straight + collision as before) */
+  private steer(a: Animal, x: number, z: number, dt: number): { x: number; z: number; end: boolean } | null {
+    const N = this.nav; let R = a.route;
+    if (R) R.t += dt;
+    const replan = !R || Math.hypot(R.gx - x, R.gz - z) > .75 || R.t > 6 || (a.stuck > .4 && R.t > .5);
+    if (replan) {
+      if (N.free(x, z) && N.los(a.x, a.z, x, z)) R = a.route = { gx: x, gz: z, pts: [], t: 0, none: false };
+      else if (this.navBudget > 0) { this.navBudget--; const p = N.path(a.x, a.z, x, z); R = a.route = { gx: x, gz: z, pts: p ?? [], t: 0, none: !p }; }
+      else if (!R) return null; // too many searches this frame: keep going straight for one frame
+    }
+    if (!R || R.none) return null;
+    // corner reached (or already in sight of the next one): on to the next
+    while (R.pts.length > 1 && (dist(a.x, a.z, R.pts[0].x, R.pts[0].z) < .35 || N.los(a.x, a.z, R.pts[1].x, R.pts[1].z))) R.pts.shift();
+    if (R.pts.length === 1 && dist(a.x, a.z, R.pts[0].x, R.pts[0].z) < .2) R.pts.shift();
+    if (!R.pts.length) return { x, z, end: !N.free(x, z) };
+    return { x: R.pts[0].x, z: R.pts[0].z, end: false };
+  }
+  /** searches allowed per frame (spreads the cost when many animals re-plan at once) */
+  private navBudget = 0;
+  get nav(): NavGrid { return navFor(this.hof); }
+  /** move towards (x, z); ghost = through everything (scripted), pass = through obstacles only when no way is found */
+  private moveTo(a: Animal, x: number, z: number, speed: number, dt: number, ghost = false, pass = false) {
     const d = dist(a.x, a.z, x, z); if (d < .05) return true;
     let tx = x, tz = z;
+    if (!ghost) {
+      const w = this.steer(a, x, z, dt);
+      if (w) { tx = w.x; tz = w.z; a.detour = null; if (w.end && dist(a.x, a.z, x, z) < 1.4 && a.stuck > .25) return true; } // goal inside an obstacle (bush): as close as it gets
+      else if (pass) ghost = true;
+    }
     if (a.detour) { tx = a.detour.x; tz = a.detour.z; if (dist(a.x, a.z, tx, tz) < .5) a.detour = null; }
     const l = dist(a.x, a.z, tx, tz) || 1, st = Math.min(speed * dt, l);
     let nx = a.x + (tx - a.x) / l * st, nz = a.z + (tz - a.z) / l * st;
@@ -786,12 +818,12 @@ export class DaySim {
     const moved = dist(a.x, a.z, nx, nz);
     a.f = Math.atan2(nx - a.x, nz - a.z) || a.f; a.x = nx; a.z = nz;
     // stuck behind a building: go round via a point beside it
-    if (moved < speed * dt * .3) { a.stuck += dt; if (a.stuck > .6 && !a.detour) { const side = Math.random() < .5 ? 1 : -1, an = Math.atan2(tz - a.z, tx - a.x) + side * 1.4; a.detour = { x: a.x + Math.cos(an) * 3, z: a.z + Math.sin(an) * 3 }; a.stuck = 0; } }
+    if (moved < speed * dt * .3) { a.stuck += dt; if (a.stuck > .6 && !a.detour && (ghost || !a.route || a.route.none)) { const side = Math.random() < .5 ? 1 : -1, an = Math.atan2(tz - a.z, tx - a.x) + side * 1.4; a.detour = { x: a.x + Math.cos(an) * 3, z: a.z + Math.sin(an) * 3 }; a.stuck = 0; } }
     else a.stuck = 0;
     return d < .15;
   }
   private updateAnimals(dt: number) {
-    const P = this.player;
+    const P = this.player; this.navBudget = 3;
     for (const a of this.animals) {
       if (a.gone) continue;
       const C = this.cfg.animals[a.type];
@@ -813,7 +845,7 @@ export class DaySim {
       switch (a.state) {
         case 'enter': {
           const p = this.hof.gapIn(a.gap);
-          if (this.moveTo(a, p.x, p.z, sp, dt, true) || this.hof.ellipse(a.x, a.z) < .9) {
+          if (this.moveTo(a, p.x, p.z, sp, dt, false, true) || this.hof.ellipse(a.x, a.z) < .9) {
             if (a.type === 'hare') { a.home = this.nearField() ?? { x: a.x, z: a.z }; a.dest = a.home; a.state = 'wander'; a.t = 0; break; }
             a.state = 'go'; a.target = this.pickTarget(a); a.t = 0;
           }
@@ -854,7 +886,8 @@ export class DaySim {
         case 'flee': {
           const out = this.hof.gapOut(a.gap), inn = this.hof.gapIn(a.gap);
           const target = this.hof.ellipse(a.x, a.z) < .85 ? inn : out;
-          this.moveTo(a, target.x, target.z, fsp, dt, this.hof.ellipse(a.x, a.z) > .8 || a.t > 4); // never stuck for long: after 4 s it slips through
+          // 21.11.2026: runs the way round through the entrances (pathfinding); only without any way (or stuck for long) it slips through
+          this.moveTo(a, target.x, target.z, fsp, dt, a.t > 12, true);
           if (this.hof.outside(a.x, a.z, a.gap)) {
             a.gone = true;
             for (const [k, n] of Object.entries(a.carry)) this.lost[k] = (this.lost[k] ?? 0) + n;

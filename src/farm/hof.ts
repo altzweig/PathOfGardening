@@ -6,7 +6,24 @@ import { Logic, Pt, centroid, closestOnPoly, inPoly, radial, splinePoly } from '
 
 export interface Obb { kind: 'box'; x: number; z: number; hw: number; hd: number; c: number; s: number; id?: string }
 export interface Circ { kind: 'circle'; x: number; z: number; r: number; id?: string }
-export type Obstacle = Obb | Circ;
+/** convex outline in world space (rocks): pts = x0, z0, x1, z1 ... counter-clockwise or clockwise; x/z/r = bounding circle */
+export interface Poly { kind: 'poly'; x: number; z: number; r: number; pts: Float32Array; id?: string }
+export type Obstacle = Obb | Circ | Poly;
+/** radius of a circle around the obstacle (spatial hash, quick rejects) */
+export function boundR(o: Obstacle) { return o.kind === 'circle' || o.kind === 'poly' ? o.r : Math.hypot(o.hw, o.hd); }
+/** closest point on the outline of a convex polygon and whether (x, z) lies inside */
+function polyNear(o: Poly, x: number, z: number) {
+  const P = o.pts, n = P.length / 2; let bx = x, bz = z, bd = 1e18, inside = true, sgn = 0;
+  for (let i = 0; i < n; i++) {
+    const ax = P[i * 2], az = P[i * 2 + 1], cx = P[((i + 1) % n) * 2], cz = P[((i + 1) % n) * 2 + 1];
+    const ex = cx - ax, ez = cz - az, cr = ex * (z - az) - ez * (x - ax);
+    if (cr !== 0) { const sg = Math.sign(cr); if (!sgn) sgn = sg; else if (sg !== sgn) inside = false; }
+    const l2 = ex * ex + ez * ez, t = l2 ? Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2)) : 0;
+    const px = ax + ex * t, pz = az + ez * t, d = (px - x) ** 2 + (pz - z) ** 2;
+    if (d < bd) { bd = d; bx = px; bz = pz; }
+  }
+  return { x: bx, z: bz, d: Math.sqrt(bd), inside };
+}
 
 export function obstacleOf(r: RectCfg, id?: string, pad = 0): Obstacle {
   if (r.r !== undefined) return { kind: 'circle', x: r.x, z: r.z, r: r.r + pad, id };
@@ -19,6 +36,13 @@ export function toWorld(o: Obb, lx: number, lz: number) { return { x: o.x + lx *
 
 /** push a circle (x, z, r) out of an obstacle; returns the corrected position or null when not touching */
 export function pushOut(o: Obstacle, x: number, z: number, r: number): { x: number; z: number } | null {
+  if (o.kind === 'poly') {
+    if ((x - o.x) ** 2 + (z - o.z) ** 2 >= (o.r + r) ** 2) return null;
+    const c = polyNear(o, x, z);
+    if (!c.inside) { if (c.d >= r) return null; return { x: c.x + (x - c.x) / c.d * r, z: c.z + (z - c.z) / c.d * r }; }
+    // centre inside: out through the nearest edge, away from the middle
+    const dx = c.x - o.x, dz = c.z - o.z, l = Math.hypot(dx, dz) || 1; return { x: c.x + dx / l * r, z: c.z + dz / l * r };
+  }
   if (o.kind === 'circle') {
     const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz), m = o.r + r;
     if (d >= m) return null;
@@ -41,8 +65,21 @@ export function pushOut(o: Obstacle, x: number, z: number, r: number): { x: numb
 export function propObstacle(p: PropRec): Obstacle | null {
   const d = MODEL.get(p.m); if (!d) return null;
   if (d.wall) { const a = p.ry; return { kind: 'box', x: p.x, z: p.z, hw: d.wall[0] * p.s, hd: d.wall[1] * p.s, c: Math.cos(a), s: Math.sin(a), id: 'prop' }; }
+  if (d.hull) {
+    const c = Math.cos(p.ry), sn = Math.sin(p.ry), pts = new Float32Array(d.hull.length * 2); let r = 0;
+    d.hull.forEach(([lx, lz], i) => { const x = p.x + (lx * c + lz * sn) * p.s, z = p.z + (-lx * sn + lz * c) * p.s; pts[i * 2] = x; pts[i * 2 + 1] = z; });
+    let cx = 0, cz = 0; for (let i = 0; i < pts.length; i += 2) { cx += pts[i]; cz += pts[i + 1]; } cx /= d.hull.length; cz /= d.hull.length;
+    for (let i = 0; i < pts.length; i += 2) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 1] - cz));
+    return { kind: 'poly', x: cx, z: cz, r, pts, id: 'prop' };
+  }
   if (d.solid) return { kind: 'circle', x: p.x, z: p.z, r: d.solid * p.s, id: 'prop' };
   return null;
+}
+/** distance from a point to the outside of an obstacle (0 inside) */
+export function obsDist(o: Obstacle, x: number, z: number) {
+  if (o.kind === 'circle') return Math.max(0, Math.hypot(x - o.x, z - o.z) - o.r);
+  if (o.kind === 'poly') { const c = polyNear(o, x, z); return c.inside ? 0 : c.d; }
+  const { lx, lz } = toLocal(o, x, z); return Math.hypot(Math.max(0, Math.abs(lx) - o.hw), Math.max(0, Math.abs(lz) - o.hd));
 }
 
 /** small seeded random generator: the same layout on every start */
@@ -97,7 +134,8 @@ export class Hof {
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
     this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
     // objects placed in the world editor: trees, rocks, fences on the farm block the way (not in the forest ring, the animals come through there)
-    for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && this.ellipse(p.x, p.z) < (L ? 1 : .97)) this.obstacles.push(o); }
+    // 21.11.2026: with a world from the editor everything solid blocks, also in the forest: the animals find the entrances (nav.ts)
+    for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && (L || this.ellipse(p.x, p.z) < .97)) this.obstacles.push(o); }
     if (L) {
       // spawns instead of forest gaps: the "gap" points from the middle towards the spawn
       this.gaps = L.spawns.map(sp => { const a = Math.atan2(sp.z - this.cz, sp.x - this.cx), e = this.edge(a); return { a, x: e.x, z: e.z }; });
@@ -188,6 +226,7 @@ export class Hof {
     for (const o of this.obstacles) {
       if (o.id === 'bramble') continue;
       if (o.kind === 'circle') { if (Math.hypot(x - o.x, z - o.z) < o.r + (o.id === 'tree' ? -.2 : .1)) return 0; }
+      else if (o.kind === 'poly') { if (Math.hypot(x - o.x, z - o.z) < o.r + .1 && obsDist(o, x, z) < .1) return 0; }
       else { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + .05 && Math.abs(lz) < o.hd + .05) return 0; }
     }
     const door = this.cfg.hof.door; m *= sstep(1, 2, Math.hypot(x - door.x, z - door.z));
@@ -240,6 +279,7 @@ export class Hof {
     for (const p of this.cfg.hof.plots) if (Math.hypot(x - p.x, z - p.z) < h + pad) return false;
     for (const o of this.obstacles) {
       if (o.kind === 'circle') { if (Math.hypot(x - o.x, z - o.z) < o.r + pad) return false; }
+      else if (o.kind === 'poly') { if (Math.hypot(x - o.x, z - o.z) < o.r + pad && obsDist(o, x, z) < pad) return false; }
       else { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + pad && Math.abs(lz) < o.hd + pad) return false; }
     }
     return Math.hypot(x - this.cfg.hof.door.x, z - this.cfg.hof.door.z) > 1.2 + pad;
@@ -247,10 +287,7 @@ export class Hof {
   /** obstacle of a building (for distances to its walls / fence) */
   building(id: BuildingId) { return this.obstacles.find(o => o.id === id) ?? null; }
   /** distance from a point to the outside of an obstacle */
-  distTo(o: Obstacle, x: number, z: number) {
-    if (o.kind === 'circle') return Math.max(0, Math.hypot(x - o.x, z - o.z) - o.r);
-    const { lx, lz } = toLocal(o, x, z); return Math.hypot(Math.max(0, Math.abs(lx) - o.hw), Math.max(0, Math.abs(lz) - o.hd));
-  }
+  distTo(o: Obstacle, x: number, z: number) { return obsDist(o, x, z); }
   /** radius of the walk area in direction a (world editor logic) */
   private rad(a: number) { const R = this.R!, n = R.length, f = ((a / (Math.PI * 2)) % 1 + 1) % 1 * n, i = Math.floor(f) % n, u = f - Math.floor(f); return R[i] * (1 - u) + R[(i + 1) % n] * u; }
   /** point on the clearing edge in direction a */
@@ -300,9 +337,42 @@ export class Hof {
     return best;
   }
   /** keep the player on the farm: inside the clearing (a bit further out in the gaps), out of buildings */
+  // ---------------- spatial hash of the obstacles (collision queries only look at the cells around a point) ----------------
+  private hash: { n: number; cs: number; x0: number; z0: number; nx: number; nz: number; cells: Obstacle[][]; big: Obstacle[] } | null = null;
+  private buildHash() {
+    const cs = 4, list = this.obstacles; let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+    for (const o of list) { const r = boundR(o); x0 = Math.min(x0, o.x - r); z0 = Math.min(z0, o.z - r); x1 = Math.max(x1, o.x + r); z1 = Math.max(z1, o.z + r); }
+    if (!list.length) { x0 = z0 = 0; x1 = z1 = 1; }
+    const nx = Math.max(1, Math.ceil((x1 - x0) / cs)), nz = Math.max(1, Math.ceil((z1 - z0) / cs)), cells: Obstacle[][] = Array.from({ length: nx * nz }, () => []), big: Obstacle[] = [];
+    for (const o of list) {
+      const r = boundR(o); if (r > cs * 6) { big.push(o); continue; }
+      const i0 = Math.floor((o.x - r - x0) / cs), i1 = Math.floor((o.x + r - x0) / cs), j0 = Math.floor((o.z - r - z0) / cs), j1 = Math.floor((o.z + r - z0) / cs);
+      for (let j = Math.max(0, j0); j <= Math.min(nz - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(nx - 1, i1); i++) cells[j * nx + i].push(o);
+    }
+    this.hash = { n: list.length, cs, x0, z0, nx, nz, cells, big };
+  }
+  private qStamp = 0; private qSeen = new Map<Obstacle, number>();
+  /** obstacles whose bounding circle may touch the circle (x, z, r) */
+  near(x: number, z: number, r: number, out: Obstacle[] = []): Obstacle[] {
+    if (!this.hash || this.hash.n !== this.obstacles.length) this.buildHash();
+    const H = this.hash!, st = ++this.qStamp; out.length = 0;
+    for (const o of H.big) out.push(o);
+    const i0 = Math.max(0, Math.floor((x - r - H.x0) / H.cs)), i1 = Math.min(H.nx - 1, Math.floor((x + r - H.x0) / H.cs));
+    const j0 = Math.max(0, Math.floor((z - r - H.z0) / H.cs)), j1 = Math.min(H.nz - 1, Math.floor((z + r - H.z0) / H.cs));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) for (const o of H.cells[j * H.nx + i]) {
+      if (this.qSeen.get(o) === st) continue; this.qSeen.set(o, st);
+      const R = boundR(o) + r; if ((o.x - x) ** 2 + (o.z - z) ** 2 < R * R) out.push(o);
+    }
+    return out;
+  }
+  private nearBuf: Obstacle[] = [];
+  /** half edge of the square map of the world editor (the player stays on it) */
+  get mapHalf() { return this.logic ? this.logic.size / 2 : 0; }
   collide(x: number, z: number, r: number, player: boolean, skip?: string): { x: number; z: number } {
-    for (let it = 0; it < 2; it++) for (const o of this.obstacles) { if (o.id === skip) continue; const p = pushOut(o, x, z, r); if (p) { x = p.x; z = p.z; } }
+    const list = this.near(x, z, r + .5, this.nearBuf);
+    for (let it = 0; it < 3; it++) { let moved = false; for (const o of list) { if (o.id === skip) continue; const p = pushOut(o, x, z, r); if (p) { x = p.x; z = p.z; moved = true; } } if (!moved) break; }
     if (player && this.logic) {
+      const m = this.mapHalf - 1; x = Math.max(-m, Math.min(m, x)); z = Math.max(-m, Math.min(m, z));
       // walk area of the world editor: back onto the outline, a hand's width inside
       if (!inPoly(this.walkPoly, x, z)) { const c = closestOnPoly(this.walkPoly, x, z), dx = this.cx - c.x, dz = this.cz - c.z, l = Math.hypot(dx, dz) || 1; x = c.x + dx / l * .05; z = c.z + dz / l * .05; }
     } else if (player) {

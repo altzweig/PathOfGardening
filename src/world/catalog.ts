@@ -14,6 +14,8 @@ export interface ModelDef {
   solid?: number;
   /** box collision (fence): half length, half depth in model units */
   wall?: [number, number];
+  /** ground outline (convex, model units, x/z) for collision: rocks whose footprint is not centred (21.11.2026) */
+  hull?: [number, number][];
   tint: Hsl | null; shade?: [number, number];
   /** the scale the wind of the leaves was tuned for (trees) */
   wind?: number;
@@ -35,9 +37,9 @@ for (const i of [1, 3, 5]) add('CommonTree_' + i, 'Laubbaum ' + i, 'Bäume', { s
 for (const i of [1, 2, 4, 5]) add('Pine_' + i, 'Tanne ' + i, 'Bäume', { s: .8, vary: [.8, 1.25], y: -.1, shadow: true, solid: .45, tint: pine, shade: [.8, 1.05], wind: .8 });
 for (const i of [1, 2, 3, 4, 5]) add('TwistedTree_' + i, 'Knorriger Baum ' + i, 'Bäume', { s: .4, vary: [.8, 1.25], y: -.1, shadow: true, solid: 1.2, tint: twisted, shade: [.8, 1.05], wind: .4 });
 for (const i of [1, 2, 3, 4, 5]) add('DeadTree_' + i, 'Toter Baum ' + i, 'Bäume', { s: .45, vary: [.8, 1.2], y: -.1, shadow: true, solid: .8, tint: null, shade: [.8, 1.05], wind: .45 });
-add('Bush_Common', 'Busch', 'Büsche', { s: .85, vary: [.75, 1.3], shadow: true, tint: bush });
-add('Bush_Common_Flowers', 'Blühender Busch', 'Büsche', { s: .85, vary: [.75, 1.3], shadow: true, tint: bush });
-add('Plant_1_Big', 'Große Staude', 'Büsche', { s: .4, vary: [.8, 1.2], shadow: true, tint: fern });
+add('Bush_Common', 'Busch', 'Büsche', { s: .85, vary: [.75, 1.3], shadow: true, solid: .7, tint: bush });
+add('Bush_Common_Flowers', 'Blühender Busch', 'Büsche', { s: .85, vary: [.75, 1.3], shadow: true, solid: .7, tint: bush });
+add('Plant_1_Big', 'Große Staude', 'Büsche', { s: .4, vary: [.8, 1.2], shadow: true, solid: .4, tint: fern });
 add('Fern_1', 'Farn', 'Pflanzen', { s: .25, vary: [.75, 1.2], tilt: .25, tint: fern });
 add('Plant_1', 'Staude', 'Pflanzen', { s: .45, vary: [.8, 1.2], tint: fern });
 add('Plant_7', 'Blattrosette', 'Pflanzen', { s: .6, vary: [.8, 1.2], tint: fern });
@@ -55,7 +57,13 @@ add('Flower_4_Single', 'Blume gelb', 'Blumen', { s: .28, vary: [.8, 1.2], tint: 
 for (const i of [1, 2, 3, 4, 5]) add('Petal_' + i, 'Blüten ' + i, 'Blumen', { s: .8, vary: [.8, 1.2], tint: flower });
 add('Mushroom_Common', 'Pilze', 'Pilze', { s: .5, vary: [.8, 1.2], tint: null, shade: [1, 1] });
 add('Mushroom_Laetiporus', 'Baumpilz', 'Pilze', { s: .4, vary: [.8, 1.2], tint: null, shade: [1, 1] });
-for (const i of [1, 2, 3]) add('Rock_Medium_' + i, 'Fels ' + i, 'Steine', { s: .6, vary: [.65, 1.35], y: -.12, tilt: .3, shadow: true, solid: 1.2, tint: null, shade: stone });
+// ground outline of the rocks (convex hull of the lowest 0.8 model units, 92 %; the models are not centred on their origin)
+const ROCK_HULL: Record<number, [number, number][]> = {
+  1: [[-1.59, -.11], [-1.38, -.59], [-.94, -.88], [-.16, -1.06], [.73, -.81], [1.38, .07], [.89, 1.25], [-.23, 1.69], [-1.12, 1.19], [-1.38, .86]],
+  2: [[-1.58, -.7], [-.31, -1.07], [.59, -1.05], [1.23, -.66], [1.19, .44], [.95, .88], [.04, 1.21], [-.48, 1.17], [-1.08, .76], [-1.53, .02]],
+  3: [[-1.68, .31], [-1.26, -.36], [-.8, -.62], [.02, -.82], [1.34, .24], [1.38, .51], [.95, 1.79], [.41, 2.36], [.06, 2.18], [-1.58, .67]],
+};
+for (const i of [1, 2, 3]) add('Rock_Medium_' + i, 'Fels ' + i, 'Steine', { s: .6, vary: [.65, 1.35], y: -.12, tilt: .3, shadow: true, solid: 1.2, hull: ROCK_HULL[i], tint: null, shade: stone });
 for (const i of [1, 2, 3, 4, 5]) add('Pebble_Round_' + i, 'Kiesel ' + i, 'Steine', { s: .85, vary: [.7, 1.3], y: -.02, tilt: .3, tint: null, shade: [.85, 1.1] });
 for (const i of [1, 2, 3]) add('RockPath_Round_Small_' + i, 'Trittstein ' + i, 'Steine', { s: .9, vary: [.85, 1.15], y: -.03, tint: null, shade: stone });
 add('Zaun', 'Zaun', 'Hof', { s: 1, vary: [1, 1], shadow: true, wall: [1, .08], tint: null, shade: [.85, 1.05] });

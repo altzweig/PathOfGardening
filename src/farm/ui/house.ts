@@ -17,7 +17,7 @@ const TABS: [Tab, string, string, string][] = [
   ['store', 'box', 'Lager', '#d9772b'], ['quests', 'quest', 'Aufträge', '#a8403a'],
   ['build', 'hammer', 'Bauen', '#3d6a9e'], ['prod', 'gear', 'Produktion', '#5a7f34'],
 ];
-const FLIP_MS = 620;
+const FLIP_MS = 900;
 
 export class HouseUi {
   tab: Tab = 'store';
@@ -29,11 +29,14 @@ export class HouseUi {
   onSound: (k: string) => void = () => {};
   private bg: HouseBg;
   private flipping = 0;
+  private curlRaf = 0;
   constructor(public cfg: FarmCfg, public s: FarmState) {
     const root = $('#fHouse');
     root.addEventListener('click', e => this.click(e));
     root.addEventListener('pointermove', e => this.hover(e));
     root.addEventListener('pointerdown', e => this.hover(e));
+    // page block of the thick book: stacked paper edges above both pages
+    $('#hStack').innerHTML = [0, 1, 2, 3, 4, 5].map(i => `<i class="l" style="--i:${i}"></i><i class="r" style="--i:${i}"></i>`).join('');
     this.bg = new HouseBg($('#hBg') as HTMLCanvasElement);
     // torn page edges: a fixed irregular outline per page (outer edges ragged, a few small tears, spine side straight)
     $('#hPL').style.clipPath = torn(1, 'L'); $('#hPR').style.clipPath = torn(2, 'R');
@@ -72,7 +75,7 @@ export class HouseUi {
       rw.innerHTML = `<div class="fpick">${ic('plot')}<b>${C.names.buildings.plot}</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-field="${k}">${ic(k)}<b>${this.name(k)}</b>
         <div class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cfgXp(C, k)}</b></span></div></button>`).join('')}</div>`;
     }
-    $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 2 ? ' right' : ''}" style="--c:${col};--x:${[3, 20.5, 53, 70.5][k]}%" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
+    $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 2 ? ' right' : ''}" style="--c:${col};--x:${[3, 20.5, 53, 70.5][k]}%;--d:${[1, 3, 2, 4][k]}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
     const [l, r] = this.pages();
     $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r;
     book.dataset.tab = this.tab;
@@ -173,7 +176,7 @@ export class HouseUi {
     this.tab = tab; this.render();
     const stacked = matchMedia('(max-width: 699px) and (orientation: portrait)').matches;
     const book = $('#hBook');
-    book.querySelectorAll('.leaf,.hold').forEach(e => e.remove());
+    book.querySelectorAll('.leaf,.hold,.curl,.curlHold').forEach(e => e.remove()); cancelAnimationFrame(this.curlRaf);
     clearTimeout(this.flipping);
     if (stacked || matchMedia('(prefers-reduced-motion: reduce)').matches) {
       book.classList.remove('fade'); void book.offsetWidth; book.classList.add('fade');
@@ -181,22 +184,79 @@ export class HouseUi {
       return;
     }
     const fwd = to > from, newL = $('#hBody').innerHTML, newR = $('#hBodyR').innerHTML;
-    // the page under the turning leaf keeps showing the old content until the leaf has passed
+    this.curl(fwd, fwd ? oldL : oldR, fwd ? oldR : oldL, fwd ? newL : newR);
+  }
+
+  /** turning a page by hand (Basti 21.11.2026): the leaf is grabbed at its lower outer corner and pulled over the spine.
+   *  2D fold: the corner P swings on a low arc around the bottom of the spine, the fold line is the perpendicular bisector
+   *  of the corner's rest place C and P. The flat rest of the leaf is clipped at the fold, the folded part is the back of the
+   *  leaf (the new page) mirrored over the fold; soft shading along the fold makes the paper look bent.
+   *  stay = old page beside the leaf (shown until the leaf covers it), front/back = both sides of the leaf */
+  private curl(fwd: boolean, stay: string, front: string, back: string) {
+    const book = $('#hBook'), bR = book.getBoundingClientRect();
+    const leafPage = $(fwd ? '#hPR' : '#hPL'), other = $(fwd ? '#hPL' : '#hPR'), r = leafPage.getBoundingClientRect();
+    const W = r.width, H = r.height;
+    const place = (el: HTMLElement, rr: DOMRect) => Object.assign(el.style, { left: rr.left - bR.left + 'px', top: rr.top - bR.top + 'px', width: rr.width + 'px', height: rr.height + 'px' });
+    const copy = (el: HTMLElement, side: string, html: string) => `<div class="page ${side}" style="clip-path:${el.style.clipPath}"><div class="pc">${html}</div></div>`;
     const hold = document.createElement('div');
-    hold.className = `page hold ${fwd ? 'L' : 'R'}`; hold.style.clipPath = $(fwd ? '#hPL' : '#hPR').style.clipPath;
-    hold.innerHTML = `<div class="pc">${fwd ? oldL : oldR}</div>`;
+    hold.className = 'curlHold'; place(hold, other.getBoundingClientRect());
+    hold.innerHTML = copy(other, fwd ? 'L' : 'R', stay);
     const leaf = document.createElement('div');
-    leaf.className = `leaf ${fwd ? 'fwd' : 'back'}`;
-    leaf.innerHTML = `<div class="page face front ${fwd ? 'R' : 'L'}" style="clip-path:${$(fwd ? '#hPR' : '#hPL').style.clipPath}"><div class="pc">${fwd ? oldR : oldL}</div></div>
-      <div class="page face backf ${fwd ? 'L' : 'R'}" style="clip-path:${$(fwd ? '#hPL' : '#hPR').style.clipPath}"><div class="pc">${fwd ? newL : newR}</div></div>`;
+    leaf.className = 'curl'; place(leaf, r);
+    leaf.innerHTML = `<div class="cRem">${copy(leafPage, fwd ? 'R' : 'L', front)}</div><div class="cRev"><i class="st"></i></div>
+      <div class="cFlap"><div class="cIn">${copy(other, fwd ? 'L' : 'R', back)}<i class="st"></i></div></div>`;
     book.append(hold, leaf);
-    // keep the scroll position of the store page on the copies
-    for (const pc of [hold, leaf].flatMap(e => [...e.querySelectorAll<HTMLElement>('.pc')])) pc.scrollTop = 0;
+    const rem = leaf.querySelector('.cRem') as HTMLElement, rev = leaf.querySelector('.cRev') as HTMLElement, revSt = rev.firstElementChild as HTMLElement;
+    const flap = leaf.querySelector('.cFlap') as HTMLElement, fin = flap.firstElementChild as HTMLElement, flapSt = fin.lastElementChild as HTMLElement;
+    type V = { x: number; y: number };
+    // spine frame: s = distance from the spine; leaf-local x and the local x of the back page (the page the leaf becomes)
+    const conv = (p: V): V => ({ x: fwd ? p.x : W - p.x, y: p.y });
+    const toBack = (p: V): V => ({ x: fwd ? W - p.x : p.x, y: p.y });
+    const poly = (pts: V[]) => `polygon(${pts.map(p => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(',')})`;
+    const cut = (pts: V[], f: (p: V) => number) => { // keep f >= 0 (one Sutherland-Hodgman pass)
+      const out: V[] = [];
+      pts.forEach((a, i) => { const b = pts[(i + 1) % pts.length], fa = f(a), fb = f(b);
+        if (fa >= 0) out.push(a);
+        if ((fa >= 0) !== (fb >= 0)) { const t = fa / (fa - fb); out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); } });
+      return out;
+    };
+    const strip = (el: HTMLElement, at: V, dir: V, w: number) => Object.assign(el.style, {
+      left: at.x + 'px', top: at.y - (W + H) + 'px', width: w + 'px', height: 2 * (W + H) + 'px', transform: `rotate(${Math.atan2(dir.y, dir.x)}rad)` });
+    const rect: V[] = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
+    const lift = Math.min(H * .22, W * .32), C: V = { x: W, y: H };
+    const frame = (e: number) => {
+      // the corner is lifted while it is pulled up and over, then the leaf lies down flat against the spine
+      const P: V = { x: W * Math.cos(Math.PI * e), y: H - (e < .62 ? lift * Math.sin(Math.PI * e / .62) : 0) };
+      const dx = P.x - C.x, dy = P.y - C.y, len = Math.hypot(dx, dy) || 1e-3, n = { x: dx / len, y: dy / len }, M = { x: (P.x + C.x) / 2, y: (P.y + C.y) / 2 };
+      const side = (p: V) => (p.x - M.x) * n.x + (p.y - M.y) * n.y;
+      const remain = cut(rect, side), folded = cut(rect, p => -side(p) - 1e-6);
+      rem.style.clipPath = poly(remain.map(conv));
+      rev.style.clipPath = poly(folded.map(conv));
+      fin.style.clipPath = poly(folded.map(toBack));
+      // back page local -> spine frame -> mirrored over the fold -> leaf local
+      const T = (u: V) => { const p = toBack(u), d = side(p); return conv({ x: p.x - 2 * d * n.x, y: p.y - 2 * d * n.y }); };
+      const o = T({ x: 0, y: 0 }), ax = T({ x: 1, y: 0 }), ay = T({ x: 0, y: 1 });
+      flap.style.transform = `matrix(${ax.x - o.x},${ax.y - o.y},${ay.x - o.x},${ay.y - o.y},${o.x},${o.y})`;
+      // shadow on the page coming out under the leaf, bend shading on the folded part
+      const away = conv({ x: M.x - n.x, y: M.y - n.y }), cm = conv(M);
+      strip(revSt, cm, { x: away.x - cm.x, y: away.y - cm.y }, Math.min(len * .5, 90));
+      const bm = toBack(M), ba = toBack({ x: M.x - n.x, y: M.y - n.y });
+      strip(flapSt, bm, { x: ba.x - bm.x, y: ba.y - bm.y }, Math.max(8, len * .5));
+      // the old page beside the leaf goes once the leaf lies on it
+      if (e > .97) hold.style.visibility = 'hidden';
+    };
+    for (const pc of [hold, leaf].flatMap(el => [...el.querySelectorAll<HTMLElement>('.pc')])) pc.scrollTop = 0;
     this.onSound('ui.page');
-    // the leaf goes when its animation has run (also if the tab was in the background); timers only as a fallback
-    leaf.addEventListener('animationend', e => { if (e.target === leaf) { leaf.remove(); hold.remove(); } });
-    setTimeout(() => hold.remove(), FLIP_MS * .5);
-    this.flipping = window.setTimeout(() => leaf.remove(), FLIP_MS * 3);
+    cancelAnimationFrame(this.curlRaf);
+    const t0 = performance.now(), ease = (t: number) => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const tick = () => {
+      const t = Math.min(1, (performance.now() - t0) / FLIP_MS);
+      if (t >= 1) { leaf.remove(); hold.remove(); return; }
+      frame(Math.max(.002, ease(t)));
+      this.curlRaf = requestAnimationFrame(tick);
+    };
+    frame(.002);
+    this.curlRaf = requestAnimationFrame(tick);
   }
 
   /** graph: crosshair + value of the day under the pointer */

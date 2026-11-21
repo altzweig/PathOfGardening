@@ -4,10 +4,10 @@
 #hShell{position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;gap:8px;box-sizing:border-box;
   padding:max(8px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
 
-.book{--top:42px;--pad:16px;position:relative;flex:1 1 auto;margin-top:clamp(0px,3vh,28px);min-height:0;box-sizing:border-box;width:min(100%,1320px,calc((100dvh - 96px) * 1.5));
+.book{--top:72px;--pad:16px;--lt:4px;--bmh:40px;position:relative;flex:1 1 auto;margin-top:clamp(0px,3vh,28px);min-height:0;box-sizing:border-box;width:min(100%,1320px,calc((100dvh - 96px) * 1.5));
   display:grid;grid-template-columns:1fr 1fr;padding:var(--top) var(--pad) var(--pad);perspective:3600px}
 /* leather cover with the page block underneath */
-.book .cover{position:absolute;left:0;right:0;top:calc(var(--top) - 12px);bottom:0;border-radius:12px;
+.book .cover{position:absolute;z-index:0;left:0;right:0;top:calc(var(--top) - 6 * var(--lt) - 10px);bottom:0;border-radius:12px;
   background:radial-gradient(ellipse at 30% 20%,#6e3420 0%,#4a2012 55%,#2e140a 100%);
   box-shadow:0 28px 60px #000a,0 6px 14px #0008,inset 0 0 0 2px #0004,inset 0 0 26px #000a}
 .book .cover::before{content:'';position:absolute;inset:5px;border-radius:9px;border:1px dashed #c8905a44}
@@ -17,7 +17,7 @@
   background-image:repeating-linear-gradient(0deg,#0000 0 2px,#7a5a3018 2px 3px)}
 
 /* paper: fine fibre noise + soft stains + yellowed, darker edges */
-.book .page{position:relative;z-index:2;display:flex;min-width:0;min-height:0;color:var(--ink);font-family:Alegreya,Georgia,serif;
+.book .page{position:relative;z-index:30;display:flex;min-width:0;min-height:0;color:var(--ink);font-family:Alegreya,Georgia,serif;
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .22 0 0 0 0 .08 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .62 0 0 0 0 .42 0 0 0 0 .14 0 0 0 1.9 -.88'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)' opacity='.22'/%3E%3C/svg%3E"),
@@ -33,12 +33,12 @@
 .book .pc{position:relative;flex:1;min-width:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;box-sizing:border-box;padding:30px 30px 22px 34px;
   scrollbar-width:thin;scrollbar-color:#8a5a3066 #0000}
 .book .page.R .pc{padding:30px 34px 22px 30px}
-.book .spine{position:absolute;z-index:3;top:var(--top);bottom:var(--pad);left:50%;width:34px;transform:translateX(-50%);pointer-events:none;
+.book .spine{position:absolute;z-index:31;top:var(--top);bottom:var(--pad);left:50%;width:34px;transform:translateX(-50%);pointer-events:none;
   background:linear-gradient(to right,#0000,#4a280e33 38%,#2a14066e 50%,#4a280e33 62%,#0000)}
 
 /* bookmarks: fabric ribbons tucked between the pages, the open one lies on the page */
-#hTabs{position:absolute;left:var(--pad);right:var(--pad);top:0;height:calc(var(--top) + 30px);z-index:1;pointer-events:none}
-.bm{position:absolute;top:8px;left:var(--x);width:15.5%;min-width:52px;max-width:190px;height:calc(var(--top) + 6px);box-sizing:border-box;pointer-events:auto;cursor:pointer;
+#hTabs{position:absolute;left:var(--pad);right:var(--pad);top:0;height:calc(var(--top) + 30px);pointer-events:none}
+.bm{position:absolute;z-index:calc(19 - 2 * var(--d));top:calc(var(--top) - (var(--d) + 1) * var(--lt) - var(--bmh));left:var(--x);width:15.5%;min-width:52px;max-width:190px;height:calc(var(--bmh) + (var(--d) + 1) * var(--lt) + 4px);box-sizing:border-box;pointer-events:auto;cursor:pointer;
   display:flex;align-items:flex-start;justify-content:center;gap:6px;padding:7px 6px 0;border:0;border-radius:5px 5px 0 0;
   background:repeating-linear-gradient(90deg,#ffffff0d 0 1px,#0000 1px 3px),repeating-linear-gradient(0deg,#0000000d 0 1px,#0000 1px 3px),linear-gradient(180deg,#ffffff2e,#0000 40%,#00000026),var(--c);
   color:#fff6e2;font:700 16px Alegreya,Georgia,serif;letter-spacing:.02em;text-shadow:0 1px 1px #0008;
@@ -46,22 +46,42 @@
 .bm:hover,.bm:focus-visible{transform:translateY(-4px);filter:brightness(.92) saturate(.9);outline:none}
 .bm svg{flex:none;width:22px;height:22px;filter:drop-shadow(0 1px 1px #0007)}
 .bm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:1px}
-.bm.on{top:0;z-index:4;height:calc(var(--top) + 28px);filter:none;transform:none;clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 12px),0 100%);
+.bm.on{top:calc(var(--top) - 7 * var(--lt) - var(--bmh) - 4px);z-index:32;height:calc(var(--bmh) + 7 * var(--lt) + 32px);filter:none;transform:none;clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 12px),0 100%);
   box-shadow:inset 0 1px 0 #ffffff55}
-#hTabs:has(.bm.on){z-index:4}
-#hTabs .bm:not(.on){z-index:0}
 .bm em{position:absolute;top:-7px;right:-5px;min-width:20px;height:20px;border-radius:10px;background:#c0302a;color:#fff;font:700 12px var(--f-body);font-style:normal;display:grid;place-items:center;box-shadow:0 1px 3px #0008}
 .bm.on em{display:none}
 
-/* page turning */
-.book .leaf{position:absolute;z-index:6;top:var(--top);bottom:var(--pad);width:calc(50% - var(--pad));transform-style:preserve-3d;pointer-events:none}
+/* a thick book: the page block shows above the open pages as stacked paper edges (Basti 21.11.2026);
+   closed bookmarks come out between the layers, each a bit further back, the open one lies on top */
+#hStack{position:absolute;inset:0;pointer-events:none}
+#hStack i{position:absolute;z-index:calc(20 - 2 * var(--i));top:calc(var(--top) - (var(--i) + 1) * var(--lt));height:calc((var(--i) + 1) * var(--lt) + 6px);
+  width:calc(50% - var(--pad) - var(--i) * .6px);border-top:1px solid #fff4d055;
+  background:linear-gradient(90deg,#b8955e,#e6d3a4 10%,#ead9ad 50%,#e6d3a4 90%,#b8955e);filter:brightness(calc(1 - var(--i) * .035));
+  box-shadow:0 -1px 1.5px #4a28102e}
+#hStack i.l{left:calc(var(--pad) + var(--i) * .6px);border-radius:4px 14px 0 0}
+#hStack i.r{right:calc(var(--pad) + var(--i) * .6px);border-radius:14px 4px 0 0}
+.book.modal #hStack{visibility:visible}
+
+/* page turning by hand (house.ts curl): flat rest, folded corner with the new page, shadows along the fold */
+.book .curl,.book .curlHold{position:absolute;z-index:34;pointer-events:none}
+.book .curlHold{z-index:33}
+.book .curl>div,.book .curl .cIn{position:absolute;inset:0}
+.book .curl .page,.book .curlHold .page{position:absolute;inset:0}
+.book .curl .pc,.book .curlHold .pc{overflow:hidden}
+.book .curl .cRev{overflow:hidden}
+.book .curl .cFlap{transform-origin:0 0;filter:drop-shadow(-3px 4px 7px #2a14085c)}
+.book .curl .st{position:absolute;transform-origin:0 50%;pointer-events:none;z-index:40}
+.book .curl .cRev .st{background:linear-gradient(90deg,#2a140866,#2a140826 35%,#0000)}
+.book .curl .cIn .st{background:linear-gradient(90deg,#3a1e0a4d 0%,#fff6e000 10%,#fff6e05c 28%,#fff6e000 55%,#5a32121f 100%)}
+
+.book .leaf{position:absolute;z-index:34;top:var(--top);bottom:var(--pad);width:calc(50% - var(--pad));transform-style:preserve-3d;pointer-events:none}
 .book .leaf.fwd{left:50%;transform-origin:0 50%;animation:bkFlipF .62s cubic-bezier(.45,.05,.3,1) forwards}
 .book .leaf.back{right:50%;transform-origin:100% 50%;animation:bkFlipB .62s cubic-bezier(.45,.05,.3,1) forwards}
 .book .leaf .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 .book .leaf .backf{transform:rotateY(180deg)}
 .book .leaf .face .pc{overflow:hidden}
 .book .leaf .face::before{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;animation:bkShade .62s forwards}
-.book .page.hold{position:absolute;z-index:5;top:var(--top);bottom:var(--pad);width:calc(50% - var(--pad))}
+.book .page.hold{position:absolute;z-index:33;top:var(--top);bottom:var(--pad);width:calc(50% - var(--pad))}
 .book .page.hold.L{left:var(--pad)}.book .page.hold.R{right:var(--pad)}
 .book .page.hold .pc{overflow:hidden}
 @keyframes bkFlipF{from{transform:rotateY(0)}to{transform:rotateY(-180deg)}}
@@ -166,7 +186,7 @@
 /* ---------- delivered orders / new field: lying on the open book ---------- */
 .book.modal #hTabs{visibility:hidden}
 .book.modal .page .pc{visibility:hidden}
-#hRewards{position:absolute;z-index:7;top:var(--top);bottom:var(--pad);left:var(--pad);right:var(--pad);display:flex;flex-direction:column;justify-content:center;gap:16px;padding:24px 34px;overflow:auto;color:var(--ink)}
+#hRewards{position:absolute;z-index:35;top:var(--top);bottom:var(--pad);left:var(--pad);right:var(--pad);display:flex;flex-direction:column;justify-content:center;gap:16px;padding:24px 34px;overflow:auto;color:var(--ink)}
 #hRewards[hidden]{display:none}
 #hRewards .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px 34px}
 #hRewards .tile{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 12px;border-radius:10px;text-align:center;font-family:Alegreya,Georgia,serif;color:var(--ink);
@@ -188,7 +208,7 @@
 
 /* phones in landscape: everything a bit tighter */
 @media (max-height:560px){
-  .book{--top:34px;--pad:10px;width:min(100%,calc((100dvh - 56px) * 2.7))}
+  .book{--top:46px;--pad:10px;--lt:2px;--bmh:28px;width:min(100%,calc((100dvh - 56px) * 2.7))}
   #hFoot{width:min(100%,calc((100dvh - 56px) * 2.7))}
   .bm{font-size:13px;padding-top:5px;gap:4px}.bm svg{width:18px;height:18px}
   .book .pc{padding:22px 16px 12px 18px}.book .page.R .pc{padding:22px 18px 12px 16px}

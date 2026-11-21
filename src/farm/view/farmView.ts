@@ -584,7 +584,7 @@ export class FarmView {
       const k0 = act.target.k, high = k0 === 'tree';
       const y = lowAct ? .14 : high ? 1.55 : kind === 'feed' || kind === 'straw' || kind === 'eggs' ? .7 : .9, sp = high ? 9 : tool === 'bucket' ? 2.6 : 3.4, ph = t * sp;
       const a0 = Math.sin(ph), a1 = Math.sin(ph + (high ? 0 : 1.4));
-      pick = [V(hx + sx + a0 * .08, y + Math.max(0, a0) * (high ? .05 : .14), hz + sz), V(hx - sx + a1 * .08, y + Math.max(0, a1) * (high ? .05 : .14), hz - sz)];
+      pick = [V(hx - sx + a0 * .08, y + Math.max(0, a0) * (high ? .05 : .14), hz - sz), V(hx + sx + a1 * .08, y + Math.max(0, a1) * (high ? .05 : .14), hz + sz)]; // arm 0 (left, +x) takes the left point
       if (!lowAct) lean = high ? -.05 : .2;
       if (k0 === 'bush' || k0 === 'bramble' || k0 === 'weed' || k0 === 'plot') { if (Math.random() < dt * 2) play('rustle'); }
       if (tool === 'bucket') { const w = this.buildings.get('well'); if (w?.crank) w.crank.rotation.x += dt * 4; if (Math.random() < dt * 12) PART.spawn(V(fp.x + rand(-.3, .3), .55, fp.z + rand(-.3, .3)), V(rand(-.2, .2), rand(.4, .9), rand(-.2, .2)), 0x8ad0ff, .07, .4, { g: 6, a: .8 }); }

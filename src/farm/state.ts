@@ -7,7 +7,8 @@ export type PlotStage = 'wild' | 'empty' | 'sown' | 'ripe' | 'done';
 /** yieldLeft = harvest passes left on a ripe plot; weeds 0..plots.weeds.max (grow only in the morning, slow the growth); fert = times fertilised (this crop), fertDay = day of the last time;
  *  t = s left of a short step (sprouting after sowing, clearing after the last harvest), grow = s grown since watering (20.11.2026) */
 /** kind = the crop this field always grows (21.11.2026: fields have a fixed fruit, chosen when the field comes with a level) */
-export interface PlotState { open: boolean; kind?: string; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number }
+/** hp = field health during the night (hares gnaw it down, undefined = full); broken = trampled, must be repaired (actions.repair) */
+export interface PlotState { hp?: number; broken?: boolean; open: boolean; kind?: string; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number }
 export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
 /** berries = big berries left on the bush, small = small picks left after that */
 export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
@@ -18,7 +19,7 @@ export interface WildState { weeds: { id: number; x: number; z: number }[]; fora
 export interface Quest { id: string; title?: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }
 export interface Production { recipe: number; doneDay: number }
 export interface BuildingState { built: boolean; prod?: Production | null }
-export interface DaySummary { day: number; got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xp: number; fainted: boolean }
+export interface DaySummary { day: number; got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xp: number; fainted: boolean; /** fields broken in the night */ broken?: number }
 
 export interface FarmState {
   v: 1;
@@ -84,6 +85,7 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
     if (p.crop && !cfg.crops[p.crop]) Object.assign(p, { stage: 'empty', crop: null, watered: false, yieldLeft: 0 });
     if ((p.stage as string) === 'raked') p.stage = 'empty'; // 21.11.2026: ploughing is gone
     p.weeds = Math.min(p.weeds, cfg.plots.weeds.max);
+    if (p.broken && p.stage !== 'empty') breakPlot(p);
     if (p.open && (!p.kind || !cfg.crops[p.kind])) p.kind = p.crop && cfg.crops[p.crop] ? p.crop : 'wheat'; // 21.11.2026: fixed crop per field
   }
   s.fieldPicks ??= []; s.fieldsGained ??= 0;
@@ -259,11 +261,15 @@ export function endDay(cfg: FarmCfg, s: FarmState) {
   for (const p of s.plots) {
     if (p.stage === 'done') Object.assign(p, { stage: 'empty', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0 });
     p.t = 0;
+    if (!p.broken) delete p.hp; // gnawed but not broken: grows back over night
   }
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
   s.ammoCount = 0; s.phase = 'evening';
   expireQuests(s);
 }
+/** a field is trampled: the crop on it is gone, it has to be repaired before anything grows again */
+export function breakPlot(p: PlotState) { Object.assign(p, { broken: true, hp: 0, stage: 'empty', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0, bites: 0, t: 0 }); }
+export function repairPlot(cfg: FarmCfg, p: PlotState) { p.broken = false; p.hp = cfg.night.plotHp; }
 /** harvest passes of a plot that just ripened (fertiliser: +fertBonus per time) */
 export const ripeCuts = (cfg: FarmCfg, p: PlotState) => Math.round((cfg.crops[p.crop ?? 'wheat']?.cuts ?? 3) * (1 + cfg.plots.fertBonus * p.fert));
 /** next morning */

@@ -92,7 +92,18 @@ player:
   till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Hacke schlägt in den Boden (Harken-Geräusch, bei jedem Hackschlag)
   slash:  { synth: whoosh, gap: 0.08 }                                                                            # Schwung mit der Hacke (comicartiges Wusch)
 
+can:                                                  # Gießkanne (21.11.2026, Freesound, geschnitten mit tools/build-can.py)
+  pour:   { files: [can_pour_1, can_pour_2, can_pour_3], vol: 0.55, pitch: [0.96, 1.03] }   # Gießen: Plätschern aus nokta (gut 1 Halbton tiefer) + leise, tiefpassgefiltert wobesound
+  fill:   { files: [can_fill_1, can_fill_2, can_fill_3, can_fill_4, can_fill_5, can_fill_6, can_fill_7, can_fill_8, can_fill_9], vol: 0.4, pitch: [0.92, 1.06], gap: 0.3 }   # Kanne am Brunnen füllen: Wasser schwappt in die Kanne (nox_sound), je Füllen ein Schwapper
+  empty:  { files: [can_empty], vol: 0.35, pitch: [1.0, 1.04], gap: 0.6 }                   # gießen wollen, Kanne leer: Fingerschnippen gegen das Blech (anthousai) ...
+  empty2: { files: [can_empty], vol: 0.25, pitch: [0.76, 0.8], gap: 0.6, delay: [0.17, 0.17] }   # ... gleich danach ein zweites, tieferes
+
+harvest:                                              # erfolgreiches Ernten, egal ob Feld, Blaubeerbusch, Brombeeren, Obstbaum oder Wildpflanze (21.11.2026)
+  ok:   { files: [harvest_pop], vol: 0.3, pitch: [0.88, 1.12], gap: 0.06 }   # Ernte-Plopp bei jedem Erntedurchgang (aus soundreality "pop sound")
+  done: { files: [harvest_ding], vol: 0.2, pitch: [1.0, 1.08], gap: 0.3 }    # letzter Durchgang: Feld/Busch leer geerntet (Glas-Ding)
+
 plants:
+  ripe:  { files: [ripe_1], vol: 0.32, pitch: [0.96, 1.06], gap: 0.5 }      # Feld/Busch fertig gewachsen und erntebereit (helles Glöckchen, aus koiroylers "clear notification")
   produce:
     blue: { files: [bb_drop_1, bb_drop_2, bb_drop_3, bb_drop_4], vol: 0.18, pitch: [0.88, 1.08], gap: 0.12, lp: 1400 }   # Blaubeeren fallen vom Busch (aus blueberry.mp3: noch dumpfer, tiefer, länger)
     asp:  { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.3, pitch: [0.85, 1.05], gap: 0.15 }
@@ -171,6 +182,19 @@ plants:
     goose:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
     tomato:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
     onion:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
+
+night:                                               # Nachtangriff (21.11.2026)
+  fall:   { synth: nightfall, gap: 2 }                # Warnung "Die Nacht bricht herein": dumpfe Trommel, dunkles Horn, ferner Heuler
+  wave:   { synth: nightWave, gap: 1 }                # eine Welle kommt aus dem Wald
+  gnaw:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.22, pitch: [1.2, 1.45], gap: 0.35 }   # Hase knabbert am Feld
+  broken: { files: [rip_2, rip_4], vol: 0.5, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }           # Feld zertrampelt
+  pocket: { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.4, pitch: [0.95, 1.1], gap: 0.2 } # Waschbär klaut aus der Tasche
+  repaired: { files: [rake_till_2], vol: 0.3, pitch: [0.8, 0.9], gap: 0.3 }
+
+cutscene:                                            # Ohnmacht-Cutscene
+  heartbeat: { synth: heartbeat, gap: 0.5 }
+  breath:    { synth: breath, gap: 1 }
+  fall:      { synth: fall, gap: 1 }
 
 ui:
   click:       { files: [ui_click], vol: 0.35, pitch: [0.95, 1.05] }            # Knöpfe im Menü

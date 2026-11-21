@@ -137,3 +137,8 @@ input[type=range] { width: 100%; accent-color: var(--gold); touch-action: pan-x;
 .ed-menu label { display: flex; gap: 9px; align-items: center; padding: 7px 10px; font-size: 15px; border-radius: 7px; cursor: pointer; }
 .ed-menu label:hover { background: #ffffff12; }
 @media (max-width: 760px) { .ed-sl { grid-template-columns: 62px 1fr 50px 24px; font-size: 13px; } }
+/* drafts on GitHub (21.11.2026) */
+.ed-drafts { display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+.ed-drafts .ed-btn { justify-content: flex-start; width: 100%; }
+.ed-drafts .ed-btn small { margin-left: auto; color: var(--dim); }
+.ed-chip small { opacity: .7; font-size: 11.5px; }

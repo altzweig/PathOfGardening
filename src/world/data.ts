@@ -1,7 +1,9 @@
 // World editor data (welt.html): placed objects + painted ground + game logic, saved as public/world/welt.json.
 // The game reads the file at start; without it the farm is generated as before (balancing.yaml hof:).
 // Version 2 (21.11.2026): logic (map size, boundaries, fields, spawns, house, objects) + layered ground.
-// ?welt=entwurf (from the editor's "Im Spiel testen") loads the editor's browser draft instead.
+// ?welt=entwurf (from the editor's "Im Spiel testen") loads the editor's browser draft instead, ?welt=entwurf:NAME a
+// draft saved to the repo (public/world/entwuerfe/NAME.json, never loaded by the game on its own).
+// 21.11.2026: logic.buildings (placed buildings) + logic.wild (spawn points of the wild plants).
 import { WorldPaint } from './paint';
 import { Logic, cleanLogic } from './logic';
 
@@ -72,10 +74,17 @@ export async function fetchWorldFile(): Promise<WorldFile | null> {
   try { const r = await fetch('./world/welt.json', { cache: 'no-store' }); if (!r.ok) return null; const f = await r.json() as WorldFile; return f?.version ? f : null; }
   catch { return null; }
 }
-/** what the game plays on: the draft with ?welt=entwurf, otherwise the file in the repo */
+/** a draft saved to the repo (public/world/entwuerfe/NAME.json): the game never loads it on its own */
+async function fetchRepoDraft(name: string): Promise<WorldFile | null> {
+  if (!/^[\w-]+$/.test(name)) return null;
+  try { const r = await fetch(`./world/entwuerfe/${name}.json`, { cache: 'no-store' }); if (!r.ok) return null; const f = await r.json() as WorldFile; return f?.version ? f : null; }
+  catch { return null; }
+}
+/** what the game plays on: the browser draft with ?welt=entwurf, a repo draft with ?welt=entwurf:NAME, otherwise the
+ *  file in the repo (public/world/welt.json) */
 export async function loadWorld(): Promise<World | null> {
-  const draft = new URLSearchParams(location.search).get('welt') === 'entwurf';
-  const f = draft ? (await loadDraft()) ?? await fetchWorldFile() : await fetchWorldFile();
+  const q = new URLSearchParams(location.search).get('welt') ?? '', draft = q === 'entwurf', named = q.startsWith('entwurf:') ? q.slice(8) : '';
+  const f = named ? (await fetchRepoDraft(named)) ?? await fetchWorldFile() : draft ? (await loadDraft()) ?? await fetchWorldFile() : await fetchWorldFile();
   if (!f) return null;
   try { return await decodeWorld(f); } catch (e) { console.error('welt.json', e); return null; }
 }

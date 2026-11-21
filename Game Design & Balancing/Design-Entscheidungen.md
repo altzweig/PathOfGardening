@@ -8,7 +8,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 - **Ladebildschirm** beim Start: Vorschaubild der Farm (`public/loading/farm.jpg`), Ladebalken, darunter alle `loading.tipEvery` s ein neuer zufälliger Tipp. Bleibt mindestens `loading.minTime` s stehen, damit man den ersten Tipp lesen kann.
 - **Charakter-Editor:** Würfeln dreht die Figur einmal ganz herum, sie landet immer mit Blick nach vorne.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil.
-- Im Abend- und Morgen-Bildschirm nur Icons, Zahlen und Namen, keine Sätze.
+- Im Abend-Bildschirm nur Icons, Zahlen und Namen, keine Sätze.
 - PC- und Mobile-Steuerung werden immer parallel gebaut.
 - Arbeitstitel: **PathOfGardening**.
 - **Spielstände (20.11.2026, Basti):** lokal im Browser (localStorage), keine Cloud. Mehrere Spielstände mit Namen. Menü: *Weiterspielen* (neuester Spielstand), *Neues Spiel* (Name vergeben, startet ohne Tutorial mit dem ersten Morgen), *Laden* (Liste mit Name, Tag, Level, Taler, Zeit; Löschen mit Bestätigung), *Tutorial*, *Optionen*. Koop ist vorerst aus (Code im Archiv).
@@ -18,7 +18,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 - **Tutorial ist ein eigener Modus** im Hauptmenü: frischer Hof, Tutorial-Tag, danach zurück ins Hauptmenü. Es wird nichts gespeichert.
 
 ## Tagesablauf (Gameloop)
-1. **Morgen:** genau **eine Waffe** und **eine Munitionssorte** wählen (Menge per Regler). Gesperrte Waffen sind sichtbar (Schloss oder ★Level). Ohne Waffe = nur Harke.
+1. **Morgen:** neue Unkräuter auf den Feldern, der Tag beginnt sofort. (Bis 21.11.2026 gab es hier eine Waffenwahl; sie ist weg, man startet ohne Waffe, nur mit der Handharke.)
 2. **Tag** (`day.length`, ca. 5 min): Hof-Aufgaben erledigen und Tiere vertreiben. Man schafft nie alles. Oben läuft die Sonne über einen Bogen.
 3. **Zeit um:** Bild wird schwarz, der Spieler ist im Haus.
 4. **Abend (nur im Haus):** Tagesbilanz (geerntet, gestohlen, vertrieben, XP), Level-up mit freigeschalteten Gebäuden, Tabs *Aufträge*, *Bauen*, *Produktion*, *Lager*. *Schlafen* → nächster Morgen.
@@ -26,15 +26,15 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 - Regen bleibt: zufällige Schauer (`day.rain`) mit dem Gewitter-Sound; Regen gießt Felder und Busch.
 
 ## Steuerung
-- **PC:** WASD laufen. **Linksklick** auf Busch, Feld oder Brunnen = Arbeit dort (läuft automatisch hin, wenn zu weit weg). Das passende Werkzeug erscheint von selbst (Gießkanne, Harke, Saatbeutel, Hände, Sichel), kein Werkzeugwechsel. Neben dem Mauszeiger zeigt ein Icon, was ein Klick tut (rot = geht gerade nicht, z. B. Kanne leer). **Rechtsklick (halten)** = kämpfen mit der Waffe des Tages Richtung Maus. Ohne Waffe oder ohne Munition: schwertartiger Schlag mit der Harke. Mausrad = Zoom, Esc = Pause.
-- **Mobil:** linker Daumen = laufen (kurz tippen = auf die Stelle tippen). **Aktion**-Knopf = Arbeit an der nächsten Stelle mit Arbeit (zeigt das Werkzeug). **Angriff**-Knopf = kämpfen, zielt automatisch aufs nächste Tier. Auf eine Stelle in der Welt tippen startet dort die Arbeit.
+- **PC:** WASD laufen. **Linksklick** auf Busch, Feld oder Brunnen = Arbeit dort (läuft automatisch hin, wenn zu weit weg). Das passende Werkzeug erscheint von selbst (Gießkanne, Handharke, Saatbeutel, Hände, Sichel), kein Werkzeugwechsel. **Linke Maustaste gedrückt halten** = nach jeder Arbeit startet die nächste mögliche am anvisierten Ziel (siehe unten). Neben dem Mauszeiger zeigt ein Icon, was ein Klick tut (rot = geht gerade nicht, z. B. Kanne leer). **Rechtsklick (halten)** = kämpfen mit der Waffe des Tages Richtung Maus. Ohne Waffe: einhändiger Schlag mit der Handharke (120°-Kegel). Mausrad = Zoom, Esc = Pause.
+- **Mobil:** linker Daumen = laufen (kurz tippen = auf die Stelle tippen). **Aktion**-Knopf = Arbeit an der nächsten Stelle mit Arbeit (zeigt das Werkzeug), gedrückt halten = immer weiter. **Angriff**-Knopf = kämpfen, zielt automatisch aufs nächste Tier. Auf eine Stelle in der Welt tippen startet dort die Arbeit.
 - Arbeiten und Kämpfen gehen nie gleichzeitig: Angriff oder Laufen bricht die Arbeit ab.
 
 ## Hof
 - Layout nach Bastis Skizze (Koordinaten in `hof`): Haupthaus mit Küche und **Lager** (rotes Doppeltor, davor der Erntekorb), Hofladen, Mühle, Bäckerei, Brunnen, Schreinerei, Werkstatt, Molkerei, Saftpresse, Silo, Hühner, Kühe, Feldflächen, Bäume. Rundherum Wald mit **5 Lücken**: nur dort kommen Tiere herein.
 - Gebäude starten als **Baustelle** mit Schild ★Level. Freigabe über das Level (`levels.unlocks`), Bau im Abend-Tab *Bauen*. Der Brunnen startet **kaputt** und kann ab Tag 1 repariert werden.
 - Felder: abgesteckte Flächen. Wie viele man anlegen darf, hängt vom Level ab (`plots.byLevel`), Kosten `plots.cost`.
-- Ernte landet direkt im Korb am Lager. Lager vorerst unbegrenzt (`storage.capacity`).
+- Ernte landet direkt im Lager (seit 21.11.2026 kein Korb mehr). Lager vorerst unbegrenzt (`storage.capacity`).
 
 ## Pflanzen
 - **Blaubeerbusch** (täglich): gießen → reift `bush.ripen` s (dezenter Ladebalken nach 1 s) → ernten (Beere für Beere, ca. 1 min) → leer bis morgen.
@@ -47,11 +47,11 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 - Waffen (Munition laut Basti): Schrotflinte (Beeren, Nüsse, Körner, Knoblauch), Armbrust (Spargel, Bohnen, Lauch, Karotten), Schleuder (Knoblauch, Nüsse, Zitronen, Äpfel), Streitkolben (Kohl, Kürbis, Melone), Kanone (Kohl, Kürbis, Melone). Spielbar ist vorerst nur die **Schrotflinte**, die anderen sind gesperrt sichtbar.
 - Schießen verbraucht die gewählte Munition aus dem Lager. Unbenutzte Munition geht abends zurück ins Lager.
 - Blaubeeren als Munition frieren weiterhin ein und machen Schaden.
-- Harke als Notwaffe: schwertartiger Schlag, kurzer Stun und Rückstoß.
+- Handharke als Notwaffe: einhändiger Schlag (120°-Kegel), kurzer Stun und Rückstoß.
 
 ## Tiere
 - Vorerst nur **Waschbär** und **Hase**, wenige, in kleinen Gruppen (`spawns`). Alle anderen Tiere sind im Archiv (Code und Modelle bleiben).
-- **Waschbär:** klaut aus dem Korb am Lager, vom Busch und von reifen Feldern, trägt die Beute sichtbar auf dem Rücken. Wird er getroffen, fällt die Beute herunter und rollt zum Spieler. Manche sind scheu und fliehen, sobald man nahe kommt; mutige greifen an, wenn man sie schlägt.
+- **Waschbär:** klaut aus dem Lager (Eingang neben dem Haupthaus), vom Busch und von reifen Feldern, trägt die Beute sichtbar auf dem Rücken. Wird er getroffen, fällt die Beute herunter und rollt zum Spieler. Manche sind scheu und fliehen, sobald man nahe kommt; mutige greifen an, wenn man sie schlägt.
 - **Hase:** scheu, flieht sobald man sich nähert, frisst an gesäten Feldern (wirft sie um einen Tag zurück) und am Busch.
 - Tiere werden **vertrieben, nicht getötet**: bei 0 HP oder Annäherung (scheue) laufen sie durch die nächste Lücke in den Wald.
 - Schwierigkeit steigt mit dem Level (mehr Gruppen, größere Gruppen, mehr HP/Schaden/Tempo, `spawns.scaling`).
@@ -82,8 +82,8 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 ## Gebäude und Tagesaktionen (19.11.2026, Bastis Aktionsliste)
 - Jede Aktion (außer Kämpfen) geht nur, wenn das Gebäude gebaut ist. Steht man im Radius, erscheint "[Aktionsname]" über dem Ziel (PC mit Linksklick-Symbol, rot mit fehlenden Waren, wenn es gerade nicht geht). Linksklick (Handy: Aktionsknopf) startet sie, ein kleiner Zeitbalken (1–4 s) füllt sich. Zeiten und Namen: `actions` in balancing.yaml.
 - Wiederholbare Aktionen laufen von selbst weiter, solange die Bedingung gilt: Busch ernten bis leer, Brombeeren pflücken, Feld ernten, Wasser schöpfen bis das Fass voll ist.
-- Busch: alle ~1,5 s 3–4 Beeren (8 Durchgänge), danach 4 Durchgänge mit je 1 kleinen Beere. Der Korb erscheint erst bei der ersten Ernte direkt neben der Spielfigur und bleibt dort für den Tag; Beeren fliegen im Bogen hinein (Sammel-Sound). Busch wackelt, Blätter fliegen (alte Ernteanimation). Busch-Kollision größer (`bush.radius`).
-- Feld: Pflügen (neues Feld), Säen, Gießen 1×/Tag, Jäten (bis 5 Unkräuter je Feld; ab 3 kann nicht geerntet werden), Düngen 1×/Tag (+30 % Ernten), Ernten mehrmals, danach ist das Feld wieder gepflügt.
+- Busch: alle ~1,5 s 3–4 Beeren (8 Durchgänge), danach 4 Durchgänge mit je 1 kleinen Beere. Beeren hüpfen im Bogen zur Figur (Sammel-Sound) und sind sofort im Lager (seit 21.11.2026 kein Korb). Busch wackelt, Blätter fliegen (alte Ernteanimation). Busch-Kollision größer (`bush.radius`).
+- Feld (Stand 21.11.2026, siehe unten): Säen, Gießen, Jäten (morgens 0-2 neue, höchstens 3, bremsen das Wachstum), Düngen 1×/Tag (+30 % Ernten), Ernten mehrmals, danach direkt wieder säen.
 - Ställe (Kühe, Schafe & Ziegen, Hühner): Füttern am Stall (Kuh 3×, Schaf/Ziege 2×, Huhn 1×), Stroh auslegen (+30 % Ertrag), Melken / Eier sammeln 1× je Tageshälfte (morgens, abends). Ertrag anteilig zur Fütterung. Hungrige Tiere zeigen ein Napf-Symbol, satte Tiere legen sich hin und schlafen (Zzz).
 - Hof: Unkraut und Sammelgut (Bärlauch, Sauerampfer, Pilze, Brennholz, Steine; Mengen seit 20.11.2026 halbiert, siehe unten) wachsen nur dort nach, wo gerade niemand hinschaut. Jäten gibt Grünschnitt. Wilde Brombeeren am Waldrand: etwa halber Ertrag pro Zeit wie der Busch. Apfelbäume schütteln.
 - Gebäude-Produktion am Tag statt abends: Mühle (Mahlen), Bäckerei (Backen: Mehl + Wasser → Brot), Saftpresse, Küche im Haupthaus (Kochen), Molkerei (Käse), Güllesilo (Dünger aus Grünschnitt + Gülle).
@@ -96,7 +96,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Futter: Kühe/Schafe/Ziegen Grünschnitt, Hühner Weizen.
 - Ställe werden zur Tagesmitte wieder hungrig (= "morgens und abends").
 - "Bäume" = die Apfelbäume auf dem Hof.
-- Pflügen nur für neue Felder; nach der letzten Ernte bleibt das Feld gepflügt und kann direkt neu gesät werden.
+- Kein Pflügen mehr (21.11.2026); nach der letzten Ernte kann direkt neu gesät werden.
 
 ## Wilde Grasgruppen und Sammelgut (20.11.2026)
 - Keine Streudeko mehr auf dem Hof (einzelne Grasbüschel, Klee, Blumen, Kiesel). Stattdessen dichte Grasgruppen aus dem Nature MegaKit, nie gleichmäßig verteilt: unregelmäßige Gruppen aus mehreren Flecken, innen dicht und hoch, nach außen lichter und niedriger, mit zerfranstem Rand.
@@ -122,7 +122,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Begehbarer Bereich und Baubereich sind geschlossene Spline-Flächen. Die Spielfigur bleibt im begehbaren Bereich, Felder nur im Baubereich.
 - Felder sind Sechsecke. Der Editor setzt nur die Feldplätze, auf denen später ein Feld stehen kann, sonst nichts. Spielstart mit so vielen Feldern wie bisher (höchstens so viele wie Plätze).
 - Gegner-Spawns: rote Kreise mit Waschbär und Nummer. Die Nummer ist der Bezug für Anweisungen wie „Spawn 1 erhöhen“ (= Häufigkeit dieses Spawns).
-- Interaktionsobjekte mit Logik: Brunnen (Wasser für die Gießkanne), Korb, Blaubeerbusch, Obstbäume, Brombeeren.
+- Interaktionsobjekte mit Logik: Brunnen (Wasser für die Gießkanne), Lager-Eingang (im Editor noch „Korb“, dort klauen Waschbären), Blaubeerbusch, Obstbäume, Brombeeren.
 - Boden in Ebenen; bis zu 16 Texturen pro Welt (Grenze des Boden-Shaders, eine Zeichnung für den ganzen Boden).
 - Ohne Weltdatei läuft der bisherige generierte Hof unverändert.
 
@@ -143,3 +143,16 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Anzeige tagsüber oben rechts, Q (PC) bzw. Tippen klappt ein und aus; eingeklappt steht nur „Quests [Q]“.
 - Start mit 3 Feldern (Referenz: 3 Weizenfelder, realistisch 1000-1200 Weizen am Tag), mehr Felder pro Level: 3, 4, 5, 6, 8, 10, 12, 14, 16, 18.
 - Offen: das Ladengeschäft gab vorher ein zusätzliches Auftragsangebot, das entfällt jetzt.
+
+## Jäten, Hock-Aktionen und Halten (Basti, 21.11.2026)
+- **Start ohne Waffe**, die Waffenwahl am Morgen ist weg. Nach dem Schlafen beginnt direkt der nächste Tag. Waffen-Code bleibt für später im Spiel (Schrotflinte usw. sind nur nicht wählbar).
+- **Feld nur noch: Säen, Gießen, Ernten, morgens Jäten.** Kein Pflügen/Harken mehr: ein Feld ist sofort bestellbar, nach der letzten Ernte (1 s Abräumen) kann direkt neu gesät werden, ohne Jäten.
+- **Unkraut nur morgens:** jedes offene Feld bekommt jeden Morgen 0/1/2 Unkräuter dazu (25 % / 50 % / 25 %, `plots.weeds.morning`), höchstens 3 pro Feld. Tagsüber wächst auf den Feldern kein Unkraut. Unkraut blockiert nichts, bremst aber das Wachstum: 1/2/3 Unkräuter = 5/10/15 % langsamer (`plots.weeds.slow`). Jäten nimmt pro Durchgang ein Unkraut (1 Grünschnitt) und läuft von selbst weiter.
+- **Reihenfolge am Feld** (was hilft am meisten zuerst): Ernten → Säen → (während die Pflanze keimt: Jäten) → Gießen → Jäten → Düngen. Düngen bleibt als freiwilliges Extra ab dem Güllesilo (Annahme: „nur Säen, Gießen, Ernten“ meint den Pflichtzyklus).
+- **Handharke** statt Harke: klein, einhändig, immer in der rechten Hand. Damit wird gejätet (Feld und Hof) und geschlagen (Rechtsklick / Angriffsknopf, Trefferkegel 120°).
+- **Knien:** Arbeit am Boden (Jäten, Säen, Ernten am Feld, Düngen, Sammeln) macht die Figur auf einem Knie. Sie geht dafür nah an die Stelle (`player.kneel`), beim Jäten zum jeweiligen Unkraut.
+- **Halten:** Aktionsknopf bzw. linke Maustaste kann immer gehalten werden. Ist eine Arbeit fertig, startet die nächste mögliche am anvisierten Ziel (PC: unter der Maus, sonst das nächste; Handy: das nächste). Gibt es keine, endet die Kette; wird später (beim Weiterlaufen) eine möglich, geht es weiter.
+- **Laufen während einer Arbeit** geht (langsamer, `player.actionSpeed`); wer sich zu weit entfernt (`player.leave`), bricht sie ab. Nach einer Arbeit am Boden bleibt die Figur in der Hocke, solange der Knopf gehalten wird, und **watschelt** langsam (`player.crouchSpeed`). Erst nach dem Loslassen läuft sie wieder normal.
+- **Kein Korb mehr:** Ernte geht sofort ins Lager (Blaubeeren hüpfen zur Figur, „+n“ schwebt hoch). Waschbären klauen am Lager-Eingang neben dem Haupthaus.
+- **Grafik:** Schattenbereich passt sich jetzt dem sichtbaren Bild an (vorher fester 40-m-Kasten um den Spieler, im Hochformat und rausgezoomt endeten die Schatten mitten im Bild). Schwarze Kästen, die kurz aufblitzten: ungültige Pixel (NaN) wurden vom Bloom zu Blöcken verwischt, ein Filter davor entfernt sie jetzt.
+

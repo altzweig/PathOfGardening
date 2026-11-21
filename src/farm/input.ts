@@ -1,6 +1,7 @@
 // Input for one day on the farm. PC: WASD/arrows walk, left click = action on the clicked spot (walks there first),
+// left button HELD = one action after the other at the spot under the mouse (21.11.2026), also while walking,
 // right click (hold) = fight towards the mouse, middle mouse drag = turn the camera, wheel = zoom, Esc = pause.
-// Touch: left thumb anywhere = move stick, "Aktion" button = action on the nearest spot, "Angriff" button (hold) = fight
+// Touch: left thumb anywhere = move stick, "Aktion" button = action on the nearest spot (held = keeps going), "Angriff" button (hold) = fight
 // with automatic aim; tapping a spot in the world also starts its action; dragging on the right half turns the camera.
 import type { DaySim, Intent, Target } from './sim';
 import { emptyIntent } from './sim';
@@ -16,9 +17,9 @@ export class FarmInput {
   onAny: () => void = () => {};
   private keys = new Set<string>();
   private mouse = { x: innerWidth / 2, y: innerHeight / 2, on: false };
-  private rmb = false; private clickAt: { x: number; y: number } | null = null;
+  private rmb = false; private lmb = false; private clickAt: { x: number; y: number } | null = null;
   private stick = { id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
-  private actBtn = false; private atkHeld = false; private tapAt: { x: number; y: number } | null = null;
+  private actBtn = false; private actHeld = false; private atkHeld = false; private tapAt: { x: number; y: number } | null = null;
   /** camera turning: middle mouse drag (PC) or a drag on the right half (touch) */
   private mmb: { x: number; y: number } | null = null;
   private drag = { id: -1, ox: 0, oy: 0, x: 0, y: 0, moved: false };
@@ -50,7 +51,7 @@ export class FarmInput {
       if (!this.enabled) return;
       if (e.pointerType === 'mouse') {
         this.setTouch(false); this.mouse.x = e.clientX; this.mouse.y = e.clientY;
-        if (e.button === 2) this.rmb = true; else if (e.button === 0) this.clickAt = { x: e.clientX, y: e.clientY };
+        if (e.button === 2) this.rmb = true; else if (e.button === 0) { this.clickAt = { x: e.clientX, y: e.clientY }; this.lmb = true; }
         else if (e.button === 1) { e.preventDefault(); this.mmb = { x: e.clientX, y: e.clientY }; }
         this.onAny(); return;
       }
@@ -59,7 +60,7 @@ export class FarmInput {
       else if (this.drag.id < 0) this.drag = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, moved: false };
     });
     const up = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse') { if (e.button === 2) this.rmb = false; if (e.button === 1) this.mmb = null; return; }
+      if (e.pointerType === 'mouse') { if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; return; }
       if (e.pointerId === this.drag.id) { if (!this.drag.moved) this.tapAt = { x: this.drag.ox, y: this.drag.oy }; this.drag.id = -1; }
       if (e.pointerId === this.stick.id) {
         // a short tap without moving on the left side is a tap on the world (not a stick)
@@ -68,7 +69,7 @@ export class FarmInput {
       }
     };
     c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
-    addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button === 2) this.rmb = false; if (e.pointerType === 'mouse' && e.button === 1) this.mmb = null; });
+    addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') return; if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; });
     // touch buttons
     const btn = (id: string, down: () => void, upF: () => void) => {
       const b = $(id);
@@ -76,7 +77,7 @@ export class FarmInput {
       const u = () => { b.classList.remove('down'); upF(); };
       b.addEventListener('pointerup', u); b.addEventListener('pointercancel', u); b.addEventListener('pointerleave', u);
     };
-    btn('#bAct', () => { this.actBtn = true; }, () => {});
+    btn('#bAct', () => { this.actBtn = true; this.actHeld = true; }, () => { this.actHeld = false; });
     btn('#bAtk', () => { this.atkHeld = true; }, () => { this.atkHeld = false; });
     this.setTouch(touch);
   }
@@ -90,7 +91,7 @@ export class FarmInput {
   }
   /** camera turn since the last call (px) */
   takeRotate() { const r = this.rot; this.rot = { dx: 0, dy: 0 }; return r; }
-  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.atkHeld = false; this.stick.id = -1; this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
+  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.stick.id = -1; this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
 
   /** spot under the mouse (PC) or nearest spot with work (touch) */
   hover(sim: DaySim, view: FarmView): Target | null {
@@ -109,11 +110,13 @@ export class FarmInput {
     it.mx = mx; it.mz = mz;
     if (this.lastTouch) {
       it.aimAuto = true; it.attack = this.atkHeld;
+      it.hold = this.actHeld; if (it.hold) it.holdAt = sim.nearestTarget(sim.cfg.player.hover);
       if (this.actBtn) { it.act = sim.nearestTarget(sim.cfg.player.hover); this.actBtn = false; }
       if (this.tapAt) { const g = view.ground(this.tapAt.x, this.tapAt.y); if (g) it.act = sim.targetAt(g.x, g.z) ?? it.act; this.tapAt = null; }
     } else {
       const g = view.ground(this.mouse.x, this.mouse.y); if (g) { it.aimX = g.x; it.aimZ = g.z; }
       it.attack = this.rmb;
+      it.hold = this.lmb; if (it.hold) it.holdAt = this.hover(sim, view);
       if (this.clickAt) { const c = view.ground(this.clickAt.x, this.clickAt.y), t = c ? sim.targetAt(c.x, c.z) : null; it.act = t && sim.actionFor(t) ? t : sim.nearestTarget(sim.cfg.player.hover); this.clickAt = null; }
     }
     return it;

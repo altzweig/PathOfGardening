@@ -1,5 +1,5 @@
 // Small SVG icons for the farm HUD + house screens (40x40 viewBox). Goods without an own icon use the fruit icons.
-import { fruitIcon, skillIcon } from '../../ui/icons';
+import { fruitIcon } from '../../ui/icons';
 
 const svg = (body: string) => `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 const ICON: Record<string, string> = {
@@ -75,11 +75,13 @@ const ICON: Record<string, string> = {
   eggplant: `<path d="M20 12c-7 0-11 7-11 14s5 10 11 10 11-3 11-10-4-14-11-14z" fill="#4a2058" stroke="#1e0a26" stroke-width="2"/><path d="M13 13q7-6 14 0-3 3-7 2-4 1-7-2z" fill="#5a9a2a" stroke="#2a4a14" stroke-width="1.4"/><path d="M20 9V4" stroke="#5a9a2a" stroke-width="3" stroke-linecap="round"/><ellipse cx="15" cy="24" rx="2" ry="4" fill="#8a5aa0"/>`,
   fennel: `<path d="M9 30q0-8 11-8t11 8q-2 6-11 6T9 30z" fill="#eef0d0" stroke="#8a9a5a" stroke-width="2"/><path d="M15 23l-2-15M20 22V5M25 23l2-15" stroke="#7ab848" stroke-width="2.4" stroke-linecap="round"/><path d="M11 9q2-3 4 0M18 6q2-3 4 0M25 9q2-3 4 0" stroke="#9ad86a" stroke-width="1.6" fill="none"/>`,
   melon: `<circle cx="20" cy="22" r="14" fill="#6a9a3a" stroke="#2a4a14" stroke-width="2"/><path d="M20 8q-8 14 0 28M20 8q8 14 0 28M10 12q-6 10 0 20M30 12q6 10 0 20" stroke="#c8e09a" stroke-width="1.6" fill="none"/><path d="M20 8q1-4 4-5" stroke="#5a3a1a" stroke-width="2" fill="none"/>`,
+  // Handharke (21.11.2026): kurzer Holzgriff mit Messingring, drei gebogene Eisenzinken
+  handrake: `<path d="M7 35l10-10" stroke="#2a1a0c" stroke-width="7.4" stroke-linecap="round"/><path d="M7 35l10-10" stroke="#b08850" stroke-width="5" stroke-linecap="round"/><path d="M15.5 26.5l3-3" stroke="#e0b860" stroke-width="5.6" stroke-linecap="round"/><g fill="none" stroke-linecap="round"><g stroke="#2a3036" stroke-width="4.4"><path d="M18 23Q20 15 26 9q4-3 7 0"/><path d="M18 23q5-4 13-4 3 1 3 4"/><path d="M18 23Q23 11 31 9.5"/></g><g stroke="#aab4bc" stroke-width="2.4"><path d="M18 23Q20 15 26 9q4-3 7 0"/><path d="M18 23q5-4 13-4 3 1 3 4"/><path d="M18 23Q23 11 31 9.5"/></g></g>`,
   sheep: `<g fill="#f4f0e6" stroke="#8a8478" stroke-width="1.6"><circle cx="14" cy="20" r="7"/><circle cx="22" cy="17" r="7"/><circle cx="26" cy="24" r="6"/><circle cx="16" cy="26" r="6"/></g><ellipse cx="9" cy="20" rx="4" ry="5" fill="#2e2a26"/><path d="M15 31v5M24 31v5" stroke="#2e2a26" stroke-width="2.4"/>`,
 };
 export function ic(name: string): string {
   if (ICON[name]) return svg(ICON[name]);
-  if (name === 'rake') return skillIcon('rake');
+  if (name === 'rake') return svg(ICON.handrake); // the weapon 'rake' is the hand rake since 21.11.2026
   if (name === 'strawb') return fruitIcon('straw'); // Erdbeere (ICON.straw is Stroh)
   const f = fruitIcon(name); return f || svg(ICON.box);
 }

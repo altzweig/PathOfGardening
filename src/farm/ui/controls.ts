@@ -10,7 +10,7 @@ const icon = (svg: string, x: number, y: number, s: number) => svg.replace('<svg
 /** curved double arrow: turn the camera */
 const turn = (x: number, y: number, s: number) => `<g transform="translate(${x} ${y}) scale(${s / 100})" fill="none" stroke="${TXT}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
   <path d="M-40 10 A44 22 0 0 0 40 10"/><path d="M-52 -6 L-40 10 L-22 4"/><path d="M52 -6 L40 10 L22 4"/></g>`;
-const tools = (x: number, y: number, s: number) => ['can', 'rake', 'seed', 'hands', 'sickle'].map((t, i) => icon(ic(t), x + i * (s + 8), y, s)).join('');
+const tools = (x: number, y: number, s: number) => ['can', 'handrake', 'seed', 'hands', 'sickle'].map((t, i) => icon(ic(t), x + i * (s + 8), y, s)).join('');
 
 export function pcControls() {
   return `<svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">
@@ -25,10 +25,10 @@ export function pcControls() {
     <rect x="66" y="30" width="18" height="40" rx="9" fill="#2b3540" stroke="#3a4550" stroke-width="2"/>
   </g>
   <path d="M560 140 H470" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>
-  ${label(455, 120, 'Arbeiten', 'end')}
-  ${tools(235, 140, 40)}
+  ${label(470, 70, 'Arbeiten', 'end')}${label(462, 150, 'halten: weiter', 'end', 22, TXT)}
+  ${tools(282, 88, 32)}
   <path d="M710 140 H780" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>
-  ${icon(ic('rake'), 790, 96, 64)}${icon(ic('shotgun'), 862, 96, 64)}
+  ${icon(ic('rake'), 826, 96, 64)}
   ${label(860, 200, 'Kämpfen')}
   <path d="M635 90 V50" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>${label(635, 38, 'Mausrad: Zoom')}
   <path d="M710 250 H780" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>${turn(840, 240, 70)}${label(860, 300, 'Mausrad gedrückt', 'middle', 24, TXT)}${label(860, 330, 'Kamera drehen', 'middle', 28)}
@@ -51,8 +51,8 @@ export function mobileControls() {
   <circle cx="232" cy="306" r="32" fill="${GOLD}"/>
   ${label(250, 150, 'Laufen', 'middle', 34)}
   <g transform="translate(860 410)"><circle r="66" fill="#1d252d" stroke="${GOLD}" stroke-width="5"/>${icon(ic('hands'), -40, -40, 80)}</g>
-  ${label(860, 312, 'Arbeiten', 'middle', 28)}
-  ${tools(650, 190, 40)}
+  ${label(860, 312, 'Arbeiten', 'middle', 28)}${label(860, 500, 'halten: weiter', 'middle', 20, TXT)}
+  ${tools(740, 232, 34)}
   <g transform="translate(700 440)"><circle r="50" fill="#1d252d" stroke="#ff8a70" stroke-width="5"/>${icon(ic('rake'), -32, -32, 64)}</g>
   ${label(700, 370, 'Kämpfen', 'middle', 28)}
   <g transform="translate(560 300)"><circle r="30" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="7 6"/><circle r="9" fill="${TXT}"/></g>

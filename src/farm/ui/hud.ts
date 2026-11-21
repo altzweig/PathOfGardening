@@ -9,7 +9,7 @@ import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
-const TOOL_ICON: Record<string, string> = { can: 'can', rake: 'rake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
+const TOOL_ICON: Record<string, string> = { can: 'can', handrake: 'handrake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
 /** left mouse button (PC label) */
 const LMB = `<svg class="ms" viewBox="0 0 30 42"><rect x="2" y="2" width="26" height="38" rx="13" fill="#1a2027" stroke="#fff2c0" stroke-width="2.4"/><path d="M15 2v17M2 19h26" stroke="#5a6570" stroke-width="2"/><path d="M15 3.5a12 12 0 0 0-11.5 12V19H15z" fill="#e3b964"/></svg>`;
 /** height of the label over a target (m) */

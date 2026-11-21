@@ -1,7 +1,7 @@
-// Evening in the house (Lager, Aufträge, Bauen, Produktion, day summary, level-up) and the morning loadout
-// (exactly one weapon + one ammo type). Pure DOM over the dusk view of the farm. No explaining texts: icons, numbers, names.
-import type { BuildingId, FarmCfg, ItemId, WeaponId } from '../config';
-import { BUILDING_IDS, STALL_IDS, WEAPON_IDS, plotsAllowed } from '../config';
+// Evening in the house (Lager, Aufträge, Bauen, Produktion, day summary, level-up). 21.11.2026: the morning weapon
+// choice is gone, the day starts right after sleeping. Pure DOM over the dusk view of the farm. No explaining texts: icons, numbers, names.
+import type { BuildingId, FarmCfg } from '../config';
+import { BUILDING_IDS, STALL_IDS, plotsAllowed } from '../config';
 import type { FarmState, Quest } from '../state';
 import { build, buildStatus, canOpenPlot, claimQuests, count, openPlot, openPlots, unclaimed } from '../state';
 import { ic } from './ficons';
@@ -13,14 +13,10 @@ const TABS: [Tab, string, string][] = [['quests', 'quest', 'Aufträge'], ['build
 export class HouseUi {
   tab: Tab = 'quests';
   onSleep: () => void = () => {};
-  onStart: (w: WeaponId | null, ammo: ItemId | null, n: number) => void = () => {};
   onChange: () => void = () => {};
   onSound: (k: string) => void = () => {};
-  private pick: { w: WeaponId | null; ammo: ItemId | null; n: number } = { w: null, ammo: null, n: 0 };
   constructor(public cfg: FarmCfg, public s: FarmState) {
     $('#fHouse').addEventListener('click', e => this.click(e));
-    $('#fMorning').addEventListener('click', e => this.mclick(e));
-    $('#fMorning').addEventListener('input', e => { const t = e.target as HTMLInputElement; if (t.id === 'mAmmoN') { this.pick.n = +t.value; $('#mAmmoV').textContent = t.value; } });
   }
   private name(id: string) { if (id === 'coin') return 'Gefallen'; return this.cfg.names.items[id] ?? (this.cfg.names.buildings as any)[id] ?? (this.cfg.names.weapons as any)[id] ?? id; }
   private goods(g: Record<string, number | undefined>, have = false) {
@@ -131,48 +127,5 @@ export class HouseUi {
     else if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
     else if (d.plot) { if (openPlot(C, s)) this.onSound('ui.confirm'); }
     this.onChange(); this.render();
-  }
-
-  // ---------------- morning loadout ----------------
-  showMorning(on: boolean) {
-    $('#fMorning').hidden = !on; if (!on) return;
-    // default: yesterday's weapon if it still has ammo, else the first available
-    const s = this.s, avail = WEAPON_IDS.filter(w => this.weaponOk(w));
-    const w = s.weapon && avail.includes(s.weapon) ? s.weapon : avail[0] ?? null;
-    this.pick = { w, ammo: null, n: 0 }; this.chooseAmmo(); this.renderMorning();
-  }
-  private weaponOk(w: WeaponId) { const W = this.cfg.weapons[w as Exclude<WeaponId, 'rake'>]; return !!W && W.available && W.level <= this.s.level; }
-  private chooseAmmo() {
-    const w = this.pick.w; if (!w || w === 'rake') { this.pick.ammo = null; this.pick.n = 0; return; }
-    const W = this.cfg.weapons[w as Exclude<WeaponId, 'rake'>], have = W.ammo.filter(a => count(this.s, a) > 0);
-    if (!this.pick.ammo || !have.includes(this.pick.ammo)) this.pick.ammo = (this.s.ammo && have.includes(this.s.ammo) ? this.s.ammo : have[0]) ?? null;
-    this.pick.n = this.pick.ammo ? count(this.s, this.pick.ammo) : 0;
-  }
-  private renderMorning() {
-    const s = this.s, C = this.cfg, p = this.pick;
-    $('#mDay').textContent = '' + s.day;
-    const card = (w: WeaponId | null) => {
-      if (w === null) return `<button class="wc${p.w === null ? ' on' : ''}" data-w="rake">${ic('rake')}<b>${this.name('rake')}</b></button>`;
-      const W = C.weapons[w as Exclude<WeaponId, 'rake'>], ok = this.weaponOk(w);
-      return `<button class="wc${p.w === w ? ' on' : ''}${ok ? '' : ' lock'}" data-w="${w}" ${ok ? '' : 'disabled'}>${ic(w)}<b>${this.name(w)}</b>
-        <span class="am">${W.ammo.map(a => ic(a)).join('')}</span>${ok ? '' : `<span class="lv">${W.available ? `${ic('star')}<b>${W.level}</b>` : ic('lock')}</span>`}</button>`;
-    };
-    $('#mWeapons').innerHTML = card(null) + WEAPON_IDS.map(card).join('');
-    let am = '';
-    if (p.w && p.w !== 'rake') {
-      const W = C.weapons[p.w as Exclude<WeaponId, 'rake'>];
-      am = `<div class="ammo">${W.ammo.map(a => { const n = count(s, a); return `<button class="ac${p.ammo === a ? ' on' : ''}" data-a="${a}" ${n ? '' : 'disabled'}>${ic(a)}<b>${n}</b></button>`; }).join('')}</div>`;
-      if (p.ammo) { const max = count(s, p.ammo); am += `<div class="amt">${ic(p.ammo)}<input type="range" id="mAmmoN" min="0" max="${max}" value="${p.n}"><b id="mAmmoV">${p.n}</b></div>`; }
-    }
-    $('#mAmmo').innerHTML = am;
-    $('#mGo').innerHTML = `${ic('sun')}<span>Tag beginnen</span>`;
-  }
-  private mclick(e: Event) {
-    const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t || t.disabled) return;
-    const d = t.dataset;
-    if (t.id === 'mGo') { this.onSound('ui.confirm'); const p = this.pick; this.onStart(p.w, p.w ? p.ammo : null, p.n); return; }
-    if (d.w) { this.pick.w = d.w === 'rake' ? null : d.w as WeaponId; this.pick.ammo = null; this.chooseAmmo(); this.onSound('ui.click'); }
-    if (d.a) { this.pick.ammo = d.a; this.pick.n = count(this.s, d.a); this.onSound('ui.click'); }
-    this.renderMorning();
   }
 }

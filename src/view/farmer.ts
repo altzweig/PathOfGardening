@@ -208,7 +208,8 @@ const SPH = new THREE.SphereGeometry(1, 20, 14), SPH_LO = new THREE.SphereGeomet
 // ---------------- rig ----------------
 export interface Arm { sh: THREE.Group; el: THREE.Group; side: number; qs: THREE.Quaternion; qe: THREE.Quaternion }
 export interface Leg { hip: THREE.Group; knee: THREE.Group }
-export interface Rig { root: THREE.Group; pelvis: THREE.Group; torso: THREE.Group; head: THREE.Group; arms: [Arm, Arm]; legs: [Leg, Leg]; ua: number; fa: number; walk: number; t: number }
+/** th = thigh, sh = shin down to the sole, legLen = hip height standing */
+export interface Rig { root: THREE.Group; pelvis: THREE.Group; torso: THREE.Group; head: THREE.Group; arms: [Arm, Arm]; legs: [Leg, Leg]; ua: number; fa: number; walk: number; t: number; th: number; sh: number; legLen: number }
 
 /** build the figure; returns the root group (feet on y = 0, facing +z) and its rig */
 export function buildFarmer(L: Look): Rig {
@@ -377,7 +378,7 @@ export function buildFarmer(L: Look): Rig {
     const qs = new THREE.Quaternion(), qe = new THREE.Quaternion();
     arms.push({ sh: shG, el, side, qs, qe });
   }
-  return { root, pelvis, torso, head, arms: arms as [Arm, Arm], legs: legs as [Leg, Leg], ua, fa: fa + .035, walk: 0, t: Math.random() * 10 };
+  return { root, pelvis, torso, head, arms: arms as [Arm, Arm], legs: legs as [Leg, Leg], ua, fa: fa + .035, walk: 0, t: Math.random() * 10, th, sh: si + .06, legLen };
 }
 
 /** hair styles: Pippi braids sticking out, bob, tonsure, afro */
@@ -422,15 +423,49 @@ function mulberry(a: number) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; le
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(), _v = V3(), _w = V3(), _S = V3(), _E = V3(), _P = V3();
 const DOWN = V3(0, -1, 0);
 /** legs, torso sway; wk = walk phase (rad), walk = 0..1 how much the figure is walking */
-export function animateLegs(R: Rig, dt: number, wk: number, walk: number) {
+/**
+ * 2-bone leg in the side plane: hip angle + knee bend so the sole lands at (fz forward, fy down) from the hip.
+ * Angles like the rig: hip.rotation.x < 0 swings the leg forward, knee.rotation.x > 0 bends the shin back.
+ */
+function legIK(R: Rig, fz: number, fy: number): [number, number] {
+  const a = R.th, b = R.sh, U = -fz, W = -fy, D = Math.min(a + b - 1e-3, Math.max(.05, Math.hypot(U, W)));
+  const al = Math.atan2(U, W), be = Math.acos(Math.max(-1, Math.min(1, (a * a + D * D - b * b) / (2 * a * D))));
+  const p1 = al - be, kx = Math.sin(p1) * a, ky = Math.cos(p1) * a, p2 = Math.atan2(U - kx, W - ky); // knee points forward
+  return [p1, Math.max(0, p2 - p1)];
+}
+/**
+ * legs + torso. low (21.11.2026): k = 0 standing .. 1 down; kneel = 1 on one knee (working on the ground) .. 0 deep crouch
+ * (waddling with the action button held: short quick steps, the body rocks from side to side).
+ */
+export function animateLegs(R: Rig, dt: number, wk: number, walk: number, low?: { k: number; kneel: number }) {
   R.t += dt; R.walk = walk;
+  const k = low ? Math.max(0, Math.min(1, low.k)) : 0, kn = low ? low.kneel : 0;
+  // kneel: pelvis just above the knee on the ground; crouch: a little higher, feet under the body
+  const hK = R.th * .92 + .055, hC = R.th * .55 + R.sh * .62, h = hK * kn + hC * (1 - kn);
   for (let i = 0; i < 2; i++) {
     const ph = wk + (i ? Math.PI : 0), s = Math.sin(ph);
-    R.legs[i].hip.rotation.x = -s * .5 * walk;
-    R.legs[i].knee.rotation.x = Math.max(0, Math.sin(ph + 1.3)) * .85 * walk + .03;
+    let hip = -s * .5 * walk, knee = Math.max(0, Math.sin(ph + 1.3)) * .85 * walk + .03;
+    if (k > 0) {
+      // crouch step: the foot swings forward/back under the body, lifted while it moves forward
+      const st = .11 * walk, cz = .05 + (i ? -.03 : .07), lift = Math.max(0, Math.cos(ph)) * .055 * walk;
+      const [ch, ck] = legIK(R, cz + s * st, -h + lift);
+      // kneel: leg 0 in front (foot flat, shin upright), leg 1 kneels (knee on the ground, shin back, toes tucked)
+      let kh: number, kk: number;
+      if (i === 0) [kh, kk] = legIK(R, .19, -h);
+      else { kh = -Math.acos(Math.max(-1, Math.min(1, (h - .055) / R.th))); kk = 1.42 - kh; } // shin falls a little towards the foot: toes on the ground
+      const lh = kh * kn + ch * (1 - kn), lk = kk * kn + ck * (1 - kn);
+      hip = hip + (lh - hip) * k; knee = knee + (lk - knee) * k;
+    }
+    R.legs[i].hip.rotation.x = hip;
+    R.legs[i].knee.rotation.x = knee;
   }
-  R.torso.rotation.y = Math.sin(wk) * .07 * walk;
+  R.pelvis.position.y = R.legLen + (h - R.legLen) * k;
+  // waddle: the body rocks over the stepping foot
+  R.pelvis.rotation.z = Math.sin(wk) * .13 * walk * k * (1 - kn);
+  R.pelvis.position.x = Math.sin(wk) * .025 * walk * k * (1 - kn);
+  R.torso.rotation.y = Math.sin(wk) * .07 * walk * (1 - k * .6);
   R.torso.rotation.x = .04 * walk + Math.sin(R.t * 1.6) * .008 * (1 - walk); // slight lean when walking, breathing at rest
+  R.torso.rotation.z = -R.pelvis.rotation.z * .7;                           // the head stays fairly level while waddling
   R.head.rotation.x = -.03 * walk;
 }
 /**

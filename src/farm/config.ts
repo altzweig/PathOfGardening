@@ -13,8 +13,9 @@ export type StallId = 'cows' | 'sheep' | 'chickens';
 export const STALL_IDS: StallId[] = ['cows', 'sheep', 'chickens'];
 export type Livestock = 'cow' | 'sheep' | 'goat' | 'chicken';
 export type AnimalType = 'raccoon' | 'hare';
-export type ActionKind = 'water' | 'plow' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
-export type Tool = 'can' | 'rake' | 'seed' | 'hands' | 'sickle' | 'bucket';
+export type ActionKind = 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
+/** handrake = kleine einhändige Handharke (Jäten, Notwaffe), 21.11.2026 */
+export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket';
 export interface ActionCfg { time: number; label: string; repeat?: boolean }
 
 /** Taler + goods */
@@ -37,12 +38,12 @@ export interface DailyQuestCfg { count: number; load: number; cycle: number; obj
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
-  player: { hp: number; speed: number; radius: number; reach: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
+  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
-  plots: { size: number; sprout: number; clear: number; fertBonus: number; weeds: { max: number; every: [number, number]; blockAt: number }; byLevel: number[]; cost: number };
+  plots: { size: number; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; byLevel: number[]; cost: number };
   wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
     brambles: { count: number; every: number; picks: number; pick: number }; trees?: TreeKind[]; apples: PerennialCfg; nuts?: PerennialCfg; barrel: number };
   /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */

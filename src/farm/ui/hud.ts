@@ -169,7 +169,9 @@ export class FarmHud {
   }
   float(x: number, z: number, html: string, cls = '') {
     const el = document.createElement('b'); el.className = cls; el.innerHTML = html; $('#fFloat').appendChild(el);
-    this.nums.push({ el, x, y: 1.6, z, t: 0 });
+    // several at once on one spot (wild herbs: weed + herbs) stack instead of covering each other
+    const same = this.nums.filter(n => n.t < .05 && Math.abs(n.x - x) < .3 && Math.abs(n.z - z) < .3).length;
+    this.nums.push({ el, x, y: 1.6 + same * .38, z, t: 0 });
   }
   hint(text: string | null, icon?: string) {
     const h = $('#fHint'); h.hidden = !text; if (text) h.innerHTML = (icon ? ic(icon) : '') + `<span>${text}</span>`;

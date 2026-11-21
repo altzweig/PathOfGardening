@@ -1,7 +1,7 @@
 // One playable day on the farm: player movement, timed actions (left click, see actions in balancing.yaml), fighting
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
-import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, otherXp, treeCfg, treeKind } from './config';
+import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, otherXp, rollHerbs, treeCfg, treeKind } from './config';
 import { FarmState, addItem, breakPlot, count, gainXp, growMul, repairPlot, ripeCuts } from './state';
 import { Hof, Obstacle, obsDist } from './hof';
 import { NavGrid, navFor } from './nav';
@@ -177,7 +177,7 @@ export class DaySim {
     }
     return null;
   }
-  /** a point near the grass patches (rim, not the dense middle): weeds + sorrel; wet = only the damp meadow behind the well */
+  /** a point near the grass patches (rim, not the dense middle): wild herbs; wet = only the damp meadow behind the well */
   private grassSpot(hidden: boolean, wet = false) {
     if (this.hof.logic) return this.paintedGrassSpot(hidden);
     const ps = this.hof.patches.filter(p => wet ? p.wet : !p.low); if (!ps.length) return null;
@@ -587,7 +587,12 @@ export class DaySim {
       case 'refill': s.water = Math.min(cfg.can.capacity, s.water + cfg.can.perFill); break; // 21.11.2026: +2 per filling, never above capacity
       case 'draw': addItem(cfg, s, 'water', 1); this.ev.push({ k: 'store', item: 'water', n: 1, x: tp.x, z: tp.z }); break;
       case 'gather': if (t.k === 'forage') { const w = s.wild, i = w.forage.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.forage[i]; f.n = (f.n ?? 1) - 1; if (f.n <= 0) w.forage.splice(i, 1); this.store(f.k, 1, f); this.harvestXp(otherXp(cfg, f.k, cfg.wild.forage.plants?.[f.k]?.picks ?? 1), f); } } break;
-      case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.weeds[i]; w.weeds.splice(i, 1); this.store('green', 1, f); } } break;
+      case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) {
+        // wild herbs (21.11.2026): one tuft = weed + maybe wild garlic / dandelion / sorrel; XP only for the herbs
+        const f = w.weeds[i], H = cfg.wild.herbs; w.weeds.splice(i, 1);
+        let xp = 0; for (const [k, n] of Object.entries(rollHerbs(H))) { this.store(k, n, f); if (k !== 'green') xp += n * otherXp(cfg, k, H?.xpPicks ?? 3); }
+        this.harvestXp(xp, f);
+      } } break;
       case 'pickWild': if (t.k === 'bramble') {
         const B = cfg.wild.brambles, b = this.brambles[t.i]; b.n--; this.store('bramble', B.pick, tp); this.harvestXp(otherXp(cfg, 'bramble', B.picks), tp); this.ev.push({ k: 'bramble', i: t.i, n: B.pick });
         if (b.n <= 0) s.perennial.brambles[t.i] = s.day + B.every;

@@ -13,7 +13,7 @@ export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
 /** berries = big berries left on the bush, small = small picks left after that */
 export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
 /** things that grow on the farm by themselves (kept from day to day) */
-const WILD_V = 2;
+const WILD_V = 3; // 3 = 21.11.2026: wild garlic / dandelion / sorrel live in the wild herb tufts now
 export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number; /** picks left (wild plants) */ n?: number }[]; seq: number; init: boolean; /** placement version: older saves grow their weeds + forage anew */ v?: number }
 /** daily order (21.11.2026): taken in the morning, delivered by itself as soon as the goods are in the storage, expires in the evening */
 export interface Quest { id: string; title?: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }

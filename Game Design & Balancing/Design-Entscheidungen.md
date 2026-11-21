@@ -194,3 +194,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Im Spiel ist ein ungebautes Gebäude unsichtbar: keine Baustelle, keine Ruine, kein Hindernis; dort ist, was im Editor gemalt/platziert wurde. Wird es gebaut, verschwinden Objekte, Gras und Wildpflanzen unter seinem Grundriss.
 - Ältere Welten ohne Gebäudeliste: der Hofladen steht wie bisher automatisch neben dem Haupthaus; der Editor übernimmt diesen Platz beim Öffnen.
 - Entwürfe: „Speichern → Als Entwurf speichern“ legt `public/world/entwuerfe/NAME.json` im Repo an (auch auf main). Das Spiel lädt Entwürfe nie von selbst; Testen über `index.html?welt=entwurf:NAME`. „Entwurf öffnen“ listet die Entwürfe im Repo.
+
+## Wildkräuter statt Unkraut, Bärlauch, Löwenzahn, Sauerampfer (Basti, 21.11.2026)
+- Unkraut auf dem Hof (außerhalb der Felder), Bärlauch, Löwenzahn und Sauerampfer sind jetzt **eine** Pflanze: ein kleines gemischtes Büschel (Unkrauthalme, Bärlauchblätter mit weißen Blüten, Sauerampfer-Stängel, Löwenzahn-Rosette mit gelber Blüte). Unkraut auf den Feldern bleibt wie es ist.
+- Häufigkeit wie bisher das Hof-Unkraut (`wild.weeds`: Start 40, höchstens 100, alle 6-12 s eins nach). Bärlauch, Löwenzahn und Sauerampfer wachsen nicht mehr einzeln, nur Pilze, Brennholz und Steine bleiben Sammelgut.
+- Jäten (Handharke, 1 s) würfelt die Ausbeute (`wild.herbs`): Roll 1 gibt zu 90 % 1 Unkraut (= 1 Grünschnitt), zu 10 % 2 gleiche zufällige Kräuter. Dann 2 weitere Rolls, jeder mit je 10 % für Bärlauch, Löwenzahn oder Sauerampfer (70 % nichts). Ergebnis: 44 % keine Kräuter, 38 % eins, 13 % zwei, 4 % drei, 1 % vier. Im Schnitt 0,8 Kräuter pro Büschel.
+- **XP:** Unkraut gibt weiterhin keine XP. Jedes gefundene Kraut gibt so viel wie früher ein Sammelvorgang (`xpPicks: 3`: Bärlauch 2, Löwenzahn/Sauerampfer 3). Pro Büschel im Schnitt etwa 2 XP.
+- Alte Spielstände: Hof-Unkraut und Sammelgut wachsen einmal neu (Platzierungsversion 3).

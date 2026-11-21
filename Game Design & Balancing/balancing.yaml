@@ -38,7 +38,7 @@ names:
     green: Grünschnitt       # vom Jäten
     slurry: Gülle            # von den Kühen
     fert: Dünger
-    baerlauch: Bärlauch      # Sammeln am Hofrand
+    baerlauch: Bärlauch      # aus den Wildkräutern
     sorrel: Sauerampfer
     mushroom: Pilze
     wood: Brennholz
@@ -138,8 +138,8 @@ actions:
   harvestBush: { time: 1.33, label: Ernten, repeat: true }  # Blaubeerbusch
   refill:      { time: 1.0, label: Kanne füllen, repeat: true }  # Brunnen: je Füllen can.perFill Ladungen, läuft bis die Kanne voll ist (21.11.2026: 1 s statt 2 s)
   draw:        { time: 1.5, label: Wasser schöpfen, repeat: true }  # Brunnen -> Fass, bis das Fass voll ist
-  gather:      { time: 1.33, label: Sammeln, repeat: true }  # Bärlauch, Pilze, Brennholz ... am Hofrand
-  weedHof:     { time: 1.0, label: Jäten }            # Unkraut auf dem Hof -> Grünschnitt
+  gather:      { time: 1.33, label: Sammeln, repeat: true }  # Pilze, Brennholz, Steine am Hofrand
+  weedHof:     { time: 1.0, label: Jäten }            # Wildkräuter auf dem Hof -> Grünschnitt oder Kräuter (wild.herbs)
   pickWild:    { time: 1.33, label: Pflücken, repeat: true }  # wilder Brombeerstrauch
   shake:       { time: 1.33, label: Schütteln, repeat: true } # Obst-/Nussbaum: reife Früchte fallen herunter
   feed:        { time: 2.0, label: Füttern }          # Stall: alle Tiere einmal füttern
@@ -230,7 +230,16 @@ storage:
   capacity: 999            # pro Ware (Lager-Ausbau kommt später)
 
 wild:                      # was auf dem Hof von selbst wächst (nie im Sichtbereich des Spielers)
-  weeds: { start: 40, max: 100, every: [6, 12] }      # Unkraut auf dem Hof, wächst rund um die dichten Grasflächen (halb so viel wie vorher)
+  weeds: { start: 40, max: 100, every: [6, 12] }      # Wildkräuter-Büschel auf dem Hof, wachsen rund um die dichten Grasflächen
+  # Wildkräuter (Basti 21.11.2026): Unkraut, Bärlauch, Löwenzahn und Sauerampfer sind EINE Pflanze (ein Büschel aus kleinen Pflanzen).
+  # Jäten = 1 Roll + rolls weitere: Roll 1 gibt zu (1 - pair) 1 Unkraut (= 1 Grünschnitt), zu pair 2 gleiche zufällige Kräuter.
+  # Jeder weitere Roll: je chance für jedes Kraut (also 10 % Bärlauch, 10 % Löwenzahn, 10 % Sauerampfer, 70 % nichts). Bis zu 4 Kräuter.
+  herbs:
+    kinds: [baerlauch, dandel, sorrel]
+    pair: 0.1
+    rolls: 2
+    chance: 0.1
+    xpPicks: 3             # XP pro gefundenem Kraut wie früher beim 3x-Sammeln (Bärlauch 2, Löwenzahn/Sauerampfer 3), Unkraut gibt keine XP
   forage:                  # Sammeln, am Anfang liegt einiges herum (halb so viel wie vorher)
     start: 20
     max: 35
@@ -238,16 +247,10 @@ wild:                      # was auf dem Hof von selbst wächst (nie im Sichtber
     band: [0.84, 0.96]     # Waldrand-Streifen (Anteil der Ellipse)
     items: { wood: 3, stone: 2 }   # Gewichte für Brennholz und Steine (alle every s eins)
     plants:                # wilde Pflanzen (Fruchttabelle): alle spawn s wächst eine nach, picks x Sammeln je picks 1
-      baerlauch: { spawn: 20, picks: 3 }
-      dandel:    { spawn: 70, picks: 3 }
-      sorrel:    { spawn: 80, picks: 3 }
-      mushroom:  { spawn: 70, picks: 3 }
+      mushroom:  { spawn: 70, picks: 3 }   # Bärlauch, Löwenzahn, Sauerampfer stecken seit 21.11.2026 in den Wildkräutern (wild.herbs)
     where:                 # wo was wächst: edge = Waldrand, wet = feuchte Wiese hinter dem Brunnen, grass = Rand der dichten Grasflächen
       wood: [edge]
       mushroom: [edge]
-      baerlauch: [edge, wet]
-      sorrel: [grass]
-      dandel: [grass, wet]
       stone: [edge]
   brambles: { count: 5, every: 2, picks: 3, pick: 5 }   # wilde Brombeeren: alle 2 Tage reif, 3x Pflücken je 5 Beeren
   trees: [apple, apple, nut]   # Bäume auf dem Hof der Reihe nach: Apfel, Apfel, Nuss, Apfel ...

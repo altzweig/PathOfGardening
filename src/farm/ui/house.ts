@@ -1,9 +1,9 @@
 // Evening in the house (Lager, Aufträge, Bauen, Produktion, day summary, level-up). 21.11.2026: the morning weapon
 // choice is gone, the day starts right after sleeping. Pure DOM over the dusk view of the farm. No explaining texts: icons, numbers, names.
 import type { BuildingId, FarmCfg } from '../config';
-import { BUILDING_IDS, STALL_IDS, plotsAllowed } from '../config';
+import { BUILDING_IDS, STALL_IDS, cropXp } from '../config';
 import type { FarmState, Quest } from '../state';
-import { build, buildStatus, canOpenPlot, claimQuests, count, openPlot, openPlots, unclaimed } from '../state';
+import { build, buildStatus, claimQuests, placeField, count, unclaimed } from '../state';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -44,6 +44,15 @@ export class HouseUi {
         <button class="hb big go" data-claim="1">${ic("coin")}<span>Abholen</span></button>`;
       return;
     }
+    // new field from a level-up (Basti 21.11.2026): pick its crop, it is placed on the farm by itself
+    const F = s.fieldPicks[0];
+    rw.hidden = !F;
+    for (const sel of ['#hTop', '#hTabs', '#hBody', '#fHouse footer']) ($(sel) as HTMLElement).style.display = F ? 'none' : '';
+    if (F) {
+      rw.innerHTML = `<div class="fpick">${ic('plot')}<b>${C.names.buildings.plot}</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-field="${k}">${ic(k)}<b>${this.name(k)}</b>
+        <div class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cropXp(C, k) * (C.crops[k]?.cuts ?? 3)}</b></span></div></button>`).join('')}</div>`;
+      return;
+    }
     // summary + level-up banner
     let top = '';
     const S = s.summary;
@@ -56,8 +65,8 @@ export class HouseUi {
         ${S.xp ? `<span class="gd xp">${ic('xp')}<b>+${S.xp}</b></span>` : ''}</div>`;
     }
     for (const L of s.levelUps) {
-      const un = C.levels.unlocks[L] ?? [], plots = plotsAllowed(C, L) - plotsAllowed(C, L - 1);
-      top += `<div class="lvlup">${ic('star')}<b>${L}</b><span>${un.map(id => ic(id)).join('')}${plots > 0 ? `${ic('plot')}<i>+${plots}</i>` : ''}</span></div>`;
+      const un = C.levels.unlocks[L] ?? [];
+      top += `<div class="lvlup">${ic('star')}<b>${L}</b><span>${un.map(id => ic(id)).join('')}${ic('plot')}<i>+1</i></span></div>`;
     }
     $('#hTop').innerHTML = top;
     $('#hTabs').innerHTML = TABS.map(([t, i, n]) => `<button class="htab${t === this.tab ? ' on' : ''}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
@@ -66,7 +75,7 @@ export class HouseUi {
   }
   private badge(t: Tab) {
     const s = this.s; let n = 0;
-    if (t === 'build') n = BUILDING_IDS.filter(id => buildStatus(this.cfg, s, id) === 'ok').length + (canOpenPlot(this.cfg, s) ? 1 : 0);
+    if (t === 'build') n = BUILDING_IDS.filter(id => buildStatus(this.cfg, s, id) === 'ok').length;
     return n ? `<em>${n}</em>` : '';
   }
   /** today's orders (21.11.2026): delivered ones with a green tick, the rest expired; tomorrow brings new ones */
@@ -82,12 +91,6 @@ export class HouseUi {
   }
   private buildList() {
     const s = this.s, C = this.cfg;
-    const plotRow = (() => {
-      const open = openPlots(s), max = Math.min(plotsAllowed(C, s.level), s.plots.length), next = C.plots.byLevel.findIndex(n => n > open) + 1;
-      const lock = open >= max;
-      return `<div class="row b${lock ? ' lock' : ''}">${ic('plot')}<div class="bn"><b>${C.names.buildings.plot}</b><small>${open}/${max}</small></div>
-        ${lock ? (next > 0 ? `<span class="lv">${ic('star')}<b>${next}</b></span>` : '') : `<div class="cost">${this.goods({ money: C.plots.cost }, true)}</div><button class="hb" data-plot="1" ${canOpenPlot(C, s) ? '' : 'disabled'}>Anlegen</button>`}</div>`;
-    })();
     const rows = BUILDING_IDS.map(id => {
       const st = buildStatus(C, s, id), B = C.buildings[id];
       if (st === 'built') return `<div class="row b done">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div>${ic('check')}</div>`;
@@ -96,7 +99,7 @@ export class HouseUi {
       return `<div class="row b">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div><div class="cost">${needs}${this.goods(B.cost ?? {}, true)}</div>
         <button class="hb" data-build="${id}" ${st === 'ok' ? '' : 'disabled'}>${B.broken ? 'Reparieren' : 'Bauen'}</button></div>`;
     });
-    return plotRow + rows.join('');
+    return rows.join('');
   }
   /** what the buildings make during the day (overview only: production runs at the building by left click) */
   private prodList() {
@@ -125,7 +128,7 @@ export class HouseUi {
     if (d.claim) { claimQuests(C, s); this.onSound('ui.levelup'); }
     else if (d.tab) { this.tab = d.tab as Tab; this.onSound('ui.click'); }
     else if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
-    else if (d.plot) { if (openPlot(C, s)) this.onSound('ui.confirm'); }
+    else if (d.field) { if (placeField(C, s, 0, d.field)) this.onSound('ui.levelup'); }
     this.onChange(); this.render();
   }
 }

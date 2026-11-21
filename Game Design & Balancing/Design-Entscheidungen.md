@@ -156,3 +156,11 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - **Kein Korb mehr:** Ernte geht sofort ins Lager (Blaubeeren hüpfen zur Figur, „+n“ schwebt hoch). Waschbären klauen am Lager-Eingang neben dem Haupthaus.
 - **Grafik:** Schattenbereich passt sich jetzt dem sichtbaren Bild an (vorher fester 40-m-Kasten um den Spieler, im Hochformat und rausgezoomt endeten die Schatten mitten im Bild). Schwarze Kästen, die kurz aufblitzten: ungültige Pixel (NaN) wurden vom Bloom zu Blöcken verwischt, ein Filter davor entfernt sie jetzt.
 
+## Ernte-XP, Felder pro Level und Hofladen (Basti, 21.11.2026)
+- Jeder Erntevorgang gibt XP: Seltenheit × (Wachstum + 10 + 2 × Arbeitszeit) / 3, verteilt auf die Vorgänge (Werte in `harvestXp`). Busch, Bäume, Sträucher und wilde Pflanzen zählen mit pauschal 10 s Feldzeit.
+- Tempo: grob alle 2-3 Tage ein Level, Level 2 schon an Tag 1. Ca. 90 % der XP aus Ernten, 10 % aus Aufträgen. Spielzeit grob 2/5 Feldarbeit, 2/5 Kämpfen, 1/5 abends Management.
+- Start: Weizen-, Kohl- und Zwiebelfeld plus Blaubeerbusch, Brunnen heil. Jedes Feld hat eine feste Frucht, Säen wählt nichts mehr aus.
+- Felder sind nicht kaufbar. Jedes Level-up gibt 1 Feld, das abends automatisch auf dem nächsten freien Feldplatz angelegt wird. Erstes Level-up: Wahl aus 3 zufälligen Commons, die man noch nicht hat; danach 1 zufälliges Common (auch schon vorhandene). Uncommon/Rare kommen später über Finden/Kaufen.
+- Hofladen ab Level 2, kostet nur Gefallen: nach Tag 1 noch nicht, nach Tag 2 sicher bezahlbar (Preis knapp über dem Maximum von Tag 1, simuliert).
+- Tiere: am Anfang 1-2 Hasen nahe den Feldern. Erste Annäherung: Flucht 15 m. Zweite: 1 Minute ganz weg. Sie stehlen nichts. Waschbären vorerst nicht (später per Level). Tiere schauen immer in Laufrichtung.
+

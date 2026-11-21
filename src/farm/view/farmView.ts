@@ -119,7 +119,7 @@ interface PlayerView {
   /** 0 standing .. 1 down (crouch / kneel), kneel 0 crouch (waddle) .. 1 on one knee; strike = last hand rake hit into the soil (dust) */
   low: number; kneel: number; strike: number; lean: number;
 }
-interface AnimalView { v: AView; bar: THREE.Group; key: string; frozen: number }
+interface AnimalView { v: AView; bar: THREE.Group; key: string; frozen: number; rot?: number }
 
 export type CamShot = { x: number; z: number; zoom?: number } | null;
 /** screen points (NDC) whose view rays bound the shadow area: corners + edge middles */
@@ -449,11 +449,13 @@ export class FarmView {
       if (!v) {
         const av = makeAnimal(a.type);
         if (a.type === 'raccoon') av.eyes.material = new THREE.MeshBasicMaterial({ color: 0x14100c, vertexColors: true });
-        this.dyn.add(av.g); v = { v: av, bar: makeBar(.55, .06, 0xff6a4a), key: '', frozen: 0 }; this.animals.set(a.id, v);
+        this.dyn.add(av.g); v = { v: av, bar: makeBar(.55, .06, 0xff6a4a), key: '', frozen: 0, rot: undefined }; this.animals.set(a.id, v);
       }
       const C = this.cfg.animals[a.type];
       animate(v.v, { x: a.x, z: a.z, yaw: a.f, dt, now, stun: a.stun > 0 || a.freeze > 0, flee: a.state === 'flee', flash: a.flash > 0, lunge: a.state === 'attack' && a.bite > (C.biteInterval ?? 1.2) - .3, carry: a.carryN });
       v.v.g.position.set(a.x, 0, a.z);
+      // facing = direction of movement (sim yaw, 0 = +z = model forward), smoothed so turns are not instant
+      v.rot = v.rot === undefined ? a.f : lerpAngle(v.rot, a.f, 1 - Math.exp(-dt * 12)); v.v.g.rotation.y = v.rot;
       this.setCarry(v, a);
       v.frozen = lerp(v.frozen, a.freeze > 0 ? 1 : 0, 1 - Math.exp(-dt * 8));
       v.v.mat.emissive.setRGB(.15 * v.frozen + (a.flash > 0 ? .5 : 0), .35 * v.frozen + (a.flash > 0 ? .5 : 0), .7 * v.frozen + (a.flash > 0 ? .5 : 0));

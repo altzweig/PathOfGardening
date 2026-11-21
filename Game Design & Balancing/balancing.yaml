@@ -232,6 +232,19 @@ plots:
 
 storage:
   capacity: 999            # pro Ware (Lager-Ausbau kommt später)
+  # Lager-Seite im Haus-Buch (Basti 21.11.2026): Bereiche von oben nach unten, je so viele Felder wie Waren.
+  # Sortiert wird automatisch: Seltenheit (Common, Uncommon, Rare), dann Erntedauer kurz -> lang (Erzeugnisse: Reihenfolge hier).
+  # Waren, die man noch nie hatte, sind ausgegraut mit Schloss. Wasser (Fass) steht nicht im Lager.
+  sections:
+    - { id: crops, title: Feldfrüchte,    items: [wheat, carrot, potato, onion, garlic, pea, celery, cab, radish, bean, leek, strawb, lettuce, corn, pepper, tomato, zucchini, eggplant, asp, pumpkin, melon, chili, rhubarb, fennel, blue, cran, goose, lemon] }
+    - { id: wild,  title: Wilde Pflanzen, items: [apple, nut, bramble, baerlauch, dandel, sorrel, mushroom, wood, stone] }
+    - { id: goods, title: Erzeugnisse,    items: [straw, green, flour, bread, juice, milk, cheese, egg, slurry, fert, soup, pan, cake, plank] }
+  rarity: { cran: Uncommon, goose: Rare, lemon: Rare }   # Seltenheit von Waren ohne Eintrag in crops / harvestXp.other (sonst Common)
+  perennials:              # Mehrjährige aus der Fruchttabelle ohne Platz auf dem Hof (nur Anzeige): alle every Tage reif, picks x pick
+    cran:  { every: 2, picks: 3, pick: 5 }
+    goose: { every: 2, picks: 3, pick: 5 }
+    lemon: { every: 3, picks: 3, pick: 1 }
+  history: 60              # Tage Verlauf für den Graphen (Lagerbestand / Ertrag pro Tag)
 
 wild:                      # was auf dem Hof von selbst wächst (nie im Sichtbereich des Spielers)
   weeds: { start: 40, max: 100, every: [6, 12] }      # Wildkräuter-Büschel auf dem Hof, wachsen rund um die dichten Grasflächen

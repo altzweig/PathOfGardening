@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#000000">
   <title>PathOfGardening</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700;800&family=Alegreya:ital,wght@0,500;0,700;0,800;1,500;1,700&display=swap">
   <style>
     /* loading screen: inline so it shows before the game script and styles are loaded */
     #load{position:fixed;inset:0;z-index:100;background:#07090b;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;transition:opacity .6s ease;font-family:'Alegreya Sans',system-ui,sans-serif}
@@ -74,16 +74,21 @@
 
   <!-- evening in the house -->
   <div class="fo" id="fHouse" hidden>
-    <div class="panel">
-      <header><div class="ttl"><span class="moonI"></span><b>Abend</b><small>Tag <span id="hDay">1</span></small></div><div class="stat" id="hLvl"></div><div class="stat" id="hMoney"></div><button class="ibtn hMenu" aria-label="Pause"></button></header>
-      <div id="hRewards" hidden></div>
-      <div id="hTop"></div>
-      <nav id="hTabs"></nav>
-      <div id="hBody"></div>
-      <footer><button class="hb big" id="hSleep"></button></footer>
+    <canvas id="hBg" aria-hidden="true"></canvas>
+    <div id="hShell">
+      <div class="book" id="hBook">
+        <nav id="hTabs"></nav>
+        <div class="cover"><i></i><i></i></div>
+        <div id="hStack"></div>
+        <div class="page L" id="hPL"><div class="pc" id="hBody"></div></div>
+        <div class="page R" id="hPR"><div class="pc" id="hBodyR"></div></div>
+        <div class="spine"></div>
+        <div id="hRewards" hidden></div>
+      </div>
+      <footer id="hFoot"><div class="ttl"><span class="moonI"></span><b>Tag <span id="hDay">1</span></b></div><div class="stat" id="hLvl"></div><div class="stat" id="hMoney"></div>
+        <button class="hb big" id="hSleep"></button><button class="ibtn hMenu" aria-label="Pause"></button></footer>
     </div>
   </div>
-
   </div>
 
   <!-- main menu: character card left, menu right, farm behind -->

@@ -206,7 +206,8 @@ ui:
   weaponCycle: { files: [weapon_cycle], vol: 0.3, pitch: [1.0, 1.1] }           # Leertaste
   gameOver:    { files: [game_over], vol: 0.6 }
   pauseIn:     { synth: pauseIn }                                               # Spiel wird langsamer bis zur Pause (Level-up, Menü)
-  pauseOut:    { synth: pauseOut }                                              # Spiel läuft wieder an
+  pauseOut:    { synth: pauseOut }
+  page:        { synth: page }                                                  # Umblättern im Haus-Buch                                              # Spiel läuft wieder an
 
 collect:
   xp:    { files: [bb_collect_1, bb_collect_2, bb_collect_3, bb_collect_4], vol: 0.16, pitch: [0.95, 1.04], rising: true, lp: 2200 }    # Blaubeeren einsammeln (aus blueberry.mp3: dumpf, kurz, leicht tiefer)

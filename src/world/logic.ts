@@ -10,6 +10,10 @@ export interface Pt { x: number; z: number }
 export interface Spawn extends Pt { w?: number }
 export type ObjKind = 'well' | 'basket' | 'bush' | 'tree' | 'bramble';
 export interface LogicObj extends Pt { k: ObjKind; rot?: number }
+/** a building placed in the editor (21.11.2026): centre + rotation; not placed = does not exist in this world */
+export interface LogicBld extends Pt { id: BuildingId; rot: number }
+/** buildings that can be placed freely (house and well have their own tools) */
+export const PLACEABLE: BuildingId[] = ['shop', 'mill', 'juicer', 'bakery', 'carpentry', 'workshop', 'cows', 'sheep', 'dairy', 'chickens', 'silo'];
 export interface Logic {
   /** edge length of the square map (m), centred on 0,0 */
   size: number;
@@ -24,6 +28,10 @@ export interface Logic {
   /** main house: centre and rotation (degrees clockwise seen from above, like balancing.yaml) */
   house: Pt & { rot: number };
   objects: LogicObj[];
+  /** placed buildings (21.11.2026); undefined = older file: the Hofladen stands next to the house as before */
+  buildings?: LogicBld[];
+  /** possible spots of the wild plants (21.11.2026): where they may grow, not how often (that stays in balancing.yaml) */
+  wild?: Pt[];
 }
 
 export const MAP_MIN = 40, MAP_MAX = 256, MAP_DEFAULT = 128;
@@ -44,6 +52,7 @@ export function defaultLogic(): Logic {
     spawns: [{ x: -38, z: -6 }, { x: 34, z: -16 }, { x: 30, z: 22 }, { x: -24, z: 28 }],
     house: { x: 4, z: -8, rot: 0 },
     objects: [{ k: 'well', x: -5, z: -6 }, { k: 'basket', x: -.6, z: -5.4 }, { k: 'bush', x: -9, z: -1 }, { k: 'tree', x: -14, z: -8 }, { k: 'tree', x: 14, z: 6 }],
+    buildings: [], wild: [],
   };
 }
 
@@ -146,13 +155,10 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   const obj = (k: ObjKind) => L.objects.find(o => o.k === k);
   const bld: Partial<Record<BuildingId, RectCfg>> = { house };
   const well = obj('well'); if (well) bld.well = { x: well.x, z: well.z, r: O.b.well?.r ?? .9 };
-  // 21.11.2026: the Hofladen (level 2) has no editor object yet: it keeps its place next to the house as in balancing.yaml
-  const sh = O.b.shop;
-  if (sh && h0.rot !== undefined) {
-    const a0 = h0.rot * Math.PI / 180, dx = sh.x - h0.x, dz = sh.z - h0.z, c = Math.cos(a0), sn = Math.sin(-a0);
-    const lz = dx * sn + dz * c, lx0 = dx * c - dz * sn, lx = lx0 + Math.sign(lx0) * 2.5, p = houseLocal(L.house, lx, lz); // 2.5 m more room to the house wall
-    bld.shop = { ...sh, x: p.x, z: p.z, rot: (sh.rot ?? 0) - h0.rot + L.house.rot };
-  }
+  // placed buildings: footprint (w, d / r) from balancing.yaml, place from the editor. Older files without buildings: the
+  // Hofladen keeps its old spot next to the house (PR #18)
+  if (L.buildings) { for (const b of L.buildings) { const r = O.b[b.id]; if (r && b.id !== 'house' && b.id !== 'well') bld[b.id] = { ...r, x: b.x, z: b.z, rot: b.rot }; } }
+  else { const sh = autoShop(O.b, L.house); if (sh) bld.shop = sh; }
   H.buildings = bld as Record<BuildingId, RectCfg>;
   // buildings without a place do not exist in this world (build menu, unlocks)
   const keep = O.ids.filter(id => bld[id]); BUILDING_IDS.length = 0; BUILDING_IDS.push(...keep);
@@ -166,6 +172,16 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   cfg.start.plots = O.plots.slice(0, H.plots.length);
 }
 
+/** the old automatic spot of the Hofladen: beside the house as in balancing.yaml, 2.5 m more room to the house wall */
+export function autoShop(B: Partial<Record<BuildingId, RectCfg>>, house: Pt & { rot: number }): RectCfg | null {
+  const sh = B.shop, h0 = B.house; if (!sh || !h0 || h0.rot === undefined) return null;
+  const a0 = h0.rot * Math.PI / 180, dx = sh.x - h0.x, dz = sh.z - h0.z, c = Math.cos(a0), sn = Math.sin(-a0);
+  const lz = dx * sn + dz * c, lx0 = dx * c - dz * sn, lx = lx0 + Math.sign(lx0) * 2.5, p = houseLocal(house, lx, lz);
+  return { ...sh, x: p.x, z: p.z, rot: (sh.rot ?? 0) - h0.rot + house.rot };
+}
+/** footprint of a placed building (RectCfg with the size from balancing.yaml) */
+export function bldRect(B: Partial<Record<BuildingId, RectCfg>>, b: LogicBld): RectCfg { const r = B[b.id] ?? { x: 0, z: 0, w: 3, d: 3 }; return { ...r, x: b.x, z: b.z, rot: b.rot }; }
+
 /** a logic taken from the farm of balancing.yaml (template "bisheriger Hof"): clearing -> walk area, gaps -> spawns */
 export function logicFromCfg(cfg: FarmCfg, gaps: Pt[], brambles: Pt[]): Logic {
   const H = cfg.hof, { rx, rz } = H.clearing, hs = H.buildings.house;
@@ -178,6 +194,7 @@ export function logicFromCfg(cfg: FarmCfg, gaps: Pt[], brambles: Pt[]): Logic {
     size: 170, walk: ellipse(rx * .97, rz * .97, 12), build: ellipse(rx * .8, rz * .8, 10),
     fields: H.plots.map(p => ({ ...p })), spawns: gaps.map(g => ({ x: g.x, z: g.z })),
     house: { x: hs.x, z: hs.z, rot: hs.rot ?? 0 }, objects,
+    buildings: PLACEABLE.filter(id => H.buildings[id]).map(id => ({ id, x: H.buildings[id].x, z: H.buildings[id].z, rot: H.buildings[id].rot ?? 0 })), wild: [],
   };
 }
 export function cleanLogic(L: Logic): Logic {
@@ -187,5 +204,7 @@ export function cleanLogic(L: Logic): Logic {
     spawns: L.spawns.map(s => (s.w !== undefined && s.w !== 1 ? { ...p(s), w: r(s.w) } : p(s))),
     house: { ...p(L.house), rot: r(L.house.rot) },
     objects: L.objects.map(o => (o.rot ? { k: o.k, ...p(o), rot: r(o.rot) } : { k: o.k, ...p(o) })),
+    ...(L.buildings ? { buildings: L.buildings.map(b => ({ id: b.id, ...p(b), rot: r(b.rot) })) } : {}),
+    ...(L.wild ? { wild: L.wild.map(q => ({ x: Math.round(q.x * 10) / 10, z: Math.round(q.z * 10) / 10 })) } : {}),
   };
 }

@@ -295,8 +295,13 @@ export class FarmView {
     for (const [id, v] of this.buildings) {
       const b = this.s.buildings[id]; const built = !!b?.built || id === 'house';
       v.built.visible = built; v.site.visible = !built; if (v.broken) v.broken.visible = !built;
+      // world editor (21.11.2026): no construction site or ruin, an unbuilt building is simply not there
+      v.root.visible = built || !this.hof.hideUnbuilt;
     }
+    // what was painted / placed under a building disappears once it stands (grass, plants, stones)
+    if (this.hof.setBuilt(id => id === 'house' || !!this.s.buildings[id]?.built) || !this.underDone) { this.underDone = true; this.world.buildingsChanged(); }
   }
+  private underDone = false;
   setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) p.key = ''; }
 
   // ---------------- player ----------------

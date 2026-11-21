@@ -7,11 +7,21 @@ import { buildBed } from '../farm/view/beds';
 import { buildPlant } from '../view/models';
 import { natureMesh } from '../view/nature';
 import { ICONS } from './raccoon';
-import { Logic, ObjKind, Pt, inHex, inPoly, splinePoly } from '../world/logic';
+import { Logic, LogicBld, ObjKind, Pt, bldRect, inHex, inPoly, splinePoly } from '../world/logic';
+import type { BuildingId, RectCfg } from '../farm/config';
 
-export type Sel = { k: 'walk' | 'build'; i: number } | { k: 'field' | 'spawn' | 'obj'; i: number } | { k: 'house' };
+export type Sel = { k: 'walk' | 'build'; i: number } | { k: 'field' | 'spawn' | 'obj' | 'bld'; i: number } | { k: 'house' };
 export const OBJ_LABEL: Record<ObjKind | 'house', string> = { house: 'Haupthaus', well: 'Brunnen', basket: 'Korb', bush: 'Blaubeerbusch', tree: 'Obstbaum', bramble: 'Brombeere' };
-export interface Show { bounds: boolean; fields: boolean; spawns: boolean; labels: boolean }
+export interface Show { bounds: boolean; fields: boolean; spawns: boolean; labels: boolean; wild: boolean }
+/** buildings in the editor are see-through: the ground and plants under them stay visible and paintable */
+const GHOST = new Map<THREE.Material, THREE.Material>();
+function ghostly(root: THREE.Object3D, opacity = .42) {
+  root.traverse(o => {
+    const m = o as THREE.Mesh; if (!m.isMesh) return; m.castShadow = false;
+    const one = (mt: THREE.Material) => { let g = GHOST.get(mt); if (!g) { g = mt.clone(); Object.assign(g, { transparent: true, opacity, depthWrite: false }); GHOST.set(mt, g); } return g; };
+    m.material = Array.isArray(m.material) ? m.material.map(one) : one(m.material);
+  });
+}
 
 const COL = { walk: 0x7fd0ff, build: 0xe3b964, bad: 0xff6a50, sel: 0xffffff };
 const top = (m: THREE.Material) => { Object.assign(m, { depthTest: false, depthWrite: false, transparent: true, toneMapped: false }); return m; };
@@ -48,18 +58,30 @@ function hexLine(H: number, color: number) {
   const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), top(new THREE.LineBasicMaterial({ color, opacity: .9 }))); l.renderOrder = 994; return l;
 }
 
+/** is (x, z) on a building footprint (pad = margin) */
+export function inRect(r: RectCfg, x: number, z: number, pad = 0) {
+  if (r.r !== undefined) return Math.hypot(x - r.x, z - r.z) < r.r + pad;
+  const a = (r.rot ?? 0) * Math.PI / 180, dx = x - r.x, dz = z - r.z, lx = dx * Math.cos(a) + dz * Math.sin(a), lz = -dx * Math.sin(a) + dz * Math.cos(a);
+  return Math.abs(lx) < (r.w ?? 3) / 2 + pad && Math.abs(lz) < (r.d ?? 3) / 2 + pad;
+}
+export type { LogicBld };
+
 export class LogicOverlay {
   root = new THREE.Group();
   private bounds = new THREE.Group(); private fields = new THREE.Group(); private spawns = new THREE.Group(); private objs = new THREE.Group(); private labels = new THREE.Group();
   private beds: THREE.Group[] = [];
   private house: BuildingView | null = null; private well: BuildingView | null = null;
+  private blds = new Map<BuildingId, BuildingView>();
+  private wildG = new THREE.Group(); private wildMesh: THREE.InstancedMesh | null = null;
+  /** footprints (w, d / r) of balancing.yaml and the building names */
+  rects: Partial<Record<BuildingId, RectCfg>> = {}; names: Partial<Record<string, string>> = {};
   private objCache = new Map<string, THREE.Object3D[]>();
   private spawnTexs: THREE.CanvasTexture[] = [];
   private img: HTMLImageElement | null = null;
   private selRing: THREE.Mesh;
   private dot = new THREE.CircleGeometry(.42, 20);
   constructor(parent: THREE.Object3D, private H: number) {
-    this.root.add(this.bounds, this.fields, this.spawns, this.objs, this.labels); parent.add(this.root);
+    this.root.add(this.bounds, this.fields, this.spawns, this.objs, this.labels, this.wildG); parent.add(this.root);
     this.selRing = new THREE.Mesh(new THREE.RingGeometry(.9, 1.05, 40), top(new THREE.MeshBasicMaterial({ color: COL.sel, side: THREE.DoubleSide })));
     this.selRing.rotation.x = -Math.PI / 2; this.selRing.renderOrder = 999; this.root.add(this.selRing);
     const img = new Image(); img.onload = () => { this.img = img; for (const [i, t] of this.spawnTexs.entries()) { const n = spawnTex(i + 1, img); t.image = n.image; t.needsUpdate = true; } };
@@ -114,11 +136,19 @@ export class LogicOverlay {
       const w = p.w ?? 1; if (w !== 1) { const s = label('×' + w.toFixed(1), .7, '#ffb0a0'); s.position.set(p.x, .9, p.z + 1.2); this.spawns.add(s); }
     });
     this.spawns.visible = show.spawns;
-    // house + objects (they are real things in the game: always visible)
-    if (!this.house) { this.house = buildBuilding('house', { x: 0, z: 0, w: 8.4, d: 5.2 }, 0); this.house.site.visible = false; this.objs.add(this.house.root); }
+    // wild plant spawn points: small green dots
+    this.syncWild(L, show.wild);
+    // house, buildings + objects (they are real things in the game: always visible; buildings see-through)
+    if (!this.house) { this.house = buildBuilding('house', { x: 0, z: 0, w: 8.4, d: 5.2 }, 0); this.house.site.visible = false; ghostly(this.house.root); this.objs.add(this.house.root); }
+    for (const v of this.blds.values()) v.root.visible = false;
+    for (const b of L.buildings ?? []) {
+      let v = this.blds.get(b.id);
+      if (!v) { const r = this.rects[b.id] ?? { x: 0, z: 0, w: 3, d: 3 }; v = buildBuilding(b.id, { ...r, x: 0, z: 0, rot: 0 }, 0); v.site.visible = false; ghostly(v.root); this.blds.set(b.id, v); this.objs.add(v.root); }
+      v.root.visible = true; v.root.position.set(b.x, 0, b.z); v.root.rotation.y = -b.rot * Math.PI / 180;
+    }
     this.house.root.position.set(L.house.x, 0, L.house.z); this.house.root.rotation.y = -L.house.rot * Math.PI / 180;
     const well = L.objects.find(o => o.k === 'well');
-    if (well && !this.well) { this.well = buildBuilding('well', { x: 0, z: 0, r: .9 }, 0); if (this.well.broken) this.well.broken.visible = false; this.objs.add(this.well.root); }
+    if (well && !this.well) { this.well = buildBuilding('well', { x: 0, z: 0, r: .9 }, 0); if (this.well.broken) this.well.broken.visible = false; ghostly(this.well.root); this.objs.add(this.well.root); }
     if (this.well) { this.well.root.visible = !!well; if (well) { this.well.root.position.set(well.x, 0, well.z); this.well.root.rotation.y = -(well.rot ?? 0) * Math.PI / 180; } }
     const used = new Map<string, number>();
     for (const list of this.objCache.values()) for (const o of list) o.visible = false;
@@ -134,6 +164,7 @@ export class LogicOverlay {
       const add = (t: string, x: number, z: number, y: number) => { const s = label(t, .9); s.position.set(x, y, z); this.labels.add(s); };
       add(OBJ_LABEL.house, L.house.x, L.house.z, 5.6);
       for (const o of L.objects) add(OBJ_LABEL[o.k], o.x, o.z, o.k === 'tree' ? 4.2 : o.k === 'basket' ? 1.1 : 2.2);
+      for (const b of L.buildings ?? []) add(this.names[b.id] ?? b.id, b.x, b.z, b.id === 'silo' ? 7 : b.id === 'mill' ? 6.4 : 4.2);
     }
     // selection
     const sp = sel ? this.selPos(L, sel) : null;
@@ -146,7 +177,29 @@ export class LogicOverlay {
       case 'spawn': { const p = L.spawns[s.i]; return p ? { ...p, r: 1.5 } : null; }
       case 'obj': { const p = L.objects[s.i]; return p ? { ...p, r: p.k === 'tree' ? 1.6 : 1.1 } : null; }
       case 'house': return { ...L.house, r: 5.2 };
+      case 'bld': { const b = L.buildings?.[s.i]; if (!b) return null; const r = this.rects[b.id]; return { ...b, r: r?.r !== undefined ? r.r + .6 : Math.hypot(r?.w ?? 3, r?.d ?? 3) / 2 + .3 }; }
     }
+  }
+  /** index of the placed building whose footprint holds (x, z) */
+  bldAt(L: Logic, x: number, z: number) {
+    const B = L.buildings ?? [];
+    for (let i = B.length - 1; i >= 0; i--) if (inRect(bldRect(this.rects, B[i]), x, z, .2)) return i;
+    return -1;
+  }
+  private wildN = 0;
+  private syncWild(L: Logic, on: boolean) {
+    const W = L.wild ?? [];
+    this.wildG.visible = on && W.length > 0;
+    if (!this.wildMesh || this.wildN < W.length) {
+      const cap = Math.max(256, W.length * 2);
+      if (this.wildMesh) { this.wildG.remove(this.wildMesh); this.wildMesh.dispose(); }
+      const g = new THREE.CircleGeometry(.22, 10); g.rotateX(-Math.PI / 2);
+      this.wildMesh = new THREE.InstancedMesh(g, top(new THREE.MeshBasicMaterial({ color: 0x7ee05a, opacity: .9 })), cap); this.wildMesh.renderOrder = 996; this.wildMesh.frustumCulled = false;
+      this.wildG.add(this.wildMesh); this.wildN = cap;
+    }
+    const M = new THREE.Matrix4();
+    W.forEach((p, i) => { M.makeTranslation(p.x, .075, p.z); this.wildMesh!.setMatrixAt(i, M); });
+    this.wildMesh.count = W.length; this.wildMesh.instanceMatrix.needsUpdate = true;
   }
   /** is the point on a field (hex) */
   fieldAt(L: Logic, x: number, z: number) { return L.fields.findIndex(p => inHex(p, this.H * 1.05, x, z)); }

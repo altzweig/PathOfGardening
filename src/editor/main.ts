@@ -9,7 +9,7 @@
 import './editor.css';
 import * as THREE from 'three';
 import { applyQuality, camera, envU, gfx, isTouch, renderer, scene, GEO } from '../view/core';
-import { loadFarmCfg, FarmCfg } from '../farm/config';
+import { loadFarmCfg, FarmCfg, BuildingId } from '../farm/config';
 import { Hof } from '../farm/hof';
 import { newState } from '../farm/state';
 import { FarmView } from '../farm/view/farmView';
@@ -18,10 +18,10 @@ import { CATS, Cat, MODEL, MODELS, ModelDef } from '../world/catalog';
 import { PropRec, World, WorldFile, decodeWorld, encodeWorld, fetchWorldFile, loadDraft, saveDraft } from '../world/data';
 import { Rect, TexLayer, WorldPaint, grassHeightByte, unionRect } from '../world/paint';
 import { toInst } from '../world/props';
-import { HEX_STEP, Logic, LogicObj, MAP_MAX, MAP_MIN, ObjKind, Pt, SINGLE, applyLogic, defaultLogic, hexSnap, inPoly, logicFromCfg, splinePoly } from '../world/logic';
+import { HEX_STEP, Logic, LogicObj, MAP_MAX, MAP_MIN, ObjKind, PLACEABLE, Pt, SINGLE, applyLogic, autoShop, bldRect, defaultLogic, hexSnap, inPoly, logicFromCfg, splinePoly } from '../world/logic';
 import { MAX_TEX, TerrainInfo, swatchUrl, terrainList } from '../view/terrain';
 import { BrushShape, loadBrushes, stampOf } from './brushes';
-import { LogicOverlay, OBJ_LABEL, Sel, Show } from './overlay';
+import { LogicOverlay, OBJ_LABEL, Sel, Show, inRect } from './overlay';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const h = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
@@ -71,12 +71,16 @@ const IC = {
   bramble: I('<path d="M4 20c4-2 6-8 8-14M12 6c2 6 4 12 8 14"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="13" r="1.5"/><circle cx="12" cy="17" r="1.5"/>'),
   draw: I('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>'),
   check: I('<path d="M4 12l5 5L20 6"/>'),
+  barn: I('<path d="M3 21V10l9-6 9 6v11z"/><path d="M8 21v-7h8v7M8 14l8 7M16 14l-8 7"/>'),
+  sprout: I('<path d="M12 21v-9"/><path d="M12 12c0-4-3-6-7-6 0 4 3 6 7 6z"/><path d="M12 14c0-4 3-6 7-6 0 4-3 6-7 6z"/>'),
+  folder: I('<path d="M3 6a1 1 0 011-1h5l2 2h9a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>'),
 };
 
 type Mode = 'props' | 'paint' | 'logic';
 type Tool = 'select' | 'place' | 'scatter' | 'erase';
 type PTool = 'paint' | 'erase' | 'grass' | 'nograss';
-type LTool = 'select' | 'walk' | 'build' | 'field' | 'spawn' | 'house' | ObjKind;
+type LTool = 'select' | 'walk' | 'build' | 'field' | 'spawn' | 'house' | 'bld' | 'wild' | ObjKind;
+type WMode = 'one' | 'spray' | 'erase';
 type Snap = { base: string; layers: TexLayer[] };
 type Hist =
   | { k: 'props'; before: string; after: string }
@@ -105,7 +109,11 @@ class Editor {
   density = .6; overlap = false; scaleMul = 1; scaleVar = .15; scatterRotRandom = true; scatterRot = 0; placeRotRandom = true; placeRot = 0;
   // logic
   snap = true; drawing: 'walk' | 'build' | null = null; lsel: Sel | null = null;
-  show: Show = { bounds: true, fields: true, spawns: true, labels: true };
+  show: Show = { bounds: true, fields: true, spawns: true, labels: true, wild: true };
+  /** building tool: which building is placed; wild plant spots: single / spray / erase, brush, dots per m² */
+  bldChoice: BuildingId = 'shop'; wmode: WMode = 'spray'; wildSize = 2; wildDens = .35;
+  /** name of the GitHub draft this world came from / was saved as */
+  draftName = '';
   sel = new Set<PropRec>();
   source = '';
   // camera
@@ -113,7 +121,7 @@ class Editor {
   private hist: Hist[] = []; private redoStack: Hist[] = [];
   private keys = new Set<string>();
   private ptrs = new Map<number, { x: number; y: number }>();
-  private drag: null | { kind: 'pan' | 'orbit' | 'move' | 'box' | 'paint' | 'scatter' | 'erase' | 'fence' | 'gesture' | 'logic'; x: number; y: number; [k: string]: any } = null;
+  private drag: null | { kind: 'pan' | 'orbit' | 'move' | 'box' | 'paint' | 'scatter' | 'erase' | 'fence' | 'gesture' | 'logic' | 'wild'; x: number; y: number; [k: string]: any } = null;
   private propsBefore = ''; private logicBefore = '';
   private ghost = new THREE.Group(); private ghostModel = ''; private ghostRy = 0; private ghostS = 1;
   private ring: THREE.Mesh; private selRings: THREE.Mesh[] = [];
@@ -136,7 +144,7 @@ class Editor {
     const fileF = await fetchWorldFile(), draftF = await loadDraft();
     let w: World | null = null; this.source = 'Neue Welt';
     if (fileF) { try { w = await decodeWorld(fileF); this.source = 'Stand im Spiel'; } catch (e) { console.error(e); } }
-    if (draftF) { try { w = await decodeWorld(draftF); this.source = 'Entwurf'; } catch (e) { console.error(e); } }
+    if (draftF) { try { w = await decodeWorld(draftF); this.source = 'Arbeitsstand im Browser'; } catch (e) { console.error(e); } }
     const start = this.fromWorld(w);
     this.logic = start.logic; this.list = start.props; this.paint = start.paint;
     [this.terrains, this.brushes] = await Promise.all([terrainList(), loadBrushes()]);
@@ -152,7 +160,7 @@ class Editor {
     await this.view.world.ready;
     this.applyProps();
     const sc = this.view.world.nature!.parent!; sc.add(this.ghost, this.ring, this.rings);
-    this.overlay = new LogicOverlay(sc, this.cfg.plots.size / 2);
+    this.overlay = new LogicOverlay(sc, this.cfg.plots.size / 2); this.overlay.rects = this.rawCfg.hof.buildings; this.overlay.names = this.rawCfg.names.buildings;
     this.syncLogic();
     this.activeLayer = this.paint.layers.slice(-1)[0]?.id ?? 0;
     await this.makeThumbs();
@@ -165,9 +173,15 @@ class Editor {
   }
   /** the world the editor works on (always with logic): a file without logic gets the old farm as logic */
   private fromWorld(w: World | null): { logic: Logic; props: PropRec[]; paint: WorldPaint } {
-    if (w?.logic) return { logic: w.logic, props: w.props ?? [], paint: w.paint ?? new WorldPaint(1024, w.logic.size) };
+    if (w?.logic) return { logic: this.norm(w.logic), props: w.props ?? [], paint: w.paint ?? new WorldPaint(1024, w.logic.size) };
     if (w) { const t = this.template(); return { logic: { ...t.logic, size: w.paint?.extent ?? t.logic.size }, props: w.props ?? t.props, paint: w.paint ?? t.paint }; }
     const logic = defaultLogic(); return { logic, props: [], paint: new WorldPaint(1024, logic.size) };
+  }
+  /** older worlds: no placed buildings yet -> the Hofladen where the game put it so far; no wild plant spots */
+  private norm(L: Logic): Logic {
+    if (!L.buildings) { L.buildings = []; const sh = autoShop(this.rawCfg.hof.buildings, L.house); if (sh) L.buildings.push({ id: 'shop', x: sh.x, z: sh.z, rot: sh.rot ?? 0 }); }
+    L.wild ??= [];
+    return L;
   }
   /** the farm of balancing.yaml as a starting point: its clearing, gaps, plots, forest and ground */
   private template(): { logic: Logic; props: PropRec[]; paint: WorldPaint } {
@@ -223,7 +237,7 @@ class Editor {
   }
   private planeArr(l: number | 'gd' | 'gh') { return l === 'gd' ? this.paint.gd : l === 'gh' ? this.paint.gh : this.paint.layers.find(L => L.id === l)?.m ?? null; }
   /** something changed: save the draft soon */
-  changed() { this.source = 'Entwurf'; const s = document.getElementById('ed-src'); if (s) s.textContent = this.source; this.saveT = 1.2; this.updUndo(); }
+  changed() { if (!this.source.endsWith('(geändert)')) this.setSource(this.source + ' (geändert)'); this.saveT = 1.2; this.updUndo(); }
   updUndo() { const u = document.getElementById('ed-undo') as HTMLButtonElement | null; if (!u) return; u.disabled = !this.hist.length; ($('#ed-redo') as HTMLButtonElement).disabled = !this.redoStack.length; }
   async world(): Promise<WorldFile> { return encodeWorld({ props: this.list, paint: this.paint, logic: this.logic }); }
 
@@ -356,11 +370,12 @@ class Editor {
     if (want('spawn') && this.show.spawns) { const i = L.spawns.findIndex(p => near(p, 26)); if (i >= 0) return { k: 'spawn', i }; }
     const oi = L.objects.findIndex(o => (want(o.k) || only === o.k) && near(o, o.k === 'tree' ? 30 : 22)); if (oi >= 0) return { k: 'obj', i: oi };
     if (g && (want('field')) && this.show.fields) { const i = this.overlay.fieldAt(L, g.x, g.z); if (i >= 0) return { k: 'field', i }; }
-    if (g && want('house')) { const H = L.house, a = H.rot * DEG, dx = g.x - H.x, dz = g.z - H.z, lx = dx * Math.cos(a) - dz * Math.sin(a), lz = dx * Math.sin(a) + dz * Math.cos(a); if (Math.abs(lx) < 4.4 && Math.abs(lz) < 2.8) return { k: 'house' }; }
+    if (g && want('bld')) { const i = this.overlay.bldAt(L, g.x, g.z); if (i >= 0) return { k: 'bld', i }; }
+    if (g && want('house') && inRect({ x: L.house.x, z: L.house.z, w: 8.4, d: 5.2, rot: L.house.rot }, g.x, g.z, .2)) return { k: 'house' };
     return null;
   }
   selPt(s: Sel): Pt & { rot?: number } {
-    const L = this.logic; return s.k === 'house' ? L.house : s.k === 'walk' || s.k === 'build' ? L[s.k][s.i] : s.k === 'field' ? L.fields[s.i] : s.k === 'spawn' ? L.spawns[s.i] : L.objects[s.i];
+    const L = this.logic; return s.k === 'house' ? L.house : s.k === 'walk' || s.k === 'build' ? L[s.k][s.i] : s.k === 'field' ? L.fields[s.i] : s.k === 'spawn' ? L.spawns[s.i] : s.k === 'bld' ? L.buildings![s.i] : L.objects[s.i];
   }
   /** insert a control point where the spline was clicked (segment nearest to the click) */
   insertPoint(k: 'walk' | 'build', g: Pt): number {
@@ -378,8 +393,8 @@ class Editor {
     if ((s.k === 'walk' || s.k === 'build') && L[s.k].length <= 3) { this.toast('Eine Fläche braucht mindestens 3 Punkte'); return; }
     if (s.k === 'house') { this.toast('Das Haupthaus kann nur verschoben werden'); return; }
     this.beginLogic();
-    if (s.k === 'walk' || s.k === 'build') L[s.k].splice(s.i, 1); else if (s.k === 'field') L.fields.splice(s.i, 1); else if (s.k === 'spawn') L.spawns.splice(s.i, 1); else L.objects.splice(s.i, 1);
-    this.lsel = null; this.endLogic(); this.updInsp();
+    if (s.k === 'walk' || s.k === 'build') L[s.k].splice(s.i, 1); else if (s.k === 'field') L.fields.splice(s.i, 1); else if (s.k === 'spawn') L.spawns.splice(s.i, 1); else if (s.k === 'bld') L.buildings!.splice(s.i, 1); else L.objects.splice(s.i, 1);
+    this.lsel = null; this.endLogic(); this.updInsp(); if (s.k === 'bld') this.panel();
   }
   private logicDown(x: number, y: number, g: Pt) {
     const t = this.ltool, L = this.logic;
@@ -402,6 +417,17 @@ class Editor {
       if (L.fields.some(q => Math.hypot(q.x - p.x, q.z - p.z) < HEX_STEP * .8)) { this.drag = { kind: 'pan', x, y, click: true }; return; }
       L.fields.push(p); grab({ k: 'field', i: L.fields.length - 1 }, true); return;
     }
+    if (t === 'bld') {
+      const B = L.buildings ??= [], hit = this.pickLogic(x, y, 'bld'); if (hit?.k === 'bld') { this.bldChoice = B[hit.i].id; grab(hit); this.panel(); return; }
+      let i = B.findIndex(b => b.id === this.bldChoice);
+      if (i < 0) { const r = this.rawCfg.hof.buildings[this.bldChoice]; B.push({ id: this.bldChoice, x: g.x, z: g.z, rot: Math.round(L.house.rot + ((r?.rot ?? 0) - (this.rawCfg.hof.buildings.house?.rot ?? 0))) }); i = B.length - 1; this.panel(); }
+      else { B[i].x = g.x; B[i].z = g.z; }
+      grab({ k: 'bld', i }); return;
+    }
+    if (t === 'wild') {
+      if (this.wmode === 'one') { const W = L.wild ??= []; if (!W.some(p => Math.hypot(p.x - g.x, p.z - g.z) < .45)) W.push({ x: g.x, z: g.z }); this.syncLogic(); this.updStats(); this.drag = { kind: 'pan', x, y, noClear: true }; return; }
+      this.drag = { kind: 'wild', x, y }; this.wildAt(g.x, g.z); return;
+    }
     if (t === 'spawn') { const hit = this.pickLogic(x, y, 'spawn'); if (hit?.k === 'spawn') { grab(hit); return; } L.spawns.push({ x: g.x, z: g.z }); grab({ k: 'spawn', i: L.spawns.length - 1 }); return; }
     // interaction objects: the single ones move, the others are added
     const hit = this.pickLogic(x, y, t); if (hit && hit.k === 'obj' && L.objects[hit.i].k === t) { grab(hit); return; }
@@ -413,9 +439,27 @@ class Editor {
     if (D.snapField && this.snap) { const s = hexSnap(x, z); x = s.x; z = s.z; }
     p.x = x; p.z = z; this.syncLogic();
   }
+  /** spray / erase wild plant spots in the brush (spray fills up to the chosen density, never on fields) */
+  wildAt(x: number, z: number) {
+    const W = this.logic.wild ??= [], r = this.wildSize, r2 = r * r;
+    if (this.wmode === 'erase') { const n = W.length; this.logic.wild = W.filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 > r2); if (this.logic.wild.length !== n) { this.syncLogic(); this.updStats(); } return; }
+    const near = W.filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < (r + 1) ** 2), want = Math.max(1, Math.round(this.wildDens * Math.PI * r2));
+    let have = near.filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < r2).length; const minD = Math.max(.45, .7 / Math.sqrt(this.wildDens));
+    for (let t = 0; t < (want - have) * 10 && have < want; t++) {
+      const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      if (near.some(p => (p.x - px) ** 2 + (p.z - pz) ** 2 < minD * minD) || this.onField(px, pz)) continue;
+      const p = { x: px, z: pz }; W.push(p); near.push(p); have++;
+    }
+    this.syncLogic(); this.updStats();
+  }
+  updStats() { const el = document.getElementById('ed-stats'); if (el) el.innerHTML = this.statsText(); }
+  statsText() {
+    const L = this.logic, cnt = (k: ObjKind) => L.objects.filter(o => o.k === k).length, B = L.buildings ?? [];
+    return `${L.fields.length} Felder · ${L.spawns.length} Spawns · ${(L.wild ?? []).length} Wildpflanzen-Punkte · ${B.length} Gebäude · ${cnt('tree')} Obstbäume · ${cnt('bramble')} Brombeeren`;
+  }
   /** problems with the logic, shown in the logic panel */
   warnings(): string[] {
-    const L = this.logic, b = splinePoly(L.build), w = splinePoly(L.walk), out: string[] = [];
+    const L = this.logic, b = splinePoly(L.build), bp = b, w = splinePoly(L.walk), out: string[] = [];
     if (!L.spawns.length) out.push('Kein Spawn gesetzt: es kommen keine Tiere.');
     if (!L.fields.length) out.push('Keine Feldplätze.');
     const fo = L.fields.filter(p => !inPoly(b, p.x, p.z)).length; if (fo) out.push(`${fo} Feld${fo > 1 ? 'er' : ''} außerhalb des Baubereichs.`);
@@ -424,6 +468,14 @@ class Editor {
     for (const k of SINGLE) { const o = L.objects.find(q => q.k === k); if (!o) out.push(`${OBJ_LABEL[k]} fehlt.`); else if (!inPoly(w, o.x, o.z)) out.push(`${OBJ_LABEL[k]} ist nicht erreichbar.`); }
     if (!L.objects.some(o => o.k === 'well')) out.push('Ohne Brunnen kann die Gießkanne nicht gefüllt werden.');
     const half = L.size / 2; if (w.some(p => Math.abs(p.x) > half || Math.abs(p.z) > half)) out.push('Begehbarer Bereich ragt über den Kartenrand.');
+    const nm = (id: BuildingId) => this.rawCfg.names.buildings[id] ?? id;
+    for (const b of L.buildings ?? []) {
+      const r = bldRect(this.rawCfg.hof.buildings, b);
+      if (!inPoly(bp, b.x, b.z)) out.push(`${nm(b.id)} außerhalb des Baubereichs.`);
+      if (L.fields.some(f => inRect(r, f.x, f.z, this.cfg.plots.size / 2))) out.push(`${nm(b.id)} steht auf einem Feldplatz.`);
+    }
+    const miss = PLACEABLE.filter(id => this.rawCfg.hof.buildings[id] && !(L.buildings ?? []).some(b => b.id === id));
+    if (miss.length) out.push(`Nicht platziert (gibt es in dieser Welt nicht): ${miss.map(nm).join(', ')}.`);
     return [...new Set(out)];
   }
   updWarn() { const el = document.getElementById('ed-warn'); if (!el) return; const W = this.warnings(); el.innerHTML = W.map(t => `<div>⚠ ${t}</div>`).join(''); el.hidden = !W.length; }
@@ -454,7 +506,7 @@ class Editor {
     addEventListener('pointerup', e => this.up(e)); addEventListener('pointercancel', e => this.up(e));
     cv.addEventListener('wheel', e => {
       e.preventDefault();
-      if (e.ctrlKey && (this.mode === 'paint' || this.tool === 'scatter' || this.tool === 'erase')) { this.setSize(this.curSize() * Math.pow(1.002, -e.deltaY)); return; }
+      if (e.ctrlKey && (this.mode === 'paint' || this.wildBrush() || this.mode === 'props' && (this.tool === 'scatter' || this.tool === 'erase'))) { this.setSize(this.curSize() * Math.pow(1.002, -e.deltaY)); return; }
       this.zoom = clamp(this.zoom * Math.pow(1.0012, e.deltaY), .04, this.maxZoom());
     }, { passive: false });
     addEventListener('keydown', e => this.key(e, true)); addEventListener('keyup', e => this.key(e, false));
@@ -476,7 +528,7 @@ class Editor {
     if (k === 'enter' && this.drawing) { this.drawing = null; this.endLogic(); this.panel(); return; }
     if (k === 'q' || k === 'e') {
       const d = (k === 'q' ? 1 : -1) * Math.PI / 12;
-      if (this.mode === 'logic' && this.lsel && (this.lsel.k === 'house' || this.lsel.k === 'obj')) { this.beginLogic(); const p = this.selPt(this.lsel); p.rot = ((p.rot ?? 0) - d / DEG + 360) % 360; this.endLogic(); this.updInsp(); return; }
+      if (this.mode === 'logic' && this.lsel && (this.lsel.k === 'house' || this.lsel.k === 'obj' || this.lsel.k === 'bld')) { this.beginLogic(); const p = this.selPt(this.lsel); p.rot = ((p.rot ?? 0) - d / DEG + 360) % 360; this.endLogic(); this.updInsp(); return; }
       if (this.tool === 'place') { this.ghostRy += d; this.placeRotRandom = false; this.placeRot = ((this.ghostRy / DEG) % 360 + 360) % 360; }
       else if (this.sel.size) { this.beginProps(); for (const p of this.sel) p.ry += d; this.touch(...[...this.sel].map(p => p.m)); this.endProps(); this.updInsp(); }
       return;
@@ -546,6 +598,7 @@ class Editor {
       case 'pan': D.moved = (D.moved ?? 0) + Math.abs(dx) + Math.abs(dy); this.panBy(dx, dy); break;
       case 'move': { const g = this.ground(x, y); if (!g) break; const ox = g.x - D.g.x, oz = g.z - D.g.z; this.editSel((p, o) => { p.x = o.x + ox; p.z = o.z + oz; }, D.base); break; }
       case 'logic': { const g = this.ground(x, y); if (g) this.logicMove(D, g); return; }
+      case 'wild': { const g = this.ground(x, y); if (g) this.wildAt(g.x, g.z); return; }
       case 'box': { const b = $('#ed-box'); b.style.display = 'block'; Object.assign(b.style, { left: Math.min(x, D.x) + 'px', top: Math.min(y, D.y) + 'px', width: Math.abs(dx) + 'px', height: Math.abs(dy) + 'px' }); return; }
       case 'paint': { const g = this.ground(x, y); if (g) this.paintAt(g.x, g.z, false); return; }
       case 'scatter': { const g = this.ground(x, y); if (g) this.scatterAt(g.x, g.z); return; }
@@ -564,7 +617,7 @@ class Editor {
     if (D.kind === 'gesture') { if (this.ptrs.size === 0) this.drag = null; return; }
     this.drag = null;
     if (D.kind === 'pan' && D.click && (D.moved ?? 0) < 6 && !D.noClear) { this.select([]); if (this.mode === 'logic' && !this.drawing) { this.lsel = null; this.syncLogic(); this.updInsp(); } }
-    if (this.mode === 'logic' && !this.drawing && (D.kind === 'logic' || D.kind === 'pan')) { this.endLogic(); this.updInsp(); }
+    if (this.mode === 'logic' && !this.drawing && (D.kind === 'logic' || D.kind === 'pan' || D.kind === 'wild')) { this.endLogic(); this.updInsp(); }
     if (D.kind === 'move' || D.kind === 'scatter' || D.kind === 'erase' || D.kind === 'fence') { this.cfg.world!.props = this.list; this.endProps(); this.syncRings(); this.updInsp(); }
     if (D.kind === 'paint') this.endStroke();
     if (D.kind === 'box') {
@@ -578,7 +631,7 @@ class Editor {
     const D = this.drag; if (!D) return; this.drag = null;
     if (D.kind === 'paint') this.endStroke();
     else if (D.kind === 'move' || D.kind === 'scatter' || D.kind === 'erase' || D.kind === 'fence') this.endProps();
-    else if (D.kind === 'logic') this.endLogic();
+    else if (D.kind === 'logic' || D.kind === 'wild') this.endLogic();
     $('#ed-box').style.display = 'none';
   }
   /** move the view by a screen drag (the ground follows the finger) */
@@ -608,13 +661,14 @@ class Editor {
     if (camera.far < D * 5 || camera.far > Math.max(120, D * 6)) { camera.far = Math.max(120, D * 5.5); camera.near = Math.max(.05, D * .004); camera.updateProjectionMatrix(); }
     f.near = Math.max(f.near, D * 2); f.far = Math.max(f.far, D * 5); envU.uFogNear.value = f.near; envU.uFogFar.value = f.far;
   }
-  private curSize() { return this.mode === 'paint' ? this.size.paint : this.size.props; }
+  private wildBrush() { return this.mode === 'logic' && this.ltool === 'wild' && this.wmode !== 'one'; }
+  private curSize() { return this.mode === 'paint' ? this.size.paint : this.wildBrush() ? this.wildSize : this.size.props; }
   private updCursor() {
-    const g = this.hover, brush = this.mode === 'paint' || (this.mode === 'props' && (this.tool === 'scatter' || this.tool === 'erase'));
+    const g = this.hover, brush = this.mode === 'paint' || this.wildBrush() || (this.mode === 'props' && (this.tool === 'scatter' || this.tool === 'erase'));
     this.ring.visible = !!g && brush && !(this.drag && this.drag.kind === 'gesture');
     if (g && brush) {
       this.ring.position.set(g.x, .07, g.z); this.ring.scale.setScalar(this.curSize());
-      const red = (this.mode === 'props' && this.tool === 'erase') || (this.mode === 'paint' && (this.ptool === 'erase' || this.ptool === 'nograss'));
+      const red = (this.mode === 'props' && this.tool === 'erase') || (this.mode === 'paint' && (this.ptool === 'erase' || this.ptool === 'nograss')) || (this.wildBrush() && this.wmode === 'erase');
       (this.ring.material as THREE.MeshBasicMaterial).color.setHex(red ? 0xff9a80 : 0xfff2c0);
     }
     const m = this.mode === 'props' && this.tool === 'place' ? this.chosen[0] ?? '' : '';
@@ -664,7 +718,7 @@ class Editor {
     if (this.mode !== 'props') this.setMode('props'); else this.panel();
   }
   setSize(v: number) {
-    if (this.mode === 'paint') this.size.paint = clamp(v, .1, 40); else this.size.props = clamp(v, .2, 40);
+    if (this.mode === 'paint') this.size.paint = clamp(v, .1, 40); else if (this.wildBrush()) this.wildSize = clamp(v, .3, 20); else this.size.props = clamp(v, .2, 40);
     const el = document.getElementById('ed-sl-size') as HTMLInputElement | null; if (el) el.dispatchEvent(new Event('sync'));
   }
   /** slider row: [label] [range] [value field] [reset] */
@@ -704,6 +758,8 @@ class Editor {
     if (help) help.innerHTML = this.mode === 'paint'
       ? '<b>Linke Maus</b> malen · <b>Strg+Rad</b> / <b>[ ]</b> Pinselgröße<br><b>Rechte Maus</b> drehen · <b>Mitte</b>/<b>WASD</b> schieben · <b>Rad</b> zoomen · <b>Tab</b> Reiter'
       : this.mode === 'logic' ? (this.drawing ? '<b>Klick</b> setzt Punkte · <b>Klick auf den ersten Punkt</b> / <b>Enter</b> schließt die Fläche · <b>Esc</b> fertig'
+        : this.ltool === 'wild' ? (this.wmode === 'one' ? '<b>Klick</b> setzt einen Punkt · hier dürfen Wildpflanzen wachsen<br><b>Rechte Maus</b> drehen · <b>Rad</b> zoomen' : '<b>Malen</b> ' + (this.wmode === 'erase' ? 'entfernt Punkte' : 'sprüht Punkte') + ' · <b>Strg+Rad</b> / <b>[ ]</b> Pinselgröße<br><b>Rechte Maus</b> drehen · <b>Rad</b> zoomen')
+        : this.ltool === 'bld' ? '<b>Klick</b> setzt das gewählte Gebäude (oder versetzt es) · <b>Ziehen</b> verschieben · <b>Q/E</b> drehen · <b>Entf</b> entfernen<br>Gebäude sind durchsichtig: darunter kann gemalt und bepflanzt werden'
         : this.ltool === 'walk' || this.ltool === 'build' ? '<b>Punkt ziehen</b> verschieben · <b>Klick auf die Linie</b> neuer Punkt · <b>Entf</b> Punkt löschen<br><b>Rechte Maus</b> drehen · <b>Rad</b> zoomen'
         : '<b>Klick</b> setzen / wählen · <b>Ziehen</b> verschieben · <b>Q/E</b> drehen · <b>Entf</b> löschen<br><b>Rechte Maus</b> drehen · <b>Ziehen ins Leere</b>/<b>WASD</b> schieben · <b>Rad</b> zoomen')
       : this.tool === 'select' ? '<b>Klick</b> wählen · <b>Shift</b> mehrere / Rahmen · <b>Ziehen</b> verschieben<br><b>Q/E</b> drehen · <b>+/−</b> Größe · <b>Entf</b> löschen · <b>Strg+D</b> kopieren<br><b>Rechte Maus</b> drehen · <b>Ziehen ins Leere</b>/<b>WASD</b> schieben · <b>Rad</b> zoomen'
@@ -803,7 +859,7 @@ class Editor {
   }
   private logicPanel(P: HTMLElement) {
     const tools: [string, string, string][] = [['select', 'Auswählen', IC.select], ['walk', 'Begehbar', IC.spline], ['build', 'Baubereich', IC.spline], ['field', 'Feld', IC.hex],
-      ['spawn', 'Spawn', IC.spawn], ['house', 'Haupthaus', IC.house], ['well', 'Brunnen', IC.well], ['basket', 'Korb', IC.basket], ['bush', 'Blaubeeren', IC.bush], ['tree', 'Obstbaum', IC.tree], ['bramble', 'Brombeere', IC.bramble]];
+      ['spawn', 'Spawn', IC.spawn], ['wild', 'Wildpflanzen', IC.sprout], ['house', 'Haupthaus', IC.house], ['bld', 'Gebäude', IC.barn], ['well', 'Brunnen', IC.well], ['basket', 'Korb', IC.basket], ['bush', 'Blaubeeren', IC.bush], ['tree', 'Obstbaum', IC.tree], ['bramble', 'Brombeere', IC.bramble]];
     P.append(this.toolRow(tools, this.ltool, t => { if (this.drawing) { this.drawing = null; this.endLogic(); } this.ltool = t as LTool; this.lsel = null; this.syncLogic(); this.updInsp(); this.panel(); }, 4));
     const sc = h('div', 'ed-scroll'); P.append(sc);
     const sl = h('div', 'ed-sliders');
@@ -815,20 +871,42 @@ class Editor {
     }
     if (this.ltool === 'field' || this.ltool === 'select') sl.append(this.check('Felder am Sechseck-Raster ausrichten', () => this.snap, v => this.snap = v));
     sc.append(sl);
+    if (this.ltool === 'wild') {
+      sc.append(this.toolRow([['one', 'Einzeln', IC.place], ['spray', 'Sprühen', IC.scatter], ['erase', 'Entfernen', IC.erase]], this.wmode, m => { this.wmode = m as WMode; this.panel(); }, 3));
+      const ws = h('div', 'ed-sliders');
+      if (this.wmode !== 'one') ws.append(this.slider('Pinsel', { min: .3, max: 20, log: true, get: () => this.wildSize, set: v => this.wildSize = v, unit: ' m', id: 'ed-sl-size' }));
+      if (this.wmode === 'spray') ws.append(this.slider('Dichte', { min: .02, max: 2, log: true, get: () => this.wildDens, set: v => this.wildDens = v, fmt: v => v.toFixed(2) + '/m²', reset: .35 }));
+      const clr = h('button', 'ed-btn warn', `${IC.trash}<span>Alle Punkte löschen</span>`);
+      clr.onclick = () => { if (!(this.logic.wild ?? []).length) return; this.beginLogic(); this.logic.wild = []; this.endLogic(); this.updStats(); this.toast('Alle Wildpflanzen-Punkte gelöscht (Rückgängig geht)'); };
+      const row = h('div', 'ed-row'); row.append(clr); ws.append(row);
+      sc.append(ws);
+    }
+    if (this.ltool === 'bld') {
+      sc.append(this.sec('Gebäude wählen'));
+      const cats = h('div', 'ed-cats'), B = this.logic.buildings ?? [];
+      for (const id of PLACEABLE) {
+        if (!this.rawCfg.hof.buildings[id]) continue;
+        const on = B.some(b => b.id === id), lv = this.rawCfg.buildings[id]?.level;
+        const b = h('button', 'ed-chip' + (id === this.bldChoice ? ' on' : ''), `${on ? '✓ ' : ''}${this.rawCfg.names.buildings[id] ?? id}${lv ? ` <small>★${lv}</small>` : ''}`);
+        b.onclick = () => { this.bldChoice = id; const i = B.findIndex(q => q.id === id); this.lsel = i >= 0 ? { k: 'bld', i } : null; this.syncLogic(); this.updInsp(); this.panel(); };
+        cats.append(b);
+      }
+      sc.append(cats);
+    }
     sc.append(this.sec('Anzeigen'));
     const vis = h('div', 'ed-sliders');
     vis.append(this.check('Grenzen', () => this.show.bounds, v => { this.show.bounds = v; this.syncLogic(); }), this.check('Felder', () => this.show.fields, v => { this.show.fields = v; this.syncLogic(); }),
-      this.check('Spawns', () => this.show.spawns, v => { this.show.spawns = v; this.syncLogic(); }), this.check('Namen und Nummern', () => this.show.labels, v => { this.show.labels = v; this.syncLogic(); }));
+      this.check('Spawns', () => this.show.spawns, v => { this.show.spawns = v; this.syncLogic(); }), this.check('Wildpflanzen-Punkte', () => this.show.wild, v => { this.show.wild = v; this.syncLogic(); }),
+      this.check('Namen und Nummern', () => this.show.labels, v => { this.show.labels = v; this.syncLogic(); }));
     sc.append(vis);
-    const L = this.logic, cnt = (k: ObjKind) => L.objects.filter(o => o.k === k).length;
-    sc.append(h('div', 'ed-stats', `${L.fields.length} Felder · ${L.spawns.length} Spawns · ${cnt('tree')} Obstbäume · ${cnt('bramble')} Brombeeren`));
+    const st = h('div', 'ed-stats', this.statsText()); st.id = 'ed-stats'; sc.append(st);
     const warn = h('div', 'ed-warn'); warn.id = 'ed-warn'; sc.append(warn); this.updWarn();
   }
   private viewMenu() {
     document.querySelector('.ed-menu')?.remove();
     const m = h('div', 'ed-menu');
     const it = (k: keyof Show, l: string) => { const r = this.check(l, () => this.show[k], v => { this.show[k] = v; this.syncLogic(); if (this.mode === 'logic') this.panel(); }); m.append(r); };
-    it('bounds', 'Grenzen (begehbar, Baubereich)'); it('fields', 'Feldplätze'); it('spawns', 'Spawns'); it('labels', 'Namen und Nummern');
+    it('bounds', 'Grenzen (begehbar, Baubereich)'); it('fields', 'Feldplätze'); it('spawns', 'Spawns'); it('wild', 'Wildpflanzen-Punkte'); it('labels', 'Namen und Nummern');
     document.body.append(m);
     setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target as Node)) { m.remove(); removeEventListener('pointerdown', off); } }), 0);
   }
@@ -865,14 +943,15 @@ class Editor {
   private logicInsp(el: HTMLElement) {
     const s = this.lsel; el.hidden = !s; if (!s) return;
     const L = this.logic;
-    const title = s.k === 'walk' ? `Begehbarer Bereich, Punkt ${s.i + 1}` : s.k === 'build' ? `Baubereich, Punkt ${s.i + 1}` : s.k === 'field' ? `Feld ${s.i + 1}` : s.k === 'spawn' ? `Spawn ${s.i + 1}` : s.k === 'house' ? 'Haupthaus' : OBJ_LABEL[L.objects[s.i].k];
+    const title = s.k === 'walk' ? `Begehbarer Bereich, Punkt ${s.i + 1}` : s.k === 'build' ? `Baubereich, Punkt ${s.i + 1}` : s.k === 'field' ? `Feld ${s.i + 1}` : s.k === 'spawn' ? `Spawn ${s.i + 1}` : s.k === 'house' ? 'Haupthaus'
+      : s.k === 'bld' ? (this.rawCfg.names.buildings[L.buildings![s.i].id] ?? L.buildings![s.i].id) : OBJ_LABEL[L.objects[s.i].k];
     el.innerHTML = `<h3>${title}</h3>`;
     let open = false;
     const edit = (f: () => void) => { if (!open) { this.beginLogic(); open = true; } f(); this.syncLogic(); };
     const end = () => { if (open) { open = false; this.endLogic(); } };
     if (s.k === 'spawn') el.append(this.slider('Häufigkeit', { min: 0, max: 5, step: .1, get: () => L.spawns[s.i].w ?? 1, set: v => edit(() => { L.spawns[s.i].w = v; }), fmt: v => '×' + v.toFixed(1), reset: 1, end }));
-    if (s.k === 'house' || s.k === 'obj') {
-      const p = (s.k === 'house' ? L.house : L.objects[s.i]) as Pt & { rot?: number };
+    if (s.k === 'house' || s.k === 'obj' || s.k === 'bld') {
+      const p = (s.k === 'house' ? L.house : s.k === 'bld' ? L.buildings![s.i] : L.objects[s.i]) as Pt & { rot?: number };
       el.append(this.slider('Drehung', { min: 0, max: 360, step: 1, get: () => p.rot ?? 0, set: v => edit(() => { p.rot = v; }), fmt: v => Math.round(v) + '°', reset: 0, end }));
     }
     const row = h('div', 'row');
@@ -882,7 +961,7 @@ class Editor {
       btn(IC.arrowUp, 'Früher', () => { if (s.i > 0) { this.beginLogic(); [arr[s.i - 1], arr[s.i]] = [arr[s.i], arr[s.i - 1]]; s.i--; this.endLogic(); this.updInsp(); } });
       btn(IC.arrowDown, 'Später', () => { if (s.i < arr.length - 1) { this.beginLogic(); [arr[s.i + 1], arr[s.i]] = [arr[s.i], arr[s.i + 1]]; s.i++; this.endLogic(); this.updInsp(); } });
     }
-    if (s.k !== 'house') btn(IC.trash, 'Löschen', () => this.deleteLogicSel(), 'warn');
+    if (s.k !== 'house') btn(IC.trash, s.k === 'bld' ? 'Entfernen' : 'Löschen', () => this.deleteLogicSel(), 'warn');
     el.append(row);
   }
 
@@ -892,11 +971,14 @@ class Editor {
     document.querySelector('.ed-menu')?.remove();
     const m = h('div', 'ed-menu');
     const it = (ic: string, l: string, f: () => void) => { const b = h('button', '', `${ic}${l}`); b.onclick = () => { m.remove(); f(); }; m.append(b); };
-    it(IC.git, 'Ins Spiel übernehmen (GitHub)', () => this.githubDlg());
+    it(IC.git, 'Ins Spiel übernehmen (GitHub)', () => this.githubDlg('game'));
+    it(IC.save, 'Als Entwurf speichern (GitHub, nicht im Spiel)', () => this.githubDlg('draft'));
+    it(IC.folder, 'Entwurf öffnen (GitHub) …', () => this.draftsDlg());
+    m.append(h('hr'));
     it(IC.down, 'Datei herunterladen (welt.json)', () => this.download());
     it(IC.up, 'Datei öffnen …', () => this.openFile());
     m.append(h('hr'));
-    it(IC.reset, 'Entwurf verwerfen (Stand im Spiel)', () => this.resetTo('game'));
+    it(IC.reset, 'Änderungen verwerfen (Stand im Spiel)', () => this.resetTo('game'));
     it(IC.plus, 'Neue leere Welt (Trockenrasen)', () => this.resetTo('new'));
     it(IC.dice, 'Vorlage: bisheriger Hof', () => this.resetTo('old'));
     document.body.append(m);
@@ -906,7 +988,7 @@ class Editor {
   async fileText() {
     const f = await this.world(), L = f.logic!;
     const arr = (a: unknown[]) => '[' + a.map(p => JSON.stringify(p)).join(', ') + ']';
-    const logic = `{"size":${L.size},\n  "walk":${arr(L.walk)},\n  "build":${arr(L.build)},\n  "fields":${arr(L.fields)},\n  "spawns":${arr(L.spawns)},\n  "house":${JSON.stringify(L.house)},\n  "objects":${arr(L.objects)}}`;
+    const logic = `{"size":${L.size},\n  "walk":${arr(L.walk)},\n  "build":${arr(L.build)},\n  "fields":${arr(L.fields)},\n  "spawns":${arr(L.spawns)},\n  "house":${JSON.stringify(L.house)},\n  "objects":${arr(L.objects)}` + (L.buildings ? `,\n  "buildings":${arr(L.buildings)}` : '') + (L.wild ? `,\n  "wild":${arr(L.wild)}` : '') + '}';
     const props = '[\n' + (f.props ?? []).map(p => '  ' + JSON.stringify(p)).join(',\n') + '\n]';
     return `{"version":2,"saved":${JSON.stringify(f.saved)},\n"logic":${logic},\n"paint":${JSON.stringify(f.paint)},\n"props":${props}}\n`;
   }
@@ -929,7 +1011,7 @@ class Editor {
     this.push({ k: 'world', before, after: { paint: s.paint, logic: JSON.stringify(this.logic), props: JSON.stringify(this.list) } });
   }
   private async resetTo(what: 'game' | 'new' | 'old') {
-    if (what === 'game') { const f = await fetchWorldFile(); await this.load(f ? await decodeWorld(f) : null); await saveDraft(null); this.source = f ? 'Stand im Spiel' : 'Neue Welt'; $('#ed-src').textContent = this.source; this.saveT = 0; this.toast('Entwurf verworfen'); }
+    if (what === 'game') { const f = await fetchWorldFile(); await this.load(f ? await decodeWorld(f) : null); await saveDraft(null); this.source = f ? 'Stand im Spiel' : 'Neue Welt'; $('#ed-src').textContent = this.source; this.saveT = 0; this.draftName = ''; this.toast('Änderungen verworfen'); }
     else if (what === 'new') { await this.load(null); this.toast('Neue leere Welt (Rückgängig geht)'); }
     else { await this.load(null, this.template()); this.toast('Bisheriger Hof als Vorlage (Rückgängig geht)'); }
   }
@@ -937,30 +1019,70 @@ class Editor {
     const W = this.warnings().filter(t => /Spawn|fehlt/.test(t)); if (W.length) this.toast(W[0], 3500);
     await saveDraft(await this.world()); window.open(BASE + 'index.html?welt=entwurf', '_blank');
   }
-  private githubDlg() {
+  private gh() {
     const ls = (k: string, d = '') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+    return { tok: ls('pog-gh-token'), repo: ls('pog-gh-repo', 'altzweig/PathOfGardening'), branch: ls('pog-gh-branch', 'main') };
+  }
+  /** save into the repo: the game's world (public/world/welt.json) or a draft the game does not load
+   *  (public/world/entwuerfe/NAME.json, pushed to main all the same) */
+  private githubDlg(kind: 'game' | 'draft') {
+    const G = this.gh(), draft = kind === 'draft';
     const back = h('div', 'ed-dlg-back'), dl = h('div', 'ed-dlg'); back.append(dl);
-    dl.innerHTML = `<h2>Ins Spiel übernehmen</h2>
-      <div>Speichert <b>public/world/welt.json</b> direkt im Repo. Ein Push auf <b>main</b> geht sofort live (GitHub Pages, ca. 1–2 Minuten).</div>
+    dl.innerHTML = `<h2>${draft ? 'Als Entwurf speichern' : 'Ins Spiel übernehmen'}</h2>
+      <div>${draft ? 'Speichert <b>public/world/entwuerfe/<span id="gh-fn"></span>.json</b> im Repo. Das Spiel lädt Entwürfe nicht, sie können trotzdem auf <b>main</b> liegen. Später hier über „Entwurf öffnen“ weiterbearbeiten.'
+        : 'Speichert <b>public/world/welt.json</b> direkt im Repo. Ein Push auf <b>main</b> geht sofort live (GitHub Pages, ca. 1–2 Minuten).'}</div>
+      ${draft ? `<label>Name des Entwurfs <input type="text" id="gh-name" value="${this.draftName || 'entwurf'}"></label>` : ''}
       <label>GitHub-Token (fine-grained, nur dieses Repo, „Contents: Read and write“) – bleibt nur in diesem Browser
-        <input type="password" id="gh-tok" autocomplete="off" value="${ls('pog-gh-token')}"></label>
-      <label>Repo <input type="text" id="gh-repo" value="${ls('pog-gh-repo', 'altzweig/PathOfGardening')}"></label>
-      <label>Branch <input type="text" id="gh-branch" value="${ls('pog-gh-branch', 'main')}"></label>
-      <label>Nachricht <input type="text" id="gh-msg" value="Welt im Editor bearbeitet"></label>
+        <input type="password" id="gh-tok" autocomplete="off" value="${G.tok}"></label>
+      <label>Repo <input type="text" id="gh-repo" value="${G.repo}"></label>
+      <label>Branch <input type="text" id="gh-branch" value="${G.branch}"></label>
+      <label>Nachricht <input type="text" id="gh-msg" value="${draft ? 'Welt-Entwurf gespeichert' : 'Welt im Editor bearbeitet'}"></label>
       <div class="msg" id="gh-out"></div>
       <div class="row"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="margin-right:auto;align-self:center">Token erstellen</a>
         <button class="ed-btn" id="gh-no">Abbrechen</button><button class="ed-btn on" id="gh-go">${IC.git}Speichern</button></div>`;
     document.body.append(back);
-    const v = (id: string) => (dl.querySelector('#' + id) as HTMLInputElement).value.trim(), out = dl.querySelector('#gh-out') as HTMLElement;
+    const v = (id: string) => (dl.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() ?? '', out = dl.querySelector('#gh-out') as HTMLElement;
+    const fn = () => draftFile(v('gh-name'));
+    if (draft) { const upd = () => { (dl.querySelector('#gh-fn') as HTMLElement).textContent = fn(); }; upd(); (dl.querySelector('#gh-name') as HTMLInputElement).oninput = upd; }
     (dl.querySelector('#gh-no') as HTMLElement).onclick = () => back.remove();
     (dl.querySelector('#gh-go') as HTMLButtonElement).onclick = async () => {
       const tok = v('gh-tok'), repo = v('gh-repo'), branch = v('gh-branch') || 'main', msg = v('gh-msg') || 'Welt im Editor bearbeitet';
       try { localStorage.setItem('pog-gh-token', tok); localStorage.setItem('pog-gh-repo', repo); localStorage.setItem('pog-gh-branch', branch); } catch { /* private mode */ }
       if (!tok || !/^[\w.-]+\/[\w.-]+$/.test(repo)) { out.className = 'msg err'; out.textContent = 'Token und Repo (besitzer/name) angeben.'; return; }
+      const name = fn(), path = draft ? `public/world/entwuerfe/${name}.json` : 'public/world/welt.json';
       out.className = 'msg'; out.textContent = 'Speichere …';
-      try { const url = await saveToGithub(tok, repo, branch, 'public/world/welt.json', await this.fileText(), msg); out.className = 'msg ok'; out.innerHTML = `Gespeichert. <a href="${url}" target="_blank" rel="noopener">Commit ansehen</a>`; this.toast('Auf GitHub gespeichert'); }
-      catch (e) { out.className = 'msg err'; out.textContent = (e as Error).message; }
+      try {
+        const url = await saveToGithub(tok, repo, branch, path, await this.fileText(), msg);
+        out.className = 'msg ok';
+        out.innerHTML = `Gespeichert. <a href="${url}" target="_blank" rel="noopener">Commit ansehen</a>` + (draft ? ` · <a href="${BASE}index.html?welt=entwurf:${name}" target="_blank" rel="noopener">Im Spiel testen</a> (nach 1–2 Minuten)` : '');
+        if (draft) { this.draftName = name; this.setSource('Entwurf „' + name + '“'); }
+        this.toast(draft ? `Entwurf „${name}“ auf GitHub gespeichert` : 'Auf GitHub gespeichert');
+      } catch (e) { out.className = 'msg err'; out.textContent = (e as Error).message; }
     };
+  }
+  setSource(t: string) { this.source = t; const s = document.getElementById('ed-src'); if (s) s.textContent = t; }
+  /** list the drafts in the repo and open one (undo goes back) */
+  private async draftsDlg() {
+    const G = this.gh();
+    const back = h('div', 'ed-dlg-back'), dl = h('div', 'ed-dlg'); back.append(dl);
+    dl.innerHTML = `<h2>Entwurf öffnen</h2><div class="msg" id="gh-out">Lade Liste …</div><div class="ed-drafts" id="gh-list"></div>
+      <div class="row"><button class="ed-btn" id="gh-no">Schließen</button></div>`;
+    document.body.append(back);
+    const out = dl.querySelector('#gh-out') as HTMLElement, list = dl.querySelector('#gh-list') as HTMLElement;
+    (dl.querySelector('#gh-no') as HTMLElement).onclick = () => back.remove();
+    try {
+      const files = await listDrafts(G.tok, G.repo, G.branch);
+      out.textContent = files.length ? 'Welchen Entwurf öffnen? (Rückgängig geht)' : 'Noch keine Entwürfe im Repo.';
+      for (const f of files) {
+        const b = h('button', 'ed-btn', `${IC.folder}<span>${f.name}</span><small>${Math.round(f.size / 1024)} KB</small>`);
+        b.onclick = async () => {
+          out.className = 'msg'; out.textContent = `Lade „${f.name}“ …`;
+          try { const w = await fetchDraft(G.tok, G.repo, G.branch, f.name); await this.load(await decodeWorld(w)); this.draftName = f.name; this.setSource('Entwurf „' + f.name + '“'); this.toast(`Entwurf „${f.name}“ geöffnet`); back.remove(); }
+          catch (e) { out.className = 'msg err'; out.textContent = (e as Error).message; }
+        };
+        list.append(b);
+      }
+    } catch (e) { out.className = 'msg err'; out.textContent = (e as Error).message; }
   }
 
   // ---------------- palette pictures ----------------
@@ -1002,6 +1124,25 @@ async function saveToGithub(token: string, repo: string, branch: string, path: s
   const r = await fetch(api, { method: 'PUT', headers: H, body: JSON.stringify({ message, content: btoa(bin), branch, sha }) });
   if (!r.ok) throw new Error(ghErr(r.status, await r.text()));
   return (await r.json()).commit?.html_url as string;
+}
+/** file name of a draft: lower case letters, digits, - and _ */
+function draftFile(name: string) { return (name || 'entwurf').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'entwurf'; }
+function ghHead(token: string, raw = false): Record<string, string> {
+  const H: Record<string, string> = { Accept: raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token) H.Authorization = 'Bearer ' + token; return H;
+}
+/** the drafts in public/world/entwuerfe (token optional for a public repo) */
+async function listDrafts(token: string, repo: string, branch: string): Promise<{ name: string; size: number }[]> {
+  const r = await fetch(`https://api.github.com/repos/${repo}/contents/public/world/entwuerfe?ref=${encodeURIComponent(branch)}`, { headers: ghHead(token), cache: 'no-store' });
+  if (r.status === 404) return [];
+  if (!r.ok) throw new Error(ghErr(r.status));
+  const a = await r.json() as { name: string; size: number; type: string }[];
+  return a.filter(f => f.type === 'file' && f.name.endsWith('.json')).map(f => ({ name: f.name.slice(0, -5), size: f.size }));
+}
+async function fetchDraft(token: string, repo: string, branch: string, name: string): Promise<WorldFile> {
+  const r = await fetch(`https://api.github.com/repos/${repo}/contents/public/world/entwuerfe/${name}.json?ref=${encodeURIComponent(branch)}`, { headers: ghHead(token, true), cache: 'no-store' });
+  if (!r.ok) throw new Error(ghErr(r.status));
+  return await r.json() as WorldFile;
 }
 function ghErr(status: number, body = '') {
   if (status === 401) return 'Token ungültig oder abgelaufen (401).';

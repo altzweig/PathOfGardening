@@ -24,6 +24,7 @@ import { growMul, ripeCuts } from '../state';
 import type { Hof } from '../hof';
 import type { Animal, DaySim, Ev, Target } from '../sim';
 import { HofWorld } from './hofWorld';
+import { occludeTree, updateOcclusion } from './occlusion';
 import { BuildingView, buildBuilding, setWindowGlow } from './buildings';
 import { buildBed } from './beds';
 import { WildView } from './wild';
@@ -88,7 +89,7 @@ interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandard
   /** plants of every crop except wheat (built when the crop is sown) */
   crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null;
   /** growth timer over the field (21.11.2026): small bar + remaining time "0:00" after it */
-  timer: { bar: THREE.Group; txt: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string };
+  timer: { bar: THREE.Group; txt: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string; name: NameTag; a: number };
   /** night (21.11.2026): red life bar of the field (gnawed / broken), trampled ground (paw prints, clods, flattened stalks) */
   hpBar: THREE.Group; tramp: THREE.Group; hit: number }
 /** remaining seconds as "m:ss" */
@@ -105,6 +106,42 @@ function drawTimer(g: CanvasRenderingContext2D, s: string) {
   g.clearRect(0, 0, 128, 52); g.font = '800 40px "Alegreya Sans", sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
   g.lineJoin = 'round'; g.lineWidth = 9; g.strokeStyle = 'rgba(20,14,8,.85)'; g.strokeText(s, 6, 28); g.fillStyle = '#fff'; g.fillText(s, 6, 28);
 }
+/** name of the plant / good over its bar (21.11.2026: only shown close by, together with the bar) */
+interface NameTag { s: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string }
+const NAME_W = 1.5, NAME_H = NAME_W * 48 / 256;
+function nameTag(): NameTag {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, toneMapped: false, color: 0xf0f0f0 }));
+  s.scale.set(NAME_W, NAME_H, 1); s.renderOrder = 999; s.visible = false; scene.add(s);
+  return { s, g: cv.getContext('2d')!, tex, last: '' };
+}
+function drawName(n: NameTag, t: string) {
+  if (n.last === t) return; n.last = t;
+  const g = n.g; g.clearRect(0, 0, 256, 48); g.font = '700 32px "Alegreya Sans", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineJoin = 'round'; g.lineWidth = 8; g.strokeStyle = 'rgba(20,14,8,.85)'; g.strokeText(t, 128, 26); g.fillStyle = '#fff'; g.fillText(t, 128, 26);
+  n.tex.needsUpdate = true;
+}
+/** sleeping (Basti 21.11.2026): small "Z"s rising one after the other = nothing more to harvest here today */
+const Z_TEX = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d')!;
+  g.font = '800 50px "Alegreya Sans", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = 9; g.strokeStyle = 'rgba(20,14,8,.8)'; g.strokeText('Z', 32, 35); g.fillStyle = '#dfe8ff'; g.fillText('Z', 32, 35);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+interface Zzz { s: THREE.Sprite[]; used: boolean }
+/** fade a bar / sprite softly: every material keeps its own base opacity (stored on first use) */
+function fadeObj(o: THREE.Object3D, a: number) {
+  o.visible = a > .01;
+  o.traverse(c => {
+    const m = (c as THREE.Mesh).material as THREE.Material | undefined; if (!m) return;
+    if (m.userData.op === undefined) m.userData.op = m.opacity;
+    m.opacity = m.userData.op * a;
+  });
+}
+/** how close the player has to be for the field info (bar, time, name): full inside near, gone beyond far */
+const nearK = (d: number, near: number, far: number) => clamp((far - d) / Math.max(.01, far - near), 0, 1);
+
 /** 20.11.2026 (Fruchttabelle): which existing plant model a field crop uses; tint = fruit colour, leaf = leaf colour for crops without their own model */
 const CROP_MODEL: Record<string, { m: FruitType; tint?: number; leaf?: number }> = {
   carrot: { m: 'carrot' }, potato: { m: 'potato' }, onion: { m: 'onion' }, garlic: { m: 'garlic' }, pea: { m: 'pea' }, radish: { m: 'radish' },
@@ -178,7 +215,7 @@ export class FarmView {
   world: HofWorld;
   buildings = new Map<BuildingId, BuildingView>();
   plots: PlotView[] = [];
-  bush: { g: THREE.Group; fruits: THREE.Mesh[]; bar: THREE.Group; leaf: THREE.MeshStandardMaterial; unripe: THREE.MeshStandardMaterial; drop: THREE.Sprite; shake: number; sy: number[] };
+  bush: { g: THREE.Group; fruits: THREE.Mesh[]; bar: THREE.Group; name: NameTag; a: number; leaf: THREE.MeshStandardMaterial; unripe: THREE.MeshStandardMaterial; drop: THREE.Sprite; shake: number; sy: number[] };
   wild: WildView;
   /** livestock per stall: animals wander in the pen (local coordinates of the building), hunger bubble / Zzz above */
   pens = new Map<StallId, { list: LivestockView[]; hw: number; hd: number; hunger: THREE.Sprite; zzz: THREE.Sprite; root: THREE.Group }>();
@@ -193,7 +230,7 @@ export class FarmView {
   private arrow: THREE.Group; arrowAt: { x: number; z: number; y?: number } | null = null;
   private bubble: { s: THREE.Sprite; id: number; text: string } | null = null;
   private actBar = makeBar(.8, .08, 0xffe08a);
-  camX = 0; camZ = 0; zoom = 1; shot: CamShot = null; private shotK = 0; shake = 0;
+  camX = 0; camZ = 0; zoom = 1; shot: CamShot = null; private shotK = 0; shake = 0; private pourStop: (() => void) | undefined;
   hover: Target | null = null; hoverOk = true;
   hurtT = 0;
   private dyn = new THREE.Group();
@@ -227,7 +264,7 @@ export class FarmView {
     bp.g.traverse(o => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     const unripe = new THREE.MeshStandardMaterial({ color: 0x9ab860, roughness: .6 });
     const bdrop = dropSprite(); scene.add(bdrop); bdrop.position.set(H.bush.x, 1.75, H.bush.z);
-    this.bush = { g: bp.g, fruits: bp.fruits, bar: makeBar(.9, .09, 0x6a7cff), leaf, unripe, drop: bdrop, shake: 0, sy: bp.g.children.map(c => c.scale.y) };
+    this.bush = { g: bp.g, fruits: bp.fruits, bar: makeBar(.9, .09, 0x6a7cff), name: nameTag(), a: 0, leaf, unripe, drop: bdrop, shake: 0, sy: bp.g.children.map(c => c.scale.y) };
     // weeds, forage, brambles, apples
     this.wild = new WildView(cfg, hof);
     // livestock in the pens (only seen when the stall is built: they live in its group)
@@ -277,7 +314,7 @@ export class FarmView {
     const drop = dropSprite(); drop.position.set(x, 1.1, z); drop.visible = false; scene.add(drop);
     void i;
     const bar = makeBar(TIMER_W, .1, 0x9ad65a); bar.visible = false;
-    const timer = { bar, ...timerText(), last: '' };
+    const timer = { bar, ...timerText(), last: '', name: nameTag(), a: 0 };
     const hpBar = makeBar(TIMER_W, .1, 0xe8402e); hpBar.visible = false;
     // trampled: dark paw prints + churned clods + broken stalks lying flat
     const tramp = new THREE.Group(); tramp.visible = false; g.add(tramp);
@@ -288,7 +325,46 @@ export class FarmView {
     for (let k = 0; k < 14; k++) { const p = inHex(H * .85), m = new THREE.Mesh(LEAF_GEO, TRAMPLE.leaf); m.scale.setScalar(rand(.8, 1.4)); m.position.set(p.x, .035, p.z); m.rotation.set(-Math.PI / 2 + rand(-.3, .3), 0, rand(0, 7)); tramp.add(m); }
     return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null, timer, hpBar, tramp, hit: 0 };
   }
-  private updatePlot(v: PlotView, i: number, dt: number, day: boolean, night: boolean) {
+  private zs = new Map<string, Zzz>();
+  private sleepA = new Map<string, number>();
+  /** three rising "Z"s at a point (a = opacity, k = size factor) */
+  sleepAt(key: string, x: number, y: number, z: number, a: number, k = 1) {
+    let Z = this.zs.get(key);
+    if (!Z) {
+      Z = { s: [0, 1, 2].map(() => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: Z_TEX, transparent: true, depthTest: false, toneMapped: false })); sp.renderOrder = 999; scene.add(sp); return sp; }), used: false };
+      this.zs.set(key, Z);
+    }
+    Z.used = true;
+    const now = performance.now() / 1000, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    Z.s.forEach((sp, j) => {
+      const f = (now * .5 + j / 3) % 1, side = (f * .22 + Math.sin(f * 6 + j) * .04) * k, sc = (.2 + f * .2) * k;
+      sp.visible = true; sp.position.set(x + rx.x * side, y + f * .7 * k, z + rx.z * side); sp.scale.set(sc, sc, 1);
+      sp.material.opacity = a * Math.min(1, f * 5) * (1 - f) * 1.4;
+    });
+  }
+  /** bushes, trees, brambles that give nothing more today: "Z"s close by (plots do it in updatePlot) */
+  private updateSleep(sim: DaySim | null, dt: number, day: boolean) {
+    const B = this.cfg.bush, b = this.s.bush, H = this.cfg.hof, k = innerHeight > innerWidth ? 1.5 : 1;
+    const one = (key: string, x: number, z: number, y: number, asleep: boolean) => {
+      const a = day && !this.cine && asleep ? this.infoFade(this.sleepA.get(key) ?? 0, x, z, sim, dt) : 0;
+      this.sleepA.set(key, a); if (a > .01) this.sleepAt(key, x + .25, y, z, a, k);
+    };
+    if (sim) {
+      one('bush', H.bush.x, H.bush.z, 1.3, b.phase === 'empty' || (b.phase === 'growing' && B.ripen - b.t > sim.dayLeft));
+      H.trees.forEach((t, i) => one('t' + i, t.x, t.z, 2.3, sim.apples[i] <= 0));
+      this.hof.brambles.forEach((t, i) => one('b' + i, t.x, t.z, 1.1, (sim.brambles[i]?.n ?? 1) <= 0));
+    }
+    for (const Z of this.zs.values()) { if (!Z.used) Z.s.forEach(sp => { sp.visible = false; }); Z.used = false; }
+  }
+  /** display name of a crop / good: crops.<id>.name, else the stock name */
+  cropName(id: string) { return this.cfg.crops[id]?.name ?? (this.cfg.names.items as Record<string, string>)[id] ?? id; }
+  /** soft proximity fade of a field / bush info towards a = 0..1 */
+  private infoFade(cur: number, x: number, z: number, sim: DaySim | null, dt: number) {
+    const I = this.cfg.plots.info ?? { near: 2.6, far: 3.6, fade: .25 }, P = sim?.player;
+    const goal = P ? nearK(Math.hypot(P.x - x, P.z - z), I.near, I.far) : 0;
+    return lerp(cur, goal, 1 - Math.exp(-dt / Math.max(.02, I.fade)));
+  }
+  private updatePlot(v: PlotView, i: number, dt: number, day: boolean, night: boolean, sim: DaySim | null) {
     const p = this.s.plots[i], C = p.crop ? this.cfg.crops[p.crop] : null;
     const C0 = C ? clamp(p.grow / Math.max(1, C.grow), 0, 1) : 0;
     const key = `${p.open}|${p.stage}|${p.crop}|${p.t > 0}|${Math.round(C0 * 20)}|${p.yieldLeft}|${!!p.broken}`;
@@ -306,15 +382,24 @@ export class FarmView {
     v.drop.visible = day && !this.cine && p.open && p.stage === 'sown' && !p.watered;
     if (v.drop.visible) v.drop.position.y = 1 + Math.sin(performance.now() / 300 + i) * .06;
     // growth timer: bar + time left while the crop grows (watered, after sprouting)
-    const T = v.timer, growing = day && !night && p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C;
-    T.bar.visible = T.txt.visible = growing;
-    if (growing) {
-      const pos = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), left = gm > 0 ? (C!.grow - p.grow) / gm : C!.grow;
+    // 21.11.2026: only shown when the player is close by (soft fade), with the name of the plant above it;
+    // ripe = full golden bar + tick; grows longer than the rest of the day = it finishes overnight: rising "Z"s instead of the time
+    const T = v.timer, growing = p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C, ripeNow = p.open && p.stage === 'ripe' && !!C;
+    const pp = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), tLeft = growing ? (gm > 0 ? (C!.grow - p.grow) / gm : 1e9) : 0;
+    const sleeping = growing && (night || (!!sim && tLeft > sim.dayLeft));
+    T.a = day && (growing || ripeNow) && !this.cine ? this.infoFade(T.a, pp.x, pp.z, sim, dt) : 0;
+    fadeObj(T.bar, T.a); fadeObj(T.txt, sleeping ? 0 : T.a); fadeObj(T.name.s, T.a);
+    if (T.a > .01) {
       // phone upright: everything is smaller on screen, so the timer grows a bit
-      const k = innerHeight > innerWidth ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
-      T.bar.position.set(pos.x - rx.x * off, y, pos.z - rx.z * off); T.bar.quaternion.copy(camera.quaternion); T.bar.scale.setScalar(k); setBar(T.bar, C0);
-      T.txt.position.set(pos.x + rx.x * tx, y, pos.z + rx.z * tx); T.txt.scale.set(TIMER_TXT * k, TIMER_TXT * k * 52 / 128, 1);
-      const txt = clockText(left); if (txt !== T.last) { T.last = txt; drawTimer(T.g, txt); T.tex.needsUpdate = true; }
+      const k = innerHeight > innerWidth ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = sleeping ? 0 : TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
+      const frac = ripeNow ? clamp(p.yieldLeft / Math.max(1, ripeCuts(this.cfg, p)), 0, 1) : C0;
+      T.bar.position.set(pp.x - rx.x * off, y, pp.z - rx.z * off); T.bar.quaternion.copy(camera.quaternion); T.bar.scale.setScalar(k); setBar(T.bar, frac);
+      (T.bar.userData.fg.material as THREE.MeshBasicMaterial).color.setHex(ripeNow ? 0xf2c84a : 0x9ad65a);
+      T.txt.position.set(pp.x + rx.x * tx, y, pp.z + rx.z * tx); T.txt.scale.set(TIMER_TXT * k, TIMER_TXT * k * 52 / 128, 1);
+      const txt = ripeNow ? '\u2713' : clockText(tLeft); if (txt !== T.last) { T.last = txt; drawTimer(T.g, txt); T.tex.needsUpdate = true; }
+      drawName(T.name, this.cropName(p.crop!));
+      T.name.s.position.set(pp.x, y + .24 * k, pp.z); T.name.s.scale.set(NAME_W * k, NAME_H * k, 1);
+      if (sleeping) this.sleepAt('p' + i, pp.x + rx.x * (TIMER_W / 2 + .12) * k, y - .05, pp.z + rx.z * (TIMER_W / 2 + .12) * k, T.a, k);
     }
     v.shake = Math.max(0, v.shake - dt * 2.5);
     v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;
@@ -472,8 +557,7 @@ export class FarmView {
       if (!refill && v.actT > .25) {
         const p0 = v.can.spout.getWorldPosition(V()), T = .3, n = Math.max(1, Math.round(dt * 80));
         for (let i = 0; i < n; i++) { const tx = tp.x + rand(-.45, .45), tz = tp.z + rand(-.45, .45), tt = T * rand(.9, 1.1); PART.spawn(p0, V((tx - p0.x) / tt, (-p0.y + .5 * 9.8 * tt * tt) / tt, (tz - p0.z) / tt), Math.random() < .5 ? 0x4aa8ff : 0x9ad8ff, rand(.07, .11), tt, { g: 9.8, a: .8, s1: .05 }); }
-        play('pour');
-      } else if (refill && Math.random() < dt * 30) { const p0 = v.can.g.getWorldPosition(V()); PART.spawn(V(p0.x, p0.y + .45, p0.z), V(rand(-.1, .1), -2, rand(-.1, .1)), 0x8ad0ff, .08, .25, { g: 4, a: .8 }); if (Math.random() < .2) play('pour'); }
+      } else if (refill && Math.random() < dt * 30) { const p0 = v.can.g.getWorldPosition(V()); PART.spawn(V(p0.x, p0.y + .45, p0.z), V(rand(-.1, .1), -2, rand(-.1, .1)), 0x8ad0ff, .08, .25, { g: 4, a: .8 }); }
       lean = .1;
     }
     // --- sowing (on one knee): bag in the left hand, the right hand throws seeds over the plot
@@ -593,8 +677,14 @@ export class FarmView {
     this.bush.shake = Math.max(0, this.bush.shake - dt * 2.4);
     const k = this.bush.shake * this.bush.shake, g = this.bush.g;
     g.rotation.z = Math.sin(now * 38) * .12 * k; g.rotation.x = Math.cos(now * 31) * .1 * k; g.scale.set(1.25, 1.25 * (1 - .1 * k + Math.sin(now * 44) * .05 * k), 1.25);
-    const bar = this.bush.bar, showBar = b.phase === 'growing' && b.t >= B.barDelay;
-    bar.visible = showBar; if (showBar) { bar.position.set(this.cfg.hof.bush.x, 1.55, this.cfg.hof.bush.z); bar.quaternion.copy(camera.quaternion); setBar(bar, growK); }
+    const bar = this.bush.bar, BH = this.cfg.hof.bush, showBar = day && !this.cine && b.phase === 'growing' && b.t >= B.barDelay;
+    this.bush.a = showBar ? this.infoFade(this.bush.a, BH.x, BH.z, sim, dt) : 0;
+    fadeObj(bar, this.bush.a); fadeObj(this.bush.name.s, this.bush.a);
+    if (this.bush.a > .01) {
+      const k = innerHeight > innerWidth ? 1.5 : 1;
+      bar.position.set(BH.x, 1.55, BH.z); bar.quaternion.copy(camera.quaternion); bar.scale.setScalar(k); setBar(bar, growK);
+      drawName(this.bush.name, this.cropName('blue')); this.bush.name.s.position.set(BH.x, 1.55 + .2 * k, BH.z); this.bush.name.s.scale.set(NAME_W * k, NAME_H * k, 1);
+    }
     this.bush.drop.visible = day && !this.cine && b.phase === 'dry' && this.s.tutorialDone;
   }
   /** one leaf whirling out of a bush / crown */
@@ -659,7 +749,11 @@ export class FarmView {
   event(e: Ev, sim: DaySim) {
     const P = sim.player;
     switch (e.k) {
-      case 'act': if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z); break;
+      case 'act':
+        if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z);
+        if (e.kind === 'water') { this.pourStop?.(); this.pourStop = sfx('can.pour', P.x, P.z); } // sounds.yaml can.*: pouring, filling at the well
+        if (e.kind === 'refill') sfx('can.fill', P.x, P.z);
+        break;
       case 'actDone': {
         const p = sim.targetPos(e.target);
         if (e.kind === 'sow') { burst(V(p.x, .2, p.z), 0x6a4a30, 16, 1.6, .12, .6, { g: 6 }); sfx('player.till', p.x, p.z); }
@@ -678,7 +772,6 @@ export class FarmView {
         }
         if (e.kind === 'gather') { sfx('harvest.ok', P.x, P.z); play('rustle'); }
         if (e.kind === 'water') { const p = sim.targetPos(e.target); decal(p.x, p.z, 0x10161e, 1.2, 3, { op: .3 }); }
-        if (e.kind === 'refill') sfx('ui.confirm');
         break;
       }
       // one pass through the bush: it wobbles, leaves whirl out, the berries hop into the farmer's hands (straight into the Lager)
@@ -710,7 +803,8 @@ export class FarmView {
       case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); sfx('plants.ripe'); break; }
       // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
-      case 'deny': play('imm'); break;
+      case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
+      case 'deny': if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
       // night (21.11.2026)
       case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); break; }
       case 'plotBroken': { burst(V(e.x, .3, e.z), 0x6a4a30, 26, 2, .12, .7, { g: 6 }); burst(V(e.x, .4, e.z), 0x5e8e2c, 18, 1.8, .1, .7, { g: 5 }); sfx('night.broken', e.x, e.z); this.shake = Math.max(this.shake, .12); break; }
@@ -729,8 +823,9 @@ export class FarmView {
     const now = performance.now() / 1000, day = mode === 'day';
     if (sim) for (const e of sim.ev) this.event(e, sim);
     const night = !!sim?.nightOn && day;
-    this.plots.forEach((v, i) => this.updatePlot(v, i, dt, day, night));
+    this.plots.forEach((v, i) => this.updatePlot(v, i, dt, day, night, day ? sim : null));
     this.animBush(dt, day, sim, now);
+    this.updateSleep(sim, dt, day);
     this.updateBits(dt);
     this.wild.update(this.s, day ? sim : null, now);
     // pickable things twinkle now and then (tiny rising glints near the camera)
@@ -773,6 +868,9 @@ export class FarmView {
     if (Math.random() < dt * 2.5 * dn) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(this.camX + Math.cos(a) * r, rand(.4, 2), this.camZ + Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); }
     PART.update(dt); updateFx(dt);
     this.updateCamera(dt, sim, mode);
+    // free line of sight to the farmer: what stands in between fades out (world props, buildings)
+    if ((this.occT -= dt) <= 0) { this.occT = 1; occludeTree(this.world.nature, this.bush.g, ...[...this.buildings.values()].map(b => b.root)); }
+    const PP = sim?.player; updateOcclusion(camera.position, PP?.x ?? 0, PP?.z ?? 0, day && !!PP && !this.cine, dt);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = this.hurtT * .7;
     gradePass.uniforms.uLow.value = sim && day && !this.cine ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;
@@ -816,7 +914,7 @@ export class FarmView {
     setListener(P ? P.x : this.camX, P ? P.z : this.camZ);
     this.sun(this.camX, this.camZ);
   }
-  private lastShot: CamShot = null; camZoom = 1;
+  private lastShot: CamShot = null; camZoom = 1; private occT = 0;
   /** camera target without a player (world editor) */
   focus: { x: number; z: number } | null = null;
   /** fixed hour of the light (world editor) */

@@ -13,7 +13,7 @@ export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
 /** berries = big berries left on the bush, small = small picks left after that */
 export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
 /** things that grow on the farm by themselves (kept from day to day) */
-const WILD_V = 2;
+const WILD_V = 3; // 3 = 21.11.2026: wild garlic / dandelion / sorrel live in the wild herb tufts now
 export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number; /** picks left (wild plants) */ n?: number }[]; seq: number; init: boolean; /** placement version: older saves grow their weeds + forage anew */ v?: number }
 /** daily order (21.11.2026): taken in the morning, delivered by itself as soon as the goods are in the storage, expires in the evening */
 export interface Quest { id: string; title?: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }
@@ -260,6 +260,9 @@ export const openPlots = (s: FarmState) => s.plots.filter(p => p.open).length;
 export function endDay(cfg: FarmCfg, s: FarmState) {
   for (const p of s.plots) {
     if (p.stage === 'done') Object.assign(p, { stage: 'empty', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0 });
+    // Basti 21.11.2026: a watered crop that needed longer than the rest of the day grows ripe overnight
+    const C = p.crop ? cfg.crops[p.crop] : null;
+    if (p.open && !p.broken && p.stage === 'sown' && p.watered && C) Object.assign(p, { stage: 'ripe', grow: C.grow, bites: 0, yieldLeft: ripeCuts(cfg, p) });
     p.t = 0;
     if (!p.broken) delete p.hp; // gnawed but not broken: grows back over night
   }
@@ -274,7 +277,10 @@ export function repairPlot(cfg: FarmCfg, p: PlotState) { p.broken = false; p.hp 
 export const ripeCuts = (cfg: FarmCfg, p: PlotState) => Math.round((cfg.crops[p.crop ?? 'wheat']?.cuts ?? 3) * (1 + cfg.plots.fertBonus * p.fert));
 /** next morning */
 export function nextDay(cfg: FarmCfg, s: FarmState) {
-  claimQuests(cfg, s); s.day++; s.bush = freshBush(); s.phase = 'morning'; s.summary = null; s.levelUps = [];
+  // the bush ripens overnight too when it was watered and still growing in the evening
+  const grew = s.bush.phase === 'growing', B = cfg.bush;
+  claimQuests(cfg, s); s.day++; s.bush = freshBush();
+  if (grew) Object.assign(s.bush, { phase: 'ripe', t: B.ripen, picked: 0, small: 0, berries: B.picks * B.berries }); s.phase = 'morning'; s.summary = null; s.levelUps = [];
   rollDaily(cfg, s);
 }
 /** growth speed of a plot: every weed slows it down (plots.weeds.slow, Basti 21.11.2026) */

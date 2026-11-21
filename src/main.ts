@@ -133,6 +133,8 @@ class Game {
     click('#resumeBtn', () => this.togglePause());
     click('#leaveBtn', () => this.leave());
     this.input.onPause = () => { if (this.mode !== 'menu') this.togglePause(); };
+    this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
+    this.input.mouseSens = this.cfg.camera.mouse ?? .55;
     addEventListener('wheel', e => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(e.deltaY); }, { passive: true });
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });
@@ -235,7 +237,7 @@ class Game {
       this.s = d?.s ?? newState(this.cfg); this.slot = null; this.tutorialMode = false;
     }
     this.paused = false; this.sim = null; this.tut = null; this.mode = 'menu';
-    this.input.enabled = false; this.input.releaseAll(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
+    this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
     this.house.showEvening(false);
     this.house.s = this.s; this.view.setState(this.s);
     this.only('#menu'); this.updateMenu();
@@ -243,7 +245,8 @@ class Game {
   private togglePause() {
     if (this.mode === 'menu' || this.ending || (this.mode === 'day' && !this.sim)) return;
     if (this.tut?.waitingForAttack) return;
-    this.paused = !this.paused; this.only(this.paused ? '#pause' : null); if (this.paused) { this.updateOpt(); this.input.releaseAll(); }
+    this.paused = !this.paused; this.only(this.paused ? '#pause' : null); if (this.paused) { this.updateOpt(); this.input.releaseAll(); this.input.unlock(); }
+    else if (this.mode === 'day') this.input.lock(); // third person: back to the captured mouse
     $('#saveBtn').hidden = !this.slot || this.tutorialMode;
     sfx(this.paused ? 'ui.pauseIn' : 'ui.pauseOut');
   }
@@ -265,7 +268,7 @@ class Game {
   private async endOfDay(reason: 'time' | 'faint') {
     if (this.ending || !this.sim) return; this.ending = true;
     const sim = this.sim, s = this.s;
-    this.input.enabled = false; this.input.releaseAll();
+    this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
     if (reason === 'faint') sim.applyKO(); // the worst case: harvest of the day gone, every field trampled (Basti 21.11.2026)
     // stolen goods still on the ground are picked up in the evening
     else for (const l of sim.loot) { const n = l.n ?? 1; s.items[l.item] = (s.items[l.item] ?? 0) + n; sim.lost[l.item] = Math.max(0, (sim.lost[l.item] ?? 0) - n); }
@@ -358,6 +361,7 @@ class Game {
     // last seconds before the night / of the night: a dry clock tick
     const left = sim.nightLen ? (sim.nightOn ? sim.nightLeft : sim.dayLeft) : 99, sec = Math.ceil(left);
     if (sec !== this.cdTick) { this.cdTick = sec; if (sec <= 10 && sec > 0 && !sim.finished) play('cdTick', sec <= 3); }
+    this.hud.kb = this.input.kb || this.input.locked;
     this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
   }
   /** tests: run the day for `sec` seconds without rendering */

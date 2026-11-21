@@ -39,10 +39,14 @@ const CLOCK = `<svg class="ck" viewBox="0 0 150 72"><defs>
 const TOOL_ICON: Record<string, string> = { can: 'can', handrake: 'handrake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
 /** left mouse button (PC label) */
 const LMB = `<svg class="ms" viewBox="0 0 30 42"><rect x="2" y="2" width="26" height="38" rx="13" fill="#1a2027" stroke="#fff2c0" stroke-width="2.4"/><path d="M15 2v17M2 19h26" stroke="#5a6570" stroke-width="2"/><path d="M15 3.5a12 12 0 0 0-11.5 12V19H15z" fill="#e3b964"/></svg>`;
+/** E key (PC label when played with the keyboard) */
+const KEY_E = `<kbd class="ke">E</kbd>`;
 /** height of the label over a target (m) */
 const LABEL_Y: Record<string, number> = { bld: 2.4, stall: 1.9, well: 2.8, tree: 3.4, plot: 1.7, bush: 1.9, bramble: 1.5, forage: .9, weed: .9 };
 
 export class FarmHud {
+  /** played with the keyboard (E / Space): the label shows the E key instead of the mouse */
+  kb = false;
   private key = '';
   private s: FarmState | null = null;
   /** quest list open (Q / tap on the box) */
@@ -137,7 +141,7 @@ export class FarmHud {
     // tool at the cursor (PC) / on the action button (touch)
     const tool = hoverInfo ? TOOL_ICON[hoverInfo.tool] : null;
     const cur = $('#fCursor');
-    if (!touch && hover && tool && !sim.inputLocked && !P.action) {
+    if (!touch && !this.kb && hover && tool && !sim.inputLocked && !P.action) {
       cur.hidden = false; cur.style.transform = `translate(${mouse.x + 16}px,${mouse.y + 10}px)`;
       cur.classList.toggle('no', !hoverInfo!.ok);
       if (cur.dataset.t !== tool + hoverInfo!.ok) { cur.dataset.t = tool + hoverInfo!.ok; cur.innerHTML = ic(tool) + (hoverInfo!.ok ? '' : `<em>${ic(hoverInfo!.why === 'water' ? 'dropEmpty' : hoverInfo!.why === 'seed' ? 'seed' : 'lock')}</em>`); }
@@ -152,7 +156,7 @@ export class FarmHud {
       lab.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       const need = !hoverInfo.ok && hoverInfo.need ? Object.entries(hoverInfo.need).map(([k, n]) => `<span class="need">${ic(k)}${n}</span>`).join('') : '';
       const why = !hoverInfo.ok && !need ? ic(hoverInfo.why === 'water' ? 'dropEmpty' : hoverInfo.why === 'seed' ? 'seed' : hoverInfo.why === 'weeds' ? 'green' : 'lock') : '';
-      const html = (touch ? '' : LMB) + `<span>[${hoverInfo.label}]</span>` + (hoverInfo.item ? ic(hoverInfo.item) : '') + (hoverInfo.count ? `<i>${hoverInfo.count}</i>` : '') + need + why;
+      const html = (touch ? '' : this.kb ? KEY_E : LMB) + `<span>[${hoverInfo.label}]</span>` + (hoverInfo.item ? ic(hoverInfo.item) : '') + (hoverInfo.count ? `<i>${hoverInfo.count}</i>` : '') + need + why;
       if (lab.dataset.h !== html) { lab.dataset.h = html; lab.innerHTML = html; }
       lab.classList.toggle('no', !hoverInfo.ok);
     } else lab.hidden = true;
@@ -169,7 +173,9 @@ export class FarmHud {
   }
   float(x: number, z: number, html: string, cls = '') {
     const el = document.createElement('b'); el.className = cls; el.innerHTML = html; $('#fFloat').appendChild(el);
-    this.nums.push({ el, x, y: 1.6, z, t: 0 });
+    // several at once on one spot (wild herbs: weed + herbs) stack instead of covering each other
+    const same = this.nums.filter(n => n.t < .05 && Math.abs(n.x - x) < .3 && Math.abs(n.z - z) < .3).length;
+    this.nums.push({ el, x, y: 1.6 + same * .38, z, t: 0 });
   }
   hint(text: string | null, icon?: string) {
     const h = $('#fHint'); h.hidden = !text; if (text) h.innerHTML = (icon ? ic(icon) : '') + `<span>${text}</span>`;

@@ -39,7 +39,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 ## Pflanzen
 - **Blaubeerbusch** (täglich): gießen → reift `bush.ripen` s (dezenter Ladebalken nach 1 s) → ernten (Beere für Beere, ca. 1 min) → leer bis morgen.
 - **Weizen** (Feld): harken → säen (1 Weizen = Saatgut) → an `crops.wheat.days` Tagen je einmal gießen → reif → mit der Sichel ernten: Weizen + Stroh. Ungegossene Tage zählen nicht. Ein Tropfen-Icon über dem Feld zeigt, dass es heute noch Wasser braucht.
-- **Gießkanne** verbraucht pro Gießen eine Füllung (`can.capacity`), Auffüllen am Brunnen (erst nach der Reparatur). Im Tutorial ist sie voll.
+- **Gießkanne** verbraucht pro Gießen eine Ladung, max. 6 (`can.capacity`). Am Brunnen gibt jedes Füllen (1 s) 2 Ladungen (`can.perFill`), dreimal füllen = voll, mehr geht nicht; Füllen läuft von selbst weiter, bis die Kanne voll ist (21.11.2026). Im Tutorial ist sie voll.
 - Nässe-System bleibt: gegossen = dunkle Erde, Regen gießt alles.
 - Alle alten Pflanzen (18er-Startpool, Nussbäume …) sind im Archiv und kommen später als neue Sorten zurück.
 
@@ -203,3 +203,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Rechts: Graph mit Umschalter *Lagerbestand* / *Ertrag pro Tag* (letzte `storage.history` Tage, Tag unter dem Finger/Maus wird angezeigt), darunter Daten der gewählten Ware: Icon, Name, Seltenheit, Bestand; je nach Art Wachstum/Reifezeit, Ernten, pro Ernte, pro Feld und Tag, Felder, XP; Herstellung und Verwendung (Rezepte, Ställe, Baukosten); Boni (Dünger, Stroh, Unkraut als Malus). Upgrades kommen später dazu.
 - *Aufträge:* links die Aufträge des Tages, rechts die Tagesbilanz und Level-ups. *Bauen:* links die Gebäude, rechts was die nächsten Level freischalten. *Produktion:* wie bisher.
 - Brennholz und Steine stehen unter „Wilde Pflanzen“ (Fundstücke vom Waldrand), Grünschnitt, Stroh und Gülle unter „Erzeugnisse“. Preiselbeeren, Stachelbeeren, Zitronen sind schon als gesperrte Feldfrüchte da.
+
+## Wildkräuter statt Unkraut, Bärlauch, Löwenzahn, Sauerampfer (Basti, 21.11.2026)
+- Unkraut auf dem Hof (außerhalb der Felder), Bärlauch, Löwenzahn und Sauerampfer sind jetzt **eine** Pflanze: ein kleines gemischtes Büschel (Unkrauthalme, Bärlauchblätter mit weißen Blüten, Sauerampfer-Stängel, Löwenzahn-Rosette mit gelber Blüte). Unkraut auf den Feldern bleibt wie es ist.
+- Häufigkeit wie bisher das Hof-Unkraut (`wild.weeds`: Start 40, höchstens 100, alle 6-12 s eins nach). Bärlauch, Löwenzahn und Sauerampfer wachsen nicht mehr einzeln, nur Pilze, Brennholz und Steine bleiben Sammelgut.
+- Jäten (Handharke, 1 s) würfelt die Ausbeute (`wild.herbs`): Roll 1 gibt zu 90 % 1 Unkraut (= 1 Grünschnitt), zu 10 % 2 gleiche zufällige Kräuter. Dann 2 weitere Rolls, jeder mit je 10 % für Bärlauch, Löwenzahn oder Sauerampfer (70 % nichts). Ergebnis: 44 % keine Kräuter, 38 % eins, 13 % zwei, 4 % drei, 1 % vier. Im Schnitt 0,8 Kräuter pro Büschel.
+- **XP:** Unkraut gibt weiterhin keine XP. Jedes gefundene Kraut gibt so viel wie früher ein Sammelvorgang (`xpPicks: 3`: Bärlauch 2, Löwenzahn/Sauerampfer 3). Pro Büschel im Schnitt etwa 2 XP.
+- Alte Spielstände: Hof-Unkraut und Sammelgut wachsen einmal neu (Platzierungsversion 3).

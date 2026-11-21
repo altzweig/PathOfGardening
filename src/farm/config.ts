@@ -34,6 +34,16 @@ export interface CropCfg { rarity: Rarity; grow: number; cuts: number; yield: Re
 /** a section of the storage page in the house book (balancing.yaml storage.sections) */
 export interface StoreSection { id: string; title: string; items: ItemId[] }
 export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: number; workWeight: number; div: number; rarity: Record<Rarity, number>; other: Record<ItemId, { rarity: Rarity; water?: boolean }> }
+/** Wildkräuter (Basti 21.11.2026): roll 1 = 1 weed (green) or, with `pair`, 2 equal random herbs; then `rolls` more, each `chance` per herb */
+export interface HerbsCfg { kinds: ItemId[]; pair: number; rolls: number; chance: number; xpPicks: number }
+/** what one weeding of a wild herb tuft yields */
+export function rollHerbs(H: HerbsCfg | undefined, r: () => number = Math.random): Record<ItemId, number> {
+  const out: Record<ItemId, number> = {}, add = (k: ItemId, n = 1) => { out[k] = (out[k] ?? 0) + n; };
+  if (!H?.kinds.length) { add('green'); return out; }
+  if (r() < H.pair) add(H.kinds[Math.floor(r() * H.kinds.length)], 2); else add('green');
+  for (let i = 0; i < H.rolls; i++) { const x = r(); const j = Math.floor(x / H.chance); if (j < H.kinds.length) add(H.kinds[j]); }
+  return out;
+}
 /** perennial wild harvest (trees, brambles): ripe every `every` days, `picks` passes with `shake`/`pick` pieces */
 export interface PerennialCfg { every: number; picks: number; shake: number }
 export type TreeKind = 'apple' | 'nut';
@@ -53,12 +63,12 @@ export interface FarmCfg {
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
   player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
-  can: { capacity: number; start: number };
+  can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
   harvestXp: HarvestXpCfg;
   plots: { size: number; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
-  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
+  wild: { weeds: { start: number; max: number; every: [number, number] }; /** wild herbs: weeds, wild garlic, dandelion, sorrel in one tuft (the yard weeds) */ herbs?: HerbsCfg; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
     brambles: { count: number; every: number; picks: number; pick: number }; trees?: TreeKind[]; apples: PerennialCfg; nuts?: PerennialCfg; barrel: number };
   /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */
   grass?: { perM2: number; well: number; back: number; edge: number };

@@ -47,6 +47,25 @@ names:
     soup: Kräutersuppe       # Küche
     pan: Pilzpfanne
     cake: Apfelkuchen
+    # Feldfrüchte aus Bastis Fruchttabelle (20.11.2026)
+    potato: Kartoffeln
+    onion: Zwiebeln
+    pea: Erbsen
+    celery: Sellerie
+    radish: Radieschen
+    strawb: Erdbeeren
+    lettuce: Kopfsalat
+    corn: Mais
+    pepper: Paprika
+    tomato: Tomaten
+    zucchini: Zucchini
+    eggplant: Auberginen
+    chili: Chili
+    rhubarb: Rhabarber
+    fennel: Fenchel
+    dandel: Löwenzahn
+    cran: Preiselbeeren
+    goose: Stachelbeeren
   weapons:
     rake: Harke              # Notwaffe: ohne Waffe oder ohne Munition schlägt man schwertartig mit der Harke
     shotgun: Schrotflinte
@@ -80,7 +99,7 @@ names:
 
 # ---------------------------------------------------------------------
 day:
-  length: 300              # s pro Tag (eine Welle = ein Tag, Basti: ca. 5 min)
+  length: 480              # s pro Tag (Basti 20.11.2026: 8 min)
   clock: [6, 20]           # angezeigte Uhrzeit von Tagesbeginn bis Abend (nur Sonnen-Uhr im HUD)
   light: [2.6, 16.0]       # Lichtstunde (2.6 = heller Morgen .. 16 = Sonnenuntergang) am Anfang und Ende des Tages
   fade: 1.4                # s Schwarzblende am Abend / bei Ohnmacht
@@ -104,19 +123,19 @@ player:
 # Linksklick führt sie aus, ein kleiner Zeitbalken läuft voll. time = Dauer in s, label = eingeblendeter Name.
 # repeat: läuft von selbst weiter, solange es geht (Busch abernten, Wasser schöpfen ...). Laufen bricht ab.
 actions:
-  water:       { time: 2.0, label: Gießen }           # Busch / Feld, nur wenn trocken (Feld 1x am Tag)
+  water:       { time: 2.0, label: Gießen }           # Busch / Feld: Feld einmal nach dem Säen, dann wächst es
   plow:        { time: 3.0, label: Pflügen }          # neu angelegtes Feld
-  sow:         { time: 2.0, label: Säen }             # gepflügtes Feld, braucht 1 Weizen
+  sow:         { time: 2.0, label: Säen }             # gepflügtes Feld, kostet kein Saatgut (Frucht wählt man unten links)
   weed:        { time: 1.5, label: Jäten }            # Feld: alles Unkraut raus, je Unkraut 1 Grünschnitt
   fertilize:   { time: 1.5, label: Düngen }           # Feld: 1x am Tag, braucht 1 Dünger
-  harvestPlot: { time: 2.0, label: Ernten, repeat: true }   # reifes Feld, mehrmals (plots.cuts), dann abgeerntet
-  harvestBush: { time: 1.5, label: Ernten, repeat: true }   # Blaubeerbusch
+  harvestPlot: { time: 1.33, label: Ernten, repeat: true }  # reifes Feld, so oft wie crops.*.cuts, dann abgeerntet
+  harvestBush: { time: 1.33, label: Ernten, repeat: true }  # Blaubeerbusch
   refill:      { time: 2.0, label: Kanne füllen }     # Brunnen: Gießkanne auffüllen
   draw:        { time: 1.5, label: Wasser schöpfen, repeat: true }  # Brunnen -> Fass, bis das Fass voll ist
-  gather:      { time: 1.0, label: Sammeln }          # Bärlauch, Pilze, Brennholz ... am Hofrand
+  gather:      { time: 1.33, label: Sammeln, repeat: true }  # Bärlauch, Pilze, Brennholz ... am Hofrand
   weedHof:     { time: 1.0, label: Jäten }            # Unkraut auf dem Hof -> Grünschnitt
-  pickWild:    { time: 1.5, label: Pflücken, repeat: true }  # wilder Brombeerstrauch
-  shake:       { time: 2.0, label: Schütteln }        # Apfelbaum: reife Äpfel fallen herunter
+  pickWild:    { time: 1.33, label: Pflücken, repeat: true }  # wilder Brombeerstrauch
+  shake:       { time: 1.33, label: Schütteln, repeat: true } # Obst-/Nussbaum: reife Früchte fallen herunter
   feed:        { time: 2.0, label: Füttern }          # Stall: alle Tiere einmal füttern
   straw:       { time: 2.0, label: Stroh auslegen }   # Stall: 1x am Tag, frisches Stroh = mehr Ertrag
   milk:        { time: 3.0, label: Melken }           # Kühe, Schafe, Ziegen
@@ -126,25 +145,50 @@ can:                       # Gießkanne
   capacity: 5              # Füllungen (eine Füllung = einmal gießen)
   start: 5                 # Tutorial-Tag: voll
 
-bush:                      # Blaubeerbusch (jeden Tag): gießen -> reifen -> ernten -> leer
+bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> reifen -> ernten -> leer bis morgen
   ripen: 60                # s nach dem Gießen bis erntereif
-  bigPicks: 8              # so oft gibt es große Beeren (je actions.harvestBush.time = 1,5 s) ...
-  bigBerries: [3, 4]       # ... mit 3-4 Beeren pro Mal: nach ca. 12 s sind 24-32 Beeren im Korb
-  smallPicks: 4            # danach nur noch kleine Beeren ...
-  smallBerries: 1          # ... je 1 Beere, dann ist der Busch leer
+  picks: 3                 # Erntevorgänge (je actions.harvestBush.time) ...
+  berries: 5               # ... mit so vielen Beeren, dann ist der Busch leer
   radius: 0.8              # m Kollision: man steht knapp davor, nicht im Busch
   barDelay: 1              # s nach dem Gießen erscheint der dezente Reife-Balken
   almostAt: 0.75           # Anteil der Reifezeit: Tutorial-Hinweis "fast erntereif"
 
-crops:                     # Feldfrüchte (jetzt nur Weizen): days = gegossene Tage bis reif, yield = Ernte
-  wheat:
-    seed: wheat            # verbraucht 1x diese Ware beim Säen
-    days: 3
-    yield: { wheat: 2, straw: 1 }   # pro Ernte-Durchgang (ein reifes Feld wird plots.cuts-mal geerntet)
+# Feldfrüchte (einjährig) aus Bastis Fruchttabelle, 20.11.2026. Zyklus auf jedem Feld:
+#   Säen 2 s (kostenlos) -> 1 s sieht man die Pflanze sprießen -> Gießen 2 s -> grow s wachsen -> cuts x Ernten (je 1,33 s)
+#   -> 1 s abräumen, dann ist das Feld wieder bereit. Also etwa 10 s + grow pro Durchgang.
+# level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
+crops:
+  wheat:    { level: 1,  rarity: Common,   grow: 20,  cuts: 3, yield: { wheat: 10, straw: 1 } }
+  carrot:   { level: 1,  rarity: Common,   grow: 30,  cuts: 3, yield: { carrot: 1 } }
+  potato:   { level: 2,  rarity: Common,   grow: 50,  cuts: 3, yield: { potato: 3 } }
+  onion:    { level: 2,  rarity: Common,   grow: 40,  cuts: 3, yield: { onion: 1 } }
+  garlic:   { level: 3,  rarity: Common,   grow: 30,  cuts: 3, yield: { garlic: 1 } }
+  pea:      { level: 3,  rarity: Common,   grow: 40,  cuts: 3, yield: { pea: 5 } }
+  celery:   { level: 3,  rarity: Common,   grow: 30,  cuts: 3, yield: { celery: 1 } }
+  radish:   { level: 4,  rarity: Uncommon, grow: 60,  cuts: 3, yield: { radish: 2 } }
+  lettuce:  { level: 4,  rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
+  leek:     { level: 4,  rarity: Uncommon, grow: 80,  cuts: 3, yield: { leek: 1 } }
+  bean:     { level: 5,  rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
+  corn:     { level: 5,  rarity: Uncommon, grow: 75,  cuts: 3, yield: { corn: 1 } }
+  zucchini: { level: 5,  rarity: Uncommon, grow: 80,  cuts: 3, yield: { zucchini: 1 } }
+  strawb:   { level: 6,  rarity: Uncommon, grow: 110, cuts: 3, yield: { strawb: 3 } }
+  pepper:   { level: 6,  rarity: Uncommon, grow: 100, cuts: 3, yield: { pepper: 1 } }
+  tomato:   { level: 6,  rarity: Uncommon, grow: 110, cuts: 3, yield: { tomato: 1 } }
+  eggplant: { level: 6,  rarity: Uncommon, grow: 90,  cuts: 3, yield: { eggplant: 1 } }
+  fennel:   { level: 7,  rarity: Rare,     grow: 150, cuts: 3, yield: { fennel: 1 } }
+  cab:      { level: 7,  rarity: Rare,     grow: 220, cuts: 3, yield: { cab: 1 } }
+  asp:      { level: 8,  rarity: Rare,     grow: 230, cuts: 3, yield: { asp: 1 } }
+  chili:    { level: 8,  rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
+  rhubarb:  { level: 9,  rarity: Rare,     grow: 380, cuts: 3, yield: { rhubarb: 1 } }
+  pumpkin:  { level: 9,  rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
+  melon:    { level: 10, rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
+# Mehrjährige Kulturen aus der Tabelle, die noch keinen Platz auf dem Hof haben (kommen später):
+#   Preiselbeeren (Uncommon, alle 2 Tage, 3 x 5), Zitronen (Rare, alle 3 Tage, 3 x 1), Stachelbeeren (Rare, alle 2 Tage, 3 x 5)
 
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
-  cuts: 3                  # so oft kann ein reifes Feld geerntet werden, dann ist es abgeerntet (wieder säen)
+  sprout: 1                # s nach dem Säen: die Pflanze sprießt sichtbar, erst dann kann man gießen
+  clear: 1                 # s nach der letzten Ernte, dann ist das Feld wieder bestellbereit
   fertBonus: 0.3           # je Düngen (1x pro Tag): 30 % mehr Ernte-Durchgänge
   weeds: { max: 5, every: [35, 70], blockAt: 3 }   # Unkraut pro Feld: wächst alle 35-70 s, Ernten erst bei weniger als 3
   byLevel: [1, 3, 5, 8, 11, 14, 18, 22, 24]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
@@ -160,15 +204,23 @@ wild:                      # was auf dem Hof von selbst wächst (nie im Sichtber
     max: 35
     every: [6, 12]         # s bis das nächste Ding nachwächst
     band: [0.84, 0.96]     # Waldrand-Streifen (Anteil der Ellipse)
-    items: { baerlauch: 3, sorrel: 3, mushroom: 2, wood: 3, stone: 2 }   # Gewichte
+    items: { wood: 3, stone: 2 }   # Gewichte für Brennholz und Steine (alle every s eins)
+    plants:                # wilde Pflanzen (Fruchttabelle): alle spawn s wächst eine nach, picks x Sammeln je picks 1
+      baerlauch: { spawn: 20, picks: 3 }
+      dandel:    { spawn: 70, picks: 3 }
+      sorrel:    { spawn: 80, picks: 3 }
+      mushroom:  { spawn: 70, picks: 3 }
     where:                 # wo was wächst: edge = Waldrand, wet = feuchte Wiese hinter dem Brunnen, grass = Rand der dichten Grasflächen
       wood: [edge]
       mushroom: [edge]
       baerlauch: [edge, wet]
       sorrel: [grass]
+      dandel: [grass, wet]
       stone: [edge]
-  brambles: { count: 5, berries: 8, regrow: 15, pick: [1, 2] }   # wilde Brombeeren neben den Waldrand-Büschen: halb so viel pro Zeit wie der Blaubeerbusch
-  apples: { perTree: 6, shake: [2, 3] }   # Bäume auf dem Hof: reife Äpfel pro Tag, pro Schütteln fallen so viele herunter
+  brambles: { count: 5, every: 2, picks: 3, pick: 5 }   # wilde Brombeeren: alle 2 Tage reif, 3x Pflücken je 5 Beeren
+  trees: [apple, apple, nut]   # Bäume auf dem Hof der Reihe nach: Apfel, Apfel, Nuss, Apfel ...
+  apples: { every: 1, picks: 3, shake: 2 }   # Apfelbaum: jeden Tag, 3x Schütteln, je 2 Äpfel fallen herunter
+  nuts: { every: 3, picks: 3, shake: 3 }     # Nussbaum: alle 3 Tage, 3x Schütteln, je 3 Nüsse
   barrel: 10               # Fass am Brunnen fasst so viel Wasser
 
 grass:                     # wilde Grasgruppen: wachsen nur, wo keiner läuft oder mäht (hinter dem Brunnen, Gebäuderückseiten, geschlossene Zaunseiten, Waldrand, unter Obstbäumen nur niedrig)
@@ -308,7 +360,7 @@ quests:
   offers: 2                # neue Angebote pro Abend
   maxActive: 3
   start:                   # Startauftrag, liegt vom ersten Abend an bereit
-    need: { blue: 20 }
+    need: { blue: 12 }       # Busch gibt jetzt 3 x 5 = 15 Beeren, der Waschbär klaut 4
     reward: { money: 30, xp: 25, items: { wheat: 2 } }
   pool:                    # Zufallsaufträge: need = Ware, Menge [min, max], Taler + XP pro Stück, ab Level
     - { item: blue, amount: [20, 40], money: 1, xp: 1, level: 1 }
@@ -401,7 +453,8 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
   tipEvery: 5              # s, dann kommt der nächste Tipp
   fade: 0.6                # s Ausblenden
   tips:                    # zufällige Reihenfolge, Ausnahme von "keine Erklärtexte" (Basti 19.11.2026)
-    - Felder brauchen jeden Tag einmal Wasser. Ungegossene Tage zählen nicht.
+    - Nach dem Säen einmal gießen, dann wächst die Frucht.
+    - Das Saatgut-Symbol unten links wählt, was du säst. Mit jedem Level kommen neue Früchte dazu.
     - Die Gießkanne füllst du am Brunnen auf.
     - Regen gießt alle Felder und den Busch.
     - Waschbären klauen aus dem Korb am Lager. Triff sie, dann lassen sie die Beute fallen.
@@ -429,7 +482,7 @@ tutorial:
     rake: Pflügen
     sow: Säen
     waterField: Gießen
-    daily: Felder jeden Tag einmal gießen. In 3 Tagen ist der Weizen reif.
+    daily: Einmal gießen, dann wächst der Weizen.
     almost: Die Blaubeeren sind fast reif
     harvest: Ernten
     hunger: Hunger!

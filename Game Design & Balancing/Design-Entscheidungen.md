@@ -125,3 +125,11 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Interaktionsobjekte mit Logik: Brunnen (Wasser für die Gießkanne), Korb, Blaubeerbusch, Obstbäume, Brombeeren.
 - Boden in Ebenen; bis zu 16 Texturen pro Welt (Grenze des Boden-Shaders, eine Zeichnung für den ganzen Boden).
 - Ohne Weltdatei läuft der bisherige generierte Hof unverändert.
+
+## Feldfrüchte und Feldzyklus (Basti, 20.11.2026)
+- Referenz fürs Balancing: 1 Tag = 480 s. Jede Pflanze: Säen 2 s (kostet kein Saatgut), 1 s Keimen, Gießen 2 s, dann Wachstumszeit in Sekunden (Fruchttabelle), Ernte 1,33 s pro Erntevorgang, danach 1 s bis das Feld wieder bestellbar ist. Zyklus ≈ 10 s + Wachstum.
+- Alle einjährigen Früchte der Fruchttabelle sind Feldfrüchte (balancing.yaml `crops`), freigeschaltet nach Level: Common L1-3, Uncommon L4-6, Rare L7-10.
+- Saatgut wählt man über das Saatgut-Symbol oben rechts (PC Klick, Mobile Tippen); es erscheint ab der zweiten freigeschalteten Frucht.
+- Mehrjährige (Blaubeerbusch, Brombeeren, Apfel-, Nussbaum) tragen einmal pro Tag bzw. nach `every` Tagen; Erntevorgänge und Menge pro Vorgang laut Tabelle.
+- Wilde Pflanzen (Bärlauch, Löwenzahn, Sauerampfer, Pilze) wachsen am Hofrand nach, mehrere Erntevorgänge pro Pflanze.
+- Preiselbeeren, Zitronen und Stachelbeeren (Kultur, mehrjährig) haben noch keinen Platz auf dem Hof und kommen später.

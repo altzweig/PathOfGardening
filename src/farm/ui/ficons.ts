@@ -68,10 +68,17 @@ const ICON: Record<string, string> = {
   soup: `<path d="M5 18h30q-1 14-15 16Q6 32 5 18z" fill="#c8843a" stroke="#5a3010" stroke-width="2"/><ellipse cx="20" cy="18" rx="15" ry="4" fill="#d89a40" stroke="#5a3010" stroke-width="1.6"/><path d="M14 12q2-4 0-7M20 12q2-4 0-7M26 12q2-4 0-7" stroke="#e8e0d0" stroke-width="2" fill="none" stroke-linecap="round"/>`,
   pan: `<circle cx="17" cy="23" r="12" fill="#3a3a3a" stroke="#1a1a1a" stroke-width="2"/><path d="M28 18l9-6" stroke="#5a3a1a" stroke-width="4" stroke-linecap="round"/><circle cx="14" cy="21" r="5" fill="#f8f4e8"/><circle cx="14" cy="21" r="2.4" fill="#f0b030"/><circle cx="21" cy="27" r="3" fill="#a0522d"/>`,
   cake: `<path d="M6 24l14-10 14 10v10H6z" fill="#e8c890" stroke="#7a5228" stroke-width="2"/><path d="M6 24h28" stroke="#6a3cc0" stroke-width="3"/><circle cx="14" cy="21" r="2" fill="#4a64f0"/><circle cx="20" cy="18" r="2" fill="#2a1030"/><circle cx="26" cy="21" r="2" fill="#4a64f0"/>`,
+  // field crops without an own fruit icon (20.11.2026, Fruchttabelle)
+  celery: `<g stroke="#4f7a2a" stroke-width="1.4"><path d="M13 36l2-22h4l-1 22z" fill="#9ad060"/><path d="M19 36l1-24h4l1 24z" fill="#8ac850"/><path d="M25 36l-1-21h4l2 21z" fill="#9ad060"/></g><g fill="#5a9a2a"><circle cx="16" cy="11" r="4"/><circle cx="22" cy="8" r="4.4"/><circle cx="28" cy="12" r="4"/></g>`,
+  zucchini: `<path d="M8 30q-3-4 1-7l18-14q5-3 7 2t-3 7L13 31q-3 2-5-1z" fill="#3f7a2a" stroke="#1f3f14" stroke-width="2"/><path d="M12 26l16-13" stroke="#8ac060" stroke-width="1.6" stroke-dasharray="3 3"/><path d="M33 9l3-4" stroke="#6a8a3a" stroke-width="3" stroke-linecap="round"/>`,
+  eggplant: `<path d="M20 12c-7 0-11 7-11 14s5 10 11 10 11-3 11-10-4-14-11-14z" fill="#4a2058" stroke="#1e0a26" stroke-width="2"/><path d="M13 13q7-6 14 0-3 3-7 2-4 1-7-2z" fill="#5a9a2a" stroke="#2a4a14" stroke-width="1.4"/><path d="M20 9V4" stroke="#5a9a2a" stroke-width="3" stroke-linecap="round"/><ellipse cx="15" cy="24" rx="2" ry="4" fill="#8a5aa0"/>`,
+  fennel: `<path d="M9 30q0-8 11-8t11 8q-2 6-11 6T9 30z" fill="#eef0d0" stroke="#8a9a5a" stroke-width="2"/><path d="M15 23l-2-15M20 22V5M25 23l2-15" stroke="#7ab848" stroke-width="2.4" stroke-linecap="round"/><path d="M11 9q2-3 4 0M18 6q2-3 4 0M25 9q2-3 4 0" stroke="#9ad86a" stroke-width="1.6" fill="none"/>`,
+  melon: `<circle cx="20" cy="22" r="14" fill="#6a9a3a" stroke="#2a4a14" stroke-width="2"/><path d="M20 8q-8 14 0 28M20 8q8 14 0 28M10 12q-6 10 0 20M30 12q6 10 0 20" stroke="#c8e09a" stroke-width="1.6" fill="none"/><path d="M20 8q1-4 4-5" stroke="#5a3a1a" stroke-width="2" fill="none"/>`,
   sheep: `<g fill="#f4f0e6" stroke="#8a8478" stroke-width="1.6"><circle cx="14" cy="20" r="7"/><circle cx="22" cy="17" r="7"/><circle cx="26" cy="24" r="6"/><circle cx="16" cy="26" r="6"/></g><ellipse cx="9" cy="20" rx="4" ry="5" fill="#2e2a26"/><path d="M15 31v5M24 31v5" stroke="#2e2a26" stroke-width="2.4"/>`,
 };
 export function ic(name: string): string {
   if (ICON[name]) return svg(ICON[name]);
   if (name === 'rake') return skillIcon('rake');
+  if (name === 'strawb') return fruitIcon('straw'); // Erdbeere (ICON.straw is Stroh)
   const f = fruitIcon(name); return f || svg(ICON.box);
 }

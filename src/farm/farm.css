@@ -19,6 +19,12 @@
 #fWater{display:flex;gap:1px}#fWater i{width:18px;height:18px}#fWater svg{width:100%;height:100%;filter:drop-shadow(0 1px 1px #000)}
 #fWeap{display:flex;align-items:center;gap:4px;padding:2px 8px 2px 4px;border-radius:999px;background:#0b1016b3;border:1px solid #3a4550}
 #fWeap>svg{width:30px;height:30px}#fWeap span{display:flex;align-items:center;gap:2px;font:700 15px var(--f-body)}#fWeap span svg{width:20px;height:20px}
+#fSeed{position:relative;width:46px;height:46px;border-radius:50%;padding:0}#fSeed>svg{width:34px;height:34px}#fSeed em{position:absolute;right:-6px;bottom:-6px;width:22px;height:22px}#fSeed em svg{width:100%;height:100%}
+#fSeeds{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);display:grid;grid-template-columns:repeat(5,52px);gap:6px;padding:10px;border-radius:14px;
+  background:#0b1016e6;border:2px solid var(--gold-dim);box-shadow:0 8px 28px #000c;pointer-events:auto;animation:fSeedIn .15s ease-out}
+#fSeeds button{width:52px;height:52px;border-radius:10px;border:2px solid #3a4550;background:#1d252d;display:grid;place-items:center;cursor:pointer;padding:0}
+#fSeeds button svg{width:38px;height:38px}#fSeeds button.on{border-color:var(--gold);box-shadow:0 0 10px #e3b96477}
+@keyframes fSeedIn{from{opacity:0;transform:translateY(-6px)}}
 #fPause{color:var(--gold)}#fPause svg{width:22px;height:22px}
 #fHint{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 86px);transform:translateX(-50%);display:flex;align-items:center;gap:10px;
   max-width:min(620px,92vw);padding:10px 18px 10px 12px;border-radius:14px;background:#0b1016d9;border:2px solid var(--gold-dim);box-shadow:0 6px 24px #000a;

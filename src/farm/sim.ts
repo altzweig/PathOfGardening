@@ -584,7 +584,7 @@ export class DaySim {
         break;
       }
       case 'harvestBush': this.pickBush(); break;
-      case 'refill': s.water = cfg.can.capacity; break;
+      case 'refill': s.water = Math.min(cfg.can.capacity, s.water + cfg.can.perFill); break; // 21.11.2026: +2 per filling, never above capacity
       case 'draw': addItem(cfg, s, 'water', 1); this.ev.push({ k: 'store', item: 'water', n: 1, x: tp.x, z: tp.z }); break;
       case 'gather': if (t.k === 'forage') { const w = s.wild, i = w.forage.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.forage[i]; f.n = (f.n ?? 1) - 1; if (f.n <= 0) w.forage.splice(i, 1); this.store(f.k, 1, f); this.harvestXp(otherXp(cfg, f.k, cfg.wild.forage.plants?.[f.k]?.picks ?? 1), f); } } break;
       case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.weeds[i]; w.weeds.splice(i, 1); this.store('green', 1, f); } } break;

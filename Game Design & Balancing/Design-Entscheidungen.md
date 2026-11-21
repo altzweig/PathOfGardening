@@ -39,7 +39,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 ## Pflanzen
 - **Blaubeerbusch** (täglich): gießen → reift `bush.ripen` s (dezenter Ladebalken nach 1 s) → ernten (Beere für Beere, ca. 1 min) → leer bis morgen.
 - **Weizen** (Feld): harken → säen (1 Weizen = Saatgut) → an `crops.wheat.days` Tagen je einmal gießen → reif → mit der Sichel ernten: Weizen + Stroh. Ungegossene Tage zählen nicht. Ein Tropfen-Icon über dem Feld zeigt, dass es heute noch Wasser braucht.
-- **Gießkanne** verbraucht pro Gießen eine Füllung (`can.capacity`), Auffüllen am Brunnen (erst nach der Reparatur). Im Tutorial ist sie voll.
+- **Gießkanne** verbraucht pro Gießen eine Ladung, max. 6 (`can.capacity`). Am Brunnen gibt jedes Füllen (1 s) 2 Ladungen (`can.perFill`), dreimal füllen = voll, mehr geht nicht; Füllen läuft von selbst weiter, bis die Kanne voll ist (21.11.2026). Im Tutorial ist sie voll.
 - Nässe-System bleibt: gegossen = dunkle Erde, Regen gießt alles.
 - Alle alten Pflanzen (18er-Startpool, Nussbäume …) sind im Archiv und kommen später als neue Sorten zurück.
 

@@ -136,7 +136,7 @@ actions:
   fertilize:   { time: 1.5, label: Düngen }           # Feld: 1x am Tag, braucht 1 Dünger
   harvestPlot: { time: 1.33, label: Ernten, repeat: true }  # reifes Feld, so oft wie crops.*.cuts, dann abgeerntet
   harvestBush: { time: 1.33, label: Ernten, repeat: true }  # Blaubeerbusch
-  refill:      { time: 2.0, label: Kanne füllen }     # Brunnen: Gießkanne auffüllen
+  refill:      { time: 1.0, label: Kanne füllen, repeat: true }  # Brunnen: je Füllen can.perFill Ladungen, läuft bis die Kanne voll ist (21.11.2026: 1 s statt 2 s)
   draw:        { time: 1.5, label: Wasser schöpfen, repeat: true }  # Brunnen -> Fass, bis das Fass voll ist
   gather:      { time: 1.33, label: Sammeln, repeat: true }  # Bärlauch, Pilze, Brennholz ... am Hofrand
   weedHof:     { time: 1.0, label: Jäten }            # Unkraut auf dem Hof -> Grünschnitt
@@ -147,9 +147,10 @@ actions:
   milk:        { time: 3.0, label: Melken }           # Kühe, Schafe, Ziegen
   eggs:        { time: 2.0, label: Eier sammeln }     # Hühner
 
-can:                       # Gießkanne
-  capacity: 5              # Füllungen (eine Füllung = einmal gießen)
-  start: 5                 # Tutorial-Tag: voll
+can:                       # Gießkanne (Basti 21.11.2026: 3x füllen = voll)
+  capacity: 6              # Ladungen (eine Ladung = einmal gießen), mehr Wasser geht nicht in die Kanne
+  perFill: 2               # Ladungen pro Füllen am Brunnen (actions.refill.time)
+  start: 6                 # Tutorial-Tag: voll
 
 bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> reifen -> ernten -> leer bis morgen
   ripen: 40                # s nach dem Gießen bis erntereif (Fruchttabelle)

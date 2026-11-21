@@ -135,7 +135,7 @@ export function houseLocal(h: { x: number; z: number; rot: number }, lx: number,
 // ---------------- into the game config ----------------
 /** the farm layout of the game from a logic: replaces cfg.hof (buildings, plots, door, basket, bush, trees) and keeps
  *  only the buildings that have a place (main house, well if placed) */
-type Orig = { b: FarmCfg['hof']['buildings']; ids: BuildingId[]; unlocks: FarmCfg['levels']['unlocks']; plots: number };
+type Orig = { b: FarmCfg['hof']['buildings']; ids: BuildingId[]; unlocks: FarmCfg['levels']['unlocks']; plots: string[] };
 const ORIG = new WeakMap<FarmCfg, Orig>();
 export function applyLogic(cfg: FarmCfg, L: Logic) {
   // the editor applies its logic again after every change: always start from the yaml values
@@ -146,6 +146,13 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   const obj = (k: ObjKind) => L.objects.find(o => o.k === k);
   const bld: Partial<Record<BuildingId, RectCfg>> = { house };
   const well = obj('well'); if (well) bld.well = { x: well.x, z: well.z, r: O.b.well?.r ?? .9 };
+  // 21.11.2026: the Hofladen (level 2) has no editor object yet: it keeps its place next to the house as in balancing.yaml
+  const sh = O.b.shop;
+  if (sh && h0.rot !== undefined) {
+    const a0 = h0.rot * Math.PI / 180, dx = sh.x - h0.x, dz = sh.z - h0.z, c = Math.cos(a0), sn = Math.sin(-a0);
+    const lz = dx * sn + dz * c, lx0 = dx * c - dz * sn, lx = lx0 + Math.sign(lx0) * 2.5, p = houseLocal(L.house, lx, lz); // 2.5 m more room to the house wall
+    bld.shop = { ...sh, x: p.x, z: p.z, rot: (sh.rot ?? 0) - h0.rot + L.house.rot };
+  }
   H.buildings = bld as Record<BuildingId, RectCfg>;
   // buildings without a place do not exist in this world (build menu, unlocks)
   const keep = O.ids.filter(id => bld[id]); BUILDING_IDS.length = 0; BUILDING_IDS.push(...keep);
@@ -156,7 +163,7 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   H.bush = obj('bush') ?? houseLocal(L.house, -6, d + 2.5);
   H.trees = L.objects.filter(o => o.k === 'tree').map(o => ({ x: o.x, z: o.z }));
   H.plots = L.fields.map(p => ({ x: p.x, z: p.z }));
-  cfg.start.plots = Math.min(O.plots, H.plots.length);
+  cfg.start.plots = O.plots.slice(0, H.plots.length);
 }
 
 /** a logic taken from the farm of balancing.yaml (template "bisheriger Hof"): clearing -> walk area, gaps -> spawns */

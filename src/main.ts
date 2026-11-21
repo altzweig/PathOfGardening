@@ -312,6 +312,7 @@ class Game {
     for (const e of sim.ev) {
       if (e.k === 'store') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
       if (e.k === 'faint') this.endOfDay('faint');
+      if (e.k === 'xp') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
     }
     // daily orders: delivered as soon as all goods are in the storage (reward in the evening)
     if (this.s.tutorialDone) for (const q of checkQuests(this.cfg, this.s)) { sfx('ui.levelup'); this.hud.float(sim.player.x, sim.player.z, `${ic('check')}${q.title ?? ''}`, 'xp'); }

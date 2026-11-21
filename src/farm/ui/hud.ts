@@ -1,7 +1,7 @@
 // HUD of a farm day: life, level + XP, sun clock with the day, Taler, water in the can, weapon + ammo,
 // tool icon at the cursor (what a click does), touch buttons, floating numbers, tutorial hint box.
 import type { FarmCfg } from '../config';
-import { cropsFor, nextLevelXp } from '../config';
+import { nextLevelXp } from '../config';
 import type { FarmState, Quest } from '../state';
 import { questProgress } from '../state';
 import type { ActionInfo, DaySim, Target } from '../sim';
@@ -47,7 +47,7 @@ export class FarmHud {
   show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedPanel(false); }
   private seedPanel(on: boolean) {
     const p = $('#fSeeds'); p.hidden = !on || !this.s; if (p.hidden) return;
-    const s = this.s!; p.innerHTML = cropsFor(this.cfg, s.level).map(c => `<button data-c="${c}" class="${c === s.seed ? 'on' : ''}">${ic(c)}</button>`).join('');
+    const s = this.s!; p.innerHTML = ([] as string[]).map(c => `<button data-c="${c}" class="${c === s.seed ? 'on' : ''}">${ic(c)}</button>`).join('');
   }
   /** per frame */
   update(sim: DaySim, s: FarmState, view: FarmView, hover: Target | null, hoverInfo: ActionInfo | null, touch: boolean, mouse: { x: number; y: number }) {
@@ -64,8 +64,7 @@ export class FarmHud {
       this.key = key;
       $('#fLvlN').textContent = '' + s.level;
       $('#fDay').textContent = '' + s.day;
-      const nSeeds = cropsFor(this.cfg, s.level).length;
-      $('#fSeed').hidden = nSeeds < 2; $('#fSeed').innerHTML = ic(sim.seedCrop()) + `<em>${ic('seed')}</em>`;
+      $('#fSeed').hidden = true; // 21.11.2026: every field has a fixed crop, no seed choice
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
       $('#fWater').innerHTML = w;

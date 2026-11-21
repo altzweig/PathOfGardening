@@ -151,7 +151,7 @@ can:                       # Gießkanne
   start: 5                 # Tutorial-Tag: voll
 
 bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> reifen -> ernten -> leer bis morgen
-  ripen: 60                # s nach dem Gießen bis erntereif
+  ripen: 40                # s nach dem Gießen bis erntereif (Fruchttabelle)
   picks: 3                 # Erntevorgänge (je actions.harvestBush.time) ...
   berries: 5               # ... mit so vielen Beeren, dann ist der Busch leer
   radius: 0.8              # m Kollision: man steht knapp davor, nicht im Busch
@@ -162,31 +162,54 @@ bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> 
 #   Säen 2 s (kostenlos) -> 1 s sieht man die Pflanze sprießen -> Gießen 2 s -> grow s wachsen -> cuts x Ernten (je 1,33 s)
 #   -> 1 s abräumen, dann ist das Feld wieder bereit. Also etwa 10 s + grow pro Durchgang.
 # level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
-crops:
-  wheat:    { level: 1,  rarity: Common,   grow: 20,  cuts: 3, yield: { wheat: 10, straw: 1 } }
-  carrot:   { level: 1,  rarity: Common,   grow: 30,  cuts: 3, yield: { carrot: 1 } }
-  potato:   { level: 2,  rarity: Common,   grow: 50,  cuts: 3, yield: { potato: 3 } }
-  onion:    { level: 2,  rarity: Common,   grow: 40,  cuts: 3, yield: { onion: 1 } }
-  garlic:   { level: 3,  rarity: Common,   grow: 30,  cuts: 3, yield: { garlic: 1 } }
-  pea:      { level: 3,  rarity: Common,   grow: 40,  cuts: 3, yield: { pea: 5 } }
-  celery:   { level: 3,  rarity: Common,   grow: 30,  cuts: 3, yield: { celery: 1 } }
-  radish:   { level: 4,  rarity: Uncommon, grow: 60,  cuts: 3, yield: { radish: 2 } }
-  lettuce:  { level: 4,  rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
-  leek:     { level: 4,  rarity: Uncommon, grow: 80,  cuts: 3, yield: { leek: 1 } }
-  bean:     { level: 5,  rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
-  corn:     { level: 5,  rarity: Uncommon, grow: 75,  cuts: 3, yield: { corn: 1 } }
-  zucchini: { level: 5,  rarity: Uncommon, grow: 80,  cuts: 3, yield: { zucchini: 1 } }
-  strawb:   { level: 6,  rarity: Uncommon, grow: 110, cuts: 3, yield: { strawb: 3 } }
-  pepper:   { level: 6,  rarity: Uncommon, grow: 100, cuts: 3, yield: { pepper: 1 } }
-  tomato:   { level: 6,  rarity: Uncommon, grow: 110, cuts: 3, yield: { tomato: 1 } }
-  eggplant: { level: 6,  rarity: Uncommon, grow: 90,  cuts: 3, yield: { eggplant: 1 } }
-  fennel:   { level: 7,  rarity: Rare,     grow: 150, cuts: 3, yield: { fennel: 1 } }
-  cab:      { level: 7,  rarity: Rare,     grow: 220, cuts: 3, yield: { cab: 1 } }
-  asp:      { level: 8,  rarity: Rare,     grow: 230, cuts: 3, yield: { asp: 1 } }
-  chili:    { level: 8,  rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
-  rhubarb:  { level: 9,  rarity: Rare,     grow: 380, cuts: 3, yield: { rhubarb: 1 } }
-  pumpkin:  { level: 9,  rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
-  melon:    { level: 10, rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
+crops:                     # Feldfrüchte aus Bastis Fruchttabelle (Stand 21.11.2026). Jedes Feld hat eine feste Frucht.
+  # Vorerst gibt es nur Commons (Startfelder + Level-up-Felder); Uncommon/Rare muss man später finden oder kaufen.
+  wheat:    { rarity: Common,   grow: 60,  cuts: 3, yield: { wheat: 5, straw: 1 } }
+  carrot:   { rarity: Common,   grow: 80,  cuts: 3, yield: { carrot: 1 } }
+  potato:   { rarity: Common,   grow: 100, cuts: 3, yield: { potato: 3 } }
+  onion:    { rarity: Common,   grow: 60,  cuts: 3, yield: { onion: 1 } }
+  garlic:   { rarity: Common,   grow: 50,  cuts: 3, yield: { garlic: 1 } }
+  pea:      { rarity: Common,   grow: 80,  cuts: 3, yield: { pea: 5 } }
+  celery:   { rarity: Common,   grow: 70,  cuts: 3, yield: { celery: 1 } }
+  cab:      { rarity: Common,   grow: 220, cuts: 3, yield: { cab: 1 } }
+  radish:   { rarity: Uncommon, grow: 80,  cuts: 3, yield: { radish: 2 } }
+  bean:     { rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
+  leek:     { rarity: Uncommon, grow: 90,  cuts: 3, yield: { leek: 1 } }
+  strawb:   { rarity: Uncommon, grow: 70,  cuts: 3, yield: { strawb: 3 } }
+  lettuce:  { rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
+  corn:     { rarity: Uncommon, grow: 120, cuts: 3, yield: { corn: 1 } }
+  pepper:   { rarity: Uncommon, grow: 130, cuts: 3, yield: { pepper: 1 } }
+  tomato:   { rarity: Uncommon, grow: 140, cuts: 3, yield: { tomato: 1 } }
+  zucchini: { rarity: Uncommon, grow: 130, cuts: 3, yield: { zucchini: 1 } }
+  eggplant: { rarity: Uncommon, grow: 150, cuts: 3, yield: { eggplant: 1 } }
+  asp:      { rarity: Rare,     grow: 180, cuts: 3, yield: { asp: 1 } }
+  pumpkin:  { rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
+  melon:    { rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
+  chili:    { rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
+  rhubarb:  { rarity: Rare,     grow: 360, cuts: 3, yield: { rhubarb: 1 } }
+  fennel:   { rarity: Rare,     grow: 230, cuts: 3, yield: { fennel: 1 } }
+
+# XP pro Erntevorgang (Basti 21.11.2026, Formel aus der Fruchttabelle):
+#   XP pro Ernte = Seltenheit x (Feldzeit + workWeight x Arbeitszeit) / div, gerundet auf ganze XP pro Vorgang
+#   Feldzeit = Wachstum + pause (Feldfrüchte), sonst pauschal pause; Arbeitszeit = Säen + Gießen + Vorgänge x cut
+harvestXp:
+  pause: 10                # s Laufwege/Handgriffe pro Durchgang
+  sow: 2                   # s Säen (nur Feldfrüchte)
+  water: 2                 # s Gießen (Feldfrüchte, Blaubeerbusch)
+  cut: 1.33                # s pro Erntevorgang
+  workWeight: 2            # aktive Arbeit zählt doppelt
+  div: 3
+  rarity: { Common: 1, Uncommon: 1.3, Rare: 1.6 }
+  other:                   # Ernten ohne Feld: Seltenheit und ob gegossen wird (Busch, Bäume, Sträucher, wilde Pflanzen)
+    blue:      { rarity: Common, water: true }
+    apple:     { rarity: Common }
+    nut:       { rarity: Common }
+    bramble:   { rarity: Common }
+    baerlauch: { rarity: Common }
+    dandel:    { rarity: Uncommon }
+    sorrel:    { rarity: Uncommon }
+    mushroom:  { rarity: Uncommon }
+
 # Mehrjährige Kulturen aus der Tabelle, die noch keinen Platz auf dem Hof haben (kommen später):
 #   Preiselbeeren (Uncommon, alle 2 Tage, 3 x 5), Zitronen (Rare, alle 3 Tage, 3 x 1), Stachelbeeren (Rare, alle 2 Tage, 3 x 5)
 
@@ -198,8 +221,8 @@ plots:
   clear: 1                 # s nach der letzten Ernte, dann ist das Feld wieder bestellbereit
   fertBonus: 0.3           # je Düngen (1x pro Tag): 30 % mehr Ernte-Durchgänge
   weeds: { max: 3, morning: [0.25, 0.5, 0.25], slow: [0.05, 0.10, 0.15] }
-  byLevel: [3, 4, 5, 6, 8, 10, 12, 14, 16, 18]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
-  cost: 20                 # Taler für ein weiteres Feld (Abend: Bauen)
+  # Felder kann man nicht kaufen (Basti 21.11.2026): jedes Level-up gibt genau 1 Feld, es wird automatisch platziert.
+  # Erstes Level-up: Wahl aus 3 zufälligen Commons, die man noch nicht hat. Danach: 1 zufälliges Common (auch vorhandene).
 
 storage:
   capacity: 999            # pro Ware (Lager-Ausbau kommt später)
@@ -260,9 +283,9 @@ saves:                     # Spielstände: lokal im Browser (localStorage), mehr
   nameMax: 24              # Zeichen im Spielstandnamen
 
 start:                     # neuer Spielstand
-  money: 15
-  items: { wheat: 1 }      # 1x Weizen-Saatgut
-  plots: 3                 # drei Felder (Referenz: 3 Weizenfelder, ca. 1000-1200 Weizen am Tag)
+  money: 0                 # Gefallen
+  items: {}
+  plots: [wheat, cab, onion]   # Startfelder mit fester Frucht (Basti 21.11.2026), dazu der Blaubeerbusch
 
 # ---------------------------------------------------------------------
 # Kampf (Rechtsklick). Morgens wählt man genau eine Waffe und eine Munition.
@@ -331,19 +354,21 @@ animals:
     speed: 2.6
     fleeSpeed: 6.5
     radius: 0.25
-    scare: 4.5             # m: flieht immer, sobald der Spieler näher kommt
-    eatInterval: 2.5       # s pro gefressener Beere / Feldbiss
-    plotBites: 3           # so viele Bisse kosten ein Feld einen Wachstumstag (reifes Feld: 1 Ware je Biss)
+    scare: 4.5             # m: so nah darf man kommen (Basti 21.11.2026: Hasen stehlen nichts, sie hoppeln nur nahe den Feldern herum)
+    run: 15                # m: beim ersten Erschrecken laufen sie so weit weg ...
+    away: 60               # s: ... beim zweiten verlassen sie den Hof und kommen nach so vielen Sekunden wieder
+    eatInterval: 2.5       # (nicht mehr benutzt)
+    plotBites: 3           # (nicht mehr benutzt)
     xp: 3
 
 spawns:
-  wanderers: [2, 3]        # so viele Tiere kommen zufällig über den Tag verteilt (Hasen)
+  wanderers: [1, 2]        # so viele Hasen hoppeln ab dem Morgen nahe den Feldern herum
   wanderTypes: { hare: 1 } # Gewichte
   raid:                    # genau ein Waschbär-Angriff pro Tag, zufällig in der 2. Tageshälfte
     from: 0.5              # Anteil des Tages
     to: 0.88
-    raccoons: 1            # auf Level 1 ...
-    perLevel: 1            # ... + je weiterem Level ein Waschbär mehr
+    raccoons: 0            # 21.11.2026: vorerst keine Waschbären (kommen später mit höherem Level) ...
+    perLevel: 0            # ... + je weiterem Level so viele mehr
   scaling:                 # Schwierigkeit steigt mit dem Level: + Anteil je Level über 1
     hp: 0.12
     damage: 0.1
@@ -354,10 +379,12 @@ faint:                     # 0 Leben = ohnmächtig: man wacht abends auf, der Re
 
 # ---------------------------------------------------------------------
 levels:
-  xp: [0, 30, 80, 150, 250, 380, 550, 760, 1000, 1300]   # XP ab Level 1, 2, 3, ...
-  unlocks:                 # was ein Level freischaltet (Gebäude-Ids, zusätzliche Felder kommen über plots.byLevel)
-    2: [mill]
-    3: [shop, juicer]
+  # Basti 21.11.2026: grob alle 2-3 Tage ein Level, Level 2 schon an Tag 1. Ernte-XP pro Tag wachsen mit den Feldern
+  # (je Feld realistisch ca. 125 XP/Tag, Level L hat L+2 Felder), daher Abstand ca. 2,5 Tage x 125 x (L+2).
+  xp: [0, 250, 1500, 3050, 4950, 7100, 9600, 12400, 15500, 19000]   # XP ab Level 1, 2, 3, ...
+  unlocks:                 # was ein Level freischaltet (Gebäude-Ids; dazu gibt jedes Level-up 1 Feld)
+    2: [shop]
+    3: [mill, juicer]
     4: [bakery]
     5: [carpentry, workshop]
     6: [dairy, cows, chickens, sheep]
@@ -370,7 +397,8 @@ quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automati
     cycle: 10              # s Arbeit pro Feld-Durchgang ohne Wachstum (Säen, Keimen, Gießen, Ernten, Räumen)
     objectives: [1, 1, 2, 2, 2, 3]   # höchstens so viele Ziele pro Auftrag auf Level 1, 2, 3, ...
     blue: { max: 10, min: 5, sec: 8 }  # Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
-    daysPerLevel: 1.5      # alle 3 Aufträge eines Tages bringen 1/1,5 Level an XP
+    daysPerLevel: 2.5      # Tage pro Level ...
+    xpShare: 0.1           # ... davon kommt dieser Anteil der XP aus Aufträgen (der Rest aus Ernten)
     money: 0.12            # Taler pro Feld-Sekunde Arbeit ...
     moneyLevel: 0.15       # ... plus so viel Anteil je Level über 1
     minMoney: 15           # mindestens so viele Taler pro Auftrag (Tag 1 ohne Brunnen: kleine Aufträge, trotzdem reicht es abends für die Reparatur)
@@ -387,18 +415,16 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
       - { in: { apple: 2, flour: 1, egg: 1, wood: 1 }, out: { cake: 1 } }
       - { in: { mushroom: 2, baerlauch: 1, wood: 1 }, out: { pan: 1 } }
       - { in: { sorrel: 2, water: 1, wood: 1 }, out: { soup: 1 } }
-  well:                    # Brunnen: kaputt, abends reparieren, dann Kanne füllen und Wasser ins Fass schöpfen
-    level: 1
-    broken: true
-    cost: { money: 40 }
+  well:                    # Brunnen: von Anfang an heil (21.11.2026: Tag 1 braucht volle Feldarbeit für Level 2), Kanne füllen + Wasser ins Fass schöpfen
+    built: true
   mill:
-    level: 2
+    level: 3
     cost: { money: 60, straw: 4, stone: 6 }
     action: { label: Mahlen, time: 3.0 }
     recipes: [{ in: { wheat: 2 }, out: { flour: 1 } }]
-  shop:
-    level: 3
-    cost: { money: 90, wood: 8 }
+  shop:                    # Hofladen (Basti 21.11.2026): ab Level 2, erst nach Tag 2 bezahlbar
+    level: 2               # Gefallen aus Aufträgen (20.000 simulierte Starts): Tag 1 = 55-87, Tag 2 = 79-104, Tag 1+2 mind. 134
+    cost: { money: 90 }    # knapp über dem Maximum von Tag 1
   juicer:
     level: 3
     cost: { money: 80, wood: 6 }
@@ -452,17 +478,16 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
   fade: 0.6                # s Ausblenden
   tips:                    # zufällige Reihenfolge, Ausnahme von "keine Erklärtexte" (Basti 19.11.2026)
     - Nach dem Säen einmal gießen, dann wächst die Frucht.
-    - Das Saatgut-Symbol oben rechts wählt, was du säst. Mit jedem Level kommen neue Früchte dazu.
+    - Jedes Feld hat seine eigene Frucht. Mit jedem Level kommt ein neues Feld dazu.
     - Jeden Morgen kommen drei neue Aufträge. Was abends nicht fertig ist, verfällt. Mit Q klappst du sie ein und aus.
     - Die Gießkanne füllst du am Brunnen auf.
     - Regen gießt alle Felder und den Busch.
-    - Waschbären klauen aus dem Korb am Lager. Triff sie, dann lassen sie die Beute fallen.
-    - Hasen sind scheu. Geh auf sie zu, dann flüchten sie in den Wald.
+    - Hasen sind scheu. Kommst du ihnen zweimal zu nahe, verschwinden sie eine Weile.
     - Tiere kommen nur durch die Lücken im Wald.
     - Ohne Waffe kämpfst du mit der Harke.
     - Blaubeeren als Munition frieren Tiere kurz ein.
     - Unbenutzte Munition kommt abends zurück ins Lager.
-    - XP gibt es für Aufträge und vertriebene Tiere.
+    - Jede Ernte bringt XP. Langsame Früchte bringen mehr pro Ernte.
     - Mit jedem Level schaltest du neue Gebäude frei.
     - Weizen erntest du mit der Sichel und bekommst Weizen und Stroh.
     - Abends im Haus nimmst du Aufträge an und gibst sie ab.

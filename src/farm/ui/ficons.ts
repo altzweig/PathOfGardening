@@ -46,6 +46,8 @@ const ICON: Record<string, string> = {
   plot: `<rect x="5" y="9" width="30" height="24" rx="2" fill="#5c4436" stroke="#7a5634" stroke-width="3"/><path d="M8 15h24M8 21h24M8 27h24" stroke="#3a2a20" stroke-width="2.4"/>`,
   arrowR: `<path d="M8 20h22M22 11l9 9-9 9" fill="none" stroke="#e3b964" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`,
   sleep: `<path d="M26 6a14 14 0 1 0 8 22A12 12 0 0 1 26 6z" fill="#d8e0ff"/><text x="23" y="17" font-size="10" font-weight="700" fill="#24308a" font-family="sans-serif">z</text><text x="28" y="11" font-size="7" font-weight="700" fill="#24308a" font-family="sans-serif">z</text>`,
+  // Haus-Buch (21.11.2026): aufgeschlagenes Buch mit Lesezeichen
+  book: `<path d="M20 11C15 7 9 7 4 9v22c5-2 11-2 16 2 5-4 11-4 16-2V9c-5-2-11-2-16 2z" fill="#6a3a1e" stroke="#2e160a" stroke-width="1.6"/><path d="M20 12.5C15.5 9 10 9 6 10.5v18.5c4.5-1.4 9.5-1 14 2zM20 12.5c4.5-3.5 10-3.5 14-2v18.5c-4.5-1.4-9.5-1-14 2z" fill="#efe0b6"/><path d="M20 12.5v18.5" stroke="#a8865a" stroke-width="1.2"/><path d="M9 15h7M9 19h7M9 23h5M24 15h7M24 19h7" stroke="#b09060" stroke-width="1.3"/><path d="M27 8.5h4v9l-2-1.6-2 1.6z" fill="#d9772b"/>`,
   quest: `<path d="M10 5h16l5 5v25H10z" fill="#efe3c8" stroke="#7a5a34" stroke-width="2"/><path d="M14 14h12M14 19h12M14 24h8" stroke="#7a5a34" stroke-width="2"/><path d="M26 5v5h5" fill="none" stroke="#7a5a34" stroke-width="2"/>`,
   check: `<path d="M8 21l8 8 16-17" fill="none" stroke="#8fe36a" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>`,
   hammer: `<path d="M9 33l14-14" stroke="#6a4a2a" stroke-width="4.4" stroke-linecap="round"/><path d="M18 9l7-4 10 10-4 7z" fill="#5a6068" stroke="#2a2e34" stroke-width="1.6"/>`,

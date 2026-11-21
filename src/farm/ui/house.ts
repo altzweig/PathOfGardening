@@ -25,6 +25,13 @@ export class HouseUi {
   sel: ItemId = 'wheat';
   gmode: GraphMode = 'stock';
   onSleep: () => void = () => {};
+  /** the book was closed during the day (button or key) */
+  onClose: () => void = () => {};
+  /** opened during the day / night (Basti 21.11.2026: key B or the book button): game paused, the farm blurred behind,
+   *  no sleeping, no collecting, no building (that stays in the house in the evening) */
+  day = false;
+  /** goods of the running day (day mode: shown on the orders page) */
+  private live: Record<string, number> | null = null;
   onChange: () => void = () => {};
   onSound: (k: string) => void = () => {};
   private bg: HouseBg;
@@ -51,18 +58,27 @@ export class HouseUi {
 
   // ---------------- evening ----------------
   showEvening(on: boolean) {
+    this.day = false; this.live = null; $('#fHouse').classList.remove('dayBook');
     $('#fHouse').hidden = !on;
     if (on) { this.render(); this.bg.start(); } else this.bg.stop();
   }
+  /** the book over the running day */
+  openDay(got: Record<string, number>) {
+    this.day = true; this.live = got;
+    const root = $('#fHouse'); root.classList.add('dayBook'); root.hidden = false;
+    this.render(); this.onSound('ui.page');
+  }
+  closeDay() { if (!this.day) return; this.day = false; this.live = null; $('#fHouse').hidden = true; this.onSound('ui.page'); }
   render() {
     const s = this.s, C = this.cfg;
     $('#hDay').textContent = '' + s.day;
     $('#hMoney').innerHTML = `${ic('coin')}<b>${s.money}</b>`;
     $('#hLvl').innerHTML = `${ic('star')}<b>${s.level}</b>`;
     $('#hSleep').innerHTML = `${ic('sleep')}<span>Schlafen</span>`;
+    $('#hClose').innerHTML = `${ic('book')}<span>Zuklappen</span>`;
     const book = $('#hBook'), rw = $('#hRewards');
     // delivered orders: one tile each, the reward is collected here (Basti 21.11.2026)
-    const R = unclaimed(s), F = R.length ? null : s.fieldPicks[0];
+    const R = this.day ? [] : unclaimed(s), F = R.length || this.day ? null : s.fieldPicks[0];
     book.classList.toggle('modal', !!(R.length || F));
     rw.hidden = !(R.length || F);
     if (R.length) {
@@ -112,7 +128,8 @@ export class HouseUi {
   }
   /** today's orders (21.11.2026): delivered ones with a green tick, the rest expired; tomorrow brings new ones */
   private quest(q: Quest) {
-    return `<div class="row q${q.done ? ' ready' : ' gone'}">${ic(q.done ? 'check' : 'lock')}
+    const open = this.day && !q.done && !q.expired; // during the day an order is still open, not expired
+    return `<div class="row q${q.done ? ' ready' : open ? '' : ' gone'}">${ic(q.done ? 'check' : open ? 'quest' : 'lock')}
       <div class="qt"><b>${q.title ?? ''}</b><div class="need">${this.goods(q.need)}</div></div>
       <div class="rew">${this.goods({ money: q.reward.money })}<span class="gd xp">${ic('xp')}<b>${q.reward.xp}</b></span></div>
     </div>`;
@@ -123,7 +140,8 @@ export class HouseUi {
   }
   /** right page of the orders: what the day brought, level-ups */
   private daySummary() {
-    const s = this.s, C = this.cfg, S = s.summary;
+    const s = this.s, C = this.cfg;
+    const S = this.day ? (this.live ? { day: s.day, got: this.live, lost: {} as Record<string, number>, driven: 0, xp: 0, fainted: false, broken: 0 } : null) : s.summary;
     let h = `<h2>${ic('sun')}<span>Tag ${S?.day ?? s.day}</span></h2>`;
     for (const L of s.levelUps) {
       const un = C.levels.unlocks[L] ?? [];
@@ -148,7 +166,7 @@ export class HouseUi {
       if (st === 'level') return `<div class="row b lock">${ic(id)}<div class="bn"><b>${this.name(id)}</b></div><span class="lv">${ic('star')}<b>${B.level}</b></span></div>`;
       const needs = st === 'needs' ? `<span class="gd miss">${ic(B.needs!)}</span>` : '';
       return `<div class="row b">${ic(id)}<div class="bn"><b>${this.name(id)}</b><div class="cost">${needs}${this.goods(B.cost ?? {}, true)}</div></div>
-        <button class="hb" data-build="${id}" ${st === 'ok' ? '' : 'disabled'}>${B.broken ? 'Reparieren' : 'Bauen'}</button></div>`;
+        <button class="hb" data-build="${id}" ${st === 'ok' && !this.day ? '' : 'disabled'}>${B.broken ? 'Reparieren' : 'Bauen'}</button></div>`;
     });
   }
   /** what the buildings make during the day (overview only: production runs at the building by left click) */
@@ -276,6 +294,7 @@ export class HouseUi {
     const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t || t.disabled) return;
     const s = this.s, C = this.cfg, d = t.dataset;
     if (t.id === 'hSleep') { this.onSound('ui.confirm'); this.onSleep(); return; }
+    if (t.id === 'hClose') { this.onClose(); return; }
     if (d.tab) { if (d.tab !== this.tab) { this.onSound('ui.click'); this.turnTo(d.tab as Tab); } return; }
     if (d.item) {
       this.sel = d.item; this.onSound('ui.click');

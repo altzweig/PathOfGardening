@@ -53,6 +53,8 @@ class Game {
   private menu = new StartMenu(loadLook());
   private backTo = '#menu';
   private paused = false;
+  /** the house book opened during the day (key B / book button): the game is paused while it is open */
+  private bookOpen = false;
   private mouse = { x: 0, y: 0 };
   private ending = false;
   /** the save this game writes to (null = tutorial: nothing is saved) */
@@ -129,6 +131,7 @@ class Game {
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); if (!audio.on) stopAllLoops(); this.updateOpt(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
     click('#fPause', () => this.togglePause());
+    addEventListener('keydown', e => { if (e.code === 'KeyB' && !e.repeat && !(e.target as HTMLElement)?.closest?.('input,textarea')) this.toggleBook(); });
     addEventListener('keydown', e => { if (e.code === 'KeyQ' && !e.repeat && this.mode === 'day' && !this.paused) { this.hud.toggleQuests(); sfx('ui.click'); } });
     click('#resumeBtn', () => this.togglePause());
     click('#leaveBtn', () => this.leave());
@@ -141,6 +144,8 @@ class Game {
     this.house.onSound = k => sfx(k);
     this.house.onChange = () => { this.view.syncBuildings(); this.persist(false); };
     this.house.onSleep = () => this.sleep();
+    this.house.onClose = () => this.closeBook();
+    click('#fBook', () => this.toggleBook());
   }
   private updateOpt() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
@@ -236,13 +241,28 @@ class Game {
       const m = listSaves()[0], d = m ? readSave(this.cfg, m.id) : null;
       this.s = d?.s ?? newState(this.cfg); this.slot = null; this.tutorialMode = false;
     }
-    this.paused = false; this.sim = null; this.tut = null; this.mode = 'menu';
+    this.paused = false; this.bookOpen = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
     this.house.showEvening(false);
     this.house.s = this.s; this.view.setState(this.s);
     this.only('#menu'); this.updateMenu();
   }
+  /** the house book over the running day (Basti 21.11.2026): pauses the game, Esc / B / the button close it again */
+  private toggleBook() {
+    if (this.bookOpen) { this.closeBook(); return; }
+    if (this.mode !== 'day' || !this.sim || this.ending || this.paused || this.tut || this.cut.active) return;
+    this.bookOpen = true; this.paused = true;
+    this.input.releaseAll(); this.input.unlock();
+    this.house.s = this.s; this.house.openDay(this.sim.got);
+  }
+  private closeBook() {
+    if (!this.bookOpen) return;
+    this.bookOpen = false; this.paused = false;
+    this.house.closeDay();
+    if (this.mode === 'day') this.input.lock();
+  }
   private togglePause() {
+    if (this.bookOpen) { this.closeBook(); return; }
     if (this.mode === 'menu' || this.ending || (this.mode === 'day' && !this.sim)) return;
     if (this.tut?.waitingForAttack) return;
     this.paused = !this.paused; this.only(this.paused ? '#pause' : null); if (this.paused) { this.updateOpt(); this.input.releaseAll(); this.input.unlock(); }

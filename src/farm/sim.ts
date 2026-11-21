@@ -1,8 +1,8 @@
 // One playable day on the farm: player movement, timed actions (left click, see actions in balancing.yaml), fighting
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
-import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, otherXp, treeCfg, treeKind } from './config';
-import { FarmState, addItem, count, gainXp, growMul, ripeCuts } from './state';
+import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, otherXp, treeCfg, treeKind } from './config';
+import { FarmState, addItem, breakPlot, count, gainXp, growMul, repairPlot, ripeCuts } from './state';
 import { Hof, Obstacle, obsDist } from './hof';
 import { NavGrid, navFor } from './nav';
 
@@ -37,7 +37,7 @@ export interface Intent {
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
 /** actions done kneeling / crouching on the ground (hand rake, sowing, harvesting a plot, gathering) */
-export const LOW_ACTIONS = new Set<ActionKind>(['weed', 'weedHof', 'sow', 'harvestPlot', 'fertilize', 'gather']);
+export const LOW_ACTIONS = new Set<ActionKind>(['weed', 'weedHof', 'sow', 'harvestPlot', 'fertilize', 'gather', 'repair']);
 export type Ev = { k: string; [key: string]: any };
 
 export interface Player {
@@ -58,6 +58,8 @@ export interface Animal {
   stuck: number; lx: number; lz: number; detour: { x: number; z: number } | null;
   /** hares (21.11.2026): hop around home, run dest when startled, scared = times startled */
   home?: { x: number; z: number }; dest?: { x: number; z: number } | null; idle?: number; scared?: number;
+  /** night attack (21.11.2026): aggressive, only driven off when its HP are gone; hits = successful bites of a raccoon */
+  night?: boolean; hits?: number;
   /** tutorial: walks a fixed list of points, no AI */
   path?: { x: number; z: number; speed: number }[];
   /** pathfinding (nav.ts): goal of the current route, its corner points, age; none = no way found (then straight) */
@@ -65,7 +67,7 @@ export interface Animal {
 }
 export interface Pellet { x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId }
 /** goods on the ground: dropped by a raccoon (stolen) or shaken off a tree (new) */
-export interface Loot { id: number; item: ItemId; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number; fresh?: boolean }
+export interface Loot { id: number; item: ItemId; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number; fresh?: boolean; /** pieces in this pile (default 1) */ n?: number }
 /** a stall during the day: fed 0..maxFed (this half of the day), collected this half, fresh straw today */
 export interface Stall { fed: number; done: boolean; straw: boolean }
 
@@ -84,14 +86,18 @@ const EDIBLE = (id: ItemId) => !NOT_EDIBLE.has(id);
 /** which targets win when several are in reach: buildings, plots, bush first, then forage, weeds last */
 const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, stall: 0, tree: 1, bramble: 1, forage: 2, weed: 3 };
 
+/** a planned animal: near = hops around a field from the morning on, night = attacker of the night (wave = its wave, 0-based) */
+export interface Spawn { at: number; type: AnimalType; gap: number; near?: boolean; night?: boolean; wave?: number }
 /** the running day in a save made during the day (animals on the farm are not kept, the plan of the rest of the day is) */
 export interface DaySnap {
   t: number; player: { x: number; z: number; f: number; hp: number };
   got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xpGained: number;
   /** old saves: where the harvest basket stood (ignored since 21.11.2026) */
   basketAt?: { x: number; z: number } | null; stalls: Record<StallId, Stall>; apples: number[]; brambles: { n: number; t: number }[];
-  plan: { at: number; type: AnimalType; gap: number; near?: boolean }[]; half: number; rain: { at: number; dur: number; t: number } | null;
-  loot: { item: ItemId; x: number; z: number; fresh?: boolean }[];
+  plan: Spawn[]; half: number; rain: { at: number; dur: number; t: number } | null;
+  loot: { item: ItemId; x: number; z: number; fresh?: boolean; n?: number }[];
+  /** night: goods of today raccoons took out of the pocket, fields broken so far */
+  taken?: Record<ItemId, number>; broken?: number;
 }
 
 export class DaySim {
@@ -107,13 +113,15 @@ export class DaySim {
   /** tutorial switches */
   clockRuns = true; spawns = true; inputLocked = false; paused = false;
   finished: 'time' | 'faint' | null = null;
+  /** night after the day (21.11.2026): s long, 0 = none (tutorial); nightOn from nightfall on; waves = start of every wave (s of the clock) */
+  nightLen: number; nightOn = false; waves: number[] = []; broken = 0;
   got: Record<ItemId, number> = {}; lost: Record<ItemId, number> = {}; driven = 0; xpGained = 0;
   stalls = {} as Record<StallId, Stall>;
   apples: number[];
   brambles: { n: number; t: number }[];
   /** is a ground point on screen? (set by the game from the camera; wild things only grow where nobody looks) */
   visible: (x: number, z: number) => boolean = (x, z) => dist(x, z, this.player.x, this.player.z) < 22;
-  private plan: { at: number; type: AnimalType; gap: number; near?: boolean }[] = [];
+  private plan: Spawn[] = [];
   private nid = 1;
   private pelletBuf: Obstacle[] = [];
   private half = 0;
@@ -122,7 +130,7 @@ export class DaySim {
   private plantT: Record<ItemId, number> = {};
 
   constructor(public cfg: FarmCfg, public s: FarmState, public hof: Hof, o: { tutorial?: boolean } = {}) {
-    this.length = cfg.day.length;
+    this.length = cfg.day.length; this.nightLen = o.tutorial || !cfg.night ? 0 : cfg.night.length;
     const P = cfg.player, d = cfg.hof.door, W = cfg.wild;
     this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, crouch: false, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
     for (const id of STALL_IDS) this.stalls[id] = { fed: 0, done: false, straw: false };
@@ -141,6 +149,13 @@ export class DaySim {
   // ---------------- clock ----------------
   /** 0..1 of the day */
   get k() { return Math.min(1, this.t / this.length); }
+  /** s until nightfall (0 at night) */
+  get dayLeft() { return Math.max(0, this.length - this.t); }
+  /** 0..1 of the night (0 by day) */
+  get nightK() { return this.nightLen ? Math.min(1, Math.max(0, (this.t - this.length) / this.nightLen)) : 0; }
+  get nightLeft() { return Math.max(0, this.length + this.nightLen - this.t); }
+  /** waves that have come so far */
+  get wavesIn() { return this.waves.filter(w => w <= this.t).length; }
 
   // ---------------- wild growth (weeds on the farm, forage at the edge) ----------------
   /** a new game: lots of things lying around */
@@ -254,6 +269,7 @@ export class DaySim {
       }
       case 'plot': {
         const p = s.plots[t.i]; if (!p?.open) return null;
+        if (p.broken) return this.act('repair', 'handrake'); // trampled in the night: rake it smooth again first (10 s)
         // 21.11.2026 (Basti): only sow, water, harvest + weed every morning. Weeds never block anything, they slow the growth.
         // Order = what helps most first: sow, water (growth starts), then weed; while sprouting / clearing there is time to weed.
         const fert = count(s, 'fert') > 0 && p.fertDay !== s.day, weed = p.weeds > 0 ? this.act('weed', 'handrake', { count: '' + p.weeds }) : null;
@@ -340,17 +356,19 @@ export class DaySim {
     this.ev.length = 0;
     if (this.paused || this.finished) return;
     if (this.clockRuns) this.t += dt;
+    if (this.clockRuns && this.nightLen > 0 && !this.nightOn && this.t >= this.length) this.startNight();
     this.updateHalf();
     this.updateRain(dt);
     this.updateBush(dt);
     this.updatePlots(dt);
-    if (this.clockRuns) this.updateWild(dt);
+    if (this.clockRuns && !this.nightOn) this.updateWild(dt);
     this.updatePlayer(dt, this.inputLocked ? { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false } : it);
     this.updatePellets(dt);
     this.updateAnimals(dt);
     this.updateLoot(dt);
     if (this.spawns) this.updateSpawns();
-    if (this.clockRuns && this.t >= this.length) this.finished = 'time';
+    if (this.nightOn && this.nightLeft <= this.cfg.night.flee) for (const a of this.animals) if (a.night && a.state !== 'flee' && !a.gone) this.flee(a); // the night is over: they run off
+    if (this.clockRuns && this.t >= this.length + this.nightLen) this.finished = 'time';
     if (this.player.hp <= 0 && !this.finished) { this.finished = 'faint'; this.ev.push({ k: 'faint' }); }
   }
   /** morning / evening: the livestock is hungry again and gives a new yield */
@@ -383,7 +401,7 @@ export class DaySim {
       if (!p.open) return;
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
-        if (!p.watered || !p.crop) return;
+        if (!p.watered || !p.crop || this.nightOn) return; // crops grow by day only
         const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p); // every weed slows the growth
         if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); this.ev.push({ k: 'plotRipe', i }); }
       } else if (p.stage === 'done') {
@@ -540,6 +558,7 @@ export class DaySim {
         Object.assign(s.plots[t.i], { stage: 'sown', crop, days: 0, watered: false, bites: 0, fert: 0, fertDay: 0, t: cfg.plots.sprout, grow: 0 });
         break;
       }
+      case 'repair': if (t.k === 'plot') { repairPlot(cfg, s.plots[t.i]); this.ev.push({ k: 'repaired', i: t.i, x: tp.x, z: tp.z }); } break;
       case 'weed': if (t.k === 'plot') { const p = s.plots[t.i]; p.weeds = Math.max(0, p.weeds - 1); this.store('green', 1, tp); } break; // one weed per pass (repeats)
       case 'fertilize': if (t.k === 'plot') {
         const p = s.plots[t.i]; addItem(cfg, s, 'fert', -1); p.fert++; p.fertDay = s.day;
@@ -664,6 +683,10 @@ export class DaySim {
     this.ev.push({ k: 'hit', id: a.id, x: a.x, z: a.z, type: a.type, frozen: !!o.freeze });
     if (a.carryN > 0) this.dropCarry(a);
     if (a.state === 'script') return;
+    if (a.night) { // the attackers of the night only leave when their HP are gone (Basti 21.11.2026)
+      if (a.hp <= 0) this.driveOff(a); else if (a.type === 'raccoon' && a.state !== 'flee') a.state = 'attack';
+      return;
+    }
     if (a.hp <= 0) { this.driveOff(a); return; }
     if (a.type === 'hare' || a.shy) this.driveOff(a);
     else { a.brave = true; if (a.state !== 'flee') a.state = 'attack'; }
@@ -671,7 +694,7 @@ export class DaySim {
   /** XP once, then the animal runs into the forest */
   driveOff(a: Animal) {
     if (!a.driven) {
-      a.driven = true; const xp = this.cfg.animals[a.type].xp;
+      a.driven = true; const xp = a.night ? this.cfg.night[a.type].xp : this.cfg.animals[a.type].xp;
       gainXp(this.cfg, this.s, xp); this.driven++; this.xpGained += xp;
       this.ev.push({ k: 'driven', id: a.id, x: a.x, z: a.z, xp, type: a.type });
     }
@@ -679,9 +702,12 @@ export class DaySim {
   }
   private flee(a: Animal) { if (a.state === 'flee') return; a.state = 'flee'; a.t = 0; a.gap = this.hof.nearestGap(a.x, a.z); a.detour = null; this.ev.push({ k: 'flee', id: a.id, type: a.type, x: a.x, z: a.z, carry: a.carryN }); }
   dropCarry(a: Animal) {
-    for (const [item, n] of Object.entries(a.carry)) for (let i = 0; i < n; i++) {
-      const an = rnd(0, 7), v = rnd(1, 2.6);
-      this.loot.push({ id: this.nid++, item, x: a.x, z: a.z, y: .3, vx: Math.cos(an) * v, vz: Math.sin(an) * v, vy: rnd(2.5, 4), t: 0 });
+    for (const [item, n] of Object.entries(a.carry)) {
+      const piles = Math.min(n, 4); // a big haul falls as a few piles
+      for (let i = 0; i < piles; i++) {
+        const an = rnd(0, 7), v = rnd(1, 2.6), k = Math.floor(n / piles) + (i < n % piles ? 1 : 0);
+        this.loot.push({ id: this.nid++, item, x: a.x, z: a.z, y: .3, vx: Math.cos(an) * v, vz: Math.sin(an) * v, vy: rnd(2.5, 4), t: 0, n: k });
+      }
     }
     this.ev.push({ k: 'drop', x: a.x, z: a.z, n: a.carryN });
     a.carry = {}; a.carryN = 0;
@@ -694,11 +720,135 @@ export class DaySim {
       const d = dist(P.x, P.z, l.x, l.z);
       if (l.t > .5 && d < C.magnetRadius) { const k = Math.min(1, C.magnetSpeed * dt / Math.max(.01, d)); l.x += (P.x - l.x) * k; l.z += (P.z - l.z) * k; }
       if (l.t > .5 && d < C.pickupRadius) {
-        this.loot.splice(i, 1); addItem(this.cfg, this.s, l.item, 1);
-        if (l.fresh) this.got[l.item] = (this.got[l.item] ?? 0) + 1; else this.lost[l.item] = Math.max(0, (this.lost[l.item] ?? 0) - 1);
-        this.ev.push({ k: 'pickup', item: l.item, x: l.x, z: l.z });
+        const n = l.n ?? 1;
+        this.loot.splice(i, 1); addItem(this.cfg, this.s, l.item, n);
+        if (l.fresh) this.got[l.item] = (this.got[l.item] ?? 0) + n;
+        else { this.lost[l.item] = Math.max(0, (this.lost[l.item] ?? 0) - n); if (this.taken[l.item]) this.taken[l.item] = Math.max(0, this.taken[l.item] - n); }
+        this.ev.push({ k: 'pickup', item: l.item, x: l.x, z: l.z, n });
       }
     }
+  }
+
+  // ---------------- night (Basti 21.11.2026) ----------------
+  /** nightfall: the day hares run off, the waves of the night are planned (more every night, at most as many as the level allows) */
+  private startNight(warn = true) {
+    this.nightOn = true;
+    this.plan = this.plan.filter(p => p.night);
+    for (const a of this.animals) if (!a.night && !a.gone) { a.driven = true; this.flee(a); } // no XP: they just leave
+    if (warn) this.planNight(); // (a save made at night keeps its plan)
+    this.waves = this.cfg.night.waves.map(w => this.length + w.at);
+    if (warn) this.ev.push({ k: 'nightfall' });
+  }
+  private planNight() {
+    const gaps = this.hof.gaps.length; if (!gaps) return;
+    nightPlan(this.cfg, this.s.day, this.s.level).forEach((w, wave) => {
+      const at = this.length + w.at, g1 = this.hof.pickGap(), g2 = this.hof.pickGap();
+      for (let i = 0; i < w.raccoon; i++) this.plan.push({ at: at + i * .8, type: 'raccoon', gap: g1, night: true, wave });
+      for (let i = 0; i < w.hare; i++) this.plan.push({ at: at + .4 + i * .7, type: 'hare', gap: g2, night: true, wave });
+    });
+    this.plan.sort((a, b) => a.at - b.at);
+  }
+  /** a hare picks a field to eat: fields with a crop first, near ones first (not broken ones) */
+  private nightPlot(a: Animal): Animal['target'] {
+    let best: Animal['target'] = null, bw = 0;
+    this.s.plots.forEach((p, i) => {
+      if (!p.open || p.broken) return;
+      const c = this.cfg.hof.plots[i], w = (p.stage === 'empty' ? 1 : 3) * rnd(.6, 1.4) / (1 + dist(a.x, a.z, c.x, c.z) / 8);
+      if (w > bw) { bw = w; best = { k: 'plot', i }; }
+    });
+    return best;
+  }
+  /** one bite of a night hare into a field: the field loses HP, at 0 it is trampled (crop gone, needs repair) */
+  private gnaw(a: Animal, i: number) {
+    const p = this.s.plots[i], N = this.cfg.night; if (!p?.open || p.broken) return;
+    p.hp = Math.max(0, (p.hp ?? N.plotHp) - N.hare.plotDamage);
+    const c = this.cfg.hof.plots[i];
+    this.ev.push({ k: 'gnaw', id: a.id, i, x: c.x, z: c.z, crop: p.crop });
+    if (p.hp <= 0) { breakPlot(p); this.broken++; this.ev.push({ k: 'plotBroken', i, x: c.x, z: c.z }); a.target = null; }
+  }
+  /** a raccoon bit the player: it takes `steal` of the day's harvest out of the pocket (goods of today that are still in the storage) */
+  private pocketSteal(a: Animal) {
+    const share = this.cfg.night.raccoon.steal, avail: [ItemId, number][] = [];
+    let total = 0;
+    for (const [k, v] of Object.entries(this.got)) { if (!EDIBLE(k) || v <= 0) continue; total += v; const n = Math.min(v - (this.taken[k] ?? 0), count(this.s, k)); if (n > 0) avail.push([k, n]); }
+    const have = avail.reduce((n, [, v]) => n + v, 0); if (!have) return;
+    let want = Math.min(have, Math.max(1, Math.round(total * share)));
+    const took: Record<ItemId, number> = {};
+    // a share of every good, the rest piece by piece by weight
+    for (const [k, v] of avail) { const n = Math.min(v, Math.floor(want * v / have)); if (n > 0) took[k] = n; }
+    want -= Object.values(took).reduce((n, v) => n + v, 0);
+    for (let g = 0; g < 200 && want > 0; g++) { const [k, v] = avail[Math.floor(Math.random() * avail.length)]; if ((took[k] ?? 0) < v) { took[k] = (took[k] ?? 0) + 1; want--; } }
+    for (const [k, n] of Object.entries(took)) {
+      addItem(this.cfg, this.s, k, -n); this.taken[k] = (this.taken[k] ?? 0) + n;
+      a.carry[k] = (a.carry[k] ?? 0) + n; a.carryN += n;
+    }
+    this.ev.push({ k: 'pocket', id: a.id, x: this.player.x, z: this.player.z, items: took });
+  }
+  /** goods of today a raccoon took out of the pocket (so the next bite does not count them again) */
+  private taken: Record<ItemId, number> = {};
+  /** night animals: hares eat the fields, raccoons hunt the player */
+  private nightAnimal(a: Animal, dt: number, sp: number, dp: number) {
+    const N = this.cfg.night, P = this.player;
+    switch (a.state) {
+      case 'enter': {
+        const p = this.hof.gapIn(a.gap);
+        if (this.moveTo(a, p.x, p.z, sp, dt, false, true) || this.hof.ellipse(a.x, a.z) < .9) { a.state = a.type === 'hare' ? 'go' : 'attack'; a.t = 0; a.target = null; a.bite = .5; }
+        return;
+      }
+      case 'go': case 'eat': case 'wander': {
+        if (a.type !== 'hare') { a.state = 'attack'; return; }
+        if (!a.target || !this.targetValid(a, a.target)) {
+          a.target = this.nightPlot(a); a.dest = null; a.state = 'go';
+          if (!a.target) { // nothing left to eat: hop around the broken fields
+            if (!a.dest) { const an = rnd(0, 7); a.dest = { x: a.x + Math.cos(an) * 2, z: a.z + Math.sin(an) * 2 }; }
+            if (this.moveTo(a, a.dest.x, a.dest.z, sp * .5, dt) || a.t > 4) { a.dest = null; a.t = 0; }
+            return;
+          }
+        }
+        const i = (a.target as { i: number }).i, c = this.cfg.hof.plots[i];
+        if (!a.dest) { const an = rnd(0, 7), r = rnd(0, this.cfg.plots.size * .3); a.dest = { x: c.x + Math.cos(an) * r, z: c.z + Math.sin(an) * r }; a.t = 0; }
+        if (a.state === 'go') {
+          if (this.moveTo(a, a.dest.x, a.dest.z, sp, dt) || dist(a.x, a.z, a.dest.x, a.dest.z) < .3 || (a.t > 4 && dist(a.x, a.z, c.x, c.z) < this.cfg.plots.size * .55)) { a.state = 'eat'; a.act = 0; a.f = angTo(a.x, a.z, c.x, c.z) + rnd(-1, 1); }
+          return;
+        }
+        if (a.stun > 0) return;
+        a.act += dt;
+        if (a.act >= N.hare.biteInterval) { a.act -= N.hare.biteInterval; this.gnaw(a, i); if (Math.random() < .25) { a.dest = null; a.state = 'go'; } } // now and then a hop to another spot of the field
+        return;
+      }
+      case 'attack': case 'steal': {
+        if (a.type !== 'raccoon') { a.state = 'go'; return; }
+        a.state = 'attack';
+        const C = this.cfg.animals.raccoon, R = N.raccoon;
+        if (dp > (C.biteRange ?? .85)) { this.moveTo(a, P.x, P.z, sp, dt); a.bite = Math.max(a.bite, .35); } // wind-up when it reaches the player
+        else {
+          a.f = angTo(a.x, a.z, P.x, P.z);
+          if (a.bite <= 0 && a.stun <= 0) {
+            a.bite = R.biteInterval; this.hurtPlayer(R.damage * a.dmgMul, a); this.pocketSteal(a);
+            a.hits = (a.hits ?? 0) + 1; if (a.hits >= R.bites && P.hp > 0) this.flee(a); // pockets full: off into the forest
+          }
+        }
+        return;
+      }
+    }
+  }
+  /** fainted (0 HP, Basti 21.11.2026): the worst case of the night. The harvest of the day is gone (also what animals carry and what
+   *  lies on the ground) and every field is trampled. Returns the number of fields broken now. */
+  applyKO() {
+    const F = this.cfg.faint, s = this.s;
+    // what the animals carry and what lies on the ground is gone (raccoons that already got away are counted in 'gone')
+    for (const a of this.animals) { for (const [k, n] of Object.entries(a.carry)) this.lost[k] = (this.lost[k] ?? 0) + n; a.carry = {}; a.carryN = 0; }
+    for (const l of this.loot) if (!l.fresh) this.lost[l.item] = (this.lost[l.item] ?? 0) + (l.n ?? 1);
+    this.loot.length = 0;
+    if (F.loseHarvest) for (const [k, v] of Object.entries(this.got)) {
+      const n = Math.min(v - (this.taken[k] ?? 0), count(s, k)); if (n <= 0) continue;
+      addItem(this.cfg, s, k, -n); this.lost[k] = (this.lost[k] ?? 0) + n;
+    }
+    this.taken = {};
+    let n = 0;
+    if (F.breakFields) for (const p of s.plots) if (p.open && !p.broken) { breakPlot(p); n++; }
+    this.broken += n;
+    return n;
   }
 
   // ---------------- animals ----------------
@@ -716,9 +866,17 @@ export class DaySim {
     for (let i = 0; i < m; i++) this.plan.push({ at: at + i * .9, type: 'raccoon', gap });
     this.plan.sort((a, b) => a.at - b.at);
   }
+  private waveSeen = new Set<number>();
   private updateSpawns() {
     while (this.plan.length && this.plan[0].at <= this.t) {
       const g = this.plan.shift()!;
+      if (g.night) {
+        const N = this.cfg.night, L = this.s.level - 1, hp = N[g.type].hp * (1 + this.cfg.spawns.scaling.hp * L);
+        const w = g.wave ?? 0; if (!this.waveSeen.has(w)) { this.waveSeen.add(w); this.ev.push({ k: 'wave', n: w + 1 }); }
+        this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0 });
+        continue;
+      }
+      if (this.nightOn) continue; // day animals do not come at night
       if (g.near) { const h = this.nearField(); if (h) { const a = this.spawn(g.type, g.gap, { x: h.x, z: h.z, state: 'wander' }); a.home = h; a.idle = rnd(.5, 2); continue; } }
       this.spawn(g.type, g.gap);
     }
@@ -823,7 +981,7 @@ export class DaySim {
     return d < .15;
   }
   private updateAnimals(dt: number) {
-    const P = this.player; this.navBudget = 3;
+    const P = this.player; this.navBudget = this.nightOn ? 6 : 3; // more animals at night
     for (const a of this.animals) {
       if (a.gone) continue;
       const C = this.cfg.animals[a.type];
@@ -836,6 +994,10 @@ export class DaySim {
         const w = a.path?.[0];
         if (w) { if (this.moveTo(a, w.x, w.z, w.speed, dt, true)) a.path!.shift(); }
         continue;
+      }
+      if (a.night && a.state !== 'flee') {
+        const N = this.cfg.night[a.type];
+        a.t += dt; this.nightAnimal(a, dt, N.speed * a.speedMul * slow, dp); continue;
       }
       // hares (21.11.2026): first time startled they run 15 m, the second time they leave the farm for a minute
       if (a.type === 'hare' && a.state === 'wander' && dp < C.scare) { if (!a.scared) this.runAway(a); else this.driveOff(a); continue; }
@@ -892,7 +1054,7 @@ export class DaySim {
             a.gone = true;
             for (const [k, n] of Object.entries(a.carry)) this.lost[k] = (this.lost[k] ?? 0) + n;
             this.ev.push({ k: 'gone', id: a.id, type: a.type, carry: a.carryN });
-            if (a.type === 'hare' && this.spawns) { const C2 = this.cfg.animals.hare; this.plan.push({ at: this.t + (C2.away ?? 60), type: 'hare', gap: a.gap }); this.plan.sort((p, q) => p.at - q.at); }
+            if (a.type === 'hare' && this.spawns && !a.night && !this.nightOn) { const C2 = this.cfg.animals.hare; this.plan.push({ at: this.t + (C2.away ?? 60), type: 'hare', gap: a.gap }); this.plan.sort((p, q) => p.at - q.at); }
           }
           break;
         }
@@ -910,7 +1072,7 @@ export class DaySim {
     const s = this.s;
     if (t.k === 'lager') return Object.entries(s.items).some(([k, v]) => EDIBLE(k) && v > 0);
     if (t.k === 'bush') return (s.bush.phase === 'ripe' && s.bush.berries > 0) || (a.type === 'hare' && s.bush.phase === 'growing');
-    if (t.k === 'plot') { const p = s.plots[t.i]; return p.open && (p.stage === 'ripe' ? p.yieldLeft > 0 : a.type === 'hare' && p.stage === 'sown'); }
+    if (t.k === 'plot') { const p = s.plots[t.i]; if (a.night) return p.open && !p.broken; return p.open && (p.stage === 'ripe' ? p.yieldLeft > 0 : a.type === 'hare' && p.stage === 'sown'); }
     return false;
   }
   private takeFrom(a: Animal, t: NonNullable<Animal['target']>) {
@@ -945,25 +1107,26 @@ export class DaySim {
   snapshot(): DaySnap {
     const P = this.player, c = <T>(o: T): T => JSON.parse(JSON.stringify(o));
     // goods a raccoon is carrying away count as dropped where it is (they lie on the ground after loading)
-    const loot: DaySnap['loot'] = this.loot.map(l => ({ item: l.item, x: l.x, z: l.z, fresh: l.fresh }));
-    for (const a of this.animals) if (!a.gone) for (const [k, n] of Object.entries(a.carry)) for (let i = 0; i < n; i++) loot.push({ item: k, x: a.x, z: a.z });
+    const loot: DaySnap['loot'] = this.loot.map(l => ({ item: l.item, x: l.x, z: l.z, fresh: l.fresh, n: l.n }));
+    for (const a of this.animals) if (!a.gone) for (const [k, n] of Object.entries(a.carry)) loot.push({ item: k, x: a.x, z: a.z, n });
     return {
       t: this.t, player: { x: P.x, z: P.z, f: P.f, hp: P.hp }, got: c(this.got), lost: c(this.lost), driven: this.driven, xpGained: this.xpGained,
       stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
-      plan: c(this.plan), half: this.half, rain: c(this.rain), loot,
+      plan: c(this.plan), half: this.half, rain: c(this.rain), loot, taken: c(this.taken), broken: this.broken,
     };
   }
   restore(d: DaySnap) {
-    this.t = Math.min(d.t, this.length - 1);
+    this.t = Math.min(d.t, this.length + this.nightLen - 1);
     Object.assign(this.player, d.player); this.player.hp = Math.max(1, Math.min(this.player.maxHp, d.player.hp));
     this.got = d.got ?? {}; this.lost = d.lost ?? {}; this.driven = d.driven ?? 0; this.xpGained = d.xpGained ?? 0;
     for (const id of STALL_IDS) if (d.stalls?.[id]) this.stalls[id] = d.stalls[id];
     if (d.apples?.length === this.apples.length) this.apples = d.apples;
     if (d.brambles?.length === this.brambles.length) this.brambles = d.brambles;
     this.plan = d.plan ?? []; this.half = d.half ?? 0; this.rain = d.rain ?? null;
-    for (const l of d.loot ?? []) this.loot.push({ id: this.nid++, item: l.item, x: l.x, z: l.z, y: 0, vx: 0, vz: 0, vy: 0, t: 99, fresh: l.fresh });
+    for (const l of d.loot ?? []) this.loot.push({ id: this.nid++, item: l.item, x: l.x, z: l.z, y: 0, vx: 0, vz: 0, vy: 0, t: 99, fresh: l.fresh, n: l.n });
+    this.taken = d.taken ?? {}; this.broken = d.broken ?? 0;
+    // saved at night: the night goes on without a new warning (the animals that were on the farm are not kept, the waves still to come are)
+    if (this.nightLen > 0 && this.t >= this.length) { this.startNight(false); for (let w = 0; w < this.waves.length; w++) if (this.waves[w] <= this.t) this.waveSeen.add(w); }
   }
   initRipe() { for (const p of this.s.plots) if (p.open && p.stage === 'ripe' && p.crop && p.yieldLeft <= 0) p.yieldLeft = ripeCuts(this.cfg, p); }
-  /** faint: watered plots are dry again */
-  applyFaint() { if (this.cfg.faint.dryFields) for (const p of this.s.plots) p.watered = false; }
 }

@@ -9,6 +9,33 @@ import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
+/** remaining seconds as "m:ss" */
+const mss = (sec: number) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const mix = (a: number[], b: number[], k: number) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+const rgb = (c: number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
+/** sun colour over the day: warm at sunrise, light yellow at noon, orange-red at sunset */
+function sunCol(k: number) {
+  const dawn = [255, 190, 110], noon = [255, 226, 110], dusk = [255, 120, 60];
+  return k < .5 ? mix(dawn, noon, Math.min(1, k / .25)) : mix(noon, dusk, Math.max(0, (k - .62) / .38));
+}
+/** the sun clock: arc (centre 75/56, radius 58 x 46), horizon, trail of the day so far, sun with glow + rays, moon, stars */
+const CLOCK = `<svg class="ck" viewBox="0 0 150 72"><defs>
+  <radialGradient id="ckGlow"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".45" stop-color="#ffd070" stop-opacity=".45"/><stop offset="1" stop-color="#ff9a40" stop-opacity="0"/></radialGradient>
+  <radialGradient id="ckMGlow"><stop offset="0" stop-color="#e8f0ff" stop-opacity=".8"/><stop offset=".5" stop-color="#8aa8ff" stop-opacity=".3"/><stop offset="1" stop-color="#6a88ff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="ckDayG" x1="0" x2="1"><stop offset="0" stop-color="#ffb870"/><stop offset=".5" stop-color="#ffe27a"/><stop offset="1" stop-color="#ff7a40"/></linearGradient>
+  <linearGradient id="ckNightG" x1="0" x2="1"><stop offset="0" stop-color="#6a7ae0"/><stop offset="1" stop-color="#b8c8ff"/></linearGradient>
+  <clipPath id="ckClip"><rect x="-10" y="-20" width="170" height="76"/></clipPath></defs>
+  <g id="ckStars" opacity="0" fill="#dfe8ff"><circle cx="30" cy="18" r="1"/><circle cx="52" cy="7" r="1.3"/><circle cx="96" cy="9" r=".9"/><circle cx="118" cy="22" r="1.2"/><circle cx="76" cy="20" r=".8"/><circle cx="18" cy="38" r=".8"/><circle cx="134" cy="40" r=".9"/></g>
+  <path d="M17 56 A58 46 0 0 1 133 56" fill="none" stroke="#e3b96433" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="1 6"/>
+  <path id="ckTrail" d="M17 56 A58 46 0 0 1 133 56" fill="none" stroke="url(#ckDayG)" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+  <g clip-path="url(#ckClip)">
+    <g id="ckSun"><circle r="17" fill="url(#ckGlow)"/><g id="ckRays" stroke-width="2.2" stroke-linecap="round">${Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a); return `<path d="M${(c * 9.5).toFixed(1)} ${(s * 9.5).toFixed(1)}L${(c * 13).toFixed(1)} ${(s * 13).toFixed(1)}"/>`; }).join('')}</g>
+      <circle id="ckCore" r="7" stroke="#7a4a10" stroke-width="1.4"/><circle cx="-2.2" cy="-2.4" r="2.3" fill="#fffbe8" opacity=".75"/></g>
+    <g id="ckMoon" opacity="0"><circle r="16" fill="url(#ckMGlow)"/><path d="M3 -8a8.5 8.5 0 1 0 5 14.5a7 7 0 0 1 -5 -14.5z" fill="#e4ebff" stroke="#3a4a80" stroke-width="1.2"/><circle cx="-3" cy="2" r="1.2" fill="#b8c4e8"/><circle cx="-1" cy="-3" r=".8" fill="#b8c4e8"/></g>
+  </g>
+  <path d="M2 56 H148" stroke="#e3b96499" stroke-width="2" stroke-linecap="round"/>
+  <path d="M10 60 H140" stroke="#e3b96433" stroke-width="1.2" stroke-linecap="round"/></svg>
+  <b class="ckDay" id="fDay">1</b><div class="ckCd" id="fCd"></div>`;
 const TOOL_ICON: Record<string, string> = { can: 'can', handrake: 'handrake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
 /** left mouse button (PC label) */
 const LMB = `<svg class="ms" viewBox="0 0 30 42"><rect x="2" y="2" width="26" height="38" rx="13" fill="#1a2027" stroke="#fff2c0" stroke-width="2.4"/><path d="M15 2v17M2 19h26" stroke="#5a6570" stroke-width="2"/><path d="M15 3.5a12 12 0 0 0-11.5 12V19H15z" fill="#e3b964"/></svg>`;
@@ -29,7 +56,44 @@ export class FarmHud {
       this.s.seed = b.dataset.c!; this.key = ''; this.seedPanel(false);
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
+    $('#fClock').innerHTML = CLOCK;
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
+  }
+  private cdKey = '';
+  /** sun clock: by day the sun rises out of the horizon, crosses the arc and sinks behind it at nightfall, the countdown shows the
+   *  time to the night; at night the moon crosses the arc, stars come out, the countdown runs down the night, dots = waves */
+  private clock(sim: DaySim) {
+    const night = sim.nightOn, k = night ? sim.nightK : sim.k;
+    // a bit beyond both ends: rises out of / sinks into the horizon (clipped below it)
+    const u = -.035 + k * 1.07, a = Math.PI * (1 - u), x = 75 + Math.cos(a) * 58, y = 56 - Math.sin(a) * 46;
+    const sun = $('#ckSun'), moon = $('#ckMoon');
+    const body = night ? moon : sun, other = night ? sun : moon;
+    body.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`); body.setAttribute('opacity', '1'); other.setAttribute('opacity', '0');
+    if (!night) {
+      const c = sunCol(k), low = 1 - Math.min(1, Math.sin(Math.max(0, Math.min(Math.PI, a))) * 1.6); // near the horizon: bigger, redder glow
+      $('#ckCore').setAttribute('fill', rgb(c)); $('#ckRays').setAttribute('stroke', rgb(c));
+      $('#ckRays').setAttribute('transform', `rotate(${(performance.now() / 120) % 360}) scale(${(1 + low * .15).toFixed(3)})`);
+      (sun.firstElementChild as SVGElement).setAttribute('r', (17 + low * 6).toFixed(1));
+    }
+    $('#ckTrail').setAttribute('stroke', night ? 'url(#ckNightG)' : 'url(#ckDayG)');
+    $('#ckTrail').setAttribute('stroke-dasharray', `${(Math.min(1, Math.max(0, u)) * 100).toFixed(2)} 100`);
+    $('#ckStars').setAttribute('opacity', night ? (.5 + .5 * Math.min(1, sim.nightK * 8)).toFixed(2) : (sim.k > .9 ? ((sim.k - .9) * 4).toFixed(2) : '0'));
+    // countdown: to the night (moon), at night the rest of the night + one dot per wave (red = it came)
+    const left = night ? sim.nightLeft : sim.dayLeft, hot = night ? left <= 15 : left <= 30;
+    const txt = mss(left), waves = night ? sim.waves.length : 0, inn = night ? sim.wavesIn : 0;
+    const key = [night, hot, txt, waves, inn, sim.nightLen > 0].join('|');
+    if (key === this.cdKey) return; this.cdKey = key;
+    const cd = $('#fCd'); cd.hidden = !sim.nightLen && !night; // tutorial: no night, no countdown
+    cd.className = 'ckCd' + (night ? ' night' : '') + (hot ? ' hot' : '');
+    cd.innerHTML = (night ? ic('house') : ic('moon')) + `<b>${txt}</b>` + (waves ? `<span class="ckW">${Array.from({ length: waves }, (_, i) => `<i class="${i < inn ? 'on' : ''}"></i>`).join('')}</span>` : '');
+  }
+  /** "Die Nacht bricht herein!" (with the night's sound, played by the view) */
+  warn(on: boolean, sec = 5) {
+    const w = $('#fWarn'); clearTimeout((w as any)._t); clearTimeout((w as any)._t2);
+    if (!on) { w.hidden = true; return; }
+    w.innerHTML = `<div class="wIc">${ic('moon')}${ic('raccoon')}${ic('hare')}</div><div><b>Die Nacht bricht herein!</b><span>Wilde Tiere nähern sich und wollen eure Vorräte stehlen.</span></div>`;
+    w.hidden = false; w.className = 'in';
+    (w as any)._t = setTimeout(() => { w.className = 'out'; (w as any)._t2 = setTimeout(() => { w.hidden = true; }, 600); }, sec * 1000);
   }
   toggleQuests() { this.questsOpen = !this.questsOpen; this.qKey = ''; }
   /** daily orders at the top right: title + reward, objectives "- 0/5 [icon] Name", green tick when done; collapsed only "Quests [Q]" */
@@ -55,10 +119,7 @@ export class FarmHud {
     ($('#fHpFill')).style.width = (P.hp / P.maxHp * 100).toFixed(1) + '%';
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     $('#fXpFill').style.width = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%';
-    // sun on its arc over the day
-    const k = sim.k, a = Math.PI * (1 - k), sx = 50 + Math.cos(a) * 38, sy = 44 - Math.sin(a) * 34;
-    const sun = $('#fSun'); sun.setAttribute('cx', sx.toFixed(1)); sun.setAttribute('cy', sy.toFixed(1));
-    sun.setAttribute('fill', k > .85 ? '#ff9a40' : '#ffd040');
+    this.clock(sim);
     const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
     if (key !== this.key) {
       this.key = key;
@@ -121,5 +182,5 @@ export class FarmHud {
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }
-  clear() { $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
+  clear() { this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
 }

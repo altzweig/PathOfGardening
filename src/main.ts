@@ -23,6 +23,11 @@ import { Tutorial } from './farm/tutorial';
 import { mobileControls, pcControls } from './farm/ui/controls';
 import { ic } from './farm/ui/ficons';
 import { LoadScreen } from './farm/ui/loading';
+import { CutscenePlayer } from './farm/cutscene/cutscene';
+import { faintCutscene } from './farm/cutscene/faint';
+import { WINDOWS } from './farm/view/buildings';
+import { play } from './audio';
+import * as THREE from 'three';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause'];
@@ -54,6 +59,9 @@ class Game {
   private slot: string | null = null;
   private tutorialMode = false;
   private autoT = 0;
+  /** cutscenes (21.11.2026): the faint scene runs on every faint */
+  cut = new CutscenePlayer();
+  private cdTick = -1;
 
   async boot() {
     const load = new LoadScreen(); load.set(.08);
@@ -258,11 +266,12 @@ class Game {
     if (this.ending || !this.sim) return; this.ending = true;
     const sim = this.sim, s = this.s;
     this.input.enabled = false; this.input.releaseAll();
-    if (reason === 'faint') sim.applyFaint();
+    if (reason === 'faint') sim.applyKO(); // the worst case: harvest of the day gone, every field trampled (Basti 21.11.2026)
     // stolen goods still on the ground are picked up in the evening
-    for (const l of sim.loot) { s.items[l.item] = (s.items[l.item] ?? 0) + 1; sim.lost[l.item] = Math.max(0, (sim.lost[l.item] ?? 0) - 1); }
-    s.summary = { day: s.day, got: { ...sim.got }, lost: { ...sim.lost }, driven: sim.driven, xp: sim.xpGained, fainted: reason === 'faint' };
-    this.hud.fade(true, true); await wait(this.tut ? 200 : 1500);
+    else for (const l of sim.loot) { const n = l.n ?? 1; s.items[l.item] = (s.items[l.item] ?? 0) + n; sim.lost[l.item] = Math.max(0, (sim.lost[l.item] ?? 0) - n); }
+    s.summary = { day: s.day, got: { ...sim.got }, lost: { ...sim.lost }, driven: sim.driven, xp: sim.xpGained, fainted: reason === 'faint', broken: sim.broken };
+    if (reason === 'faint') await this.faintScene(sim);
+    else { this.hud.fade(true, true); await wait(this.tut ? 200 : 1500); }
     if (this.tutorialMode) { // tutorial mode ends with the day: back to the menu
       this.ending = false; this.leave(); this.hud.fade(false, true); return;
     }
@@ -270,6 +279,32 @@ class Game {
     endDay(this.cfg, s); this.ending = false; this.persist(false); this.ending = true;
     this.sim = null; this.tut = null; this.view.clearDynamic(); this.hud.show(false); this.hud.clear();
     this.toEvening(true);
+  }
+  /** fainted: short fall into black, then the cutscene (first person, waking up in the evening), it ends in black */
+  private async faintScene(sim: DaySim) {
+    this.hud.fade(true); await wait(550);
+    this.hud.show(false); this.hud.clear(); this.view.hover = null;
+    sim.animals.length = 0; sim.pellets.length = 0; // they are gone when the farmer wakes up
+    const H = this.cfg.hof, P = sim.player;
+    // the trampled field next to the farmer (all are trampled now) and where he lies: a few metres in front of it
+    let fi = -1, fd = 1e9;
+    H.plots.forEach((p, i) => { if (!this.s.plots[i].open) return; const d = Math.hypot(p.x - P.x, p.z - P.z); if (d < fd) { fd = d; fi = i; } });
+    const field = fi >= 0 ? H.plots[fi] : { x: P.x + 3, z: P.z };
+    // the lit window of the main house nearest to the farmer
+    const house = this.view.buildings.get('house'); house?.root.updateMatrixWorld(true);
+    let light = { x: H.door.x, y: 1.7, z: H.door.z }, ld = 1e9;
+    for (const w of WINDOWS) { let o: THREE.Object3D | null = w, inHouse = false; while (o) { if (o === house?.root) inHouse = true; o = o.parent; } if (!inHouse) continue;
+      const p = w.getWorldPosition(new THREE.Vector3()), d = Math.hypot(p.x - P.x, p.z - P.z); if (d < ld) { ld = d; light = { x: p.x, y: p.y, z: p.z }; } }
+    // lie between the field and the house, 3 m from the field (pushed out of anything solid): the lights ahead, the field behind
+    const dx = light.x - field.x, dz = light.z - field.z, l = Math.hypot(dx, dz) || 1;
+    const c = this.hof.collide(field.x + dx / l * 3.2, field.z + dz / l * 3.2, .45, true);
+    this.view.hour = this.cfg.night.light[1];
+    this.view.resetLight();
+    const done = this.cut.play(faintCutscene({ at: c, light, field }));
+    this.hud.fade(false);
+    await done;
+    this.hud.fade(true); const f = $('#fFade'); f.style.transitionDuration = '0s'; void f.offsetWidth; // black stays: the evening fades in from it
+    this.cut.stop(); this.view.cine = null; this.view.hour = null;
   }
   private toEvening(fade: boolean) {
     this.mode = 'evening'; this.view.setState(this.s); this.house.s = this.s; this.view.resetLight();
@@ -288,6 +323,7 @@ class Game {
     tickAudio(dt); tickAmbient(dt);
     if (!this.view) return;
     this.tick(dt);
+    if (this.cut.active) this.view.cine = this.cut.update(dt);
     const sim = this.sim;
     this.view.frame(this.paused ? 0 : dt, this.mode === 'day' ? sim : null, this.mode === 'menu' ? 'menu' : this.mode === 'day' ? 'day' : 'evening');
     if (this.paused && sim) sim.ev.length = 0;
@@ -313,10 +349,15 @@ class Game {
       if (e.k === 'store') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
       if (e.k === 'faint') this.endOfDay('faint');
       if (e.k === 'xp') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
+      if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
+      if (e.k === 'pocket') { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
     }
     // daily orders: delivered as soon as all goods are in the storage (reward in the evening)
     if (this.s.tutorialDone) for (const q of checkQuests(this.cfg, this.s)) { sfx('ui.levelup'); this.hud.float(sim.player.x, sim.player.z, `${ic('check')}${q.title ?? ''}`, 'xp'); }
     if (sim.finished === 'time' && !this.tut) this.endOfDay('time');
+    // last seconds before the night / of the night: a dry clock tick
+    const left = sim.nightLen ? (sim.nightOn ? sim.nightLeft : sim.dayLeft) : 99, sec = Math.ceil(left);
+    if (sec !== this.cdTick) { this.cdTick = sec; if (sec <= 10 && sec > 0 && !sim.finished) play('cdTick', sec <= 3); }
     this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
   }
   /** tests: run the day for `sec` seconds without rendering */

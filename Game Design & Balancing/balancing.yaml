@@ -130,6 +130,7 @@ player:
 # gibt es keine, endet die Kette. Laufen während einer Aktion geht (langsamer), zu weit weg (player.leave) bricht ab.
 actions:
   water:       { time: 2.0, label: Gießen }           # Busch / Feld: Feld einmal nach dem Säen, dann wächst es
+  repair:      { time: 10.0, label: Reparieren }      # zertrampeltes Feld nach der Nacht wieder herrichten (Basti 21.11.2026: 10 s pro Feld)
   sow:         { time: 2.0, label: Säen }             # leeres Feld (auch direkt nach der Ernte, ohne Jäten/Harken), kostet kein Saatgut
   weed:        { time: 1.0, label: Jäten, repeat: true }  # Feld: kniend mit der Handharke, je Durchgang 1 Unkraut -> 1 Grünschnitt
   fertilize:   { time: 1.5, label: Düngen }           # Feld: 1x am Tag, braucht 1 Dünger
@@ -374,8 +375,40 @@ spawns:
     damage: 0.1
     speed: 0.03
 
-faint:                     # 0 Leben = ohnmächtig: man wacht abends auf, der Rest des Tages ist verloren
-  dryFields: true          # alle heute gegossenen Felder sind wieder trocken
+faint:                     # 0 Leben = ohnmächtig (Basti 21.11.2026): Cutscene, man wacht abends auf, der schlimmste Fall tritt ein
+  loseHarvest: true        # die gesamte Ernte des Tages ist weg (auch was Tiere tragen oder am Boden liegt)
+  breakFields: true        # alle Felder sind zertrampelt und müssen repariert werden
+
+night:                     # Nachtangriff nach jedem Tag (Basti 21.11.2026): statt ins Haus beginnt ein Countdown, Tiere greifen den Hof an
+  length: 120              # s Countdown der Nacht, danach geht es ins Haus (Abend-UI)
+  dusk: 8                  # s vom Sonnenuntergang bis zur dunklen Nacht (Licht)
+  warn: 5.5                # s steht die Warnung "Die Nacht bricht herein" (mit Soundeffekt)
+  light: [16.0, 20.6]      # Lichtstunde bei Einbruch der Nacht / ab `dusk` (20.6 = Mondlicht)
+  flee: 4                  # s vor Ende der Nacht hauen alle Tiere ab
+  waves:                   # Nacht 1: drei Wellen (at = s nach Einbruch der Nacht)
+    - { at: 6,  hare: 1, raccoon: 1 }
+    - { at: 44, hare: 1, raccoon: 2 }
+    - { at: 80, hare: 2, raccoon: 3 }
+  grow: 1                  # jede weitere Nacht pro Welle so viele Tiere mehr (abwechselnd Waschbär, Hase)
+  max:                     # höchstens so viele Tiere in einer Nacht: base + perLevel x (Level - 1), damit es mit niedrigem Level nicht zu schwer wird
+    base: 10
+    perLevel: 4
+  hare:                    # aggressiver Hase (rote Augen): frisst Felder an, haut erst ab, wenn sein Leben weg ist
+    hp: 8                  # Handharke macht 4 Schaden: 2 Treffer (+ Level-Skalierung spawns.scaling)
+    speed: 3.0             # m/s
+    biteInterval: 1.2      # s pro Biss ins Feld
+    plotDamage: 1          # Feld-Lebenspunkte pro Biss
+    xp: 4
+  raccoon:                 # Waschbär (funkelnde blaue Augen): greift den Spieler an und klaut bei jedem Treffer Ernte aus der Tasche
+    hp: 16                 # 4 Treffer mit der Handharke
+    speed: 2.9             # m/s (Spieler läuft 4,6)
+    damage: 8              # pro Biss
+    biteInterval: 1.3      # s
+    steal: 0.12            # jeder Biss klaut diesen Anteil der heutigen Ernte (mind. 1 Stück)
+    bites: 3               # nach so vielen Treffern haut er mit der Beute ab (Treffer auf ihn: er lässt alles fallen)
+    xp: 10
+  plotHp: 12               # Lebenspunkte eines Feldes in der Nacht; bei 0 zertrampelt (Pflanzen kaputt, 10 s reparieren)
+  brokenShow: 0.06         # so weit ist der rote Balken eines zertrampelten Feldes gefüllt
 
 # ---------------------------------------------------------------------
 levels:

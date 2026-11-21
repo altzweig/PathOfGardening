@@ -67,7 +67,7 @@ names:
     cran: Preiselbeeren
     goose: Stachelbeeren
   weapons:
-    rake: Harke              # Notwaffe: ohne Waffe oder ohne Munition schlägt man schwertartig mit der Harke
+    rake: Handharke          # kleine einhändige Handharke: Jäten + Notwaffe (Schlag), immer dabei (Id bleibt 'rake')
     shotgun: Schrotflinte
     crossbow: Armbrust
     sling: Schleuder
@@ -112,6 +112,10 @@ player:
   speed: 4.6               # m/s
   radius: 0.35             # m, Kollision
   reach: 1.7               # m bis zum Ziel, ab hier startet eine Aktion (sonst läuft die Figur erst hin)
+  kneel: 0.7               # m: Arbeit am Boden (Jäten, Säen, Ernten am Feld, Sammeln) - so nah kniet man sich an die Stelle, sonst geht man erst hin
+  leave: 1.25              # x reach (am Boden x kneel + 0,35 m): entfernt man sich während einer Aktion weiter, bricht sie ab
+  actionSpeed: 2.2         # m/s Laufen während einer Aktion im Stehen (Gießen, Füttern ...)
+  crouchSpeed: 1.15        # m/s Watscheln in der Hocke (Aktionsknopf gehalten nach Jäten, Säen, Ernten am Boden)
   hover: 2.6               # m: Handy-Aktionsknopf nimmt das nächste Ziel in dieser Entfernung
   pickupRadius: 0.9        # m: fallengelassene Beute wird eingesammelt
   magnetRadius: 3          # m: ab hier rollt Beute zum Spieler
@@ -121,12 +125,13 @@ player:
 # ---------------------------------------------------------------------
 # Aktionen tagsüber (außer Kämpfen). Steht man im Radius eines Ziels (player.hover), wird "[Aktionsname]" eingeblendet,
 # Linksklick führt sie aus, ein kleiner Zeitbalken läuft voll. time = Dauer in s, label = eingeblendeter Name.
-# repeat: läuft von selbst weiter, solange es geht (Busch abernten, Wasser schöpfen ...). Laufen bricht ab.
+# repeat: läuft von selbst weiter, solange es geht (Busch abernten, Wasser schöpfen ...).
+# Aktionsknopf / linke Maustaste GEHALTEN (21.11.2026): nach jeder Aktion startet die nächste mögliche am anvisierten Ziel,
+# gibt es keine, endet die Kette. Laufen während einer Aktion geht (langsamer), zu weit weg (player.leave) bricht ab.
 actions:
   water:       { time: 2.0, label: Gießen }           # Busch / Feld: Feld einmal nach dem Säen, dann wächst es
-  plow:        { time: 3.0, label: Pflügen }          # neu angelegtes Feld
-  sow:         { time: 2.0, label: Säen }             # gepflügtes Feld, kostet kein Saatgut (Frucht wählt man unten links)
-  weed:        { time: 1.5, label: Jäten }            # Feld: alles Unkraut raus, je Unkraut 1 Grünschnitt
+  sow:         { time: 2.0, label: Säen }             # leeres Feld (auch direkt nach der Ernte, ohne Jäten/Harken), kostet kein Saatgut
+  weed:        { time: 1.0, label: Jäten, repeat: true }  # Feld: kniend mit der Handharke, je Durchgang 1 Unkraut -> 1 Grünschnitt
   fertilize:   { time: 1.5, label: Düngen }           # Feld: 1x am Tag, braucht 1 Dünger
   harvestPlot: { time: 1.33, label: Ernten, repeat: true }  # reifes Feld, so oft wie crops.*.cuts, dann abgeerntet
   harvestBush: { time: 1.33, label: Ernten, repeat: true }  # Blaubeerbusch
@@ -187,10 +192,12 @@ crops:
 
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
+  # Unkraut (Basti 21.11.2026): wächst NUR morgens, nie zwischendurch. Jeden Morgen kommen pro Feld 0/1/2 dazu
+  # (morning = Wahrscheinlichkeiten für 0, 1, 2), höchstens max. Jedes Unkraut bremst das Wachstum (slow = bei 1, 2, 3 Unkraut).
   sprout: 1                # s nach dem Säen: die Pflanze sprießt sichtbar, erst dann kann man gießen
   clear: 1                 # s nach der letzten Ernte, dann ist das Feld wieder bestellbereit
   fertBonus: 0.3           # je Düngen (1x pro Tag): 30 % mehr Ernte-Durchgänge
-  weeds: { max: 5, every: [35, 70], blockAt: 3 }   # Unkraut pro Feld: wächst alle 35-70 s, Ernten erst bei weniger als 3
+  weeds: { max: 3, morning: [0.25, 0.5, 0.25], slow: [0.05, 0.10, 0.15] }
   byLevel: [3, 4, 5, 6, 8, 10, 12, 14, 16, 18]   # so viele Felder darf man auf Level 1, 2, 3, ... anlegen
   cost: 20                 # Taler für ein weiteres Feld (Abend: Bauen)
 
@@ -260,10 +267,10 @@ start:                     # neuer Spielstand
 # ---------------------------------------------------------------------
 # Kampf (Rechtsklick). Morgens wählt man genau eine Waffe und eine Munition.
 weapons:
-  rake:                    # Harke (Notwaffe, immer dabei)
+  rake:                    # Handharke (einhändig, immer dabei): Schlag mit Rechtsklick / Angriffsknopf
     damage: 4
     range: 1.35            # m
-    arc: 110               # Grad Trefferkegel
+    arc: 120               # Grad Trefferkegel (Basti 21.11.2026)
     cooldown: 0.5          # s
     swing: 0.2             # s Schwung (Treffer in der Mitte)
     knockback: 0.5         # m
@@ -462,16 +469,17 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
     - Fällst du in Ohnmacht, ist der Tag vorbei und die Felder sind wieder trocken.
 
 tutorial:
-  raccoonHp: 4             # ein Harkenschlag vertreibt ihn
-  raccoonSteal: 4          # klaut so viele Beeren aus dem Korb
+  raccoonHp: 4             # ein Schlag mit der Handharke vertreibt ihn
+  raccoonSteal: 4          # klaut so viele Beeren aus dem Lager
   raccoonSpeed: 3.0        # m/s auf der Flucht (Spieler 4,6)
   raccoonStart: 3          # m neben dem Spieler startet die Flucht nach der Cutscene
   fieldHint: 6             # s bleibt der Hinweis "jeden Tag gießen" stehen
   texts:
     water: Blaubeeren gießen
     waterHere: Gießen
-    meanwhile: In der Zwischenzeit das Feld pflügen, säen und gießen
-    rake: Pflügen
+    meanwhile: In der Zwischenzeit das Feld jäten, säen und gießen
+    weed: Jäten
+    hold: Gedrückt halten, dann geht es von selbst weiter
     sow: Säen
     waterField: Gießen
     daily: Einmal gießen, dann wächst der Weizen.
@@ -490,7 +498,7 @@ hof:
   gaps: [-100, -22, 42, 122, 182]  # Waldlücken (rote Pfeile, Grad: 0 = rechts, 90 = unten), nur hier kommen Tiere
   gapWidth: 5
   door: { x: 6.0, z: -6.2 }        # Spieler startet vor der Haustür
-  basket: { x: 3.0, z: -6.6 }      # Korb am Lager (neben dem Haus), hier landet die Ernte
+  basket: { x: 3.0, z: -6.6 }      # Lager-Eingang neben dem Haus: hier klauen Waschbären (Ernte geht direkt ins Lager, kein Korb mehr)
   bush: { x: 0.2, z: -5.0 }        # Blaubeerbusch
   buildings:
     house:     { x: 7.4, z: -9.4, w: 8.4, d: 5.2, rot: 18 }

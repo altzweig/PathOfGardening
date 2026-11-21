@@ -79,8 +79,13 @@ export class Hof {
   /** centre of the walk area and its radius per degree (the polygon counts as "clearing": 0 = centre, 1 = edge) */
   cx = 0; cz = 0; private R: Float32Array | null = null;
   private spawnW: number[] = [];
+  /** fixed spots of the weeds on each plot (offset from the plot centre), one per third of the hexagon so they lie apart;
+   *  weed k (1-based) sits at spot k-1 and is the next one to come out while it is the last one (sim + view share this) */
+  plotWeeds: { x: number; z: number; r: number }[][];
   constructor(public cfg: FarmCfg) {
     const H = cfg.hof; this.rx = H.clearing.rx; this.rz = H.clearing.rz;
+    const wr = seeded(31), PH = cfg.plots.size / 2, WN = Math.max(1, cfg.plots.weeds.max);
+    this.plotWeeds = H.plots.map(() => { const a0 = wr() * 6.283; return Array.from({ length: WN }, (_, k) => { const a = a0 + k / WN * 6.283 + (wr() - .5) * 1.2, r = PH * (.32 + wr() * .4); return { x: Math.cos(a) * r, z: Math.sin(a) * r, r: wr() * 7 }; }); });
     const L = this.logic = cfg.world?.logic ?? null;
     if (L) {
       this.walkPoly = splinePoly(L.walk); this.buildPoly = splinePoly(L.build);

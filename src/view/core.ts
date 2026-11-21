@@ -51,6 +51,19 @@ export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: tr
 
 export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+/** 21.11.2026: black boxes flashing for a few frames = single NaN / Inf pixels (degenerate flat-shaded triangles,
+ *  extreme specular peaks) that the bloom blur smears into whole blocks of its mip chain. This pass sets such pixels
+ *  to black and caps extreme values before the bloom sees them (only while the bloom runs). */
+export const cleanPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main(){ vec4 c=texture2D(tDiffuse,vUv);
+      float s=c.r+c.g+c.b+c.a;
+      if(any(isnan(c)) || any(isinf(c)) || !(s<1e5) || !(s>-1e5)) c=vec4(0.,0.,0.,1.);
+      gl_FragColor=vec4(clamp(c.rgb,0.,48.),c.a); }`,
+});
+composer.addPass(cleanPass);
 export const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 1.15, 0.6, 0.72);
 composer.addPass(bloom);
 // lightning overlay: drawn after bloom (keeps scene depth) so bolts stay crisp
@@ -91,7 +104,7 @@ addEventListener('resize', resize);
 export function applyQuality() {
   const q = QUAL[gfx.quality];
   renderer.setPixelRatio(q.pr); composer.setPixelRatio(q.pr);
-  bloom.enabled = q.bloom;
+  bloom.enabled = q.bloom; cleanPass.enabled = q.bloom;
   moon.castShadow = q.shadow > 0;
   if (q.shadow) { moon.shadow.mapSize.set(q.shadow, q.shadow); if (moon.shadow.map) { moon.shadow.map.dispose(); (moon.shadow as any).map = null; } }
   resize();

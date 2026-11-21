@@ -2,7 +2,7 @@
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
 import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, treeCfg, treeKind } from './config';
-import { FarmState, addItem, count, gainXp, ripeCuts } from './state';
+import { FarmState, addItem, count, gainXp, growMul, ripeCuts } from './state';
 import { Hof } from './hof';
 
 export type Target =
@@ -10,7 +10,8 @@ export type Target =
   | { k: 'bld'; id: BuildingId } | { k: 'stall'; id: StallId }
   | { k: 'tree'; i: number } | { k: 'bramble'; i: number }
   | { k: 'forage'; id: number } | { k: 'weed'; id: number };
-type Basket = { k: 'basket' };
+/** the Lager at the main house (H.basket): raccoons steal from it (21.11.2026: no harvest basket any more) */
+type Lager = { k: 'lager' };
 const keyOf = (t: Target) => t.k + ':' + ((t as any).i ?? (t as any).id ?? '');
 export const sameTarget = (a: Target | null, b: Target | null) => !!a && !!b && keyOf(a) === keyOf(b);
 /** what a left click on a target does right now */
@@ -29,22 +30,28 @@ export interface Intent {
   aimX: number; aimZ: number;       // world point the attack goes to (mouse) ...
   aimAuto: boolean;                 // ... or aim at the nearest animal (touch)
   act: Target | null;               // left click / action button this frame
+  /** left mouse button / action button held (21.11.2026): when an action ends the next possible one at `holdAt` starts */
+  hold: boolean; holdAt: Target | null;
   attack: boolean;                  // right click / attack button held
 }
-export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, attack: false });
+export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
+/** actions done kneeling / crouching on the ground (hand rake, sowing, harvesting a plot, gathering) */
+export const LOW_ACTIONS = new Set<ActionKind>(['weed', 'weedHof', 'sow', 'harvestPlot', 'fertilize', 'gather']);
 export type Ev = { k: string; [key: string]: any };
 
 export interface Player {
   x: number; z: number; f: number; hp: number; maxHp: number; walk: number; speed: number;
   action: { target: Target; info: ActionInfo; t: number; pick: number } | null;
   goal: Target | null;              // auto-walk to a clicked target, then act
+  /** down on one knee / in a crouch: from a ground action on until the action button is released (then walking = waddling) */
+  crouch: boolean;
   swing: { t: number; dir: number; hit: boolean } | null;
   shotT: number; cd: number; hurt: number; stun: number;
 }
 export type AnimalState = 'enter' | 'go' | 'steal' | 'eat' | 'attack' | 'flee' | 'wander' | 'script';
 export interface Animal {
   id: number; type: AnimalType; x: number; z: number; f: number; hp: number; maxHp: number;
-  state: AnimalState; target: Target | Basket | null; gap: number; t: number; act: number;
+  state: AnimalState; target: Target | Lager | null; gap: number; t: number; act: number;
   carry: Record<ItemId, number>; carryN: number; stun: number; freeze: number; flash: number; bite: number;
   shy: boolean; brave: boolean; driven: boolean; gone: boolean; speedMul: number; dmgMul: number;
   stuck: number; lx: number; lz: number; detour: { x: number; z: number } | null;
@@ -66,8 +73,8 @@ function segDist(ax: number, az: number, bx: number, bz: number, px: number, pz:
   return Math.hypot(ax + dx * t - px, az + dz * t - pz);
 }
 const angTo = (ax: number, az: number, bx: number, bz: number) => Math.atan2(bx - ax, bz - az); // three.js yaw (0 = +z)
-/** goods animals take from the basket (not straw, wood, stones ...) */
-const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert']);
+/** goods animals take from the Lager (not straw, wood, stones ...) */
+const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert']); // goods raccoons take from the Lager
 const EDIBLE = (id: ItemId) => !NOT_EDIBLE.has(id);
 /** which targets win when several are in reach: buildings, plots, bush first, then forage, weeds last */
 const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, stall: 0, tree: 1, bramble: 1, forage: 2, weed: 3 };
@@ -76,7 +83,8 @@ const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, s
 export interface DaySnap {
   t: number; player: { x: number; z: number; f: number; hp: number };
   got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xpGained: number;
-  basketAt: { x: number; z: number } | null; stalls: Record<StallId, Stall>; apples: number[]; brambles: { n: number; t: number }[];
+  /** old saves: where the harvest basket stood (ignored since 21.11.2026) */
+  basketAt?: { x: number; z: number } | null; stalls: Record<StallId, Stall>; apples: number[]; brambles: { n: number; t: number }[];
   plan: { at: number; type: AnimalType; gap: number }[]; half: number; rain: { at: number; dur: number; t: number } | null;
   loot: { item: ItemId; x: number; z: number; fresh?: boolean }[];
 }
@@ -95,8 +103,6 @@ export class DaySim {
   clockRuns = true; spawns = true; inputLocked = false; paused = false;
   finished: 'time' | 'faint' | null = null;
   got: Record<ItemId, number> = {}; lost: Record<ItemId, number> = {}; driven = 0; xpGained = 0;
-  /** the harvest basket: set down next to the player at the first harvest of the day (raccoons steal from it) */
-  basketAt: { x: number; z: number } | null = null;
   stalls = {} as Record<StallId, Stall>;
   apples: number[];
   brambles: { n: number; t: number }[];
@@ -105,14 +111,14 @@ export class DaySim {
   private plan: { at: number; type: AnimalType; gap: number }[] = [];
   private nid = 1;
   private half = 0;
-  private weedT: number; private forageT: number; private plotWeedT: number[];
+  private weedT: number; private forageT: number;
   /** s until the next wild plant of each kind grows (wild.forage.plants) */
   private plantT: Record<ItemId, number> = {};
 
   constructor(public cfg: FarmCfg, public s: FarmState, public hof: Hof, o: { tutorial?: boolean } = {}) {
     this.length = cfg.day.length;
     const P = cfg.player, d = cfg.hof.door, W = cfg.wild;
-    this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
+    this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, crouch: false, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
     for (const id of STALL_IDS) this.stalls[id] = { fed: 0, done: false, straw: false };
     // perennials: ripe again from the remembered day on (a tree / bramble that was picked empty rests a few days)
     const per = s.perennial;
@@ -120,7 +126,6 @@ export class DaySim {
     this.brambles = hof.brambles.map((_, i) => ({ n: (per.brambles[i] ?? 0) <= s.day ? W.brambles.picks : 0, t: 0 }));
     this.weedT = rnd(...W.weeds.every); this.forageT = rnd(...W.forage.every);
     for (const [k, v] of Object.entries(W.forage.plants ?? {})) this.plantT[k] = v.spawn * rnd(.3, 1);
-    this.plotWeedT = s.plots.map(() => rnd(...cfg.plots.weeds.every));
     if (!s.wild.init) this.seedWild();
     if (o.tutorial) { this.clockRuns = false; this.spawns = false; }
     else { this.planSpawns(); if (Math.random() < cfg.day.rain.chance) { const [a, b] = cfg.day.rain.duration; this.rain = { at: rnd(.15, .7) * this.length, dur: rnd(a, b), t: 0 }; } }
@@ -191,23 +196,20 @@ export class DaySim {
     const picks = F.plants?.[k]?.picks;
     w.forage.push(picks ? { id: w.seq++, k, ...p, n: picks } : { id: w.seq++, k, ...p });
   }
+  /** weeds + forage on the farm (weeds on the plots only come in the morning: state.morningWeeds) */
   private updateWild(dt: number) {
-    const W = this.cfg.wild, PW = this.cfg.plots.weeds;
+    const W = this.cfg.wild;
     if ((this.weedT -= dt) <= 0) { this.weedT = rnd(...W.weeds.every); this.growWeed(); }
     if ((this.forageT -= dt) <= 0) { this.forageT = rnd(...W.forage.every); this.growForage(); }
     for (const [k, v] of Object.entries(W.forage.plants ?? {})) if ((this.plantT[k] -= dt) <= 0) { this.plantT[k] = v.spawn; this.growForage(false, k); }
-    this.s.plots.forEach((p, i) => {
-      if (!p.open || p.weeds >= PW.max) return;
-      if ((this.plotWeedT[i] -= dt) <= 0) { this.plotWeedT[i] = rnd(...PW.every); p.weeds++; this.ev.push({ k: 'plotWeed', i }); }
-    });
   }
 
   // ---------------- targets ----------------
-  targetPos(t: Target | Basket): { x: number; z: number } {
+  targetPos(t: Target | Lager): { x: number; z: number } {
     const H = this.cfg.hof;
     switch (t.k) {
       case 'bush': return H.bush;
-      case 'basket': return this.basketAt ?? H.basket;
+      case 'lager': return H.basket;
       case 'well': return H.buildings.well;
       case 'plot': return H.plots[t.i];
       case 'bld': case 'stall': return H.buildings[t.id];
@@ -234,7 +236,7 @@ export class DaySim {
       case 'bush': {
         const b = s.bush;
         if (b.phase === 'dry') return this.act('water', 'can', noWater);
-        if (b.phase === 'ripe') return this.act('harvestBush', 'rake');
+        if (b.phase === 'ripe') return this.act('harvestBush', 'hands');
         return null;
       }
       case 'well': {
@@ -245,21 +247,19 @@ export class DaySim {
       }
       case 'plot': {
         const p = s.plots[t.i]; if (!p?.open) return null;
-        const PW = this.cfg.plots.weeds, fert = count(s, 'fert') > 0 && p.fertDay !== s.day;
-        if (p.stage === 'empty') return this.act('plow', 'rake');
-        if (p.stage === 'raked') return this.act('sow', 'seed', { item: this.seedCrop() });
+        // 21.11.2026 (Basti): only sow, water, harvest + weed every morning. Weeds never block anything, they slow the growth.
+        // Order = what helps most first: sow, water (growth starts), then weed; while sprouting / clearing there is time to weed.
+        const fert = count(s, 'fert') > 0 && p.fertDay !== s.day, weed = p.weeds > 0 ? this.act('weed', 'handrake', { count: '' + p.weeds }) : null;
+        if (p.stage === 'ripe') return this.act('harvestPlot', p.crop === 'wheat' ? 'sickle' : 'hands', { count: '' + p.yieldLeft });
+        if (p.stage === 'empty') return this.act('sow', 'seed', { item: this.seedCrop() });
         if (p.stage === 'sown') {
-          if (p.t > 0) return null;                       // sprouting
-          if (!p.watered) return this.act('water', 'can', noWater);
-          if (p.weeds > 0) return this.act('weed', 'hands', { count: '' + p.weeds });
+          if (p.t > 0) return weed;                       // sprouting
+          if (!p.watered) { const w = this.act('water', 'can', noWater); return !w.ok && weed ? weed : w; }
+          if (weed) return weed;
           if (fert) return this.act('fertilize', 'hands');
           return null;
         }
-        if (p.stage === 'ripe') {
-          if (p.weeds >= PW.blockAt) return this.act('weed', 'hands', { count: '' + p.weeds });
-          return this.act('harvestPlot', p.crop === 'wheat' ? 'sickle' : 'hands', { count: '' + p.yieldLeft });
-        }
-        return null;
+        return weed;                                      // 'done': cleared in a moment
       }
       case 'bld': {
         const B = this.cfg.buildings[t.id]; if (!B?.action || !B.recipes?.length || !s.buildings[t.id]?.built) return null;
@@ -279,7 +279,7 @@ export class DaySim {
       case 'tree': return this.apples[t.i] > 0 ? this.act('shake', 'hands', { count: '' + this.apples[t.i] }) : null;
       case 'bramble': return this.brambles[t.i]?.n > 0 ? this.act('pickWild', 'hands') : null;
       case 'forage': return s.wild.forage.some(f => f.id === t.id) ? this.act('gather', 'hands') : null;
-      case 'weed': return s.wild.weeds.some(f => f.id === t.id) ? this.act('weedHof', 'hands') : null;
+      case 'weed': return s.wild.weeds.some(f => f.id === t.id) ? this.act('weedHof', 'handrake') : null;
     }
   }
   /** every target near a point (cheap for the many small things) */
@@ -338,7 +338,7 @@ export class DaySim {
     this.updateBush(dt);
     this.updatePlots(dt);
     if (this.clockRuns) this.updateWild(dt);
-    this.updatePlayer(dt, this.inputLocked ? { ...it, mx: 0, mz: 0, act: null, attack: false } : it);
+    this.updatePlayer(dt, this.inputLocked ? { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false } : it);
     this.updatePellets(dt);
     this.updateAnimals(dt);
     this.updateLoot(dt);
@@ -372,10 +372,10 @@ export class DaySim {
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
         if (!p.watered || !p.crop) return;
-        const C = this.cfg.crops[p.crop]; p.grow += dt;
+        const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p); // every weed slows the growth
         if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); this.ev.push({ k: 'plotRipe', i }); }
       } else if (p.stage === 'done') {
-        if ((p.t -= dt) <= 0) Object.assign(p, { stage: 'raked', crop: null, t: 0, grow: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0 });
+        if ((p.t -= dt) <= 0) Object.assign(p, { stage: 'empty', crop: null, t: 0, grow: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0 }); // sow again right away
       }
     });
   }
@@ -396,48 +396,56 @@ export class DaySim {
   private updatePlayer(dt: number, it: Intent) {
     const P = this.player, C = this.cfg.player;
     P.cd = Math.max(0, P.cd - dt); P.hurt = Math.max(0, P.hurt - dt); P.stun = Math.max(0, P.stun - dt);
-    // --- fighting (right click): never together with an action
+    // --- fighting (right click): never together with an action, the player stands up for the swing
     if (it.attack && !P.swing && P.cd <= 0) {
       if (P.action) this.cancelAction();
-      P.goal = null;
+      P.goal = null; P.crouch = false;
       this.attack(it);
     }
-    // --- left click: act now if close enough, else walk there first
-    if (it.act && !P.swing) {
+    // --- left click / action button pressed: act now if close enough, else walk there first
+    if (it.act && !P.swing && !(P.action && sameTarget(P.action.target, it.act))) {
       const a = this.actionFor(it.act);
       if (!a) { /* nothing to do */ }
       else if (!a.ok) this.ev.push({ k: 'deny', why: a.why, target: it.act });
-      else if (this.targetDist(it.act, P.x, P.z) <= C.reach) this.startAction(it.act, a);
-      else { P.goal = it.act; if (P.action) this.cancelAction(); }
+      else { if (P.action) this.cancelAction(); this.begin(it.act, a); }
     }
-    // --- movement
-    let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz);
-    if (ml > .15) { P.goal = null; if (P.action) this.cancelAction(); }
-    if (P.goal && ml <= .15) {
-      const g = this.targetPos(P.goal), d = this.targetDist(P.goal, P.x, P.z);
+    // --- held (21.11.2026): whenever nothing runs, the next possible action at the aimed target starts by itself
+    const steering = Math.hypot(it.mx, it.mz) > .15;
+    if (it.hold && !P.action && !P.swing && !P.goal) this.holdNext(it, null, !steering);
+    // released: up again once the running action is over
+    if (!it.hold && !P.action) P.crouch = false;
+    // --- movement: walking is possible during an action (slower); in a crouch it is a slow waddle
+    let mx = it.mx, mz = it.mz;
+    if (steering) P.goal = null;
+    if (P.goal && !steering) {
       const a = this.actionFor(P.goal);
       if (!a || !a.ok) P.goal = null;
-      else if (d <= C.reach * .8) { const t = P.goal; P.goal = null; this.startAction(t, a); }
-      else { const l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
+      else if (this.inPlace(P.goal, a, .85)) { const t = P.goal; P.goal = null; this.startAction(t, a); }
+      else { const g = this.low(P.goal, a) ? this.workPoint(P.goal, a.kind) : this.targetPos(P.goal), l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
     }
-    const busy = !!P.action || (P.swing && P.swing.t < this.cfg.weapons.rake.swing);
-    const sp = busy ? 0 : C.speed * Math.min(1, Math.hypot(mx, mz)) * (P.stun > 0 ? 1 - P.stun / C.hurtStun * .7 : 1);
+    const swinging = !!P.swing && P.swing.t < this.cfg.weapons.rake.swing;
+    const base = P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
+    const sp = swinging ? 0 : base * Math.min(1, Math.hypot(mx, mz)) * (P.stun > 0 ? 1 - P.stun / C.hurtStun * .7 : 1);
     if (sp > 0) {
       const l = Math.hypot(mx, mz) || 1, nx = P.x + mx / l * sp * dt, nz = P.z + mz / l * sp * dt;
       const c = this.hof.collide(nx, nz, C.radius, true);
       P.speed = dist(P.x, P.z, c.x, c.z) / dt; P.x = c.x; P.z = c.z;
-      if (!P.swing) P.f = Math.atan2(mx, mz);
+      if (!P.swing && !P.action) P.f = Math.atan2(mx, mz);
     } else P.speed = 0;
-    P.walk += P.speed * dt * 2.1;
-    // --- running action: when the bar is full it takes effect; repeating actions go on by themselves
+    P.walk += P.speed * dt * (P.crouch ? 3.4 : 2.1); // short quick steps in the crouch
+    // --- running action: too far away = cancelled; when the bar is full it takes effect, then the next one follows
+    if (P.action && this.tooFar(P.action.target, P.action.info)) this.cancelAction();
     if (P.action) {
-      const A = P.action, tp = this.facePoint(A.target); P.f = angTo(P.x, P.z, tp.x, tp.z);
+      const A = P.action, tp = this.facePoint(A.target, A.info.kind); P.f = angTo(P.x, P.z, tp.x, tp.z);
       A.t += dt;
       if (A.t >= A.info.dur) {
         P.action = null; this.finishAction(A.target, A.info);
         const next = A.info.repeat ? this.actionFor(A.target) : null;
-        if (next && next.ok && next.kind === A.info.kind) { P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); }
-        else this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
+        if (next && next.ok && next.kind === A.info.kind) {
+          if (this.inPlace(A.target, next)) { P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); }
+          else P.goal = A.target; // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
+        }
+        else if (!(it.hold && this.holdNext(it, A.target, !steering))) this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
       }
     }
     // --- swing
@@ -448,8 +456,48 @@ export class DaySim {
     }
     P.shotT = Math.max(0, P.shotT - dt);
   }
-  /** the point the player looks at while working (nearest point of a building) */
-  facePoint(t: Target) {
+  /** button held: start the next possible action at the aimed target (else at the one just finished). Within reach only;
+   *  ground work first shuffles over to its spot (walk = true, not while the player steers). false = none: the chain ends */
+  private holdNext(it: Intent, last: Target | null, walk: boolean) {
+    const P = this.player, reach = this.cfg.player.reach;
+    for (const t of [it.holdAt, last]) {
+      if (!t) continue;
+      const a = this.actionFor(t);
+      if (!a || !a.ok || this.targetDist(t, P.x, P.z) > reach) continue;
+      if (this.inPlace(t, a)) { this.startAction(t, a); return true; }
+      if (walk) { P.goal = t; return true; }
+    }
+    return false;
+  }
+  /** click / chain: act right here, or walk over first */
+  private begin(t: Target, a: ActionInfo) { if (this.inPlace(t, a)) this.startAction(t, a); else this.player.goal = t; }
+  /** is this done down on the ground (kneeling, hand rake / hands in the soil)? */
+  low(t: Target, a: ActionInfo) { return LOW_ACTIONS.has(a.kind) && (t.k === 'plot' || t.k === 'weed' || t.k === 'forage'); }
+  /** ground work: the point the hands work at (the weed that comes out next, else the part of the plot facing the player) */
+  workPoint(t: Target, kind?: ActionKind): { x: number; z: number } {
+    if (t.k === 'plot') {
+      const c = this.cfg.hof.plots[t.i], p = this.s.plots[t.i], P = this.player;
+      if (kind === 'weed' && p?.weeds > 0) { const sp = this.hof.plotWeeds[t.i]?.[p.weeds - 1]; if (sp) return { x: c.x + sp.x, z: c.z + sp.z }; }
+      const dx = P.x - c.x, dz = P.z - c.z, l = Math.hypot(dx, dz) || 1, r = Math.min(l, this.cfg.plots.size / 2 * .5);
+      return { x: c.x + dx / l * r, z: c.z + dz / l * r };
+    }
+    return this.targetPos(t);
+  }
+  /** close enough to do it (k < 1: a bit closer, for walking over) */
+  inPlace(t: Target, a: ActionInfo, k = 1) {
+    const P = this.player, C = this.cfg.player;
+    if (this.low(t, a)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) <= C.kneel * k; }
+    return this.targetDist(t, P.x, P.z) <= C.reach * k;
+  }
+  /** walked away from a running action (Basti 21.11.2026: walking is fine, too far cancels) */
+  private tooFar(t: Target, a: ActionInfo) {
+    const P = this.player, C = this.cfg.player;
+    if (this.low(t, a)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) > C.kneel * C.leave + .35; }
+    return this.targetDist(t, P.x, P.z) > C.reach * C.leave;
+  }
+  /** the point the player looks at while working (nearest point of a building, the spot of ground work) */
+  facePoint(t: Target, kind?: ActionKind) {
+    if (kind && this.low(t, { kind } as ActionInfo)) return this.workPoint(t, kind);
     if (t.k === 'bld' || t.k === 'stall') {
       const o = this.hof.building(t.id), P = this.player;
       if (o && o.kind === 'box') { const dx = P.x - o.x, dz = P.z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c, cx = Math.max(-o.hw, Math.min(o.hw, lx)), cz = Math.max(-o.hd, Math.min(o.hd, lz)); return { x: o.x + cx * o.c + cz * o.s, z: o.z - cx * o.s + cz * o.c }; }
@@ -459,28 +507,28 @@ export class DaySim {
   startAction(t: Target, a: ActionInfo) {
     const P = this.player; P.goal = null;
     if (a.kind === 'water' && this.s.water <= 0) return;
-    // the harvest basket is set down right next to the player
-    if (a.kind === 'harvestBush') { const tp = this.targetPos(t), l = dist(P.x, P.z, tp.x, tp.z) || 1, sx = -(tp.z - P.z) / l, sz = (tp.x - P.x) / l; this.basketAt = this.hof.collide(P.x + sx * .6, P.z + sz * .6, .25, false); this.ev.push({ k: 'basket', x: this.basketAt.x, z: this.basketAt.z }); }
+    P.crouch = LOW_ACTIONS.has(a.kind); // down on one knee for ground work, up again for everything else
     P.action = { target: t, info: a, t: 0, pick: 0 };
     this.ev.push({ k: 'act', kind: a.kind, tool: a.tool, target: t });
   }
   cancelAction() { const P = this.player; if (P.action) this.ev.push({ k: 'actCancel', kind: P.action.info.kind }); P.action = null; }
   private finishAction(t: Target, a: ActionInfo) {
     const s = this.s, cfg = this.cfg, tp = this.targetPos(t);
-    const now = this.actionFor(t); if (!now || !now.ok || now.kind !== a.kind) return; // something changed meanwhile
+    // something changed meanwhile? (weeding stays valid while weeds are left, even if the plot now wants water first)
+    const now = this.actionFor(t), weedOk = a.kind === 'weed' && t.k === 'plot' && s.plots[t.i]?.weeds > 0;
+    if (!weedOk && (!now || !now.ok || now.kind !== a.kind)) return;
     switch (a.kind) {
       case 'water':
         s.water = Math.max(0, s.water - 1);
         if (t.k === 'bush' && s.bush.phase === 'dry') { s.bush.phase = 'growing'; s.bush.t = 0; }
         if (t.k === 'plot') s.plots[t.i].watered = true;
         break;
-      case 'plow': if (t.k === 'plot') s.plots[t.i].stage = 'raked'; break;
       case 'sow': if (t.k === 'plot') {
         const crop = this.seedCrop(); // seeds cost nothing (Basti 20.11.2026)
         Object.assign(s.plots[t.i], { stage: 'sown', crop, days: 0, watered: false, bites: 0, fert: 0, fertDay: 0, t: cfg.plots.sprout, grow: 0 });
         break;
       }
-      case 'weed': if (t.k === 'plot') { const p = s.plots[t.i]; this.store('green', p.weeds, tp); p.weeds = 0; this.plotWeedT[t.i] = rnd(...cfg.plots.weeds.every); } break;
+      case 'weed': if (t.k === 'plot') { const p = s.plots[t.i]; p.weeds = Math.max(0, p.weeds - 1); this.store('green', 1, tp); } break; // one weed per pass (repeats)
       case 'fertilize': if (t.k === 'plot') {
         const p = s.plots[t.i]; addItem(cfg, s, 'fert', -1); p.fert++; p.fertDay = s.day;
         if (p.stage === 'ripe') p.yieldLeft += Math.max(1, Math.round((cfg.crops[p.crop ?? 'wheat']?.cuts ?? 3) * cfg.plots.fertBonus));
@@ -526,12 +574,12 @@ export class DaySim {
     }
     this.ev.push({ k: 'actDone', kind: a.kind, target: t });
   }
-  /** one pass through the blueberry bush: 3-4 big berries (later small ones) fly into the basket */
+  /** one pass through the blueberry bush: the berries go straight into the Lager (21.11.2026: no basket) */
   private pickBush() {
     const b = this.s.bush, B = this.cfg.bush; if (b.phase !== 'ripe') return;
     const n = Math.min(b.berries, B.berries); b.berries -= n;
-    b.picked++; this.store('blue', n, this.cfg.hof.bush, false);
-    this.ev.push({ k: 'berry', n, small: b.berries <= 0, x: this.cfg.hof.bush.x, z: this.cfg.hof.bush.z, bx: this.basketAt?.x, bz: this.basketAt?.z });
+    b.picked++; this.store('blue', n, this.cfg.hof.bush);
+    this.ev.push({ k: 'berry', n, small: b.berries <= 0, x: this.cfg.hof.bush.x, z: this.cfg.hof.bush.z });
   }
   /** harvest goes straight into the Lager */
   store(item: ItemId, n: number, at?: { x: number; z: number }, show = true) {
@@ -590,7 +638,7 @@ export class DaySim {
         if (a.gone || a.state === 'script') continue;
         if (segDist(x0, z0, p.x, p.z, a.x, a.z) < this.cfg.animals[a.type].radius + .1) { this.hitAnimal(a, p.dmg, { freeze: p.freeze, fromX: p.x - p.vx, fromZ: p.z - p.vz, knock: .08 }); hit = true; break; }
       }
-      if (!hit) for (const o of this.hof.obstacles) { if (o.id === 'bush' || o.id === 'basket') continue; const q = o.kind === 'circle' ? dist(p.x, p.z, o.x, o.z) < o.r : false; if (q) { hit = true; break; } }
+      if (!hit) for (const o of this.hof.obstacles) { if (o.id === 'bush') continue; const q = o.kind === 'circle' ? dist(p.x, p.z, o.x, o.z) < o.r : false; if (q) { hit = true; break; } }
       if (hit || p.life <= 0) { if (hit) this.ev.push({ k: 'pelletHit', x: p.x, z: p.z, ammo: p.ammo }); this.pellets.splice(i, 1); }
     }
   }
@@ -674,7 +722,7 @@ export class DaySim {
     const bush = s.bush.phase === 'ripe' && s.bush.berries > 0;
     if (a.type === 'raccoon') {
       const food = Object.entries(s.items).filter(([k, v]) => EDIBLE(k) && v > 0).reduce((n, [, v]) => n + v, 0);
-      if (food > 0 && this.basketAt) opts.push({ t: { k: 'basket' }, w: 3 });
+      if (food > 0) opts.push({ t: { k: 'lager' }, w: 3 });
       if (bush) opts.push({ t: { k: 'bush' }, w: 2 });
       s.plots.forEach((p, i) => { if (p.open && p.stage === 'ripe' && p.yieldLeft > 0) opts.push({ t: { k: 'plot', i }, w: 1.5 }); });
     } else {
@@ -776,7 +824,7 @@ export class DaySim {
   }
   private targetValid(a: Animal, t: NonNullable<Animal['target']>) {
     const s = this.s;
-    if (t.k === 'basket') return !!this.basketAt && Object.entries(s.items).some(([k, v]) => EDIBLE(k) && v > 0);
+    if (t.k === 'lager') return Object.entries(s.items).some(([k, v]) => EDIBLE(k) && v > 0);
     if (t.k === 'bush') return (s.bush.phase === 'ripe' && s.bush.berries > 0) || (a.type === 'hare' && s.bush.phase === 'growing');
     if (t.k === 'plot') { const p = s.plots[t.i]; return p.open && (p.stage === 'ripe' ? p.yieldLeft > 0 : a.type === 'hare' && p.stage === 'sown'); }
     return false;
@@ -784,12 +832,12 @@ export class DaySim {
   private takeFrom(a: Animal, t: NonNullable<Animal['target']>) {
     const s = this.s, C = this.cfg.animals[a.type];
     const grab = (item: ItemId) => { if (a.type === 'raccoon') { a.carry[item] = (a.carry[item] ?? 0) + 1; a.carryN++; } else this.lost[item] = (this.lost[item] ?? 0) + 1; };
-    if (t.k === 'basket') {
+    if (t.k === 'lager') {
       const list = Object.entries(s.items).filter(([k, v]) => EDIBLE(k) && v > 0); if (!list.length) return;
       let r = Math.random() * list.reduce((n, [, v]) => n + v, 0), pick = list[0][0];
       for (const [k, v] of list) { r -= v; if (r <= 0) { pick = k; break; } }
       addItem(this.cfg, s, pick, -1); grab(pick);
-      this.ev.push({ k: 'steal', id: a.id, item: pick, x: a.x, z: a.z, from: 'basket' });
+      this.ev.push({ k: 'steal', id: a.id, item: pick, x: a.x, z: a.z, from: 'lager' });
     } else if (t.k === 'bush') {
       if (s.bush.phase === 'ripe' && s.bush.berries > 0) { s.bush.berries--; grab('blue'); this.ev.push({ k: a.type === 'raccoon' ? 'steal' : 'eat', id: a.id, item: 'blue', x: a.x, z: a.z, from: 'bush' }); }
       else if (a.type === 'hare' && s.bush.phase === 'growing') { s.bush.t = Math.max(0, s.bush.t - 4); this.ev.push({ k: 'eat', id: a.id, x: a.x, z: a.z, from: 'bush' }); }
@@ -817,7 +865,7 @@ export class DaySim {
     for (const a of this.animals) if (!a.gone) for (const [k, n] of Object.entries(a.carry)) for (let i = 0; i < n; i++) loot.push({ item: k, x: a.x, z: a.z });
     return {
       t: this.t, player: { x: P.x, z: P.z, f: P.f, hp: P.hp }, got: c(this.got), lost: c(this.lost), driven: this.driven, xpGained: this.xpGained,
-      basketAt: c(this.basketAt), stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
+      stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
       plan: c(this.plan), half: this.half, rain: c(this.rain), loot,
     };
   }
@@ -825,7 +873,6 @@ export class DaySim {
     this.t = Math.min(d.t, this.length - 1);
     Object.assign(this.player, d.player); this.player.hp = Math.max(1, Math.min(this.player.maxHp, d.player.hp));
     this.got = d.got ?? {}; this.lost = d.lost ?? {}; this.driven = d.driven ?? 0; this.xpGained = d.xpGained ?? 0;
-    this.basketAt = d.basketAt ?? null;
     for (const id of STALL_IDS) if (d.stalls?.[id]) this.stalls[id] = d.stalls[id];
     if (d.apples?.length === this.apples.length) this.apples = d.apples;
     if (d.brambles?.length === this.brambles.length) this.brambles = d.brambles;

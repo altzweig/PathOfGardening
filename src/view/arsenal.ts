@@ -567,6 +567,20 @@ export function rakeTool(L = 1.15) {
   g.userData.head = head;
   return g;
 }
+/** hand rake (Handharke, 21.11.2026): one-handed garden claw for weeding and as the emergency weapon. Turned ash handle
+ *  with a brass ferrule, a short forged neck and three claw tines that curve down (-y). Grip at the origin, tines along +z. */
+export function handRake() {
+  const K = kit(), g = new THREE.Group();
+  mesh(g, lathe([[.006, -.075], [.016, -.072], [.019, -.055], [.0165, -.02], [.0175, .03], [.019, .07], [.0175, .085]], 16), K.ash);
+  band(g, K.brass, .0195, .03, .095);
+  mesh(g, sweep([V3(0, 0, .1), V3(0, .006, .145), V3(0, .002, .185)], t => .0075 - t * .0015, { radial: 8, steps: 8, caps: true }), K.iron);
+  for (const sx of [-1, 0, 1]) {
+    const pts = [V3(0, .002, .18), V3(sx * .022, .004, .205), V3(sx * .036, -.002, .238), V3(sx * .04, -.03, .27), V3(sx * .038, -.07, .274)];
+    mesh(g, sweep(pts, t => .0068 * (1 - t * .55), { radial: 8, steps: 16, caps: true }), K.iron);
+  }
+  g.userData.tip = new THREE.Vector3(0, -.06, .27); // where the tines bite into the soil
+  return g;
+}
 /** watering can (tin, rose spout along +z); `spout` = where the water comes out, `grip` = handle */
 export function wateringCan() {
   const K = kit(), g = new THREE.Group();
@@ -597,15 +611,5 @@ export function seedBag() {
   mesh(g, sph(14, 10), K.linen, 0, -.06, 0, .085, .1, .075);
   mesh(g, lathe([[.03, 0], [.04, .03], [.05, .05]], 12), K.linen, 0, .02, 0).rotation.x = -Math.PI / 2;
   band(g, K.twine, .034, .015, 0).rotation.x = Math.PI / 2;
-  return g;
-}
-/** woven basket with a handle (harvest basket at the Lager) */
-export function basket(r = .32, h = .22) {
-  const K = kit(), g = new THREE.Group();
-  const wall = mesh(g, lathe([[r * .75, 0], [r, h * .85], [r * 1.04, h]], 20), K.twine); wall.rotation.x = -Math.PI / 2; // upright bowl
-  (wall.material as THREE.Material).side = THREE.DoubleSide;
-  mesh(g, lathe([[r * 1.06, h - .012], [r * 1.08, h + .006], [r * 1.0, h + .014]], 20), K.ash).rotation.x = -Math.PI / 2; // rim
-  mesh(g, new THREE.CylinderGeometry(r * .74, r * .74, .02, 20), K.twine, 0, .01, 0);
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(r * .9, .015, 6, 18, Math.PI), K.ash); handle.position.y = h; g.add(handle);
   return g;
 }

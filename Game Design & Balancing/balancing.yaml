@@ -446,6 +446,7 @@ loading:                   # Ladebildschirm beim Start: Vorschaubild, Ladebalken
   tips:                    # zufällige Reihenfolge, Ausnahme von "keine Erklärtexte" (Basti 19.11.2026)
     - Nach dem Säen einmal gießen, dann wächst die Frucht.
     - Das Saatgut-Symbol oben rechts wählt, was du säst. Mit jedem Level kommen neue Früchte dazu.
+    - Jeden Morgen kommen drei neue Aufträge. Was abends nicht fertig ist, verfällt. Mit Q klappst du sie ein und aus.
     - Die Gießkanne füllst du am Brunnen auf.
     - Regen gießt alle Felder und den Busch.
     - Waschbären klauen aus dem Korb am Lager. Triff sie, dann lassen sie die Beute fallen.

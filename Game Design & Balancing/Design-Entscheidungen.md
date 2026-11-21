@@ -187,3 +187,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Die Nacht-Nummer ist der Spieltag (Tag 1 = Nacht 1). Im Tutorial gibt es keine Nacht.
 - Eine Ohnmacht am Tag (selten, nachts sind die Gegner) überspringt die Nacht und löst ebenfalls den schlimmsten Fall aus.
 - Ein Spielstand, der nachts gespeichert wird, macht in der Nacht weiter; Tiere, die gerade auf dem Hof waren, kommen nicht wieder, ausstehende Wellen schon.
+
+## Welt-Editor: Wildpflanzen-Punkte, Gebäude, Entwürfe (Basti, 21.11.2026)
+- Wildpflanzen-Spawnpunkte (Logik-Reiter „Wildpflanzen“: Einzeln, Sprühen mit Dichte, Entfernen): legen nur fest, WO Wildpflanzen (alle Einträge unter `wild.forage.plants`) wachsen dürfen. Wie oft bleibt in balancing.yaml. Sind Punkte gesetzt, wachsen Wildpflanzen und das Hof-Unkraut (Wildkräuter) nur dort (±0,3 m), sonst wie bisher am Waldrand / Grasrand. Brennholz und Steine bleiben am Waldrand.
+- Alle Gebäude (außer Haupthaus und Brunnen, die eigene Werkzeuge haben) frei platzierbar (Logik-Reiter „Gebäude“, Q/E drehen). Im Editor umschaltbar (Taste G, „Ansicht“ oder Logik-Panel): ausgegraut = nur ganz leichte graue Form, darunter kann gemalt und bepflanzt werden (Standard); normal = wie gebaut. Grundriss und Freischalt-Level kommen aus balancing.yaml. Nicht platzierte Gebäude gibt es in dieser Welt nicht (Baumenü, Freischaltungen).
+- Im Spiel ist ein ungebautes Gebäude unsichtbar: keine Baustelle, keine Ruine, kein Hindernis; dort ist, was im Editor gemalt/platziert wurde. Wird es gebaut, verschwinden Objekte, Gras und Wildpflanzen unter seinem Grundriss.
+- Ältere Welten ohne Gebäudeliste: der Hofladen steht wie bisher automatisch neben dem Haupthaus; der Editor übernimmt diesen Platz beim Öffnen.
+- Entwürfe: „Speichern → Als Entwurf speichern“ legt `public/world/entwuerfe/NAME.json` im Repo an (auch auf main). Das Spiel lädt Entwürfe nie von selbst; Testen über `index.html?welt=entwurf:NAME`. „Entwurf öffnen“ listet die Entwürfe im Repo.

@@ -127,16 +127,27 @@ export class HofWorld {
   private build() {
     registerCustomModels(); syncCatalog(modelNames());
     const W = this.nature = new THREE.Group(); W.name = 'nature'; scene.add(W);
-    const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1;
+    const hof = this.hof;
     this.propList = this.cfg.world?.props ?? (hof.logic ? [] : this.generate());
     this.props = new PropLayer(W);
-    this.props.set(thin(this.propList, dens, p => hof.ellipse(p.x, p.z) < (hof.logic ? 1.05 : .97)));
+    this.props.set(this.visibleProps());
     // single trees on the farm (Bastis brown circles; gameplay: apples to shake)
     const add = (name: string, list: Inst[], o: { shadow?: boolean; scale?: number } = {}) => instance(W, name, list, o);
     add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
     add('CommonTree_3', this.cfg.hof.trees.filter((_, i) => i % 2 === 1).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
     this.grassDens = gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1;
     this.rebuildGrass();
+  }
+  /** props shown: thinned for lower quality, without the ones under a standing building (world editor) */
+  private visibleProps() {
+    const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1;
+    const list = hof.hideUnbuilt ? this.propList.filter(p => !hof.underBuilding(p.x, p.z, .1)) : this.propList;
+    return thin(list, dens, p => hof.ellipse(p.x, p.z) < (hof.logic ? 1.05 : .97));
+  }
+  /** a building went up (or a save with other buildings was loaded): props + grass under it go */
+  buildingsChanged() {
+    if (!this.hof.hideUnbuilt || !this.props) return;
+    this.props.set(this.visibleProps()); this.rebuildGrass();
   }
   /** the generated layout (no world file yet): forest ring with gaps, edge bushes, rocks, ferns, tall grass, bushes beside the brambles */
   generate(): PropRec[] { return this.generateFor(this.hof); }

@@ -138,6 +138,9 @@ export class DaySim {
     const per = s.perennial;
     this.apples = cfg.hof.trees.map((_, i) => (per.trees[i] ?? 0) <= s.day ? treeCfg(cfg, i).picks : 0);
     this.brambles = hof.brambles.map((_, i) => ({ n: (per.brambles[i] ?? 0) <= s.day ? W.brambles.picks : 0, t: 0 }));
+    hof.setBuilt(id => !!s.buildings[id]?.built);   // world editor: only built buildings block
+    // a building that went up overnight covers whatever grew there
+    if (hof.hideUnbuilt) { s.wild.forage = s.wild.forage.filter(f => !hof.underBuilding(f.x, f.z, .2)); s.wild.weeds = s.wild.weeds.filter(f => !hof.underBuilding(f.x, f.z, .2)); }
     this.weedT = rnd(...W.weeds.every); this.forageT = rnd(...W.forage.every);
     for (const [k, v] of Object.entries(W.forage.plants ?? {})) this.plantT[k] = v.spawn * rnd(.3, 1);
     void this.nav; // bake the walk grid now (once per farm), not when the first animal needs it
@@ -201,6 +204,8 @@ export class DaySim {
   }
   private growWeed(any = false) {
     const w = this.s.wild; if (w.weeds.length >= this.cfg.wild.weeds.max) return;
+    // world editor: weeds / wild herbs on the farm only grow on the wild plant spots painted there
+    if (this.hof.hasWildSpots) { const q = this.hof.wildSpot((x, z) => (any || !this.visible(x, z)) && !w.weeds.some(f => (f.x - x) ** 2 + (f.z - z) ** 2 < .36)); if (q) w.weeds.push({ id: w.seq++, ...q }); return; }
     const p = this.grassSpot(any) ?? this.spot(.08, .95, .5, any); if (p) w.weeds.push({ id: w.seq++, ...p });
   }
   /** k = a wild plant kind (wild.forage.plants), else firewood / stones by weight */
@@ -211,6 +216,12 @@ export class DaySim {
       const items = Object.entries(F.items); if (!items.length) return;
       const tot = items.reduce((n, [, v]) => n + v, 0); let r = Math.random() * tot; k = items[0][0];
       for (const [id, v] of items) { r -= v; if (r <= 0) { k = id; break; } }
+    }
+    // world editor (21.11.2026): wild plants only grow on the spawn points painted there (where, not how often)
+    if (F.plants?.[k] && this.hof.hasWildSpots) {
+      const q = this.hof.wildSpot((x, z) => (any || !this.visible(x, z)) && !w.forage.some(f => (f.x - x) ** 2 + (f.z - z) ** 2 < .36));
+      if (q) { const n = F.plants[k].picks; w.forage.push(n ? { id: w.seq++, k, ...q, n } : { id: w.seq++, k, ...q }); }
+      return;
     }
     const where = F.where?.[k] ?? ['edge'], place = where[Math.floor(Math.random() * where.length)];
     const p = place === 'edge' ? this.spot(F.band[0], F.band[1], .4, any) : this.grassSpot(any, place === 'wet');

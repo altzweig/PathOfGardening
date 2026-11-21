@@ -1,8 +1,9 @@
 // HUD of a farm day: life, level + XP, sun clock with the day, Taler, water in the can, weapon + ammo,
 // tool icon at the cursor (what a click does), touch buttons, floating numbers, tutorial hint box.
 import type { FarmCfg } from '../config';
-import { nextLevelXp } from '../config';
-import type { FarmState } from '../state';
+import { cropsFor, nextLevelXp } from '../config';
+import type { FarmState, Quest } from '../state';
+import { questProgress } from '../state';
 import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
@@ -16,14 +17,41 @@ const LABEL_Y: Record<string, number> = { bld: 2.4, stall: 1.9, well: 2.8, tree:
 
 export class FarmHud {
   private key = '';
+  private s: FarmState | null = null;
+  /** quest list open (Q / tap on the box) */
+  questsOpen = true; private qKey = '';
   private nums: { el: HTMLElement; x: number; y: number; z: number; t: number }[] = [];
   constructor(public cfg: FarmCfg) {
+    // seed choice (20.11.2026): what the next sowing plants; new crops come with the levels
+    $('#fSeed').addEventListener('pointerdown', e => { e.stopPropagation(); this.seedPanel($('#fSeeds').hidden); });
+    $('#fSeeds').addEventListener('pointerdown', e => {
+      e.stopPropagation(); const b = (e.target as HTMLElement).closest('button'); if (!b || !this.s) return;
+      this.s.seed = b.dataset.c!; this.key = ''; this.seedPanel(false);
+    });
+    $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
   }
-  show(on: boolean) { $('#fHud').hidden = !on; }
+  toggleQuests() { this.questsOpen = !this.questsOpen; this.qKey = ''; }
+  /** daily orders at the top right: title + reward, objectives "- 0/5 [icon] Name", green tick when done; collapsed only "Quests [Q]" */
+  private quests(s: FarmState, touch: boolean) {
+    const P = questProgress(s), list = s.tutorialDone ? s.quests.active : [];
+    const key = [this.questsOpen, touch, list.map(q => q.done + ':' + Object.values(P.get(q) ?? {}).join(',')).join('|')].join('/');
+    if (key === this.qKey) return; this.qKey = key;
+    const head = `<div class="qh">Quests${touch ? '' : ' <kbd>[Q]</kbd>'}</div>`;
+    const name = (k: string) => this.cfg.names.items[k] ?? k;
+    const one = (q: Quest) => { const p = P.get(q) ?? {};
+      return `<div class="qq${q.done ? ' done' : ''}"><div class="qt">${q.done ? ic('check') : ''}<b>${q.title ?? ''}</b><span class="qr"><span>${ic('xp')}${q.reward.xp}</span><span>${ic('coin')}${q.reward.money}</span></span></div>
+        ${Object.entries(q.need).map(([k, v]) => `<div class="qo${(p[k] ?? 0) >= v ? ' ok' : ''}">- <i>${p[k] ?? 0}/${v}</i>${ic(k)}${name(k)}</div>`).join('')}</div>`; };
+    $('#fQuests').innerHTML = list.length ? head + (this.questsOpen ? list.map(one).join('') : '') : '';
+  }
+  show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedPanel(false); }
+  private seedPanel(on: boolean) {
+    const p = $('#fSeeds'); p.hidden = !on || !this.s; if (p.hidden) return;
+    const s = this.s!; p.innerHTML = cropsFor(this.cfg, s.level).map(c => `<button data-c="${c}" class="${c === s.seed ? 'on' : ''}">${ic(c)}</button>`).join('');
+  }
   /** per frame */
   update(sim: DaySim, s: FarmState, view: FarmView, hover: Target | null, hoverInfo: ActionInfo | null, touch: boolean, mouse: { x: number; y: number }) {
-    const P = sim.player;
+    const P = sim.player; this.s = s;
     ($('#fHpFill')).style.width = (P.hp / P.maxHp * 100).toFixed(1) + '%';
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     $('#fXpFill').style.width = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%';
@@ -31,11 +59,13 @@ export class FarmHud {
     const k = sim.k, a = Math.PI * (1 - k), sx = 50 + Math.cos(a) * 38, sy = 44 - Math.sin(a) * 34;
     const sun = $('#fSun'); sun.setAttribute('cx', sx.toFixed(1)); sun.setAttribute('cy', sy.toFixed(1));
     sun.setAttribute('fill', k > .85 ? '#ff9a40' : '#ffd040');
-    const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch].join('|');
+    const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
     if (key !== this.key) {
       this.key = key;
       $('#fLvlN').textContent = '' + s.level;
       $('#fDay').textContent = '' + s.day;
+      const nSeeds = cropsFor(this.cfg, s.level).length;
+      $('#fSeed').hidden = nSeeds < 2; $('#fSeed').innerHTML = ic(sim.seedCrop()) + `<em>${ic('seed')}</em>`;
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
       $('#fWater').innerHTML = w;
@@ -43,6 +73,7 @@ export class FarmHud {
       $('#fWeap').innerHTML = gun ? `${ic(s.weapon!)}<span>${ic(s.ammo!)}<b>${s.ammoCount}</b></span>` : ic('rake');
       $('#bAtk').innerHTML = gun && s.ammoCount > 0 ? ic(s.weapon!) : ic('rake');
     }
+    this.quests(s, touch);
     // tool at the cursor (PC) / on the action button (touch)
     const tool = hoverInfo ? TOOL_ICON[hoverInfo.tool] : null;
     const cur = $('#fCursor');
@@ -61,7 +92,7 @@ export class FarmHud {
       lab.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       const need = !hoverInfo.ok && hoverInfo.need ? Object.entries(hoverInfo.need).map(([k, n]) => `<span class="need">${ic(k)}${n}</span>`).join('') : '';
       const why = !hoverInfo.ok && !need ? ic(hoverInfo.why === 'water' ? 'dropEmpty' : hoverInfo.why === 'seed' ? 'seed' : hoverInfo.why === 'weeds' ? 'green' : 'lock') : '';
-      const html = (touch ? '' : LMB) + `<span>[${hoverInfo.label}]</span>` + (hoverInfo.count ? `<i>${hoverInfo.count}</i>` : '') + need + why;
+      const html = (touch ? '' : LMB) + `<span>[${hoverInfo.label}]</span>` + (hoverInfo.item ? ic(hoverInfo.item) : '') + (hoverInfo.count ? `<i>${hoverInfo.count}</i>` : '') + need + why;
       if (lab.dataset.h !== html) { lab.dataset.h = html; lab.innerHTML = html; }
       lab.classList.toggle('no', !hoverInfo.ok);
     } else lab.hidden = true;

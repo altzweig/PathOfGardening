@@ -1,7 +1,7 @@
 // One playable day on the farm: player movement, timed actions (left click, see actions in balancing.yaml), fighting
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
-import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool } from './config';
+import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, treeCfg, treeKind } from './config';
 import { FarmState, addItem, count, gainXp, ripeCuts } from './state';
 import { Hof } from './hof';
 
@@ -21,6 +21,8 @@ export interface ActionInfo {
   need?: Record<ItemId, number>;
   /** small extra after the name, e.g. "3/10" */
   count?: string;
+  /** a good shown as an icon after the name (the crop that is sown) */
+  item?: ItemId;
 }
 export interface Intent {
   mx: number; mz: number;           // movement -1..1 in world x/z (main.ts turns the stick by the camera)
@@ -104,15 +106,20 @@ export class DaySim {
   private nid = 1;
   private half = 0;
   private weedT: number; private forageT: number; private plotWeedT: number[];
+  /** s until the next wild plant of each kind grows (wild.forage.plants) */
+  private plantT: Record<ItemId, number> = {};
 
   constructor(public cfg: FarmCfg, public s: FarmState, public hof: Hof, o: { tutorial?: boolean } = {}) {
     this.length = cfg.day.length;
     const P = cfg.player, d = cfg.hof.door, W = cfg.wild;
     this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
     for (const id of STALL_IDS) this.stalls[id] = { fed: 0, done: false, straw: false };
-    this.apples = cfg.hof.trees.map(() => W.apples.perTree);
-    this.brambles = hof.brambles.map(() => ({ n: W.brambles.berries, t: 0 }));
+    // perennials: ripe again from the remembered day on (a tree / bramble that was picked empty rests a few days)
+    const per = s.perennial;
+    this.apples = cfg.hof.trees.map((_, i) => (per.trees[i] ?? 0) <= s.day ? treeCfg(cfg, i).picks : 0);
+    this.brambles = hof.brambles.map((_, i) => ({ n: (per.brambles[i] ?? 0) <= s.day ? W.brambles.picks : 0, t: 0 }));
     this.weedT = rnd(...W.weeds.every); this.forageT = rnd(...W.forage.every);
+    for (const [k, v] of Object.entries(W.forage.plants ?? {})) this.plantT[k] = v.spawn * rnd(.3, 1);
     this.plotWeedT = s.plots.map(() => rnd(...cfg.plots.weeds.every));
     if (!s.wild.init) this.seedWild();
     if (o.tutorial) { this.clockRuns = false; this.spawns = false; }
@@ -128,7 +135,8 @@ export class DaySim {
   private seedWild() {
     const W = this.cfg.wild; this.s.wild.init = true;
     for (let i = 0; i < W.weeds.start; i++) this.growWeed(true);
-    for (let i = 0; i < W.forage.start; i++) this.growForage(true);
+    const kinds = [...Object.keys(W.forage.plants ?? {}), ...Object.keys(W.forage.items)];
+    for (let i = 0; i < W.forage.start; i++) this.growForage(true, kinds[i % kinds.length]);
   }
   private spot(k0: number, k1: number, pad: number, hidden: boolean) {
     for (let tries = 0; tries < 30; tries++) {
@@ -168,24 +176,30 @@ export class DaySim {
     const w = this.s.wild; if (w.weeds.length >= this.cfg.wild.weeds.max) return;
     const p = this.grassSpot(any) ?? this.spot(.08, .95, .5, any); if (p) w.weeds.push({ id: w.seq++, ...p });
   }
-  private growForage(any = false) {
+  /** k = a wild plant kind (wild.forage.plants), else firewood / stones by weight */
+  private growForage(any = false, k0?: ItemId) {
     const w = this.s.wild, F = this.cfg.wild.forage; if (w.forage.length >= F.max) return;
-    const items = Object.entries(F.items), tot = items.reduce((n, [, v]) => n + v, 0); let r = Math.random() * tot, k = items[0][0];
-    for (const [id, v] of items) { r -= v; if (r <= 0) { k = id; break; } }
+    let k = k0 ?? '';
+    if (!k) {
+      const items = Object.entries(F.items); if (!items.length) return;
+      const tot = items.reduce((n, [, v]) => n + v, 0); let r = Math.random() * tot; k = items[0][0];
+      for (const [id, v] of items) { r -= v; if (r <= 0) { k = id; break; } }
+    }
     const where = F.where?.[k] ?? ['edge'], place = where[Math.floor(Math.random() * where.length)];
     const p = place === 'edge' ? this.spot(F.band[0], F.band[1], .4, any) : this.grassSpot(any, place === 'wet');
     if (!p || this.hof.inGap(p.x, p.z) || this.hof.pathDist(p.x, p.z) < .2) return;
-    w.forage.push({ id: w.seq++, k, ...p });
+    const picks = F.plants?.[k]?.picks;
+    w.forage.push(picks ? { id: w.seq++, k, ...p, n: picks } : { id: w.seq++, k, ...p });
   }
   private updateWild(dt: number) {
     const W = this.cfg.wild, PW = this.cfg.plots.weeds;
     if ((this.weedT -= dt) <= 0) { this.weedT = rnd(...W.weeds.every); this.growWeed(); }
     if ((this.forageT -= dt) <= 0) { this.forageT = rnd(...W.forage.every); this.growForage(); }
+    for (const [k, v] of Object.entries(W.forage.plants ?? {})) if ((this.plantT[k] -= dt) <= 0) { this.plantT[k] = v.spawn; this.growForage(false, k); }
     this.s.plots.forEach((p, i) => {
       if (!p.open || p.weeds >= PW.max) return;
       if ((this.plotWeedT[i] -= dt) <= 0) { this.plotWeedT[i] = rnd(...PW.every); p.weeds++; this.ev.push({ k: 'plotWeed', i }); }
     });
-    this.brambles.forEach(b => { if (b.n < W.brambles.berries && (b.t += dt) >= W.brambles.regrow) { b.t = 0; b.n++; } });
   }
 
   // ---------------- targets ----------------
@@ -233,8 +247,9 @@ export class DaySim {
         const p = s.plots[t.i]; if (!p?.open) return null;
         const PW = this.cfg.plots.weeds, fert = count(s, 'fert') > 0 && p.fertDay !== s.day;
         if (p.stage === 'empty') return this.act('plow', 'rake');
-        if (p.stage === 'raked') { const seed = this.cfg.crops.wheat.seed; return this.act('sow', 'seed', count(s, seed) > 0 ? {} : { ok: false, why: 'seed', need: { [seed]: 1 } }); }
+        if (p.stage === 'raked') return this.act('sow', 'seed', { item: this.seedCrop() });
         if (p.stage === 'sown') {
+          if (p.t > 0) return null;                       // sprouting
           if (!p.watered) return this.act('water', 'can', noWater);
           if (p.weeds > 0) return this.act('weed', 'hands', { count: '' + p.weeds });
           if (fert) return this.act('fertilize', 'hands');
@@ -242,7 +257,7 @@ export class DaySim {
         }
         if (p.stage === 'ripe') {
           if (p.weeds >= PW.blockAt) return this.act('weed', 'hands', { count: '' + p.weeds });
-          return this.act('harvestPlot', 'sickle', { count: '' + p.yieldLeft });
+          return this.act('harvestPlot', p.crop === 'wheat' ? 'sickle' : 'hands', { count: '' + p.yieldLeft });
         }
         return null;
       }
@@ -321,6 +336,7 @@ export class DaySim {
     this.updateHalf();
     this.updateRain(dt);
     this.updateBush(dt);
+    this.updatePlots(dt);
     if (this.clockRuns) this.updateWild(dt);
     this.updatePlayer(dt, this.inputLocked ? { ...it, mx: 0, mz: 0, act: null, attack: false } : it);
     this.updatePellets(dt);
@@ -342,22 +358,37 @@ export class DaySim {
     const on = this.t >= R.at && this.t < R.at + R.dur;
     if (on !== this.raining) { this.raining = on; this.ev.push({ k: 'rain', on }); }
     if (on) {
-      for (const p of this.s.plots) if (p.open && p.stage === 'sown') p.watered = true;
+      for (const p of this.s.plots) if (p.open && p.stage === 'sown' && p.t <= 0) p.watered = true;
       if (this.s.bush.phase === 'dry') { this.s.bush.phase = 'growing'; this.s.bush.t = 0; }
     }
     void dt;
+  }
+  /** the crop that is sown next (the chosen one if it is unlocked, else wheat) */
+  seedCrop() { const c = this.cfg.crops[this.s.seed]; return c && c.level <= this.s.level ? this.s.seed : 'wheat'; }
+  /** field cycle: sprout (plots.sprout s) -> watered: grow crops.*.grow s -> ripe -> after the last harvest clear (plots.clear s) */
+  private updatePlots(dt: number) {
+    this.s.plots.forEach((p, i) => {
+      if (!p.open) return;
+      if (p.stage === 'sown') {
+        if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
+        if (!p.watered || !p.crop) return;
+        const C = this.cfg.crops[p.crop]; p.grow += dt;
+        if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); this.ev.push({ k: 'plotRipe', i }); }
+      } else if (p.stage === 'done') {
+        if ((p.t -= dt) <= 0) Object.assign(p, { stage: 'raked', crop: null, t: 0, grow: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0 });
+      }
+    });
   }
   private updateBush(dt: number) {
     const b = this.s.bush, B = this.cfg.bush;
     if (b.phase === 'growing') {
       b.t += dt * (this.ripenMul ?? 1);
       if (b.t >= B.ripen) {
-        b.phase = 'ripe'; b.picked = 0; b.small = B.smallPicks; b.berries = 0;
-        for (let i = 0; i < B.bigPicks; i++) b.berries += rint(B.bigBerries);
+        b.phase = 'ripe'; b.picked = 0; b.small = 0; b.berries = B.picks * B.berries;
         this.ev.push({ k: 'ripe' });
       }
     }
-    if (b.phase === 'ripe' && b.berries <= 0 && b.small <= 0) { b.phase = 'empty'; this.ev.push({ k: 'bushEmpty' }); }
+    if (b.phase === 'ripe' && b.berries <= 0) { b.phase = 'empty'; this.ev.push({ k: 'bushEmpty' }); }
   }
   /** tutorial can speed up the bush (never used by default) */
   ripenMul: number | undefined;
@@ -445,31 +476,36 @@ export class DaySim {
         break;
       case 'plow': if (t.k === 'plot') s.plots[t.i].stage = 'raked'; break;
       case 'sow': if (t.k === 'plot') {
-        const crop = 'wheat', C = cfg.crops[crop]; if (count(s, C.seed) <= 0) return;
-        addItem(cfg, s, C.seed, -1); Object.assign(s.plots[t.i], { stage: 'sown', crop, days: 0, watered: false, bites: 0, fert: 0, fertDay: 0 });
+        const crop = this.seedCrop(); // seeds cost nothing (Basti 20.11.2026)
+        Object.assign(s.plots[t.i], { stage: 'sown', crop, days: 0, watered: false, bites: 0, fert: 0, fertDay: 0, t: cfg.plots.sprout, grow: 0 });
         break;
       }
       case 'weed': if (t.k === 'plot') { const p = s.plots[t.i]; this.store('green', p.weeds, tp); p.weeds = 0; this.plotWeedT[t.i] = rnd(...cfg.plots.weeds.every); } break;
       case 'fertilize': if (t.k === 'plot') {
         const p = s.plots[t.i]; addItem(cfg, s, 'fert', -1); p.fert++; p.fertDay = s.day;
-        if (p.stage === 'ripe') p.yieldLeft += Math.max(1, Math.round(cfg.plots.cuts * cfg.plots.fertBonus));
+        if (p.stage === 'ripe') p.yieldLeft += Math.max(1, Math.round((cfg.crops[p.crop ?? 'wheat']?.cuts ?? 3) * cfg.plots.fertBonus));
         break;
       }
       case 'harvestPlot': if (t.k === 'plot') {
         const p = s.plots[t.i], C = cfg.crops[p.crop ?? 'wheat'];
         for (const [k, v] of Object.entries(C.yield)) this.store(k, v, tp);
-        p.yieldLeft--; if (p.yieldLeft <= 0) Object.assign(p, { stage: 'raked', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0 });
+        p.yieldLeft--; if (p.yieldLeft <= 0) Object.assign(p, { stage: 'done', t: cfg.plots.clear, watered: false, bites: 0, yieldLeft: 0 });
         break;
       }
       case 'harvestBush': this.pickBush(); break;
       case 'refill': s.water = cfg.can.capacity; break;
       case 'draw': addItem(cfg, s, 'water', 1); this.ev.push({ k: 'store', item: 'water', n: 1, x: tp.x, z: tp.z }); break;
-      case 'gather': if (t.k === 'forage') { const w = s.wild, i = w.forage.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.forage[i]; w.forage.splice(i, 1); this.store(f.k, 1, f); } } break;
+      case 'gather': if (t.k === 'forage') { const w = s.wild, i = w.forage.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.forage[i]; f.n = (f.n ?? 1) - 1; if (f.n <= 0) w.forage.splice(i, 1); this.store(f.k, 1, f); } } break;
       case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.weeds[i]; w.weeds.splice(i, 1); this.store('green', 1, f); } } break;
-      case 'pickWild': if (t.k === 'bramble') { const b = this.brambles[t.i], n = Math.min(b.n, rint(cfg.wild.brambles.pick)); b.n -= n; this.store('bramble', n, tp); this.ev.push({ k: 'bramble', i: t.i, n }); } break;
+      case 'pickWild': if (t.k === 'bramble') {
+        const B = cfg.wild.brambles, b = this.brambles[t.i]; b.n--; this.store('bramble', B.pick, tp); this.ev.push({ k: 'bramble', i: t.i, n: B.pick });
+        if (b.n <= 0) s.perennial.brambles[t.i] = s.day + B.every;
+        break;
+      }
       case 'shake': if (t.k === 'tree') {
-        const n = Math.min(this.apples[t.i], rint(cfg.wild.apples.shake)); this.apples[t.i] -= n;
-        for (let k = 0; k < n; k++) { const an = rnd(0, 7), v = rnd(.6, 1.6); this.loot.push({ id: this.nid++, item: 'apple', x: tp.x + Math.cos(an) * .6, z: tp.z + Math.sin(an) * .6, y: rnd(2, 2.8), vx: Math.cos(an) * v, vz: Math.sin(an) * v, vy: 0, t: 0, fresh: true }); }
+        const T = treeCfg(cfg, t.i), item = treeKind(cfg, t.i), n = T.shake; this.apples[t.i]--;
+        if (this.apples[t.i] <= 0) s.perennial.trees[t.i] = s.day + T.every;
+        for (let k = 0; k < n; k++) { const an = rnd(0, 7), v = rnd(.6, 1.6); this.loot.push({ id: this.nid++, item, x: tp.x + Math.cos(an) * .6, z: tp.z + Math.sin(an) * .6, y: rnd(2, 2.8), vx: Math.cos(an) * v, vz: Math.sin(an) * v, vy: 0, t: 0, fresh: true }); }
         this.ev.push({ k: 'shake', i: t.i, x: tp.x, z: tp.z, n });
         break;
       }
@@ -493,9 +529,7 @@ export class DaySim {
   /** one pass through the blueberry bush: 3-4 big berries (later small ones) fly into the basket */
   private pickBush() {
     const b = this.s.bush, B = this.cfg.bush; if (b.phase !== 'ripe') return;
-    let n: number;
-    if (b.berries > 0) { n = Math.min(b.berries, rint(B.bigBerries)); b.berries -= n; }
-    else { n = B.smallBerries; b.small--; }
+    const n = Math.min(b.berries, B.berries); b.berries -= n;
     b.picked++; this.store('blue', n, this.cfg.hof.bush, false);
     this.ev.push({ k: 'berry', n, small: b.berries <= 0, x: this.cfg.hof.bush.x, z: this.cfg.hof.bush.z, bx: this.basketAt?.x, bz: this.basketAt?.z });
   }
@@ -761,10 +795,10 @@ export class DaySim {
       else if (a.type === 'hare' && s.bush.phase === 'growing') { s.bush.t = Math.max(0, s.bush.t - 4); this.ev.push({ k: 'eat', id: a.id, x: a.x, z: a.z, from: 'bush' }); }
     } else if (t.k === 'plot') {
       const p = s.plots[t.i];
-      if (p.stage === 'ripe' && p.yieldLeft > 0) { if (++p.bites >= 2) { p.bites = 0; p.yieldLeft--; } grab(this.cfg.crops[p.crop ?? 'wheat'].seed); this.ev.push({ k: a.type === 'raccoon' ? 'steal' : 'eat', id: a.id, x: a.x, z: a.z, from: 'plot', i: t.i }); }
+      if (p.stage === 'ripe' && p.yieldLeft > 0) { if (++p.bites >= 2) { p.bites = 0; p.yieldLeft--; } grab(Object.keys(this.cfg.crops[p.crop ?? 'wheat']?.yield ?? { wheat: 1 })[0]); this.ev.push({ k: a.type === 'raccoon' ? 'steal' : 'eat', id: a.id, x: a.x, z: a.z, from: 'plot', i: t.i }); }
       else if (p.stage === 'sown') {
         p.bites++; this.ev.push({ k: 'eat', id: a.id, x: a.x, z: a.z, from: 'plot', i: t.i });
-        if (p.bites >= (C.plotBites ?? 3)) { p.bites = 0; p.days = Math.max(0, p.days - 1); p.watered = false; }
+        if (p.bites >= (C.plotBites ?? 3)) { p.bites = 0; p.grow = Math.max(0, p.grow - (this.cfg.crops[p.crop ?? 'wheat']?.grow ?? 20) * .25); }
       }
     }
   }

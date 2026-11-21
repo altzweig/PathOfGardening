@@ -20,14 +20,19 @@ export interface ActionCfg { time: number; label: string; repeat?: boolean }
 /** Taler + goods */
 export type Cost = { money?: number } & Record<string, number | undefined>;
 export interface Recipe { in: Record<ItemId, number>; out: Record<ItemId, number> }
-export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; questSlots?: number; action?: { label: string; time: number } }
+export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; action?: { label: string; time: number } }
 export interface StallCfg { animals: Livestock[]; feed: ItemId; feedCost: number; maxFed: number; collect: 'milk' | 'eggs'; yield: Record<ItemId, number> }
 export interface RectCfg { x: number; z: number; w?: number; d?: number; r?: number; rot?: number; fence?: boolean }
 export interface GunCfg { available: boolean; level: number; ammo: ItemId[]; ammoPerShot?: number; cooldown?: number; pellets?: number; cone?: number; range?: number; speed?: number; damage?: number }
 export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radius: number; scare: number; xp: number;
   stealInterval?: number; carryMax?: number; shy?: number; aggro?: number; damage?: number; biteInterval?: number; biteRange?: number;
   eatInterval?: number; plotBites?: number }
-export interface QuestPoolEntry { item: ItemId; amount: [number, number]; money: number; xp: number; level: number }
+/** a field crop (annual): level = sowable from, grow = s after watering, cuts = harvest passes, yield = per pass */
+export interface CropCfg { level: number; rarity: 'Common' | 'Uncommon' | 'Rare'; grow: number; cuts: number; yield: Record<ItemId, number> }
+/** perennial wild harvest (trees, brambles): ripe every `every` days, `picks` passes with `shake`/`pick` pieces */
+export interface PerennialCfg { every: number; picks: number; shake: number }
+export type TreeKind = 'apple' | 'nut';
+export interface DailyQuestCfg { count: number; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; money: number; moneyLevel: number; minMoney: number }
 
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
@@ -35,11 +40,11 @@ export interface FarmCfg {
   player: { hp: number; speed: number; radius: number; reach: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number };
-  bush: { ripen: number; bigPicks: number; bigBerries: [number, number]; smallPicks: number; smallBerries: number; radius: number; barDelay: number; almostAt: number };
-  crops: Record<string, { seed: ItemId; days: number; yield: Record<ItemId, number> }>;
-  plots: { size: number; cuts: number; fertBonus: number; weeds: { max: number; every: [number, number]; blockAt: number }; byLevel: number[]; cost: number };
-  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
-    brambles: { count: number; berries: number; regrow: number; pick: [number, number] }; apples: { perTree: number; shake: [number, number] }; barrel: number };
+  bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
+  crops: Record<string, CropCfg>;
+  plots: { size: number; sprout: number; clear: number; fertBonus: number; weeds: { max: number; every: [number, number]; blockAt: number }; byLevel: number[]; cost: number };
+  wild: { weeds: { start: number; max: number; every: [number, number] }; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
+    brambles: { count: number; every: number; picks: number; pick: number }; trees?: TreeKind[]; apples: PerennialCfg; nuts?: PerennialCfg; barrel: number };
   /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */
   grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
@@ -53,7 +58,7 @@ export interface FarmCfg {
   spawns: { wanderers: [number, number]; wanderTypes: Partial<Record<AnimalType, number>>; raid: { from: number; to: number; raccoons: number; perLevel: number }; scaling: { hp: number; damage: number; speed: number } };
   faint: { dryFields: boolean };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
-  quests: { offers: number; maxActive: number; start: { need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> } }; pool: QuestPoolEntry[] };
+  quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   buildings: Record<BuildingId, BuildingCfg>;
   loading: { minTime: number; tipEvery: number; fade: number; tips: string[] };
   tutorial: { raccoonHp: number; raccoonSteal: number; raccoonSpeed: number; raccoonStart: number; fieldHint: number; texts: Record<string, string> };
@@ -86,3 +91,8 @@ export function nextLevelXp(cfg: FarmCfg, level: number): number | null { return
 export const plotsAllowed = (cfg: FarmCfg, level: number) => cfg.plots.byLevel[Math.min(cfg.plots.byLevel.length - 1, level - 1)] ?? 1;
 /** hof rotation (deg clockwise seen from above, z down) -> three.js rotation.y */
 export const rotY = (deg = 0) => -deg * Math.PI / 180;
+/** crops that can be sown on a level, in the order of the yaml */
+export const cropsFor = (cfg: FarmCfg, level: number) => Object.keys(cfg.crops).filter(id => cfg.crops[id].level <= level);
+/** kind of the i-th farm tree (wild.trees repeats) */
+export const treeKind = (cfg: FarmCfg, i: number): TreeKind => { const t = cfg.wild.trees?.length ? cfg.wild.trees : ['apple' as TreeKind]; return t[i % t.length]; };
+export const treeCfg = (cfg: FarmCfg, i: number): PerennialCfg => treeKind(cfg, i) === 'nut' ? (cfg.wild.nuts ?? cfg.wild.apples) : cfg.wild.apples;

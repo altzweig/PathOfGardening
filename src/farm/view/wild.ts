@@ -5,6 +5,7 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 import { scene, windU } from '../../view/core';
 import { buildPlant } from '../../view/models';
 import type { FarmCfg, ItemId } from '../config';
+import { treeCfg, treeKind } from '../config';
 import type { FarmState } from '../state';
 import type { Hof } from '../hof';
 import { seeded } from '../hof';
@@ -36,6 +37,10 @@ const FORAGE: Record<string, () => THREE.BufferGeometry> = {
   mushroom: () => { const p: THREE.BufferGeometry[] = []; for (const [x, z, s] of [[0, 0, 1], [.1, .06, .7], [-.07, .09, .55]] as const) {
     p.push(tint(at(new THREE.CylinderGeometry(.025 * s, .03 * s, .12 * s, 6), x, .06 * s, z), 0xf0e8d8));
     p.push(tint(at(new THREE.SphereGeometry(.07 * s, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), x, .11 * s, z, 0, 0, 0, [1, .7, 1]), 0xa0522d)); } return merge(p); },
+  // Löwenzahn (20.11.2026): flat serrated rosette + two yellow flowers on stalks
+  dandel: () => { const p: THREE.BufferGeometry[] = []; for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; p.push(tint(at(new THREE.SphereGeometry(.06, 5, 3), Math.cos(a) * .09, .03, Math.sin(a) * .09, 0, -a, 1.3, [.45, 2.2, .2]), 0x4f8a2a)); }
+    for (const [x, z, h] of [[0, 0, .22], [.05, .04, .16]] as const) { p.push(tint(at(new THREE.CylinderGeometry(.008, .009, h, 4), x, h / 2, z), 0x6a9a3a)); p.push(tint(at(new THREE.SphereGeometry(.045, 7, 4), x, h, z, 0, 0, 0, [1, .55, 1]), 0xf8d020)); }
+    return merge(p); },
   wood: () => merge([0, 1, 2].map(i => tint(at(new THREE.CylinderGeometry(.045, .05, .5, 7), (i - 1) * .1, .05 + (i === 1 ? .07 : 0), 0, Math.PI / 2, (i - 1) * .25), i === 1 ? 0x7a5432 : 0x6a4428))),
   stone: () => merge([[0, 0, .1], [.12, .04, .07], [-.08, .1, .06]].map(([x, z, r], i) => tint(at(new THREE.DodecahedronGeometry(r, 0), x, r * .6, z, i, i * 2, 0, [1, .7, 1]), i ? 0x9a948a : 0x86827a))),
 };
@@ -115,8 +120,9 @@ export class WildView {
       this.brambles.push({ g: p.g, fruits: p.fruits, rim });
     }
     // apples in the crowns of the farm's trees
-    const amat = new THREE.MeshStandardMaterial({ color: 0xd8382a, roughness: .45, emissive: 0x401008, emissiveIntensity: .25 });
-    const per = cfg.wild.apples.perTree;
+    // 20.11.2026: one fruit per shake x loot (apples red, nuts brown), coloured per instance
+    const amat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .45, emissive: 0x200808, emissiveIntensity: .25 });
+    const per = Math.max(...cfg.hof.trees.map((_, i) => treeCfg(cfg, i).picks * treeCfg(cfg, i).shake), 1);
     this.apples = new THREE.InstancedMesh(new THREE.SphereGeometry(.09, 8, 6), amat, cfg.hof.trees.length * per); this.apples.count = 0; this.apples.castShadow = true; this.apples.frustumCulled = false; scene.add(this.apples);
     this.rims.set(this.apples, outlineFor(this.apples, .018));
     this.appleSpots = cfg.hof.trees.map(t => Array.from({ length: per }, () => { const a = rnd() * Math.PI * 2, r = .7 + rnd() * .45, y = 1.7 + rnd() * .8; return new THREE.Vector3(t.x + Math.cos(a) * r, y, t.z + Math.sin(a) * r); }));
@@ -140,16 +146,20 @@ export class WildView {
       for (const [k, m] of this.forage) { m.count = counts.get(k) ?? 0; m.instanceMatrix.needsUpdate = true; }
     }
     // bramble berries + apples (day state)
-    const bKey = sim ? sim.brambles.map(b => b.n).join(',') : 'x';
+    const max = this.cfg.wild.brambles.picks, ready = (d?: number) => (d ?? 0) <= s.day;
+    const bN = this.brambles.map((_, i) => sim ? sim.brambles[i]?.n ?? 0 : ready(s.perennial.brambles[i]) ? max : 0);
+    const bKey = bN.join(',');
     if (bKey !== this.bKey) {
-      this.bKey = bKey; const max = this.cfg.wild.brambles.berries;
-      this.brambles.forEach((b, i) => { const n = sim ? sim.brambles[i]?.n ?? 0 : max; const shown = Math.ceil(b.fruits.length * n / max); b.fruits.forEach((f, k) => f.visible = k < shown); b.rim.forEach(r => r.visible = n > 0); });
+      this.bKey = bKey;
+      this.brambles.forEach((b, i) => { const n = bN[i]; const shown = Math.ceil(b.fruits.length * n / max); b.fruits.forEach((f, k) => f.visible = k < shown); b.rim.forEach(r => r.visible = n > 0); });
     }
-    const aKey = sim ? sim.apples.join(',') : 'x';
+    const aN = this.appleSpots.map((_, i) => sim ? sim.apples[i] ?? 0 : ready(s.perennial.trees[i]) ? treeCfg(this.cfg, i).picks : 0);
+    const aKey = aN.join(',');
     if (aKey !== this.aKey) {
       this.aKey = aKey; let n = 0;
-      this.appleSpots.forEach((list, i) => { const have = sim ? sim.apples[i] : this.cfg.wild.apples.perTree; for (let k = 0; k < have; k++) { m4.makeTranslation(list[k].x, list[k].y, list[k].z); this.apples.setMatrixAt(n++, m4); } });
-      this.apples.count = n; this.apples.instanceMatrix.needsUpdate = true;
+      this.appleSpots.forEach((list, i) => { const T = treeCfg(this.cfg, i), have = Math.min(list.length, aN[i] * T.shake); col.setHex(treeKind(this.cfg, i) === 'nut' ? 0x9a6a3a : 0xd8382a);
+        for (let k = 0; k < have; k++) { m4.makeTranslation(list[k].x, list[k].y, list[k].z); this.apples.setColorAt(n, col); this.apples.setMatrixAt(n++, m4); } });
+      this.apples.count = n; this.apples.instanceMatrix.needsUpdate = true; if (this.apples.instanceColor) this.apples.instanceColor.needsUpdate = true;
     }
     for (const [m, r] of this.rims) r.count = m.count;
     void now;

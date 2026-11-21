@@ -125,3 +125,21 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Interaktionsobjekte mit Logik: Brunnen (Wasser für die Gießkanne), Korb, Blaubeerbusch, Obstbäume, Brombeeren.
 - Boden in Ebenen; bis zu 16 Texturen pro Welt (Grenze des Boden-Shaders, eine Zeichnung für den ganzen Boden).
 - Ohne Weltdatei läuft der bisherige generierte Hof unverändert.
+
+## Feldfrüchte und Feldzyklus (Basti, 20.11.2026)
+- Referenz fürs Balancing: 1 Tag = 480 s. Jede Pflanze: Säen 2 s (kostet kein Saatgut), 1 s Keimen, Gießen 2 s, dann Wachstumszeit in Sekunden (Fruchttabelle), Ernte 1,33 s pro Erntevorgang, danach 1 s bis das Feld wieder bestellbar ist. Zyklus ≈ 10 s + Wachstum.
+- Alle einjährigen Früchte der Fruchttabelle sind Feldfrüchte (balancing.yaml `crops`), freigeschaltet nach Level: Common L1-3, Uncommon L4-6, Rare L7-10.
+- Saatgut wählt man über das Saatgut-Symbol oben rechts (PC Klick, Mobile Tippen); es erscheint ab der zweiten freigeschalteten Frucht.
+- Mehrjährige (Blaubeerbusch, Brombeeren, Apfel-, Nussbaum) tragen einmal pro Tag bzw. nach `every` Tagen; Erntevorgänge und Menge pro Vorgang laut Tabelle.
+- Wilde Pflanzen (Bärlauch, Löwenzahn, Sauerampfer, Pilze) wachsen am Hofrand nach, mehrere Erntevorgänge pro Pflanze.
+- Preiselbeeren, Zitronen und Stachelbeeren (Kultur, mehrjährig) haben noch keinen Platz auf dem Hof und kommen später.
+
+## Tagesaufträge und Gefallen (Basti, 21.11.2026)
+- Jeden Morgen kommen 3 neue Aufträge und sind automatisch angenommen; abends verfallen die offenen. Titel 3-5 Wörter, darunter die Ziele „- 0/5 [Icon] Ware“.
+- Aufträge enthalten nur Früchte der freigeschalteten Felder (plus Blaubeeren vom Busch), also kein Deadlock. Menge nach Referenz: alle 3 zusammen belegen 55 % der Feld-Sekunden des Tages (Felder × 480 s), Weizen 30 s pro Durchgang = 30 Stück. Ohne Brunnen begrenzt das Wasser in der Kanne die Menge (eine Füllung pro Durchgang, eine bleibt für den Busch).
+- Sobald alle Waren im Lager sind, wird der Auftrag abgegeben (grüner Haken). Die Belohnung holt man abends ab: pro Auftrag eine große Kachel mit XP und „Gefallen“ des Dorfes.
+- Gefallen ersetzt die Taler (gleiche Währung zum Bauen, Symbol: goldene Marke mit Herz). Pro Auftrag mindestens 15, damit man nach Tag 1 den Brunnen reparieren kann.
+- XP: die 3 Aufträge eines Tages bringen etwa 1/1,5 Level, die Belohnung steht auch im Kopf des Auftrags.
+- Anzeige tagsüber oben rechts, Q (PC) bzw. Tippen klappt ein und aus; eingeklappt steht nur „Quests [Q]“.
+- Start mit 3 Feldern (Referenz: 3 Weizenfelder, realistisch 1000-1200 Weizen am Tag), mehr Felder pro Level: 3, 4, 5, 6, 8, 10, 12, 14, 16, 18.
+- Offen: das Ladengeschäft gab vorher ein zusätzliches Auftragsangebot, das entfällt jetzt.

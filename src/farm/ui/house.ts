@@ -3,7 +3,7 @@
 import type { BuildingId, FarmCfg, ItemId, WeaponId } from '../config';
 import { BUILDING_IDS, STALL_IDS, WEAPON_IDS, plotsAllowed } from '../config';
 import type { FarmState, Quest } from '../state';
-import { acceptQuest, build, buildStatus, canOpenPlot, completeQuest, count, openPlot, openPlots, questReady } from '../state';
+import { build, buildStatus, canOpenPlot, claimQuests, count, openPlot, openPlots, unclaimed } from '../state';
 import { ic } from './ficons';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -22,7 +22,7 @@ export class HouseUi {
     $('#fMorning').addEventListener('click', e => this.mclick(e));
     $('#fMorning').addEventListener('input', e => { const t = e.target as HTMLInputElement; if (t.id === 'mAmmoN') { this.pick.n = +t.value; $('#mAmmoV').textContent = t.value; } });
   }
-  private name(id: string) { if (id === 'coin') return 'Taler'; return this.cfg.names.items[id] ?? (this.cfg.names.buildings as any)[id] ?? (this.cfg.names.weapons as any)[id] ?? id; }
+  private name(id: string) { if (id === 'coin') return 'Gefallen'; return this.cfg.names.items[id] ?? (this.cfg.names.buildings as any)[id] ?? (this.cfg.names.weapons as any)[id] ?? id; }
   private goods(g: Record<string, number | undefined>, have = false) {
     return Object.entries(g).filter(([, v]) => v).map(([k, v]) => {
       const ok = !have || (k === 'money' ? this.s.money >= v! : count(this.s, k) >= v!);
@@ -37,6 +37,17 @@ export class HouseUi {
     $('#hDay').textContent = '' + s.day;
     $('#hMoney').innerHTML = `${ic('coin')}<b>${s.money}</b>`;
     $('#hLvl').innerHTML = `${ic('star')}<b>${s.level}</b>`;
+    // delivered orders: one big tile each, the reward is collected here (Basti 21.11.2026)
+    const R = unclaimed(s), rw = $('#hRewards');
+    rw.hidden = !R.length;
+    for (const sel of ['#hTop', '#hTabs', '#hBody', '#fHouse footer']) ($(sel) as HTMLElement).style.display = R.length ? 'none' : '';
+    if (R.length) {
+      rw.innerHTML = `<div class="tiles">${R.map((q, i) => `<div class="tile" style="animation-delay:${i * .15}s">${ic('check')}<b>${q.title ?? ''}</b>
+        <div class="need">${Object.entries(q.need).map(([k, v]) => `<span class="gd">${ic(k)}<b>${v}</b></span>`).join('')}</div>
+        <div class="rew"><span class="gd xp">${ic('xp')}<b>+${q.reward.xp}</b></span><span class="gd">${ic('coin')}<b>+${q.reward.money}</b></span></div></div>`).join('')}</div>
+        <button class="hb big go" data-claim="1">${ic("coin")}<span>Abholen</span></button>`;
+      return;
+    }
     // summary + level-up banner
     let top = '';
     const S = s.summary;
@@ -59,22 +70,19 @@ export class HouseUi {
   }
   private badge(t: Tab) {
     const s = this.s; let n = 0;
-    if (t === 'quests') n = s.quests.active.filter(q => questReady(s, q)).length;
     if (t === 'build') n = BUILDING_IDS.filter(id => buildStatus(this.cfg, s, id) === 'ok').length + (canOpenPlot(this.cfg, s) ? 1 : 0);
     return n ? `<em>${n}</em>` : '';
   }
-  private quest(q: Quest, offer: boolean) {
-    const ready = questReady(this.s, q), full = this.s.quests.active.length >= this.cfg.quests.maxActive;
-    return `<div class="row q${ready && !offer ? ' ready' : ''}">
-      <div class="need">${this.goods(q.need, !offer)}</div>${ic('arrowR')}
-      <div class="rew">${this.goods({ money: q.reward.money })}<span class="gd xp">${ic('xp')}<b>${q.reward.xp}</b></span>${this.goods(q.reward.items ?? {})}</div>
-      ${offer ? `<button class="hb" data-accept="${q.id}" ${full ? 'disabled' : ''}>Annehmen</button>` : `<button class="hb go" data-done="${q.id}" ${ready ? '' : 'disabled'}>Abgeben</button>`}
+  /** today's orders (21.11.2026): delivered ones with a green tick, the rest expired; tomorrow brings new ones */
+  private quest(q: Quest) {
+    return `<div class="row q${q.done ? ' ready' : ' gone'}">${ic(q.done ? 'check' : 'lock')}
+      <div class="qt"><b>${q.title ?? ''}</b><div class="need">${this.goods(q.need)}</div></div>
+      <div class="rew">${this.goods({ money: q.reward.money })}<span class="gd xp">${ic('xp')}<b>${q.reward.xp}</b></span></div>
     </div>`;
   }
   private quests() {
-    const s = this.s;
-    return `<h4>${ic('quest')}<span>${s.quests.active.length}/${this.cfg.quests.maxActive}</span></h4>${s.quests.active.map(q => this.quest(q, false)).join('')}
-      ${s.quests.offers.length ? `<h4 class="off">${ic('shop')}</h4>${s.quests.offers.map(q => this.quest(q, true)).join('')}` : ''}`;
+    const list = this.s.quests.active;
+    return `<h4>${ic('quest')}<span>${list.filter(q => q.done).length}/${list.length}</span></h4>${list.map(q => this.quest(q)).join('')}`;
   }
   private buildList() {
     const s = this.s, C = this.cfg;
@@ -118,9 +126,8 @@ export class HouseUi {
     const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t || t.disabled) return;
     const s = this.s, C = this.cfg, d = t.dataset;
     if (t.id === 'hSleep') { this.onSound('ui.confirm'); this.onSleep(); return; }
-    if (d.tab) { this.tab = d.tab as Tab; this.onSound('ui.click'); }
-    else if (d.done) { const q = s.quests.active.find(x => x.id === d.done); if (q && completeQuest(C, s, q)) this.onSound('ui.levelup'); }
-    else if (d.accept) { const q = s.quests.offers.find(x => x.id === d.accept); if (q && acceptQuest(C, s, q)) this.onSound('ui.confirm'); }
+    if (d.claim) { claimQuests(C, s); this.onSound('ui.levelup'); }
+    else if (d.tab) { this.tab = d.tab as Tab; this.onSound('ui.click'); }
     else if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
     else if (d.plot) { if (openPlot(C, s)) this.onSound('ui.confirm'); }
     this.onChange(); this.render();

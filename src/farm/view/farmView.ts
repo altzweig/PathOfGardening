@@ -11,6 +11,7 @@ import { updateDayNight, dayNow, resetDayNight } from '../../view/daynight';
 import { updateSeasons } from '../../view/seasons';
 import { setTexCfg } from '../../view/textures';
 import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
+import type { FruitType } from '../../config';
 import { animate, makeAnimal, Animal as AView } from '../../view/animals';
 import { Rig, animateArms, animateLegs, buildFarmer, disposeFarmer } from '../../view/farmer';
 import { basket, cranGun, rakeTool, seedBag, setArsenalEnv, setArsenalLight, sickle, wateringCan } from '../../view/arsenal';
@@ -19,6 +20,7 @@ import type { Look } from '../../look';
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, StallId } from '../config';
 import type { FarmState } from '../state';
+import { ripeCuts } from '../state';
 import type { Hof } from '../hof';
 import type { Animal, DaySim, Ev, Target } from '../sim';
 import { HofWorld } from './hofWorld';
@@ -52,7 +54,20 @@ const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6f9a3a, roughness: .9,
 const G_GREEN = new THREE.Color(0x5e9a38), G_GOLD = new THREE.Color(0xe0b448), G_EAR = new THREE.Color(0xf0c860);
 /** plot = natural hexagon bed (earth decals from the old game) + wet layer, grass while not ploughed yet, seeds, wheat */
 interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandardMaterial; wetMat: THREE.MeshStandardMaterial; grass: THREE.Group; seeds: THREE.Group;
-  stems: THREE.InstancedMesh; ears: THREE.InstancedMesh; spots: { x: number; z: number; r: number; s: number }[]; key: string; drop: THREE.Sprite; wet: number; shake: number }
+  stems: THREE.InstancedMesh; ears: THREE.InstancedMesh; spots: { x: number; z: number; r: number; s: number }[]; key: string; drop: THREE.Sprite; wet: number; shake: number;
+  /** plants of every crop except wheat (built when the crop is sown) */
+  crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null }
+/** 20.11.2026 (Fruchttabelle): which existing plant model a field crop uses; tint = fruit colour, leaf = leaf colour for crops without their own model */
+const CROP_MODEL: Record<string, { m: FruitType; tint?: number; leaf?: number }> = {
+  carrot: { m: 'carrot' }, potato: { m: 'potato' }, onion: { m: 'onion' }, garlic: { m: 'garlic' }, pea: { m: 'pea' }, radish: { m: 'radish' },
+  lettuce: { m: 'lettuce' }, leek: { m: 'leek' }, bean: { m: 'bean' }, corn: { m: 'corn' }, strawb: { m: 'straw' }, pepper: { m: 'pepper' },
+  tomato: { m: 'tomato' }, rhubarb: { m: 'rhubarb' }, pumpkin: { m: 'pumpkin' }, cab: { m: 'cab' }, asp: { m: 'asp' }, chili: { m: 'chili' },
+  celery: { m: 'leek', leaf: 0x7ab848 }, fennel: { m: 'leek', leaf: 0x9ac860 }, zucchini: { m: 'pumpkin', tint: 0x3f7a2a },
+  eggplant: { m: 'pepper', tint: 0x4a2058 }, melon: { m: 'pumpkin', tint: 0x6a9a3a },
+};
+const tintMats = new Map<number, THREE.MeshStandardMaterial>();
+const tintMat = (hex: number) => { let m = tintMats.get(hex); if (!m) { m = new THREE.MeshStandardMaterial({ color: hex, roughness: .5 }); tintMats.set(hex, m); } return m; };
+const CROP_UNRIPE = new THREE.MeshStandardMaterial({ color: 0x8ab858, roughness: .6 });
 /** random point in a pointy-top hexagon of radius H */
 function inHex(H: number) { for (;;) { const x = rand(-1, 1) * H, z = rand(-1, 1) * H, ax = Math.abs(x), az = Math.abs(z); if (az <= H && ax <= H * .866 && az <= H - ax * .577) return { x, z }; } }
 /** what flies through the air: leaves whirling out of a shaken bush, berries on their way into the basket */
@@ -216,26 +231,30 @@ export class FarmView {
     for (let k = 0; k < STEMS; k++) { const p = inHex(H * .88); spots.push({ x: p.x, z: p.z, r: rand(0, 7), s: rand(.85, 1.15) }); }
     const drop = dropSprite(); drop.position.set(x, 1.1, z); drop.visible = false; scene.add(drop);
     void i;
-    return { g, bed, earth, wetMat, grass, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0 };
+    return { g, bed, earth, wetMat, grass, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null };
   }
   private updatePlot(v: PlotView, i: number, dt: number, day: boolean) {
     const p = this.s.plots[i], C = p.crop ? this.cfg.crops[p.crop] : null;
-    const key = `${p.open}|${p.stage}|${p.days}|${p.yieldLeft}`;
+    const C0 = C ? clamp(p.grow / Math.max(1, C.grow), 0, 1) : 0;
+    const key = `${p.open}|${p.stage}|${p.crop}|${p.t > 0}|${Math.round(C0 * 20)}|${p.yieldLeft}`;
     v.wet = lerp(v.wet, p.open && p.watered ? 1 : 0, 1 - Math.exp(-dt * 3));
     v.wetMat.opacity = v.wet * .95;
     v.drop.visible = day && p.open && p.stage === 'sown' && !p.watered;
     if (v.drop.visible) v.drop.position.y = 1 + Math.sin(performance.now() / 300 + i) * .06;
     v.shake = Math.max(0, v.shake - dt * 2.5);
-    v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z;
+    v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;
     if (key === v.key) return; v.key = key;
     v.g.visible = p.open;
     const ploughed = p.stage !== 'empty';
     v.grass.visible = p.open && !ploughed;
     v.earth.opacity = ploughed ? 1 : .45; v.earth.color.setHex(ploughed ? 0xffffff : 0xb8c890);
-    v.seeds.visible = p.open && p.stage === 'sown' && p.days === 0;
-    const grow = !p.open ? 0 : p.stage === 'sown' ? (p.days + 1) / ((C?.days ?? 3) + 1) : p.stage === 'ripe' ? 1 : 0;
-    const ripe = p.stage === 'ripe', left = ripe ? clamp(p.yieldLeft / Math.max(1, this.cfg.plots.cuts), 0, 1) : 1;
-    const n = grow <= 0 ? 0 : Math.round(STEMS * (ripe ? .3 + .7 * Math.min(1, left) : 1));
+    // sown: seeds while sprouting, then a little sprout that grows once it was watered (20.11.2026: growth in s, not in days)
+    v.seeds.visible = p.open && p.stage === 'sown' && p.t > 0;
+    const grow = !p.open ? 0 : p.stage === 'sown' ? (p.t > 0 ? 0 : .08 + .92 * C0) : p.stage === 'ripe' ? 1 : 0;
+    const ripe = p.stage === 'ripe', left = ripe ? clamp(p.yieldLeft / Math.max(1, ripeCuts(this.cfg, p)), 0, 1) : 1;
+    const wheat = !p.crop || p.crop === 'wheat';
+    this.cropPlants(v, wheat || grow <= 0 ? null : p.crop, grow, ripe, left);
+    const n = grow <= 0 || !wheat ? 0 : Math.round(STEMS * (ripe ? .3 + .7 * Math.min(1, left) : 1));
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
     const h = .1 + .75 * grow;
     for (let k = 0; k < STEMS; k++) {
@@ -249,6 +268,32 @@ export class FarmView {
     }
     v.stems.instanceMatrix.needsUpdate = true; v.ears.instanceMatrix.needsUpdate = true;
     if (v.stems.instanceColor) v.stems.instanceColor.needsUpdate = true; if (v.ears.instanceColor) v.ears.instanceColor.needsUpdate = true;
+  }
+
+  /** non-wheat crops: three plants of the crop on the bed, growing with the crop; the fruits show when ripe and thin out pass by pass */
+  private cropPlants(v: PlotView, id: string | null, grow: number, ripe: boolean, left: number) {
+    if (v.crop && v.crop.id !== id) { v.g.remove(v.crop.g); v.crop = null; }
+    if (!id) return;
+    if (!v.crop) {
+      const M = CROP_MODEL[id] ?? { m: 'lettuce' as FruitType }, g = new THREE.Group(), plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] = [];
+      const leaf = new THREE.MeshStandardMaterial({ color: M.leaf ?? 0x4f8a34, roughness: .85, flatShading: true }), head = new THREE.MeshStandardMaterial({ color: 0x6a5a30, roughness: .8 });
+      const H = this.cfg.plots.size / 2, k = H / 1.6;
+      for (let j = 0; j < 3; j++) {
+        const a = j / 3 * Math.PI * 2 + .3, pl = buildPlant(M.m, { leaf, head });
+        if (M.tint) for (const f of pl.fruits) f.material = tintMat(M.tint);
+        const w = new THREE.Group(); w.add(pl.g); w.position.set(Math.cos(a) * H * .42, 0, Math.sin(a) * H * .42); w.rotation.y = rand(0, 7); w.scale.setScalar(.55 * k);
+        w.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
+        g.add(w); plants.push({ g: w, fruits: pl.fruits });
+      }
+      v.g.add(g); v.crop = { id, g, plants };
+    }
+    const H = this.cfg.plots.size / 2, k = H / 1.6, sc = .55 * k * (.25 + .75 * grow);
+    for (const pl of v.crop.plants) {
+      pl.g.scale.setScalar(sc);
+      const fm = pl.fruits.map(f => f.userData.mat0 ??= f.material);
+      const nOn = ripe ? Math.ceil(pl.fruits.length * left) : grow > .6 ? pl.fruits.length : 0;
+      pl.fruits.forEach((f, i) => { f.visible = i < nOn; f.material = ripe ? fm[i] as THREE.Material : CROP_UNRIPE; });
+    }
   }
 
   // ---------------- buildings ----------------
@@ -423,10 +468,8 @@ export class FarmView {
   private animBush(dt: number, day: boolean, sim: DaySim | null, now: number) {
     const b = this.s.bush, B = this.cfg.bush, fr = this.bush.fruits;
     const growK = b.phase === 'growing' ? clamp(b.t / B.ripen, 0, 1) : 0;
-    // ripe: the big berries thin out pass by pass, then only a few small ones are left
-    const big = B.bigPicks * (B.bigBerries[0] + B.bigBerries[1]) / 2;
-    const nBig = b.phase === 'ripe' ? Math.ceil(fr.length * clamp(b.berries / big, 0, 1)) : 0;
-    const nSmall = b.phase === 'ripe' && b.berries <= 0 ? Math.ceil(fr.length * .4 * b.small / Math.max(1, B.smallPicks)) : 0;
+    // ripe: the berries thin out pick by pick (20.11.2026: picks x berries, no small rest any more)
+    const nBig = b.phase === 'ripe' ? Math.ceil(fr.length * clamp(b.berries / Math.max(1, B.picks * B.berries), 0, 1)) : 0, nSmall = 0;
     fr.forEach((f, i) => {
       if (b.phase === 'growing') { f.visible = true; f.material = this.bush.unripe; this.bush.unripe.color.setHex(0x9ab860).lerp(new THREE.Color(0x5a64c0), growK * growK); f.scale.setScalar(.03 + .025 * growK); }
       else if (b.phase === 'ripe') { f.material = BUSH_MAT.blue; f.visible = nBig ? i < nBig : i < nSmall; f.scale.setScalar(nBig ? .068 : .036); }

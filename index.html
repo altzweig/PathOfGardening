@@ -47,17 +47,19 @@
         <div class="fBar xp"><i class="lvl"><b id="fLvlN">1</b></i><div class="track"><div id="fXpFill"></div></div></div>
       </div>
       <div id="fClock"><svg viewBox="0 0 100 52"><path d="M12 44 A38 34 0 0 1 88 44" fill="none" stroke="#e3b96455" stroke-width="3" stroke-dasharray="4 5"/><path d="M4 44 H96" stroke="#e3b96488" stroke-width="2"/><circle id="fSun" cx="12" cy="44" r="7" fill="#ffd040" stroke="#7a4a10" stroke-width="1.5"/></svg><b id="fDay">1</b></div>
-      <div id="fRight">
+      <div id="fRCol"><div id="fRight">
         <div class="chipf"><i id="fCoinIc"></i><b id="fMoney">0</b></div>
         <div id="fWater"></div>
+        <button class="ibtn" id="fSeed" aria-label="Saatgut"></button>
         <div id="fWeap"></div>
         <button class="ibtn" id="fPause" aria-label="Pause"></button>
-      </div>
+      </div><div id="fQuests"></div></div>
     </div>
     <div id="fHint" hidden></div>
     <div id="fFight" hidden></div>
     <div id="fCursor" hidden></div>
     <div id="fLabel" hidden></div>
+    <div id="fSeeds" hidden></div>
     <div id="fFloat"></div>
     <div id="fStick" hidden><div class="knob"></div></div>
     <div id="fBtns">
@@ -73,6 +75,7 @@
   <div class="fo" id="fHouse" hidden>
     <div class="panel">
       <header><div class="ttl"><span class="moonI"></span><b>Abend</b><small>Tag <span id="hDay">1</span></small></div><div class="stat" id="hLvl"></div><div class="stat" id="hMoney"></div><button class="ibtn hMenu" aria-label="Pause"></button></header>
+      <div id="hRewards" hidden></div>
       <div id="hTop"></div>
       <nav id="hTabs"></nav>
       <div id="hBody"></div>

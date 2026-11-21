@@ -183,6 +183,19 @@ plants:
     tomato:  { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
     onion:   { files: [rip_2, rip_4], vol: 0.6, pitch: [0.6, 0.7], gap: 0.3, synth: wilt }
 
+night:                                               # Nachtangriff (21.11.2026)
+  fall:   { synth: nightfall, gap: 2 }                # Warnung "Die Nacht bricht herein": dumpfe Trommel, dunkles Horn, ferner Heuler
+  wave:   { synth: nightWave, gap: 1 }                # eine Welle kommt aus dem Wald
+  gnaw:   { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.22, pitch: [1.2, 1.45], gap: 0.35 }   # Hase knabbert am Feld
+  broken: { files: [rip_2, rip_4], vol: 0.5, pitch: [0.55, 0.65], gap: 0.3, synth: wilt }           # Feld zertrampelt
+  pocket: { files: [rac_steal_1, rac_steal_2, rac_steal_3], vol: 0.4, pitch: [0.95, 1.1], gap: 0.2 } # Waschbär klaut aus der Tasche
+  repaired: { files: [rake_till_2], vol: 0.3, pitch: [0.8, 0.9], gap: 0.3 }
+
+cutscene:                                            # Ohnmacht-Cutscene
+  heartbeat: { synth: heartbeat, gap: 0.5 }
+  breath:    { synth: breath, gap: 1 }
+  fall:      { synth: fall, gap: 1 }
+
 ui:
   click:       { files: [ui_click], vol: 0.35, pitch: [0.95, 1.05] }            # Knöpfe im Menü
   hover:       { files: [ui_hover], vol: 0.2, pitch: [0.95, 1.1], gap: 0.05 }  # Maus über Karte

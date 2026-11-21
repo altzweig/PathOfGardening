@@ -62,6 +62,7 @@ export class HouseUi {
         ${got.map(([k, v]) => `<span class="gd">${ic(k)}<b>+${v}</b></span>`).join('')}
         ${lost.map(([k, v]) => `<span class="gd miss">${ic(k)}<b>−${v}</b></span>`).join('')}
         ${S.driven ? `<span class="gd">${ic('raccoon')}<b>×${S.driven}</b></span>` : ''}
+        ${S.broken ? `<span class="gd miss">${ic('plot')}<b>×${S.broken}</b></span>` : ''}
         ${S.xp ? `<span class="gd xp">${ic('xp')}<b>+${S.xp}</b></span>` : ''}</div>`;
     }
     for (const L of s.levelUps) {

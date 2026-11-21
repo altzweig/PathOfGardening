@@ -29,6 +29,31 @@ import { buildBed } from './beds';
 import { WildView } from './wild';
 import { LivestockView, animateLivestock, makeLivestock } from './livestock';
 import { toLocal } from '../hof';
+import type { CineFrame } from '../cutscene/cutscene';
+
+// ---------------- night eyes (21.11.2026): hares red, raccoons sparkling blue ----------------
+const EYE_GLOW = { hare: new THREE.Color(3.2, .25, .12), raccoon: new THREE.Color(.25, .85, 3.6) } as const;
+const HALO_COL = { hare: 0xff3a20, raccoon: 0x2a7cff } as const;
+const eyeHalo = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d')!, r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.25, 'rgba(255,255,255,.6)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+/** night animal: glowing eyes + a soft halo on each eye (blooms) */
+function nightEyes(av: AView, type: 'hare' | 'raccoon') {
+  const c = EYE_GLOW[type];
+  av.eyes.material = new THREE.MeshBasicMaterial({ color: c, toneMapped: false });
+  const bb = (av.eyes.geometry.boundingBox ?? (av.eyes.geometry.computeBoundingBox(), av.eyes.geometry.boundingBox))!;
+  const r = (bb.max.y - bb.min.y) / 2, cy = (bb.max.y + bb.min.y) / 2, cz = bb.max.z - r * .6;
+  for (const x of [bb.min.x + r, bb.max.x - r]) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: eyeHalo, color: HALO_COL[type], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    s.position.set(x, cy, cz + .01); s.scale.setScalar(type === 'hare' ? .15 : .13); s.userData.halo = true; av.eyes.add(s);
+  }
+}
+function glowEyes(av: AView, a: Animal, now: number, dt: number) {
+  const tw = a.type === 'raccoon' ? .65 + .35 * Math.sin(now * 7.3 + a.id * 1.7) * Math.sin(now * 2.1 + a.id) : .85 + .15 * Math.sin(now * 3 + a.id);
+  for (const s of av.eyes.children) if (s.userData.halo) { const sp = s as THREE.Sprite; sp.material.opacity = a.state === 'flee' ? .35 : tw; }
+  // raccoons: now and then a little star glint in the eyes
+  if (a.type === 'raccoon' && Math.random() < dt * 2.2) { const p = av.eyes.getWorldPosition(V()); PART.spawn(V(p.x + rand(-.05, .05), p.y + .02, p.z + rand(-.05, .05)), V(0, .25, 0), 0x9fd4ff, .05, .35, { s1: 0, a: 1 }); }
+}
 
 const ITEM_HEX: Record<string, number> = { blue: 0x4a64f0, wheat: 0xe0b850, straw: 0xe8d488, nut: 0xc08a4a, garlic: 0xf0ead8, flour: 0xf4f0e6, bread: 0xb8782e, juice: 0x6a3cc0, milk: 0xf8f8f0, cheese: 0xf0c850, egg: 0xf4e8d0, plank: 0xa87a48, apple: 0xd8382a, bramble: 0x2a1030, green: 0x6a9a3a, mushroom: 0xa0522d, baerlauch: 0x3f8a2a, sorrel: 0x8a9a2a, wood: 0x7a5432, stone: 0x9a948a };
 export const itemHex = (id: ItemId) => ITEM_HEX[id] ?? 0xcccccc;
@@ -50,6 +75,12 @@ const earGeo = (() => { const g = new THREE.CapsuleGeometry(.022, .11, 3, 6); g.
 const stemMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8 });
 const earMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .7 });
 const seedMat = new THREE.MeshStandardMaterial({ color: 0xd8b060, roughness: .8 });
+const TRAMPLE = {
+  print: new THREE.MeshStandardMaterial({ color: 0x1e140c, roughness: 1, transparent: true, opacity: .75, depthWrite: false }),
+  clod: new THREE.MeshStandardMaterial({ color: 0x3a281a, roughness: 1, flatShading: true }),
+  stalk: new THREE.MeshStandardMaterial({ color: 0xc8a860, roughness: .85 }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x5e8a3a, roughness: .8, side: THREE.DoubleSide }),
+};
 const G_GREEN = new THREE.Color(0x5e9a38), G_GOLD = new THREE.Color(0xe0b448), G_EAR = new THREE.Color(0xf0c860);
 /** plot = natural hexagon bed (earth decals from the old game) + wet layer, seeds, wheat (weeds: wild.ts) */
 interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandardMaterial; wetMat: THREE.MeshStandardMaterial; seeds: THREE.Group;
@@ -57,7 +88,9 @@ interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandard
   /** plants of every crop except wheat (built when the crop is sown) */
   crop: { id: string; g: THREE.Group; plants: { g: THREE.Group; fruits: THREE.Mesh[] }[] } | null;
   /** growth timer over the field (21.11.2026): small bar + remaining time "0:00" after it */
-  timer: { bar: THREE.Group; txt: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string } }
+  timer: { bar: THREE.Group; txt: THREE.Sprite; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture; last: string };
+  /** night (21.11.2026): red life bar of the field (gnawed / broken), trampled ground (paw prints, clods, flattened stalks) */
+  hpBar: THREE.Group; tramp: THREE.Group; hit: number }
 /** remaining seconds as "m:ss" */
 export const clockText = (sec: number) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 const TIMER_W = .9, TIMER_TXT = .62;
@@ -245,18 +278,35 @@ export class FarmView {
     void i;
     const bar = makeBar(TIMER_W, .1, 0x9ad65a); bar.visible = false;
     const timer = { bar, ...timerText(), last: '' };
-    return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null, timer };
+    const hpBar = makeBar(TIMER_W, .1, 0xe8402e); hpBar.visible = false;
+    // trampled: dark paw prints + churned clods + broken stalks lying flat
+    const tramp = new THREE.Group(); tramp.visible = false; g.add(tramp);
+    for (let k = 0; k < 16; k++) { const p = inHex(H * .82), m = new THREE.Mesh(GEO.sph, TRAMPLE.print); m.scale.set(.07, .006, .1); m.position.set(p.x, .025, p.z); m.rotation.y = rand(0, 7); tramp.add(m); }
+    for (let k = 0; k < 14; k++) { const p = inHex(H * .85), m = new THREE.Mesh(GEO.sph, TRAMPLE.clod); m.scale.set(rand(.05, .1), rand(.03, .05), rand(.05, .09)); m.position.set(p.x, .03, p.z); m.rotation.y = rand(0, 7); m.castShadow = true; tramp.add(m); }
+    for (let k = 0; k < 26; k++) { const p = inHex(H * .8), m = new THREE.Mesh(stemGeo, TRAMPLE.stalk); m.scale.set(1.2, rand(.22, .5), 1.2); m.position.set(p.x, .03, p.z); m.rotation.set(Math.PI / 2 - rand(0, .25), rand(0, 7), 0, 'YXZ'); m.castShadow = true; tramp.add(m); }
+    // chewed leaf scraps
+    for (let k = 0; k < 14; k++) { const p = inHex(H * .85), m = new THREE.Mesh(LEAF_GEO, TRAMPLE.leaf); m.scale.setScalar(rand(.8, 1.4)); m.position.set(p.x, .035, p.z); m.rotation.set(-Math.PI / 2 + rand(-.3, .3), 0, rand(0, 7)); tramp.add(m); }
+    return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null, timer, hpBar, tramp, hit: 0 };
   }
-  private updatePlot(v: PlotView, i: number, dt: number, day: boolean) {
+  private updatePlot(v: PlotView, i: number, dt: number, day: boolean, night: boolean) {
     const p = this.s.plots[i], C = p.crop ? this.cfg.crops[p.crop] : null;
     const C0 = C ? clamp(p.grow / Math.max(1, C.grow), 0, 1) : 0;
-    const key = `${p.open}|${p.stage}|${p.crop}|${p.t > 0}|${Math.round(C0 * 20)}|${p.yieldLeft}`;
+    const key = `${p.open}|${p.stage}|${p.crop}|${p.t > 0}|${Math.round(C0 * 20)}|${p.yieldLeft}|${!!p.broken}`;
+    // life bar of the field (red): while hares gnaw at it, and nearly empty on a trampled field (= repair it)
+    const N = this.cfg.night, hurt = p.open && (!!p.broken || (p.hp !== undefined && p.hp < N.plotHp));
+    v.hpBar.visible = hurt && (day || !!p.broken) && !this.cine;
+    v.hit = Math.max(0, v.hit - dt * 3);
+    if (v.hpBar.visible) {
+      const pos = this.cfg.hof.plots[i], k = innerHeight > innerWidth ? 1.5 : 1;
+      v.hpBar.position.set(pos.x, .95 + v.hit * .05, pos.z); v.hpBar.quaternion.copy(camera.quaternion); v.hpBar.scale.setScalar(k * (1 + v.hit * .12));
+      setBar(v.hpBar, p.broken ? N.brokenShow : (p.hp ?? N.plotHp) / N.plotHp);
+    }
     v.wet = lerp(v.wet, p.open && p.watered ? 1 : 0, 1 - Math.exp(-dt * 3));
     v.wetMat.opacity = v.wet * .95;
-    v.drop.visible = day && p.open && p.stage === 'sown' && !p.watered;
+    v.drop.visible = day && !this.cine && p.open && p.stage === 'sown' && !p.watered;
     if (v.drop.visible) v.drop.position.y = 1 + Math.sin(performance.now() / 300 + i) * .06;
     // growth timer: bar + time left while the crop grows (watered, after sprouting)
-    const T = v.timer, growing = day && p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C;
+    const T = v.timer, growing = day && !night && p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C;
     T.bar.visible = T.txt.visible = growing;
     if (growing) {
       const pos = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), left = gm > 0 ? (C!.grow - p.grow) / gm : C!.grow;
@@ -271,6 +321,7 @@ export class FarmView {
     if (key === v.key) return; v.key = key;
     v.g.visible = p.open;
     v.earth.opacity = 1; // 21.11.2026: no ploughing any more, an open plot is always worked soil
+    v.tramp.visible = !!p.broken; v.earth.color.setScalar(p.broken ? .62 : 1);
     // sown: seeds while sprouting, then a little sprout that grows once it was watered (20.11.2026: growth in s, not in days)
     v.seeds.visible = p.open && p.stage === 'sown' && p.t > 0;
     const grow = !p.open ? 0 : p.stage === 'sown' ? (p.t > 0 ? 0 : .08 + .92 * C0) : p.stage === 'ripe' ? 1 : 0;
@@ -324,8 +375,13 @@ export class FarmView {
     for (const [id, v] of this.buildings) {
       const b = this.s.buildings[id]; const built = !!b?.built || id === 'house';
       v.built.visible = built; v.site.visible = !built; if (v.broken) v.broken.visible = !built;
+      // world editor (21.11.2026): no construction site or ruin, an unbuilt building is simply not there
+      v.root.visible = built || !this.hof.hideUnbuilt;
     }
+    // what was painted / placed under a building disappears once it stands (grass, plants, stones)
+    if (this.hof.setBuilt(id => id === 'house' || !!this.s.buildings[id]?.built) || !this.underDone) { this.underDone = true; this.world.buildingsChanged(); }
   }
+  private underDone = false;
   setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) p.key = ''; }
 
   // ---------------- player ----------------
@@ -347,7 +403,7 @@ export class FarmView {
     const v = this.player; if (!v) return;
     const P = sim?.player, H = this.cfg.hof, R0 = v.rig;
     const px = P ? P.x : H.door.x, pz = P ? P.z : H.door.z + .4;
-    v.g.visible = !!sim && !sim.finished;
+    v.g.visible = !!sim && !this.cine; // first person in a cutscene
     const spd = P ? P.speed : 0, swing = P?.swing, act = P?.action;
     // down on the ground: kneeling while working, a deep crouch (waddle) while moving with the button held
     const lowAct = !!act && !!sim && sim.low(act.target, act.info);
@@ -476,7 +532,8 @@ export class FarmView {
       let v = this.animals.get(a.id);
       if (!v) {
         const av = makeAnimal(a.type);
-        if (a.type === 'raccoon') av.eyes.material = new THREE.MeshBasicMaterial({ color: 0x14100c, vertexColors: true });
+        if (a.night) nightEyes(av, a.type);
+        else if (a.type === 'raccoon') av.eyes.material = new THREE.MeshBasicMaterial({ color: 0x14100c, vertexColors: true });
         this.dyn.add(av.g); v = { v: av, bar: makeBar(.55, .06, 0xff6a4a), key: '', frozen: 0, rot: undefined }; this.animals.set(a.id, v);
       }
       const C = this.cfg.animals[a.type];
@@ -489,6 +546,7 @@ export class FarmView {
       v.v.mat.emissive.setRGB(.15 * v.frozen + (a.flash > 0 ? .5 : 0), .35 * v.frozen + (a.flash > 0 ? .5 : 0), .7 * v.frozen + (a.flash > 0 ? .5 : 0));
       const showBar = a.hp < a.maxHp && a.state !== 'script' && !a.driven;
       v.bar.visible = showBar; if (showBar) { v.bar.position.set(a.x, (a.type === 'hare' ? .8 : 1) , a.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, a.hp / a.maxHp); }
+      if (a.night) glowEyes(v.v, a, now, dt);
       if (a.freeze > 0 && Math.random() < dt * 8) PART.spawn(V(a.x + rand(-.3, .3), rand(.2, .6), a.z + rand(-.3, .3)), V(0, .3, 0), 0xbfe4ff, .08, .6);
     }
     for (const [id, v] of this.animals) if (!live.has(id)) { this.dyn.remove(v.v.g); v.bar.visible = false; this.animals.delete(id); }
@@ -498,7 +556,7 @@ export class FarmView {
     if (key === v.key) return; v.key = key;
     v.v.carry.clear();
     let i = 0;
-    for (const [item, n] of Object.entries(a.carry)) for (let k = 0; k < n; k++, i++) {
+    for (const [item, n0] of Object.entries(a.carry)) for (let k = 0, n = Math.min(n0, 14 - i); k < n; k++, i++) { // a big haul: the pile stays a pile
       const L = Math.floor(i / 6), an = (i % 6) / 6 * Math.PI * 2 + L * .5, rr = L ? .07 : .1;
       const m = itemMesh(item, .8); m.position.set(Math.cos(an) * rr, .62 + L * .075, -.1 + Math.sin(an) * rr); v.v.carry.add(m);
     }
@@ -512,7 +570,7 @@ export class FarmView {
     const live = new Set<number>();
     for (const l of sim?.loot ?? []) {
       live.add(l.id); let m = this.lootViews.get(l.id);
-      if (!m) { m = itemMesh(l.item, 1.1); this.dyn.add(m); this.lootViews.set(l.id, m); }
+      if (!m) { m = itemMesh(l.item, 1.1 * (1 + Math.min(1.2, Math.log10(l.n ?? 1) * .6))); this.dyn.add(m); this.lootViews.set(l.id, m); }
       m.position.set(l.x, .1 + l.y + Math.sin(l.t * 5) * .03, l.z); m.rotation.y += dt * 3;
     }
     for (const [id, m] of this.lootViews) if (!live.has(id)) { this.dyn.remove(m); this.lootViews.delete(id); }
@@ -536,7 +594,7 @@ export class FarmView {
     g.rotation.z = Math.sin(now * 38) * .12 * k; g.rotation.x = Math.cos(now * 31) * .1 * k; g.scale.set(1.25, 1.25 * (1 - .1 * k + Math.sin(now * 44) * .05 * k), 1.25);
     const bar = this.bush.bar, showBar = b.phase === 'growing' && b.t >= B.barDelay;
     bar.visible = showBar; if (showBar) { bar.position.set(this.cfg.hof.bush.x, 1.55, this.cfg.hof.bush.z); bar.quaternion.copy(camera.quaternion); setBar(bar, growK); }
-    this.bush.drop.visible = day && b.phase === 'dry' && this.s.tutorialDone;
+    this.bush.drop.visible = day && !this.cine && b.phase === 'dry' && this.s.tutorialDone;
   }
   /** one leaf whirling out of a bush / crown */
   private leafAt(x: number, y: number, z: number, up = 1) {
@@ -656,6 +714,13 @@ export class FarmView {
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
       case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
       case 'deny': if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
+      // night (21.11.2026)
+      case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); break; }
+      case 'plotBroken': { burst(V(e.x, .3, e.z), 0x6a4a30, 26, 2, .12, .7, { g: 6 }); burst(V(e.x, .4, e.z), 0x5e8e2c, 18, 1.8, .1, .7, { g: 5 }); sfx('night.broken', e.x, e.z); this.shake = Math.max(this.shake, .12); break; }
+      case 'repaired': { burst(V(e.x, .25, e.z), 0x8a6a40, 20, 1.6, .1, .6, { g: 6 }); sfx('night.repaired', e.x, e.z); sfx('harvest.done', e.x, e.z); break; }
+      case 'pocket': { sfx('night.pocket', e.x, e.z); for (const [k, n] of Object.entries(e.items as Record<string, number>)) burst(V(e.x, .9, e.z), itemHex(k), Math.min(10, 2 + n), 2.2, .1, .6, { g: 7 }); break; }
+      case 'wave': sfx('night.wave'); break;
+      case 'nightfall': sfx('night.fall'); break;
     }
   }
   floatXp: ((x: number, z: number, xp: number) => void) | null = null;
@@ -666,7 +731,8 @@ export class FarmView {
     windU.value += dt;
     const now = performance.now() / 1000, day = mode === 'day';
     if (sim) for (const e of sim.ev) this.event(e, sim);
-    this.plots.forEach((v, i) => this.updatePlot(v, i, dt, day));
+    const night = !!sim?.nightOn && day;
+    this.plots.forEach((v, i) => this.updatePlot(v, i, dt, day, night));
     this.animBush(dt, day, sim, now);
     this.updateBits(dt);
     this.wild.update(this.s, day ? sim : null, now);
@@ -677,7 +743,7 @@ export class FarmView {
     this.animAnimals(day ? sim : null, dt, now);
     this.animShots(day ? sim : null, dt);
     // highlight of the hovered target
-    const h = day && sim && !sim.inputLocked ? this.hover : null;
+    const h = day && sim && !sim.inputLocked && !sim.finished && !this.cine ? this.hover : null;
     const box = h && (h.k === 'bld' || h.k === 'stall') ? this.hof.building(h.id) : null, rect = !!box && box.kind === 'box';
     this.hl.ring.visible = !!h && !rect; this.hl.square.visible = rect;
     if (h && sim) {
@@ -699,7 +765,10 @@ export class FarmView {
     // buildings: mill sails, well crank, window glow at dusk
     const mill = this.buildings.get('mill'); if (mill?.sails && this.s.buildings.mill.built) mill.sails.rotation.z += dt * .6;
     // light: hour from the clock (light[0] in the morning .. light[1] at the end of the day)
-    const L = this.cfg.day.light, hour = this.hour ?? (mode === 'menu' ? 10.5 : mode === 'evening' ? 16.45 : lerp(L[0], L[1], sim ? sim.k : 0));
+    const L = this.cfg.day.light, N = this.cfg.night;
+    // night (21.11.2026): from sunset into cool moonlight within night.dusk s
+    const nightH = sim?.nightOn ? lerp(N.light[0], N.light[1], (x => x * x * (3 - 2 * x))(clamp((sim.t - sim.length) / N.dusk, 0, 1))) : null;
+    const hour = this.hour ?? (mode === 'menu' ? 10.5 : mode === 'evening' ? 16.45 : nightH ?? lerp(L[0], L[1], sim ? sim.k : 0));
     updateDayNight(dt, hour, 24, 16);
     updateSeasons(dt, 7, !!sim?.raining && day);
     const dn = dayNow().day; setWindowGlow(1 - dn); setArsenalLight(dn);
@@ -709,11 +778,20 @@ export class FarmView {
     this.updateCamera(dt, sim, mode);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = this.hurtT * .7;
-    gradePass.uniforms.uLow.value = sim && day ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;
+    gradePass.uniforms.uLow.value = sim && day && !this.cine ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;
     composer.render();
   }
+  /** cutscene camera (cutscene.ts): position, look-at point, roll, field of view; null = the normal camera */
+  cine: CineFrame | null = null;
+  private fov0 = camera.fov;
   private updateCamera(dt: number, sim: DaySim | null, mode: 'menu' | 'day' | 'evening') {
     const portrait = innerHeight > innerWidth;
+    if (this.cine) {
+      const c = this.cine; camera.position.copy(c.pos); camera.up.set(0, 1, 0); camera.lookAt(c.look); camera.rotateZ(c.roll);
+      if (Math.abs(camera.fov - c.fov) > .01) { camera.fov = c.fov; camera.updateProjectionMatrix(); }
+      setListener(c.pos.x, c.pos.z); this.camX = c.pos.x; this.camZ = c.pos.z; this.sun(c.pos.x, c.pos.z); return;
+    }
+    if (camera.fov !== this.fov0) { camera.fov = this.fov0; camera.updateProjectionMatrix(); }
     if (mode === 'menu') {
       const t = performance.now() / 1000 * .03 + .7, R = portrait ? 22 : 18, Hh = portrait ? 14 : 9;
       camera.position.set(Math.sin(t) * R, Hh, Math.cos(t) * R); camera.lookAt(0, 0, -2);

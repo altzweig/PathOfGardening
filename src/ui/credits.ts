@@ -28,11 +28,11 @@ export const CREDITS: Group[] = [
   { title: 'Sounds', author: { name: 'thelittlecrow', url: 'https://freesound.org/people/thelittlecrow/' }, license: CC0, items: [{ name: 'Rooftop Rain Perspective A', url: 'https://freesound.org/s/869487/' }] },
   { title: 'Sounds', author: { name: 'hoshisato', url: 'https://freesound.org/people/hoshisato/' }, license: CC0, items: [{ name: 'Rain and Drips', url: 'https://freesound.org/s/853565/' }] },
   { title: 'Sounds', author: { name: 'kbro935', url: 'https://freesound.org/people/kbro935/' }, license: CC0, items: [{ name: 'ThunderRain_SFX', url: 'https://freesound.org/s/867416/' }] },
-  // Gießkanne (21.11.2026): Lizenzen noch nicht geprüft, license ergänzen sobald bekannt
-  { title: 'Sounds', author: { name: 'nokta', url: 'https://freesound.org/people/nokta/' }, items: [{ name: 'Watering sound', url: 'https://freesound.org/s/625061/' }] },
-  { title: 'Sounds', author: { name: 'wobesound', url: 'https://freesound.org/people/wobesound/' }, items: [{ name: 'Watering', url: 'https://freesound.org/s/488401/' }] },
-  { title: 'Sounds', author: { name: 'nox_sound', url: 'https://freesound.org/people/nox_sound/' }, items: [{ name: 'Foley Object Watering Can Steel Water Movement Single', url: 'https://freesound.org/s/711528/' }] },
-  { title: 'Sounds', author: { name: 'anthousai', url: 'https://freesound.org/people/anthousai/' }, items: [{ name: 'Hit Metallic Watering Can, Flicking a Metal Watering Can 01', url: 'https://freesound.org/s/406558/' }] },
+  // Gießkanne (21.11.2026), CC0 laut Basti
+  { title: 'Sounds', author: { name: 'nokta', url: 'https://freesound.org/people/nokta/' }, license: CC0, items: [{ name: 'Watering sound', url: 'https://freesound.org/s/625061/' }] },
+  { title: 'Sounds', author: { name: 'wobesound', url: 'https://freesound.org/people/wobesound/' }, license: CC0, items: [{ name: 'Watering', url: 'https://freesound.org/s/488401/' }] },
+  { title: 'Sounds', author: { name: 'nox_sound', url: 'https://freesound.org/people/nox_sound/' }, license: CC0, items: [{ name: 'Foley Object Watering Can Steel Water Movement Single', url: 'https://freesound.org/s/711528/' }] },
+  { title: 'Sounds', author: { name: 'anthousai', url: 'https://freesound.org/people/anthousai/' }, license: CC0, items: [{ name: 'Hit Metallic Watering Can, Flicking a Metal Watering Can 01', url: 'https://freesound.org/s/406558/' }] },
 ];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));

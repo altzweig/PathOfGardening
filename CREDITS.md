@@ -62,10 +62,10 @@ Gießkanne (`can_pour_*`, `can_fill_*`, `can_empty`, 21.11.2026) mit `tools/buil
 | rain_light | [Rooftop Rain Perspective A](https://freesound.org/s/869487/) | thelittlecrow | CC0 |
 | rain_light | [Rain and Drips](https://freesound.org/s/853565/) | hoshisato | CC0 |
 | rain_heavy, thunder_1–5 | [ThunderRain_SFX](https://freesound.org/s/867416/) | kbro935 | CC0 |
-| can_pour_1–3 (Gießen) | [Watering sound](https://freesound.org/s/625061/) | nokta | noch offen (Freesound aus der Cloud nicht erreichbar) |
-| can_pour_1–3 (leise, tiefpassgefiltert darunter) | [Watering](https://freesound.org/s/488401/) | wobesound | noch offen |
-| can_fill_1–9 (Kanne am Brunnen füllen) | [Foley Object Watering Can Steel Water Movement Single](https://freesound.org/s/711528/) | nox_sound | noch offen |
-| can_empty (Kanne leer) | [Hit Metallic Watering Can, Flicking a Metal Watering Can 01](https://freesound.org/s/406558/) | anthousai | noch offen |
+| can_pour_1–3 (Gießen) | [Watering sound](https://freesound.org/s/625061/) | nokta | CC0 |
+| can_pour_1–3 (leise, tiefpassgefiltert darunter) | [Watering](https://freesound.org/s/488401/) | wobesound | CC0 |
+| can_fill_1–9 (Kanne am Brunnen füllen) | [Foley Object Watering Can Steel Water Movement Single](https://freesound.org/s/711528/) | nox_sound | CC0 |
+| can_empty (Kanne leer) | [Hit Metallic Watering Can, Flicking a Metal Watering Can 01](https://freesound.org/s/406558/) | anthousai | CC0 |
 | amb_day | „calm birds“ (Freesound, aus Bastis Sound-Sammlung, Ausschnitt als Loop) | – | CC0 |
 | ripe_1 | „clear notification“ (koiroylers, aus Bastis Sound-Sammlung, `sfx/ui/koiroylers-clear-notification-355970.mp3`, gekürzt) | koiroylers | laut Basti frei nutzbar |
 | harvest_pop | „pop sound“ (soundreality, aus Bastis Sound-Sammlung, `sfx/collect/soundreality-pop-sound-423716.mp3`, Ausschnitt) | soundreality | laut Basti frei nutzbar |

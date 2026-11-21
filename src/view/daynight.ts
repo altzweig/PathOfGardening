@@ -10,9 +10,9 @@ const sm = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max
 // palette: night / warm sunrise-sunset / day
 const P = {
   sky:    { n: C(0x060910), w: C(0x8a6a74), d: C(0x9fc2c9) },
-  hemiS:  { n: C(0x7b95c8), w: C(0xffc3a0), d: C(0xc4dcff) },
+  hemiS:  { n: C(0x6f92e0), w: C(0xffc3a0), d: C(0xc4dcff) },
   hemiG:  { n: C(0x140f08), w: C(0x3a2a1a), d: C(0x4d4028) },
-  light:  { n: C(0x9db6ff), w: C(0xffa868), d: C(0xffeccb) },
+  light:  { n: C(0x8fb2ff), w: C(0xffa868), d: C(0xffeccb) },
   fog:    { n: C(0x8aa0c8), w: C(0xf0c8b8), d: C(0xdcefee) },
 };
 const tmp = new THREE.Color(), cL = new THREE.Color(), cS = new THREE.Color(), cG = new THREE.Color(), cSky = new THREE.Color(), cF = new THREE.Color();
@@ -52,11 +52,11 @@ function apply(S: DayState) {
   moon.position.copy(sunPos); moon.target.position.set(0, 0, 0);
   const elev = Math.sin(a), dip = Math.abs(day * 2 - 1); // dip: light fades out and in while the sun hands over to the moon
   moon.color.copy(pick(P.light, day, warm, cL));
-  moon.intensity = (night * 1.45 + day * (2.2 + 1.8 * elev)) * (.3 + .7 * dip);
+  moon.intensity = (night * 2.1 + day * (2.2 + 1.8 * elev)) * (.3 + .7 * dip); // 21.11.2026: brighter, cool moonlight for the night attacks
   envU.uSun.value.copy(sunPos).normalize();
   // ambient sky light
   hemi.color.copy(pick(P.hemiS, day, warm, cS)); hemi.groundColor.copy(pick(P.hemiG, day, warm, cG));
-  hemi.intensity = .62 * night + 1.25 * day;
+  hemi.intensity = .78 * night + 1.25 * day;
   // sky + haze
   const sky = pick(P.sky, day, warm, cSky);
   (scene.background as THREE.Color).copy(sky);

@@ -119,6 +119,44 @@ export class Hof {
   /** fixed spots of the weeds on each plot (offset from the plot centre), one per third of the hexagon so they lie apart;
    *  weed k (1-based) sits at spot k-1 and is the next one to come out while it is the last one (sim + view share this) */
   plotWeeds: { x: number; z: number; r: number }[][];
+  /** footprints of all buildings; with a world editor logic only the BUILT ones block (and cut out grass): an unbuilt
+   *  building does not exist yet, there is what was painted / placed in the editor (21.11.2026) */
+  private bldObs = new Map<BuildingId, Obstacle>();
+  /** goes up whenever the set of obstacles changes (caches of other code compare it) */
+  rev = 0;
+  /** buildings that are only there when built (world editor logic) */
+  get hideUnbuilt() { return !!this.logic; }
+  /** tell the farm which buildings stand; returns true when the obstacles changed */
+  setBuilt(built: (id: BuildingId) => boolean) {
+    if (!this.hideUnbuilt) return false;
+    let changed = false;
+    for (const [id, o] of this.bldObs) {
+      const on = id === 'house' || built(id), i = this.obstacles.indexOf(o);
+      if (on && i < 0) { this.obstacles.push(o); changed = true; } else if (!on && i >= 0) { this.obstacles.splice(i, 1); changed = true; }
+    }
+    if (changed) this.rev++;
+    return changed;
+  }
+  /** is (x, z) under a building that stands (pad = margin) */
+  underBuilding(x: number, z: number, pad = 0) {
+    for (const [, o] of this.bldObs) {
+      if (!this.obstacles.includes(o)) continue;
+      if (o.kind === 'box') { const { lx, lz } = toLocal(o, x, z); if (Math.abs(lx) < o.hw + pad && Math.abs(lz) < o.hd + pad) return true; }
+      else if (obsDist(o, x, z) < pad + (o.kind === 'circle' ? 1e-6 : 0)) return true;
+    }
+    return false;
+  }
+  /** a free spawn point of the wild plants from the world editor (null = none set / none free) */
+  wildSpot(ok: (x: number, z: number) => boolean): { x: number; z: number } | null {
+    const W = this.logic?.wild; if (!W?.length) return null;
+    for (let t = 0; t < 40; t++) {
+      const p = W[Math.floor(Math.random() * W.length)], a = Math.random() * Math.PI * 2, r = Math.random() * .3, x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+      if (this.freeSpot(x, z, .3) && ok(x, z)) return { x, z };
+    }
+    return null;
+  }
+  /** the world editor set spawn points for the wild plants */
+  get hasWildSpots() { return !!this.logic?.wild?.length; }
   constructor(public cfg: FarmCfg) {
     const H = cfg.hof; this.rx = H.clearing.rx; this.rz = H.clearing.rz;
     const wr = seeded(31), PH = cfg.plots.size / 2, WN = Math.max(1, cfg.plots.weeds.max);
@@ -130,7 +168,8 @@ export class Hof {
       let mx = 0, mz = 0; for (const p of this.walkPoly) { mx = Math.max(mx, Math.abs(p.x - c.x)); mz = Math.max(mz, Math.abs(p.z - c.z)); }
       this.rx = mx; this.rz = mz;
     }
-    for (const [id, r] of Object.entries(H.buildings) as [BuildingId, RectCfg][]) this.obstacles.push(obstacleOf(r, id));
+    for (const [id, r] of Object.entries(H.buildings) as [BuildingId, RectCfg][]) { const o = obstacleOf(r, id); this.bldObs.set(id, o); this.obstacles.push(o); }
+    if (L) this.setBuilt(id => !!cfg.buildings[id]?.built);   // until the game says which ones stand: the yaml start (house, well)
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
     this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
     // objects placed in the world editor: trees, rocks, fences on the farm block the way (not in the forest ring, the animals come through there)
@@ -351,10 +390,11 @@ export class Hof {
     }
     this.hash = { n: list.length, cs, x0, z0, nx, nz, cells, big };
   }
+  private hashRev = -1;
   private qStamp = 0; private qSeen = new Map<Obstacle, number>();
   /** obstacles whose bounding circle may touch the circle (x, z, r) */
   near(x: number, z: number, r: number, out: Obstacle[] = []): Obstacle[] {
-    if (!this.hash || this.hash.n !== this.obstacles.length) this.buildHash();
+    if (!this.hash || this.hash.n !== this.obstacles.length || this.hashRev !== this.rev) { this.buildHash(); this.hashRev = this.rev; }
     const H = this.hash!, st = ++this.qStamp; out.length = 0;
     for (const o of H.big) out.push(o);
     const i0 = Math.max(0, Math.floor((x - r - H.x0) / H.cs)), i1 = Math.min(H.nx - 1, Math.floor((x + r - H.x0) / H.cs));

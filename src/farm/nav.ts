@@ -129,5 +129,6 @@ export class NavGrid {
 }
 
 /** the walk grid of a farm, baked on first use and kept as long as the farm exists */
-const cache = new WeakMap<Hof, NavGrid>();
-export function navFor(hof: Hof) { let n = cache.get(hof); if (!n) cache.set(hof, n = new NavGrid(hof)); return n; }
+const cache = new WeakMap<Hof, { rev: number; n: NavGrid }>();
+/** baked again when the obstacles changed (world editor: a building went up, hof.rev) */
+export function navFor(hof: Hof) { let c = cache.get(hof); if (!c || c.rev !== hof.rev) cache.set(hof, c = { rev: hof.rev, n: new NavGrid(hof) }); return c.n; }

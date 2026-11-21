@@ -18,7 +18,7 @@ export function dur(sec: number, cfg: FarmCfg) {
   return `${m}:${String(s).padStart(2, '0')} min`;
 }
 
-export type GoodKind = 'crop' | 'bush' | 'perennial' | 'tree' | 'bramble' | 'forage' | 'found' | 'goods';
+export type GoodKind = 'crop' | 'bush' | 'perennial' | 'tree' | 'bramble' | 'forage' | 'herb' | 'found' | 'goods';
 export interface GoodInfo { id: ItemId; rarity: Rarity; kind: GoodKind; time: number; order: number }
 
 export function goodInfo(cfg: FarmCfg, id: ItemId, order = 0): GoodInfo {
@@ -31,6 +31,7 @@ export function goodInfo(cfg: FarmCfg, id: ItemId, order = 0): GoodInfo {
   else if (id === 'apple') { kind = 'tree'; time = Wd.apples.every * D; }
   else if (id === 'nut') { kind = 'tree'; time = (Wd.nuts ?? Wd.apples).every * D; }
   else if (id === 'bramble') { kind = 'bramble'; time = Wd.brambles.every * D; }
+  else if (Wd.herbs?.kinds?.includes(id)) { kind = 'herb'; time = (Wd.weeds.every[0] + Wd.weeds.every[1]) / 2; }
   else if (Wd.forage.plants?.[id]) { kind = 'forage'; time = Wd.forage.plants[id].spawn; }
   else if (Wd.forage.items?.[id] !== undefined) { kind = 'found'; time = (Wd.forage.every[0] + Wd.forage.every[1]) / 2; }
   return { id, rarity, kind, time, order };
@@ -82,7 +83,7 @@ const fact = (label: string, val: string) => `<div class="f"><span>${label}</spa
 const goods = (o: Record<string, number>) => Object.entries(o).map(([k, v]) => `<span class="gd">${ic(k)}<b>${v}</b></span>`).join('');
 
 function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
-  const D = cfg.day.length, rows: string[] = [], bonus: string[] = [], id = g.id;
+  const D = cfg.day.length, rows: string[] = [], bonus: string[] = [], id = g.id, made: string[] = [], used: string[] = [];
   const cycle = cfg.quests?.daily?.cycle ?? 10;
   if (g.kind === 'crop') {
     const C = cfg.crops[id], fields = s.plots.filter(p => p.open && p.kind === id).length;
@@ -106,11 +107,16 @@ function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
   } else if (g.kind === 'forage') {
     const P = cfg.wild.forage.plants![id];
     rows.push(fact('wächst nach', dur(P.spawn, cfg)), fact('Sammeln', `${P.picks} ×`), fact('pro Sammeln', goods({ [id]: 1 })), fact('XP pro Sammeln', `${otherXp(cfg, id, P.picks)}`));
+  } else if (g.kind === 'herb') {
+    // found while weeding the yard's wild herb tufts (Wildkräuter, 21.11.2026)
+    const Hb = cfg.wild.herbs!, w = cfg.wild.weeds;
+    rows.push(fact('wächst nach', `${w.every[0]}–${w.every[1]} s`), fact('Chance', `${Math.round(Hb.chance * 100)} %`),
+      fact('XP pro Kraut', `${otherXp(cfg, id, Hb.xpPicks)}`));
+    made.push(`<div class="rc">${ic('handrake')}<span class="gl">${ic('green')}</span>${ic('arrowR')}<span class="gl">${ic(id)}</span></div>`);
   } else if (g.kind === 'found') {
     rows.push(fact('wächst nach', `${cfg.wild.forage.every[0]}–${cfg.wild.forage.every[1]} s`), fact('pro Sammeln', goods({ [id]: 1 })));
   }
   // where it comes from (products) and where it is used
-  const made: string[] = [], used: string[] = [];
   for (const b of ['house', ...BUILDING_IDS] as const) {
     const B = cfg.buildings[b]; if (!B) continue;
     for (const r of B.recipes ?? []) {

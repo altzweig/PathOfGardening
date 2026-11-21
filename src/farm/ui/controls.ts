@@ -16,7 +16,9 @@ export function pcControls() {
   return `<svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">
   ${key(150, 60, 80, 80, 'W')}${key(60, 150, 80, 80, 'A')}${key(150, 150, 80, 80, 'S')}${key(240, 150, 80, 80, 'D')}
   ${label(190, 280, 'Laufen')}
-  ${key(60, 360, 90, 70, 'Esc', 24)}${label(170, 405, 'Pause', 'start')}
+  ${key(60, 318, 90, 60, 'Esc', 24)}${label(170, 358, 'Pause', 'start')}
+  ${key(60, 393, 90, 60, 'E')}${label(170, 433, 'Arbeiten', 'start')}
+  ${key(60, 468, 210, 60, 'Leertaste', 24)}${label(290, 508, 'Kämpfen', 'start')}
   <g transform="translate(560 90)">
     <rect x="0" y="0" width="150" height="230" rx="75" fill="#1a2027" stroke="#3a4550" stroke-width="3"/>
     <path d="M75 0 V95 M0 95 H150" stroke="#3a4550" stroke-width="3"/>
@@ -31,14 +33,7 @@ export function pcControls() {
   ${icon(ic('rake'), 826, 96, 64)}
   ${label(860, 200, 'Kämpfen')}
   <path d="M635 90 V50" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>${label(635, 38, 'Mausrad: Zoom')}
-  <path d="M710 250 H780" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>${turn(840, 240, 70)}${label(860, 300, 'Mausrad gedrückt', 'middle', 24, TXT)}${label(860, 330, 'Kamera drehen', 'middle', 28)}
-  <g transform="translate(640 420)">
-    <rect x="-150" y="-60" width="300" height="120" rx="16" fill="#5c4436" stroke="#7a5634" stroke-width="5"/>
-    <path d="M-130 -25h260M-130 5h260M-130 35h260" stroke="#3a2a20" stroke-width="5"/>
-    <rect x="-160" y="-70" width="320" height="140" rx="20" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="12 8"/>
-    <path d="M60 10 L100 26 L82 32 L76 50 Z" fill="${TXT}" stroke="#000" stroke-width="2"/>
-    ${icon(ic('rake'), 104, 30, 46)}
-  </g>
+  <path d="M710 250 H780" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>${turn(840, 240, 70)}${label(860, 300, 'Maus bewegen', 'middle', 24, TXT)}${label(860, 330, 'Kamera drehen', 'middle', 28)}
 </svg>`;
 }
 

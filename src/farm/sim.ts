@@ -33,6 +33,8 @@ export interface Intent {
   act: Target | null;               // left click / action button this frame
   /** left mouse button / action button held (21.11.2026): when an action ends the next possible one at `holdAt` starts */
   hold: boolean; holdAt: Target | null;
+  /** the button was let go this frame (Basti 21.11.2026: releasing cancels the work at once) */
+  up?: boolean;
   attack: boolean;                  // right click / attack button held
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
@@ -46,6 +48,11 @@ export interface Player {
   goal: Target | null;              // auto-walk to a clicked target, then act
   /** down on one knee / in a crouch: from a ground action on until the action button is released (then walking = waddling) */
   crouch: boolean;
+  /** pause between automatic work steps (Basti 21.11.2026: always player.actionGap s): rest = time left,
+   *  after = the finished step, the chain goes on from it once the pause is over */
+  rest: number; after: { target: Target; info: ActionInfo; pick: number } | null;
+  /** the running work was started with the button held: letting go stops it */
+  held?: boolean;
   swing: { t: number; dir: number; hit: boolean } | null;
   shotT: number; cd: number; hurt: number; stun: number;
 }
@@ -132,7 +139,7 @@ export class DaySim {
   constructor(public cfg: FarmCfg, public s: FarmState, public hof: Hof, o: { tutorial?: boolean } = {}) {
     this.length = cfg.day.length; this.nightLen = o.tutorial || !cfg.night ? 0 : cfg.night.length;
     const P = cfg.player, d = cfg.hof.door, W = cfg.wild;
-    this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, crouch: false, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
+    this.player = { x: d.x, z: d.z + .4, f: 0, hp: P.hp, maxHp: P.hp, walk: 0, speed: 0, action: null, goal: null, crouch: false, rest: 0, after: null, swing: null, shotT: 0, cd: 0, hurt: 0, stun: 0 };
     for (const id of STALL_IDS) this.stalls[id] = { fed: 0, done: false, straw: false };
     // perennials: ripe again from the remembered day on (a tree / bramble that was picked empty rests a few days)
     const per = s.perennial;
@@ -351,12 +358,14 @@ export class DaySim {
     return null;
   }
   /** the target the player stands at (shown as "[Aktion]", touch action button, click on nothing) */
-  nearestTarget(range: number): Target | null {
+  /** front = third person (21.11.2026): what lies in front of the farmer wins over what is behind */
+  nearestTarget(range: number, front = false): Target | null {
     const P = this.player; let best: Target | null = null, score = 1e9;
     for (const t of this.targetsNear(P.x, P.z, range)) {
       const a = this.actionFor(t); if (!a) continue;
       const d = this.targetDist(t, P.x, P.z); if (d > range) continue;
-      const sc = PRIO[t.k] * 100 + (a.ok ? 0 : 50) + d;
+      let sc = PRIO[t.k] * 100 + (a.ok ? 0 : 50) + d;
+      if (front && d > .3) { const tp = this.targetPos(t), da = Math.abs(((angTo(P.x, P.z, tp.x, tp.z) - P.f) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); sc += da * .8; }
       if (sc < score) { score = sc; best = t; }
     }
     return best;
@@ -440,7 +449,7 @@ export class DaySim {
     // --- fighting (right click): never together with an action, the player stands up for the swing
     if (it.attack && !P.swing && P.cd <= 0) {
       if (P.action) this.cancelAction();
-      P.goal = null; P.crouch = false;
+      P.goal = null; P.crouch = false; P.rest = 0; P.after = null;
       this.attack(it);
     }
     // --- left click / action button pressed: act now if close enough, else walk there first
@@ -448,13 +457,22 @@ export class DaySim {
       const a = this.actionFor(it.act);
       if (!a) { /* nothing to do */ }
       else if (!a.ok) this.ev.push({ k: 'deny', why: a.why, target: it.act });
-      else { if (P.action) this.cancelAction(); this.begin(it.act, a); }
+      else { if (P.action) this.cancelAction(); P.rest = 0; P.after = null; this.begin(it.act, a); P.held = it.hold; }
+    }
+    // --- let go: whatever was started by holding stops right away (also the walk over to it)
+    if (it.up && P.held) { this.cancelAction(); P.goal = null; P.held = false; P.crouch = false; }
+    if (it.hold && (P.action || P.goal || P.after)) P.held = true;
+    if (!P.action && !P.goal && !P.after) P.held = false;
+    // --- short pause after every finished step, then the chain goes on (repeat or held button)
+    const steering = Math.hypot(it.mx, it.mz) > .15;
+    if (P.after) {
+      P.rest -= dt;
+      if (P.rest <= 0) { const A = P.after; P.after = null; P.rest = 0; this.chain(it, A, steering); }
     }
     // --- held (21.11.2026): whenever nothing runs, the next possible action at the aimed target starts by itself
-    const steering = Math.hypot(it.mx, it.mz) > .15;
-    if (it.hold && !P.action && !P.swing && !P.goal) this.holdNext(it, null, !steering);
-    // released: up again once the running action is over
-    if (!it.hold && !P.action) P.crouch = false;
+    if (it.hold && !P.action && !P.swing && !P.goal && !P.after) this.holdNext(it, null, !steering);
+    // released: up again once the running action (and a repeat chain) is over
+    if (!it.hold && !P.action && !P.after) P.crouch = false;
     // --- movement: walking is possible during an action (slower); in a crouch it is a slow waddle
     let mx = it.mx, mz = it.mz;
     if (steering) P.goal = null;
@@ -481,12 +499,9 @@ export class DaySim {
       A.t += dt;
       if (A.t >= A.info.dur) {
         P.action = null; this.finishAction(A.target, A.info);
-        const next = A.info.repeat ? this.actionFor(A.target) : null;
-        if (next && next.ok && next.kind === A.info.kind) {
-          if (this.inPlace(A.target, next)) { P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); }
-          else P.goal = A.target; // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
-        }
-        else if (!(it.hold && this.holdNext(it, A.target, !steering))) this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
+        const gap = this.cfg.player.actionGap ?? .5;
+        if (gap > 0) { P.after = { target: A.target, info: A.info, pick: A.pick }; P.rest = gap; this.ev.push({ k: 'actRest', kind: A.info.kind, target: A.target }); }
+        else this.chain(it, A, steering);
       }
     }
     // --- swing
@@ -496,6 +511,32 @@ export class DaySim {
       if (P.swing.t >= W.swing + .12) P.swing = null;
     }
     P.shotT = Math.max(0, P.shotT - dt);
+  }
+  /** a step is done (and the pause after it is over): the same work goes on (repeat), else the next one while the button is held */
+  private chain(it: Intent, A: { target: Target; info: ActionInfo; pick: number }, steering: boolean) {
+    const P = this.player;
+    if (P.action || P.swing) return;
+    const next = A.info.repeat ? this.actionFor(A.target) : null;
+    if (next && next.ok && next.kind === A.info.kind) {
+      if (this.inPlace(A.target, next)) { P.crouch = LOW_ACTIONS.has(next.kind); P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); return; }
+      if (!this.tooFar(A.target, next)) { P.goal = A.target; return; } // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
+    }
+    if (it.hold && (this.holdNext(it, A.target, !steering) || (!steering && this.nextPlot(A.target)))) return;
+    this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
+  }
+  /** button still held and nothing left to do here (Basti 21.11.2026): walk on to the nearest field with work (player.nextField m) */
+  private nextPlot(last: Target) {
+    const P = this.player, R = this.cfg.player.nextField ?? 5;
+    let best: Target | null = null, bd = 1e9;
+    this.s.plots.forEach((p, i) => {
+      if (!p.open || (last.k === 'plot' && last.i === i)) return;
+      const t: Target = { k: 'plot', i }, a = this.actionFor(t); if (!a || !a.ok) return;
+      const d = this.targetDist(t, P.x, P.z); if (d <= R && d < bd) { bd = d; best = t; }
+    });
+    if (!best) return false;
+    const a = this.actionFor(best)!;
+    if (this.inPlace(best, a)) this.startAction(best, a); else { P.goal = best; P.crouch = false; } // up and walk over normally
+    return true;
   }
   /** button held: start the next possible action at the aimed target (else at the one just finished). Within reach only;
    *  ground work first shuffles over to its spot (walk = true, not while the player steers). false = none: the chain ends */
@@ -552,7 +593,7 @@ export class DaySim {
     P.action = { target: t, info: a, t: 0, pick: 0 };
     this.ev.push({ k: 'act', kind: a.kind, tool: a.tool, target: t });
   }
-  cancelAction() { const P = this.player; if (P.action) this.ev.push({ k: 'actCancel', kind: P.action.info.kind }); P.action = null; }
+  cancelAction() { const P = this.player; P.rest = 0; P.after = null; if (P.action) this.ev.push({ k: 'actCancel', kind: P.action.info.kind }); P.action = null; }
   private finishAction(t: Target, a: ActionInfo) {
     const s = this.s, cfg = this.cfg, tp = this.targetPos(t);
     // something changed meanwhile? (weeding stays valid while weeds are left, even if the plot now wants water first)

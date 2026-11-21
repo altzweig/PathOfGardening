@@ -109,7 +109,7 @@ class Editor {
   density = .6; overlap = false; scaleMul = 1; scaleVar = .15; scatterRotRandom = true; scatterRot = 0; placeRotRandom = true; placeRot = 0;
   // logic
   snap = true; drawing: 'walk' | 'build' | null = null; lsel: Sel | null = null;
-  show: Show = { bounds: true, fields: true, spawns: true, labels: true, wild: true };
+  show: Show = { bounds: true, fields: true, spawns: true, labels: true, wild: true, grey: true };
   /** building tool: which building is placed; wild plant spots: single / spray / erase, brush, dots per m² */
   bldChoice: BuildingId = 'shop'; wmode: WMode = 'spray'; wildSize = 2; wildDens = .35;
   /** name of the GitHub draft this world came from / was saved as */
@@ -539,6 +539,7 @@ class Editor {
       return;
     }
     if (k === '[' || k === ']') { this.setSize(this.curSize() * (k === ']' ? 1.15 : 1 / 1.15)); return; }
+    if (k === 'g' && !ctrl) { this.show.grey = !this.show.grey; this.syncLogic(); if (this.mode === 'logic') this.panel(); this.toast(this.show.grey ? 'Gebäude ausgegraut' : 'Gebäude normal'); return; }
     if (k === 'tab') { e.preventDefault(); this.setMode(this.mode === 'logic' ? 'props' : this.mode === 'props' ? 'paint' : 'logic'); return; }
     if (!ctrl && this.mode === 'props') { const t = ({ '1': 'select', '2': 'place', '3': 'scatter', '4': 'erase' } as Record<string, Tool>)[k]; if (t) this.setTool(t); }
   }
@@ -897,7 +898,8 @@ class Editor {
     const vis = h('div', 'ed-sliders');
     vis.append(this.check('Grenzen', () => this.show.bounds, v => { this.show.bounds = v; this.syncLogic(); }), this.check('Felder', () => this.show.fields, v => { this.show.fields = v; this.syncLogic(); }),
       this.check('Spawns', () => this.show.spawns, v => { this.show.spawns = v; this.syncLogic(); }), this.check('Wildpflanzen-Punkte', () => this.show.wild, v => { this.show.wild = v; this.syncLogic(); }),
-      this.check('Namen und Nummern', () => this.show.labels, v => { this.show.labels = v; this.syncLogic(); }));
+      this.check('Namen und Nummern', () => this.show.labels, v => { this.show.labels = v; this.syncLogic(); }),
+      this.check('Gebäude ausgegraut (G)', () => this.show.grey, v => { this.show.grey = v; this.syncLogic(); }));
     sc.append(vis);
     const st = h('div', 'ed-stats', this.statsText()); st.id = 'ed-stats'; sc.append(st);
     const warn = h('div', 'ed-warn'); warn.id = 'ed-warn'; sc.append(warn); this.updWarn();
@@ -906,7 +908,7 @@ class Editor {
     document.querySelector('.ed-menu')?.remove();
     const m = h('div', 'ed-menu');
     const it = (k: keyof Show, l: string) => { const r = this.check(l, () => this.show[k], v => { this.show[k] = v; this.syncLogic(); if (this.mode === 'logic') this.panel(); }); m.append(r); };
-    it('bounds', 'Grenzen (begehbar, Baubereich)'); it('fields', 'Feldplätze'); it('spawns', 'Spawns'); it('wild', 'Wildpflanzen-Punkte'); it('labels', 'Namen und Nummern');
+    it('bounds', 'Grenzen (begehbar, Baubereich)'); it('fields', 'Feldplätze'); it('spawns', 'Spawns'); it('wild', 'Wildpflanzen-Punkte'); it('labels', 'Namen und Nummern'); it('grey', 'Gebäude ausgegraut (G)');
     document.body.append(m);
     setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target as Node)) { m.remove(); removeEventListener('pointerdown', off); } }), 0);
   }

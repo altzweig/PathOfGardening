@@ -12,17 +12,17 @@ import type { BuildingId, RectCfg } from '../farm/config';
 
 export type Sel = { k: 'walk' | 'build'; i: number } | { k: 'field' | 'spawn' | 'obj' | 'bld'; i: number } | { k: 'house' };
 export const OBJ_LABEL: Record<ObjKind | 'house', string> = { house: 'Haupthaus', well: 'Brunnen', basket: 'Korb', bush: 'Blaubeerbusch', tree: 'Obstbaum', bramble: 'Brombeere' };
-export interface Show { bounds: boolean; fields: boolean; spawns: boolean; labels: boolean; wild: boolean }
-/** buildings in the editor are see-through: the ground and plants under them stay visible and paintable */
-const GHOST = new Map<THREE.Material, THREE.Material>();
-function ghostly(root: THREE.Object3D, opacity = .42) {
+export interface Show { bounds: boolean; fields: boolean; spawns: boolean; labels: boolean; wild: boolean; grey: boolean }
+/** buildings in the editor: "ausgegraut" = a faint grey shape (the ground and plants under them stay visible and
+ *  paintable), otherwise drawn as built. The original materials are kept on the mesh to switch back. */
+const GREY = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, roughness: 1, transparent: true, opacity: .13, depthWrite: false });
+function ghostly(root: THREE.Object3D, grey: boolean) {
   root.traverse(o => {
-    const m = o as THREE.Mesh; if (!m.isMesh) return; m.castShadow = false;
-    const one = (mt: THREE.Material) => { let g = GHOST.get(mt); if (!g) { g = mt.clone(); Object.assign(g, { transparent: true, opacity, depthWrite: false }); GHOST.set(mt, g); } return g; };
-    m.material = Array.isArray(m.material) ? m.material.map(one) : one(m.material);
+    const m = o as THREE.Mesh; if (!m.isMesh) return;
+    m.userData.mat0 ??= m.material;
+    m.material = grey ? GREY : m.userData.mat0; m.castShadow = !grey;
   });
 }
-
 const COL = { walk: 0x7fd0ff, build: 0xe3b964, bad: 0xff6a50, sel: 0xffffff };
 const top = (m: THREE.Material) => { Object.assign(m, { depthTest: false, depthWrite: false, transparent: true, toneMapped: false }); return m; };
 function label(text: string, scale = 1, color = '#fff2c0') {
@@ -139,16 +139,17 @@ export class LogicOverlay {
     // wild plant spawn points: small green dots
     this.syncWild(L, show.wild);
     // house, buildings + objects (they are real things in the game: always visible; buildings see-through)
-    if (!this.house) { this.house = buildBuilding('house', { x: 0, z: 0, w: 8.4, d: 5.2 }, 0); this.house.site.visible = false; ghostly(this.house.root); this.objs.add(this.house.root); }
+    if (!this.house) { this.house = buildBuilding('house', { x: 0, z: 0, w: 8.4, d: 5.2 }, 0); this.house.site.visible = false; this.objs.add(this.house.root); }
     for (const v of this.blds.values()) v.root.visible = false;
     for (const b of L.buildings ?? []) {
       let v = this.blds.get(b.id);
-      if (!v) { const r = this.rects[b.id] ?? { x: 0, z: 0, w: 3, d: 3 }; v = buildBuilding(b.id, { ...r, x: 0, z: 0, rot: 0 }, 0); v.site.visible = false; ghostly(v.root); this.blds.set(b.id, v); this.objs.add(v.root); }
+      if (!v) { const r = this.rects[b.id] ?? { x: 0, z: 0, w: 3, d: 3 }; v = buildBuilding(b.id, { ...r, x: 0, z: 0, rot: 0 }, 0); v.site.visible = false; this.blds.set(b.id, v); this.objs.add(v.root); }
       v.root.visible = true; v.root.position.set(b.x, 0, b.z); v.root.rotation.y = -b.rot * Math.PI / 180;
     }
     this.house.root.position.set(L.house.x, 0, L.house.z); this.house.root.rotation.y = -L.house.rot * Math.PI / 180;
     const well = L.objects.find(o => o.k === 'well');
-    if (well && !this.well) { this.well = buildBuilding('well', { x: 0, z: 0, r: .9 }, 0); if (this.well.broken) this.well.broken.visible = false; ghostly(this.well.root); this.objs.add(this.well.root); }
+    if (well && !this.well) { this.well = buildBuilding('well', { x: 0, z: 0, r: .9 }, 0); if (this.well.broken) this.well.broken.visible = false; this.objs.add(this.well.root); }
+    for (const v of [this.house, this.well, ...this.blds.values()]) if (v && v.root.userData.grey !== show.grey) { ghostly(v.root, show.grey); v.root.userData.grey = show.grey; }
     if (this.well) { this.well.root.visible = !!well; if (well) { this.well.root.position.set(well.x, 0, well.z); this.well.root.rotation.y = -(well.rot ?? 0) * Math.PI / 180; } }
     const used = new Map<string, number>();
     for (const list of this.objCache.values()) for (const o of list) o.visible = false;

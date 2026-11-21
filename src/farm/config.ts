@@ -31,6 +31,8 @@ export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radiu
 /** a field crop (annual): level = sowable from, grow = s after watering, cuts = harvest passes, yield = per pass */
 export type Rarity = 'Common' | 'Uncommon' | 'Rare';
 export interface CropCfg { rarity: Rarity; grow: number; cuts: number; yield: Record<ItemId, number> }
+/** a section of the storage page in the house book (balancing.yaml storage.sections) */
+export interface StoreSection { id: string; title: string; items: ItemId[] }
 export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: number; workWeight: number; div: number; rarity: Record<Rarity, number>; other: Record<ItemId, { rarity: Rarity; water?: boolean }> }
 /** perennial wild harvest (trees, brambles): ripe every `every` days, `picks` passes with `shake`/`pick` pieces */
 export interface PerennialCfg { every: number; picks: number; shake: number }
@@ -62,7 +64,7 @@ export interface FarmCfg {
   grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
   camera: { rotate: number; pitch: [number, number] };
-  storage: { capacity: number };
+  storage: { capacity: number; sections?: StoreSection[]; rarity?: Record<ItemId, Rarity>; perennials?: Record<ItemId, { every: number; picks: number; pick: number }>; history?: number };
   saves: { autosave: number; nameMax: number };
   start: { money: number; items: Record<ItemId, number>; plots: string[] };
   weapons: { rake: { damage: number; range: number; arc: number; cooldown: number; swing: number; knockback: number; stun: number } } & Record<Exclude<WeaponId, 'rake'>, GunCfg>;

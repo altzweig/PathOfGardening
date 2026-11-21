@@ -50,7 +50,12 @@ export interface FarmState {
   perennial: { trees: number[]; brambles: number[] };
   /** day whose morning weeds were rolled (once per day, also for a save made during the day) */
   weedDay?: number;
+  /** day history for the storage graph (21.11.2026): stock at the end of the day + what came in that day, newest last */
+  hist?: DayRecord[];
+  /** goods ever owned (the storage page shows the others locked) */
+  seen?: ItemId[];
 }
+export interface DayRecord { d: number; st: Record<ItemId, number>; got: Record<ItemId, number> }
 
 const KEY = 'pog-farm-v1';
 
@@ -266,6 +271,24 @@ export function endDay(cfg: FarmCfg, s: FarmState) {
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
   s.ammoCount = 0; s.phase = 'evening';
   expireQuests(s);
+  recordDay(cfg, s);
+}
+/** remembers the stock and the goods of the day for the storage graph (once per day) */
+export function recordDay(cfg: FarmCfg, s: FarmState) {
+  const h = (s.hist ??= []), rec: DayRecord = { d: s.day, st: { ...s.items }, got: { ...(s.summary?.day === s.day ? s.summary.got : {}) } };
+  delete rec.st.water;
+  if (h.length && h[h.length - 1].d === s.day) h[h.length - 1] = rec; else h.push(rec);
+  const max = cfg.storage.history ?? 60; if (h.length > max) h.splice(0, h.length - max);
+  markSeen(s);
+}
+/** goods the farm has ever had (stock + history) */
+export function markSeen(s: FarmState) {
+  const seen = new Set(s.seen ?? []);
+  for (const [k, v] of Object.entries(s.items)) if (v > 0) seen.add(k);
+  for (const p of s.plots) if (p.open && p.kind) seen.add(p.kind); // own fields: their fruit is known
+  seen.add('blue');                                                 // the blueberry bush is there from the start
+  for (const r of s.hist ?? []) { for (const k in r.got) if (r.got[k] > 0) seen.add(k); for (const k in r.st) if (r.st[k] > 0) seen.add(k); }
+  s.seen = [...seen]; return seen;
 }
 /** a field is trampled: the crop on it is gone, it has to be repaired before anything grows again */
 export function breakPlot(p: PlotState) { Object.assign(p, { broken: true, hp: 0, stage: 'empty', crop: null, watered: false, grow: 0, yieldLeft: 0, fert: 0, bites: 0, t: 0 }); }

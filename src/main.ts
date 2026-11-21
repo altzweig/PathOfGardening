@@ -308,7 +308,7 @@ class Game {
   }
   private toEvening(fade: boolean) {
     this.mode = 'evening'; this.view.setState(this.s); this.house.s = this.s; this.view.resetLight();
-    this.house.tab = 'quests'; this.house.showEvening(true);
+    this.house.tab = 'store'; this.house.showEvening(true);
     if (fade) setTimeout(() => this.hud.fade(false, true), 300); else this.hud.fade(false);
   }
   private async sleep() {

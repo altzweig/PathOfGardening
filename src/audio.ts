@@ -126,6 +126,8 @@ export const SND: Record<string, (arg?: any) => void> = {
   cdEnd() { if (!can('cdEnd', .5)) return; tone({ f: 196, t: 1.4, vol: .14, at: .01 }); tone({ f: 294, t: 1.1, vol: .06, at: .01 }); noise({ t: .25, vol: .05, type: 'lowpass', f: 900 }); },
   /** small electric crackle (Shockgun berries) */
   zapS() { if (can('zapS', .08)) { noise({ t: .09, vol: .07, type: 'bandpass', f: rand(3000, 5000), q: 2 }); tone({ type: 'sawtooth', f: 180, f2: 120, t: .08, vol: .03 }); } },
+  /** turning a page of the house book: soft papery swish, rising then falling (21.11.2026) */
+  page() { if (!can('page', .15)) return; noise({ t: .32, vol: .06, type: 'bandpass', f: 1800, f2: 4200, q: .8, at: .08 }); noise({ t: .18, vol: .035, type: 'highpass', f: 3000, when: .2 }); },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }

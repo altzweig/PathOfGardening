@@ -116,6 +116,8 @@ player:
   leave: 1.25              # x reach (am Boden x kneel + 0,35 m): entfernt man sich während einer Aktion weiter, bricht sie ab
   actionSpeed: 2.2         # m/s Laufen während einer Aktion im Stehen (Gießen, Füttern ...)
   crouchSpeed: 1.15        # m/s Watscheln in der Hocke (Aktionsknopf gehalten nach Jäten, Säen, Ernten am Boden)
+  actionGap: 0.5           # s Pause zwischen zwei automatischen Arbeitsschritten (Wiederholung oder Aktionsknopf gehalten), erst dann geht es weiter (Basti 21.11.2026)
+  nextField: 5            # m: Aktion weiter gehalten und am Feld gibt es nichts mehr zu tun -> man geht von selbst zum nächsten Feld mit Arbeit in dieser Entfernung
   hover: 2.6               # m: Handy-Aktionsknopf nimmt das nächste Ziel in dieser Entfernung
   pickupRadius: 0.9        # m: fallengelassene Beute wird eingesammelt
   magnetRadius: 3          # m: ab hier rollt Beute zum Spieler
@@ -163,33 +165,33 @@ bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> 
 # Feldfrüchte (einjährig) aus Bastis Fruchttabelle, 20.11.2026. Zyklus auf jedem Feld:
 #   Säen 2 s (kostenlos) -> 1 s sieht man die Pflanze sprießen -> Gießen 2 s -> grow s wachsen -> cuts x Ernten (je 1,33 s)
 #   -> 1 s abräumen, dann ist das Feld wieder bereit. Also etwa 10 s + grow pro Durchgang.
-# level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
+# name = Anzeige über dem Feld (nur in der Nähe), level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
 crops:                     # Feldfrüchte aus Bastis Fruchttabelle (Stand 21.11.2026). Jedes Feld hat eine feste Frucht.
   # Vorerst gibt es nur Commons (Startfelder + Level-up-Felder); Uncommon/Rare muss man später finden oder kaufen.
-  wheat:    { rarity: Common,   grow: 60,  cuts: 3, yield: { wheat: 5, straw: 1 } }
-  carrot:   { rarity: Common,   grow: 80,  cuts: 3, yield: { carrot: 1 } }
-  potato:   { rarity: Common,   grow: 100, cuts: 3, yield: { potato: 3 } }
-  onion:    { rarity: Common,   grow: 60,  cuts: 3, yield: { onion: 1 } }
-  garlic:   { rarity: Common,   grow: 50,  cuts: 3, yield: { garlic: 1 } }
-  pea:      { rarity: Common,   grow: 80,  cuts: 3, yield: { pea: 5 } }
-  celery:   { rarity: Common,   grow: 70,  cuts: 3, yield: { celery: 1 } }
-  cab:      { rarity: Common,   grow: 220, cuts: 3, yield: { cab: 1 } }
-  radish:   { rarity: Uncommon, grow: 80,  cuts: 3, yield: { radish: 2 } }
-  bean:     { rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
-  leek:     { rarity: Uncommon, grow: 90,  cuts: 3, yield: { leek: 1 } }
-  strawb:   { rarity: Uncommon, grow: 70,  cuts: 3, yield: { strawb: 3 } }
-  lettuce:  { rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
-  corn:     { rarity: Uncommon, grow: 120, cuts: 3, yield: { corn: 1 } }
-  pepper:   { rarity: Uncommon, grow: 130, cuts: 3, yield: { pepper: 1 } }
-  tomato:   { rarity: Uncommon, grow: 140, cuts: 3, yield: { tomato: 1 } }
-  zucchini: { rarity: Uncommon, grow: 130, cuts: 3, yield: { zucchini: 1 } }
-  eggplant: { rarity: Uncommon, grow: 150, cuts: 3, yield: { eggplant: 1 } }
-  asp:      { rarity: Rare,     grow: 180, cuts: 3, yield: { asp: 1 } }
-  pumpkin:  { rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
-  melon:    { rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
-  chili:    { rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
-  rhubarb:  { rarity: Rare,     grow: 360, cuts: 3, yield: { rhubarb: 1 } }
-  fennel:   { rarity: Rare,     grow: 230, cuts: 3, yield: { fennel: 1 } }
+  wheat:    { name: Weizen, rarity: Common,   grow: 60,  cuts: 3, yield: { wheat: 5, straw: 1 } }
+  carrot:   { name: Karotte, rarity: Common,   grow: 80,  cuts: 3, yield: { carrot: 1 } }
+  potato:   { name: Kartoffel, rarity: Common,   grow: 100, cuts: 3, yield: { potato: 3 } }
+  onion:    { name: Zwiebel, rarity: Common,   grow: 60,  cuts: 3, yield: { onion: 1 } }
+  garlic:   { name: Knoblauch, rarity: Common,   grow: 50,  cuts: 3, yield: { garlic: 1 } }
+  pea:      { name: Erbsen, rarity: Common,   grow: 80,  cuts: 3, yield: { pea: 5 } }
+  celery:   { name: Sellerie, rarity: Common,   grow: 70,  cuts: 3, yield: { celery: 1 } }
+  cab:      { name: Kohl, rarity: Common,   grow: 220, cuts: 3, yield: { cab: 1 } }
+  radish:   { name: Radieschen, rarity: Uncommon, grow: 80,  cuts: 3, yield: { radish: 2 } }
+  bean:     { name: Bohnen, rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
+  leek:     { name: Lauch, rarity: Uncommon, grow: 90,  cuts: 3, yield: { leek: 1 } }
+  strawb:   { name: Erdbeeren, rarity: Uncommon, grow: 70,  cuts: 3, yield: { strawb: 3 } }
+  lettuce:  { name: Salat, rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
+  corn:     { name: Mais, rarity: Uncommon, grow: 120, cuts: 3, yield: { corn: 1 } }
+  pepper:   { name: Paprika, rarity: Uncommon, grow: 130, cuts: 3, yield: { pepper: 1 } }
+  tomato:   { name: Tomate, rarity: Uncommon, grow: 140, cuts: 3, yield: { tomato: 1 } }
+  zucchini: { name: Zucchini, rarity: Uncommon, grow: 130, cuts: 3, yield: { zucchini: 1 } }
+  eggplant: { name: Aubergine, rarity: Uncommon, grow: 150, cuts: 3, yield: { eggplant: 1 } }
+  asp:      { name: Spargel, rarity: Rare,     grow: 180, cuts: 3, yield: { asp: 1 } }
+  pumpkin:  { name: Kürbis, rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
+  melon:    { name: Melone, rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
+  chili:    { name: Chili, rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
+  rhubarb:  { name: Rhabarber, rarity: Rare,     grow: 360, cuts: 3, yield: { rhubarb: 1 } }
+  fennel:   { name: Fenchel, rarity: Rare,     grow: 230, cuts: 3, yield: { fennel: 1 } }
 
 # XP pro Erntevorgang (Basti 21.11.2026, Formel aus der Fruchttabelle):
 #   XP pro Ernte = Seltenheit x (Feldzeit + workWeight x Arbeitszeit) / div, gerundet auf ganze XP pro Vorgang
@@ -217,6 +219,8 @@ harvestXp:
 
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
+  # Basti 21.11.2026: Wachstumsbalken, Restzeit und Name der Pflanze nur, wenn man nah dran ist (auch am Blaubeerbusch)
+  info: { near: 2.6, far: 3.6, fade: 0.25 }   # m voll sichtbar / m ausgeblendet, s weiches Ein-/Ausblenden
   # Unkraut (Basti 21.11.2026): wächst NUR morgens, nie zwischendurch. Jeden Morgen kommen pro Feld 0/1/2 dazu
   # (morning = Wahrscheinlichkeiten für 0, 1, 2), höchstens max. Jedes Unkraut bremst das Wachstum (slow = bei 1, 2, 3 Unkraut).
   sprout: 1                # s nach dem Säen: die Pflanze sprießt sichtbar, erst dann kann man gießen
@@ -503,9 +507,10 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
     action: { label: Dünger machen, time: 3.0 }
     recipes: [{ in: { green: 3, slurry: 1 }, out: { fert: 2 } }]
 
-camera:                    # Kamera: mittlere Maustaste (PC) bzw. Wischen rechts (Handy) dreht frei um den Spieler
-  rotate: 0.006            # rad pro Pixel
-  pitch: [0.55, 1.25]      # Neigung (rad über dem Boden), Start 0.95
+camera:                    # Kamera (Basti 21.11.2026: Third Person): PC Maus bewegen dreht (Maus gefangen, Esc = Pause), Handy Wischen rechts
+  rotate: 0.006            # rad pro Pixel (Handy-Wischen)
+  mouse: 0.55              # PC: x rotate pro Pixel Mausbewegung
+  pitch: [0.35, 1.25]      # Neigung (rad über dem Boden), Start 0.97; tief = fast hinter der Figur
 
 # ---------------------------------------------------------------------
 # Tutorial-Tag (erster Tag). Texte: die einzige erlaubte Erklärung im Spiel.

@@ -6,7 +6,12 @@
 .fBar{display:flex;align-items:center;gap:6px}
 .fBar>i{flex:none;width:26px;height:26px;display:grid;place-items:center}
 .fBar>i svg{width:100%;height:100%;filter:drop-shadow(0 1px 2px #000)}
-.fBar .track{position:relative;flex:1;height:12px;border-radius:6px;background:#0b1016cc;border:1px solid #3a4550;overflow:hidden}
+/* 21.11.2026 (Basti): no dark box behind the bars (the old game's .fBar style in style.css is switched off here), only the bar
+   itself with a thick see-through rim so it stays readable on any ground */
+#fLeft .fBar{padding:0;background:none;border:0;border-radius:0}
+#fLeft .fBar>i{background:none;box-shadow:none;border-radius:0}#fLeft .fBar>i.lvl{border-radius:50%;background:radial-gradient(circle at 35% 30%,#2b3e9c,#0e1640)}
+#fLeft .fBar b{width:auto;height:auto;margin:0;transform:none;border-radius:0;background:none;box-shadow:none}
+.fBar .track{position:relative;flex:1;height:12px;border-radius:9px;background:rgba(255,255,255,.07);border:3px solid rgba(12,10,8,.38);background-clip:padding-box;overflow:hidden}
 #fHpFill{position:absolute;inset:0 auto 0 0;background:linear-gradient(180deg,#ff6b5a,var(--hp) 60%,#7d1610);transition:width .15s}
 #fXpFill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(180deg,var(--xp2),var(--xp) 55%,#2a3fc0);box-shadow:0 0 10px var(--xp);transition:width .3s}
 .fBar .lvl{border-radius:50%;background:radial-gradient(circle at 35% 30%,#2b3e9c,#0e1640);border:2px solid var(--gold-dim);font:700 13px var(--f-display);color:#dfe6ff;font-style:normal}
@@ -80,7 +85,7 @@
 #fCursor em{position:absolute;right:-10px;bottom:-8px;width:20px;height:20px}#fCursor em svg{width:100%;height:100%}
 #fLabel{position:absolute;left:0;top:0;display:flex;align-items:center;gap:6px;padding:5px 12px 5px 8px;border-radius:999px;background:#0b1016d9;border:2px solid #fff2c0;
   font:800 17px var(--f-body);color:#fff6dc;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px #0008}
-#fLabel svg{width:22px;height:22px;flex:none}#fLabel .ms{width:16px;height:22px}#fLabel i{font-style:normal;color:#e3b964;font-weight:700}
+#fLabel svg{width:22px;height:22px;flex:none}#fLabel .ms{width:16px;height:22px}#fLabel .ke{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 4px;border:2px solid #fff2c0;border-radius:5px;background:#1a2027;color:#e3b964;font:700 13px var(--f-body);line-height:1}#fLabel i{font-style:normal;color:#e3b964;font-weight:700}
 #fLabel.no{border-color:#ff8a70;color:#ffc8b8}#fLabel .need{display:flex;align-items:center;gap:1px;color:#ffb0a0}
 body[data-input=touch] #fLabel{font-size:19px;padding:6px 14px 6px 10px}
 #fFloat{position:absolute;inset:0;overflow:hidden}

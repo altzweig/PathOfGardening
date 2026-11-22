@@ -38,6 +38,8 @@ export interface Intent {
   /** PC third person (22.11.2026): where the camera looks; a standing farmer turns that way with a little delay */
   face?: number;
   attack: boolean;                  // right click / attack button held
+  /** co-op guest: where its own farmer already is on its screen (it walks ahead locally); the owner follows within the walk speed */
+  px?: number; pz?: number;
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
 /** actions done kneeling / crouching on the ground (hand rake, sowing, harvesting a plot, gathering) */
@@ -577,7 +579,11 @@ export class DaySim {
     const base = P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
     const sp = swinging ? 0 : base * Math.min(1, Math.hypot(mx, mz)) * (P.stun > 0 ? 1 - P.stun / C.hurtStun * .7 : 1);
     if (sp > 0) {
-      const l = Math.hypot(mx, mz) || 1, nx = P.x + mx / l * sp * dt, nz = P.z + mz / l * sp * dt;
+      const l = Math.hypot(mx, mz) || 1; let nx = P.x + mx / l * sp * dt, nz = P.z + mz / l * sp * dt;
+      if (P.guest && steering && it.px !== undefined && it.pz !== undefined) { // a guest's own position (never faster than walking)
+        const dx = it.px - P.x, dz = it.pz - P.z, d = Math.hypot(dx, dz), st = Math.min(d, sp * 1.6 * dt + .02);
+        if (d > 1e-3) { nx = P.x + dx / d * st; nz = P.z + dz / d * st; }
+      }
       const c = this.hof.collide(nx, nz, C.radius, true);
       P.speed = dist(P.x, P.z, c.x, c.z) / dt; P.x = c.x; P.z = c.z;
       if (!P.swing && !P.action) P.f = Math.atan2(mx, mz);

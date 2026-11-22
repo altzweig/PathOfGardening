@@ -226,7 +226,11 @@ export class FarmView {
   private pelletPool: THREE.Mesh[] = []; private lootViews = new Map<number, THREE.Object3D>();
   private hl: { ring: THREE.Mesh; square: THREE.Group; mat: THREE.MeshBasicMaterial };
   /** camera: yaw around the player (middle mouse / two-finger drag), pitch = angle over the ground */
-  camYaw = 0; camPitch = .97;
+  camYaw = 0; camPitch = .55;
+  /** camera (Basti 22.11.2026): 'tp' third person camDist m behind the farmer, 'fp' first person, 'td' top down;
+   *  fpK / tdK = smoothed blend towards first person / top down, push = wheel pushed against a detent */
+  camMode: 'fp' | 'tp' | 'td' = 'tp'; camDist = 3; private fpK = 0; private tdK = 0; private push = 0; private pushT = 0;
+  private camPos = new THREE.Vector3(); private camLook = new THREE.Vector3(); private camInit = false;
   private arrow: THREE.Group; arrowAt: { x: number; z: number; y?: number } | null = null;
   private bubble: { s: THREE.Sprite; id: number; text: string } | null = null;
   private actBar = makeBar(.8, .08, 0xffe08a);
@@ -489,7 +493,7 @@ export class FarmView {
     const v = this.player; if (!v) return;
     const P = sim?.player, H = this.cfg.hof, R0 = v.rig;
     const px = P ? P.x : H.door.x, pz = P ? P.z : H.door.z + .4;
-    v.g.visible = !!sim && !this.cine; // first person in a cutscene
+    v.g.visible = !!sim && !this.cine && this.fpK < .6; // first person (cutscene or camera)
     const spd = P ? P.speed : 0, swing = P?.swing, act = P?.action;
     // down on the ground: kneeling while working, a deep crouch (waddle) while moving with the button held
     const lowAct = !!act && !!sim && sim.low(act.target, act.info);
@@ -903,14 +907,38 @@ export class FarmView {
     if (this.lastShot && k > 0) { tx = lerp(tx, this.lastShot.x, k); tz = lerp(tz, this.lastShot.z, k); z = lerp(z, this.lastShot.zoom ?? z, k); }
     const f = 1 - Math.pow(.002, dt);
     this.camX = lerp(this.camX, tx, f); this.camZ = lerp(this.camZ, tz, f); this.camZoom = lerp(this.camZoom, z, f);
-    // orbit: yaw around the player, pitch over the ground (portrait looks down a little steeper and from further away)
-    const D = (portrait ? 21.4 : 16.4) * this.camZoom, pitch = clamp(this.camPitch + (portrait ? .1 : 0), .3, 1.45), yaw = mode === 'evening' ? 0 : this.camYaw;
+    // overview orbit (evening, tutorial shots): yaw around the point, pitch over the ground
+    const D = (portrait ? 21.4 : 16.4) * this.camZoom, pitch = clamp(.97 + (portrait ? .1 : 0), .3, 1.45), yaw = mode === 'evening' ? 0 : this.camYaw;
     const off = V(Math.sin(yaw) * Math.cos(pitch) * D, Math.sin(pitch) * D, Math.cos(yaw) * Math.cos(pitch) * D);
     this.shake = Math.max(0, this.shake - dt * 1.2);
     const sx = this.shake ? rand(-1, 1) * this.shake * .4 : 0, sz = this.shake ? rand(-1, 1) * this.shake * .4 : 0;
-    camera.position.set(this.camX + off.x + sx, off.y, this.camZ + off.z + sz);
     const lo = portrait ? 0 : .4;
-    camera.lookAt(this.camX + sx + Math.sin(yaw) * lo, 0, this.camZ + sz + Math.cos(yaw) * lo);
+    const oPos = V(this.camX + off.x + sx, off.y, this.camZ + off.z + sz), oLook = V(this.camX + sx + Math.sin(yaw) * lo, 0, this.camZ + sz + Math.cos(yaw) * lo);
+    // --- play camera (Basti 22.11.2026): third person 3..8 m, wheel against the detent at 3 m = first person, beyond 8 m = top down
+    const Zc = this.zoomCfg(), e = 1 - Math.exp(-dt * 7);
+    this.fpK = lerp(this.fpK, this.camMode === 'fp' && mode === 'day' && !k ? 1 : 0, e);
+    this.tdK = lerp(this.tdK, this.camMode === 'td' && mode === 'day' && !k ? 1 : 0, e);
+    if ((this.pushT -= dt) <= 0) this.push = lerp(this.push, 0, 1 - Math.exp(-dt * 6));
+    const cy = Math.sin(this.camYaw), cz = Math.cos(this.camYaw), fwd = V(-cy, 0, -cz);
+    const head = V(this.camX + sx, 1.35, this.camZ + sz);
+    // pushing against a detent nudges the camera a little, so one feels the resistance
+    const nudge = this.camMode === 'tp' ? clamp(this.push / Zc.push, -1, 1) * .45 : 0;
+    const dist = clamp(this.camDist, Zc.near, Zc.far) + nudge, p = clamp(this.camPitch, -.2, 1.35);
+    const tpPos = head.clone().add(V(cy * Math.cos(p) * dist, Math.sin(p) * dist, cz * Math.cos(p) * dist)); tpPos.y = Math.max(.35, tpPos.y);
+    const tpLook = head.clone().addScaledVector(fwd, .3);
+    const down = clamp(this.camPitch - .45, -.7, 1.2), eye = V(this.camX - cy * .05, 1.58, this.camZ - cz * .05);
+    const fpLook = eye.clone().add(V(-cy * Math.cos(down), -Math.sin(down), -cz * Math.cos(down)));
+    const tdPos = V(this.camX + cy * .02, Zc.top, this.camZ + cz * .02), tdLook = V(this.camX, 0, this.camZ);
+    const pos = tpPos.lerp(eye, this.fpK).lerp(tdPos, this.tdK), look = tpLook.lerp(fpLook, this.fpK).lerp(tdLook, this.tdK);
+    // overview (evening / tutorial shot) wins while it is on
+    const ov = mode === 'evening' ? 1 : k; pos.lerp(oPos, ov); look.lerp(oLook, ov);
+    // smooth glide between the modes (no jumps), the follow itself stays direct
+    if (!this.camInit) { this.camPos.copy(pos); this.camLook.copy(look); this.camInit = true; }
+    const g = 1 - Math.exp(-dt * 14); this.camPos.lerp(pos, g); this.camLook.lerp(look, g);
+    camera.position.copy(this.camPos);
+    // top down: the screen's up is where the camera looked, so WASD stay the same
+    camera.up.set(0, 1, 0).lerp(fwd, this.tdK * (1 - ov)).normalize();
+    camera.lookAt(this.camLook);
     torch.position.set(this.camX, 3, this.camZ + .6);
     setListener(P ? P.x : this.camX, P ? P.z : this.camZ);
     this.sun(this.camX, this.camZ);
@@ -970,7 +998,20 @@ export class FarmView {
     const C = this.cfg.camera; this.camYaw -= dx * C.rotate;
     this.camPitch = clamp(this.camPitch + dy * C.rotate, C.pitch[0], C.pitch[1]);
   }
-  zoomBy(dy: number) { this.zoom = clamp(this.zoom * Math.pow(1.0015, dy), .6, 1.6); }
+  private zoomCfg() { return { near: 3, far: 8, top: 10, push: 300, back: 100, ...(this.cfg.camera.zoom ?? {}) }; }
+  /** wheel / pinch (dy > 0 = out). Third person between near and far; pressing on against the detent at near = first person,
+   *  beyond far = top down. Back to third person needs less pushing (back < push). */
+  zoomBy(dy: number) {
+    const Z = this.zoomCfg(); this.pushT = .45;
+    const against = (lim: number) => { this.push += dy; return Math.abs(this.push) >= lim; };
+    if (this.camMode === 'fp') { if (dy > 0 && against(Z.back)) { this.camMode = 'tp'; this.camDist = Z.near; this.push = 0; } else if (dy < 0) this.push = 0; return; }
+    if (this.camMode === 'td') { if (dy < 0 && against(Z.back)) { this.camMode = 'tp'; this.camDist = Z.far; this.push = 0; } else if (dy > 0) this.push = 0; return; }
+    if (dy < 0 && this.camDist <= Z.near + 1e-3) { if (this.push > 0) this.push = 0; if (against(Z.push)) { this.camMode = 'fp'; this.push = 0; } return; }
+    if (dy > 0 && this.camDist >= Z.far - 1e-3) { if (this.push < 0) this.push = 0; if (against(Z.push)) { this.camMode = 'td'; this.push = 0; } return; }
+    this.push = 0; this.camDist = clamp(this.camDist * Math.pow(1.0015, dy), Z.near, Z.far);
+  }
+  /** facing of the camera (for the farmer turning with it) */
+  get camFace() { return this.camYaw + Math.PI; }
   /** hard cut of the camera (after a fade) */
   snapCamera(x: number, z: number) { this.camX = x; this.camZ = z; }
   clearDynamic() { for (const b of this.bits) this.dyn.remove(b.m); this.bits.length = 0; for (const [, v] of this.animals) { this.dyn.remove(v.v.g); v.bar.visible = false; } this.animals.clear(); for (const [, m] of this.lootViews) this.dyn.remove(m); this.lootViews.clear(); this.setBubble(null); this.setArrow(null); this.shot = null; this.lastShot = null; this.shotK = 0; }

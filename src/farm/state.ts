@@ -1,6 +1,6 @@
 // Persistent farm state (saved by saves.ts): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
-import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, STALL_IDS, WeaponId, cropsOf, levelFor, slotsAt } from './config';
+import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, Rarity, STALL_IDS, WeaponId, cropsOf, levelFor, slotsAt } from './config';
 import type { ShopState } from './shop';
 import { sellDay } from './shop';
 
@@ -8,7 +8,7 @@ import { sellDay } from './shop';
 export type PlotStage = 'wild' | 'empty' | 'sown' | 'ripe' | 'done';
 /** yieldLeft = harvest passes left on a ripe plot; weeds 0..plots.weeds.max (grow only in the morning, slow the growth); fert = times fertilised (this crop), fertDay = day of the last time;
  *  t = s left of a short step (sprouting after sowing, clearing after the last harvest), grow = s grown since watering (20.11.2026) */
-/** kind = the crop this field always grows (21.11.2026: fields have a fixed fruit, chosen when the field comes with a level) */
+/** kind: unused since 22.11.2026 (any field grows any seed the farm has, the active seed is sown) */
 /** hp = field health during the night (hares gnaw it down, undefined = full); broken = trampled, must be repaired (actions.repair) */
 export interface PlotState { hp?: number; broken?: boolean; open: boolean; kind?: string; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number }
 export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
@@ -18,7 +18,7 @@ export interface BushState { phase: BushPhase; t: number; berries: number; small
 const WILD_V = 3; // 3 = 21.11.2026: wild garlic / dandelion / sorrel live in the wild herb tufts now
 export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number; /** picks left (wild plants) */ n?: number }[]; seq: number; init: boolean; /** placement version: older saves grow their weeds + forage anew */ v?: number }
 /** daily order (21.11.2026): taken in the morning, delivered by itself as soon as the goods are in the storage, expires in the evening */
-export interface Quest { id: string; title?: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }
+export interface Quest { id: string; title?: string; /** wild herbs instead of field goods (22.11.2026) */ wild?: boolean; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }
 /** a collected order in the archive: day, title, goods, Gefallen, XP */
 export interface ArchivedQuest { d: number; t: string; n: Record<ItemId, number>; m: number; x: number }
 export interface Production { recipe: number; doneDay: number }
@@ -45,8 +45,13 @@ export interface FarmState {
   phase: 'morning' | 'day' | 'evening';
   summary: DaySummary | null;
   levelUps: number[];          // levels reached since the last evening (shown once)
-  seed: string;                // unused since 21.11.2026 (fields have a fixed crop)
-  /** new fields from level-ups still to place in the evening: the offered crops of each */
+  /** active seed of the farmer (22.11.2026: sown on any empty field, switched with Tab / the seed button) */
+  seed: string;
+  /** seeds the farm has (endless, Basti 22.11.2026): crops that can be sown */
+  seeds: string[];
+  /** new seeds to choose from after level-ups (evening, house book): the offered crops of each choice */
+  seedPicks: string[][];
+  /** unused since 22.11.2026 (new fields open by themselves, kept for old saves) */
   fieldPicks: string[][];
   /** fields gained by level-ups so far (the first one offers 3 crops the farm does not have yet) */
   fieldsGained: number;
@@ -66,7 +71,7 @@ export interface DayRecord { d: number; st: Record<ItemId, number>; got: Record<
 const KEY = 'pog-farm-v1';
 
 export function newState(cfg: FarmCfg): FarmState {
-  const plots: PlotState[] = cfg.hof.plots.map((_, i) => newPlot(i < cfg.start.plots.length, cfg.start.plots[i]));
+  const plots: PlotState[] = cfg.hof.plots.map((_, i) => newPlot(i < cfg.start.plots));
   const buildings = {} as Record<BuildingId, BuildingState>;
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) buildings[id] = { built: !!cfg.buildings[id]?.built };
   const s: FarmState = {
@@ -74,12 +79,12 @@ export function newState(cfg: FarmCfg): FarmState {
     plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false, v: WILD_V },
     quests: { active: [], offers: [], seq: 1 },
     weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [],
-    seed: 'wheat', perennial: { trees: [], brambles: [] }, fieldPicks: [], fieldsGained: 0,
+    seed: cfg.seeds.start[0] ?? 'wheat', seeds: [...cfg.seeds.start], seedPicks: [], perennial: { trees: [], brambles: [] }, fieldPicks: [], fieldsGained: 0,
   };
   rollDaily(cfg, s);
   return s;
 }
-export const newPlot = (open: boolean, kind?: string): PlotState => ({ open, kind: open ? kind ?? 'wheat' : undefined, stage: open ? 'empty' : 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0, weeds: 0, fert: 0, fertDay: 0, t: 0, grow: 0 });
+export const newPlot = (open: boolean): PlotState => ({ open, stage: open ? 'empty' : 'wild', crop: null, days: 0, watered: false, bites: 0, yieldLeft: 0, weeds: 0, fert: 0, fertDay: 0, t: 0, grow: 0 });
 export const freshBush = (): BushState => ({ phase: 'dry', t: 0, berries: 0, small: 0, picked: 0 });
 /** the save of the first farm version (single save, before named saves) */
 export function loadState(cfg: FarmCfg): FarmState | null {
@@ -97,10 +102,20 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
     if ((p.stage as string) === 'raked') p.stage = 'empty'; // 21.11.2026: ploughing is gone
     p.weeds = Math.min(p.weeds, cfg.plots.weeds.max);
     if (p.broken && p.stage !== 'empty') breakPlot(p);
-    if (p.open && (!p.kind || !cfg.crops[p.kind])) p.kind = p.crop && cfg.crops[p.crop] ? p.crop : 'wheat'; // 21.11.2026: fixed crop per field
   }
   s.fieldPicks ??= []; s.fieldsGained ??= 0;
-  if (!s.seed || !cfg.crops[s.seed]) s.seed = 'wheat';
+  // 22.11.2026: free choice of seed. Older saves keep the crops of their fixed fields as seeds, open fields still to place open now
+  if (!s.seeds) {
+    const have = new Set<string>([...cfg.seeds.start, ...s.plots.filter(p => p.open).map(p => p.kind ?? '')]);
+    s.seeds = [...have].filter(k => !!cfg.crops[k]);
+    s.seedPicks = [];
+    for (const _ of s.fieldPicks) { openField(s); s.seedPicks.push(seedOffer(cfg, s)); }
+    s.fieldPicks = [];
+  }
+  for (const p of s.plots) delete p.kind;
+  s.seeds = s.seeds.filter(k => !!cfg.crops[k]); if (!s.seeds.length) s.seeds = [...cfg.seeds.start];
+  s.seedPicks = (s.seedPicks ?? []).filter(o => o.length);
+  if (!s.seed || !s.seeds.includes(s.seed)) s.seed = s.seeds[0];
   s.perennial ??= { trees: [], brambles: [] };
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) { s.buildings[id] ??= { built: !!cfg.buildings[id]?.built }; if (cfg.buildings[id]?.built) s.buildings[id].built = true; }
   for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
@@ -137,24 +152,43 @@ export function pay(cfg: FarmCfg, s: FarmState, c: Cost | undefined) {
 /** XP + level-ups (remembered for the evening screen) */
 export function gainXp(cfg: FarmCfg, s: FarmState, n: number) {
   s.xp += n; const lv = levelFor(cfg, s.xp);
-  while (s.level < lv) { s.level++; s.levelUps.push(s.level); s.fieldPicks.push(fieldOffer(cfg, s)); }
+  while (s.level < lv) {
+    s.level++; s.levelUps.push(s.level);
+    openField(s);                                   // 22.11.2026: every level opens a field (any seed can grow on it)
+    const o = seedOffer(cfg, s); if (o.length) s.seedPicks.push(o); // ... and offers new seed
+  }
 }
-// ---------------- fields from level-ups (Basti 21.11.2026) ----------------
+// ---------------- fields + seeds from level-ups (Basti 22.11.2026) ----------------
 const shuffle = <T>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-/** first new field: 3 random commons the farm does not grow yet; every later one: 1 random common (owned ones too) */
-export function fieldOffer(cfg: FarmCfg, s: FarmState): string[] {
-  const all = cropsOf(cfg, 'Common'), first = s.fieldsGained + s.fieldPicks.length === 0;
-  if (!first) return [all[Math.floor(Math.random() * all.length)]];
-  const have = new Set(s.plots.filter(p => p.open).map(p => p.kind)), fresh = all.filter(c => !have.has(c));
-  return shuffle(fresh.length >= 3 ? fresh : all).slice(0, 3);
+const RARITIES: Rarity[] = ['Common', 'Uncommon', 'Rare'];
+/** opens the next free field spot of the farm (false: no spot left) */
+export function openField(s: FarmState) {
+  const i = s.plots.findIndex(q => !q.open); if (i < 0) return false;
+  s.plots[i] = newPlot(true); s.fieldsGained++; return true;
 }
-/** places the new field automatically on the next free spot of the farm */
-export function placeField(cfg: FarmCfg, s: FarmState, pick: number, kind: string) {
-  const opts = s.fieldPicks[pick]; if (!opts || !opts.includes(kind)) return false;
-  const i = s.plots.findIndex(q => !q.open);
-  s.fieldPicks.splice(pick, 1);
-  if (i < 0) return false; // no spot left on the farm
-  s.plots[i] = newPlot(true, kind); s.fieldsGained++; return true;
+/** new seed after a level-up: seeds.offer random crops the farm has no seed of yet, from the lowest rarity that still has some
+ *  (commons first, then uncommons, then rares); nothing when every seed is there */
+export function seedOffer(cfg: FarmCfg, s: FarmState, keep: string[] = []): string[] {
+  const have = new Set([...s.seeds, ...keep]), n = Math.max(1, cfg.seeds.offer ?? 3) - keep.length;
+  for (const r of RARITIES) {
+    const fresh = cropsOf(cfg, r).filter(c => !have.has(c));
+    if (fresh.length) return [...keep, ...shuffle(fresh).slice(0, n)];
+  }
+  return keep;
+}
+/** the chosen seed of the first open choice: from now on it can be sown (endless) */
+export function takeSeed(cfg: FarmCfg, s: FarmState, pick: number, kind: string) {
+  const opts = s.seedPicks[pick]; if (!opts || !opts.includes(kind)) return false;
+  s.seedPicks.splice(pick, 1);
+  if (!s.seeds.includes(kind)) s.seeds.push(kind);
+  // the other open choices never offer it again (filled up with other new seeds)
+  s.seedPicks = s.seedPicks.map(o => o.includes(kind) ? seedOffer(cfg, s, o.filter(k => k !== kind)) : o).filter(o => o.length);
+  return true;
+}
+/** next / previous seed of the list (Tab, the seed button) */
+export function cycleSeed(seeds: string[], cur: string, dir = 1) {
+  if (!seeds.length) return cur;
+  const i = seeds.indexOf(cur); return seeds[((i < 0 ? 0 : i + dir) % seeds.length + seeds.length) % seeds.length];
 }
 
 // ---------------- quests ----------------
@@ -197,12 +231,12 @@ export const questSlots = (cfg: FarmCfg, level: number) => Math.max(1, slotsAt(c
 /** during the day: every order whose goods are all there is delivered at once (returns the delivered ones) */
 export function checkQuests(cfg: FarmCfg, s: FarmState) { return s.quests.active.filter(q => !q.done && !q.expired && completeQuest(cfg, s, q)); }
 
-/** what the farm can grow for orders: main good of every crop on the open fields + field seconds per piece + how much one day allows */
+/** what the farm can grow for orders: main good of every seed the farm has + field seconds per piece + how much one day allows
+ *  (22.11.2026: every field grows every seed, so each crop may take all fields; the budget of the orders keeps the day doable) */
 export function questSources(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, out: { item: ItemId; sec: number; per: number; cap: number; fresh: boolean }[] = [];
-  const kinds = new Map<string, number>();
-  for (const p of s.plots) if (p.open && p.kind) kinds.set(p.kind, (kinds.get(p.kind) ?? 0) + 1);
-  for (const [id, fields] of kinds) {
+  const fields = s.plots.filter(p => p.open).length;
+  for (const id of s.seeds) {
     const c = cfg.crops[id]; if (!c) continue;
     const [item, n] = Object.entries(c.yield).sort((a, b) => b[1] - a[1])[0] ?? [id, 1];
     const per = n * c.cuts; out.push({ item, sec: (c.grow + D.cycle) / per, per, cap: fields * cfg.day.length * D.load, fresh: false });
@@ -223,7 +257,19 @@ export function rollDaily(cfg: FarmCfg, s: FarmState) {
   const xp = cfg.levels.xp, gap = (xp[L] ?? xp[xp.length - 1] * 1.3) - (xp[L - 1] ?? 0), xpQuest = gap * (D.xpShare ?? 1) / D.daysPerLevel / N;
   const name = (k: ItemId) => cfg.names.items[k] ?? k;
   s.quests.active = [];
+  // wild order (Basti 22.11.2026): from wild.level on, now and then one of the orders asks for wild herbs (weeding the herb tufts)
+  const WQ = D.wild, herbs = cfg.wild.herbs?.kinds ?? [];
+  const wildAt = WQ && L >= WQ.level && herbs.length && Math.random() < WQ.chance ? Math.floor(Math.random() * N) : -1;
   for (let q = 0; q < N; q++) {
+    if (q === wildAt && WQ) {
+      const kinds = shuffle([...herbs]).slice(0, Math.min(herbs.length, WQ.kinds[0] + Math.floor(Math.random() * (WQ.kinds[1] - WQ.kinds[0] + 1))));
+      const need: Record<ItemId, number> = {}; let sec = 0;
+      for (const k of kinds) { const n = WQ.n[0] + Math.floor(Math.random() * (WQ.n[1] - WQ.n[0] + 1)); need[k] = n; sec += n * WQ.sec; }
+      const title = WQ.titles[Math.floor(Math.random() * WQ.titles.length)];
+      s.quests.active.push({ id: 'q' + s.quests.seq++, title, need, wild: true,
+        reward: { money: Math.max(D.minMoney, Math.round(sec * D.money * (1 + D.moneyLevel * (L - 1)))), xp: Math.max(1, Math.round(xpQuest * Math.max(.75, sec / share))) } });
+      continue;
+    }
     const want = share * (0.8 + Math.random() * 0.4), k = 1 + Math.floor(Math.random() * maxObj);
     const need: Record<ItemId, number> = {}; let sec = 0;
     const pool = [...src];

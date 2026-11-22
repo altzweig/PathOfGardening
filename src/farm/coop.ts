@@ -107,6 +107,7 @@ export function cleanIntent(o: any): Intent {
   it.aimX = num(o.aimX, -500, 500); it.aimZ = num(o.aimZ, -500, 500); it.aimAuto = !!o.aimAuto;
   it.act = cleanTarget(o.act); it.hold = !!o.hold; it.holdAt = cleanTarget(o.holdAt); it.up = !!o.up; it.attack = !!o.attack;
   if (o.face !== undefined) it.face = num(o.face, -10, 10);
+  if (typeof o.seed === 'string') it.seed = o.seed.slice(0, 24);
   if (o.px !== undefined && o.pz !== undefined) { it.px = num(o.px, -500, 500); it.pz = num(o.pz, -500, 500); }
   return it;
 }

@@ -179,6 +179,11 @@ class Game {
     this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
     this.input.mouseSens = this.cfg.camera.mouse ?? .55;
     this.input.onZoom = dy => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(dy); };
+    // seeds (Basti 22.11.2026): Tab / the seed button switch the active seed, holding the button opens the list
+    this.input.onSeed = d => { if (this.mode === 'day' && !this.paused && !this.bookOpen) this.hud.nextSeed(d); };
+    this.input.onSeedMenu = () => { if (this.mode === 'day' && !this.paused && !this.bookOpen) this.hud.seedMenu(true); };
+    this.hud.onSeed = k => { if (!this.netGuest) this.s.seed = k; };
+    this.hud.onSound = k => sfx(k);
     addEventListener('wheel', e => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(e.deltaY); }, { passive: true });
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });
@@ -368,6 +373,7 @@ class Game {
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
     if (this.tut) this.tut.onDone = () => this.endOfDay('time');
     this.mode = 'day'; this.ending = false; this.paused = false;
+    this.hud.seeds = [...s.seeds]; this.hud.seed = s.seed;
     this.input.enabled = true; this.hud.show(true); this.hud.clear(); this.hud.fade(false);
   }
   private async endOfDay(reason: 'time' | 'faint') {
@@ -448,6 +454,7 @@ class Game {
   tick(dt: number) {
     const sim = this.sim;
     if (this.mode !== 'day' || !sim || (this.paused && !this.coopLive)) return;
+    sim.player.seed = this.hud.activeSeed();
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
@@ -458,6 +465,7 @@ class Game {
     if (this.tut) it = this.tut.update(dt, it);
     if (this.paused) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false }; // co-op: the game goes on behind the menu
     for (const b of this.bots) sim.intents.set(b.P.id, b.intent(sim));
+    it.seed = this.hud.activeSeed();
     sim.update(dt, it);
     this.sendSnap(dt);
     for (const e of sim.ev) {
@@ -658,6 +666,7 @@ class Game {
     $('#coopLag').hidden = !(g && this.mode === 'day' && this.gLast && performance.now() - this.gLast > 2000);
     if (this.mode !== 'day' || !sim || !g) return;
     sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
+    this.hud.seeds = sim.s.seeds ?? this.hud.seeds; sim.player.seed = this.hud.activeSeed();
     const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
@@ -668,7 +677,7 @@ class Game {
     const steer = Math.hypot(it.mx, it.mz) > .15; this.gSteer = steer ? .3 : Math.max(0, this.gSteer - dt);
     sim.t += dt; smooth(sim, dt); if (steer) predict(sim, it, dt);
     const me = sim.player; if (me.xp > this.gDayXp) { this.gGain += me.xp - this.gDayXp; this.gDayXp = me.xp; }
-    it.px = sim.player.x; it.pz = sim.player.z;
+    it.px = sim.player.x; it.pz = sim.player.z; it.seed = this.hud.activeSeed();
     g.send({ t: 'in', i: it });
     for (const e of sim.ev) {
       const mine = (e.pid ?? -1) === sim.localId;

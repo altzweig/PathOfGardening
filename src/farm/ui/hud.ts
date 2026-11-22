@@ -3,7 +3,7 @@
 import type { FarmCfg } from '../config';
 import { nextLevelXp } from '../config';
 import type { FarmState, Quest } from '../state';
-import { questProgress } from '../state';
+import { cycleSeed, questProgress } from '../state';
 import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
@@ -61,11 +61,12 @@ export class FarmHud {
   private bar: ActBar; private lastT = performance.now();
   constructor(public cfg: FarmCfg) {
     this.bar = new ActBar(cfg, $('#fHud'));
-    // seed choice (20.11.2026): what the next sowing plants; new crops come with the levels
-    $('#fSeed').addEventListener('pointerdown', e => { e.stopPropagation(); this.seedPanel($('#fSeeds').hidden); });
+    // seed list (Basti 22.11.2026): tap a seed = it is active and the list closes, tap beside it = closes, nothing changes
+    const bg = document.createElement('div'); bg.id = 'fSeedsBg'; bg.hidden = true; $('#fHud').insertBefore(bg, $('#fSeeds'));
+    bg.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.seedMenu(false); });
     $('#fSeeds').addEventListener('pointerdown', e => {
-      e.stopPropagation(); const b = (e.target as HTMLElement).closest('button'); if (!b || !this.s) return;
-      this.s.seed = b.dataset.c!; this.key = ''; this.seedPanel(false);
+      e.preventDefault(); e.stopPropagation(); const b = (e.target as HTMLElement).closest('button');
+      if (b) this.pickSeed(b.dataset.c!); this.seedMenu(false);
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fClock').innerHTML = CLOCK;
@@ -121,10 +122,28 @@ export class FarmHud {
         ${Object.entries(q.need).map(([k, v]) => `<div class="qo${(p[k] ?? 0) >= v ? ' ok' : ''}">- <i>${p[k] ?? 0}/${v}</i>${ic(k)}${name(k)}</div>`).join('')}</div>`; };
     $('#fQuests').innerHTML = list.length ? head + (this.questsOpen ? list.map(one).join('') : '') : '';
   }
-  show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedPanel(false); }
-  private seedPanel(on: boolean) {
-    const p = $('#fSeeds'); p.hidden = !on || !this.s; if (p.hidden) return;
-    const s = this.s!; p.innerHTML = ([] as string[]).map(c => `<button data-c="${c}" class="${c === s.seed ? 'on' : ''}">${ic(c)}</button>`).join('');
+  show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedMenu(false); }
+  // ---------------- seeds (Basti 22.11.2026) ----------------
+  /** active seed of this farmer and the seeds of the farm (endless) */
+  seed = ''; seeds: string[] = [];
+  /** a new seed was chosen (the owner keeps it in the save) */
+  onSeed: (k: string) => void = () => {};
+  onSound: (k: string) => void = () => {};
+  /** the active seed, valid for the farm's seeds */
+  activeSeed() { if (!this.seeds.includes(this.seed)) this.seed = this.seeds[0] ?? 'wheat'; return this.seed; }
+  pickSeed(k: string) {
+    if (!this.seeds.includes(k)) return;
+    const was = this.seed; this.seed = k; this.key = '';
+    if (was !== k) { this.onSeed(k); this.onSound('ui.click'); for (const id of ['#bSeed', '#fSeedPc']) { const el = $(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
+  }
+  nextSeed(dir = 1) { if (this.seedOpen) this.seedMenu(false); this.pickSeed(cycleSeed(this.seeds, this.activeSeed(), dir)); }
+  get seedOpen() { return !$('#fSeeds').hidden; }
+  seedMenu(on: boolean) {
+    const p = $('#fSeeds'), bg = $('#fSeedsBg'); p.hidden = !on || !this.seeds.length; if (bg) bg.hidden = p.hidden; if (p.hidden) return;
+    const cur = this.activeSeed(), name = (c: string) => this.cfg.crops[c]?.name ?? this.cfg.names.items[c] ?? c;
+    p.style.gridTemplateColumns = `repeat(${Math.min(this.seeds.length, innerHeight < 520 ? 4 : 3)},auto)`;
+    p.innerHTML = this.seeds.map(c => `<button data-c="${c}" class="${c === cur ? 'on' : ''}">${ic(c)}<span>${name(c)}</span></button>`).join('');
+    this.onSound('ui.page');
   }
   private hpW = ''; private xpW = '';
   /** per frame */
@@ -135,12 +154,16 @@ export class FarmHud {
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     const xpW = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%'; if (xpW !== this.xpW) { this.xpW = xpW; $('#fXpFill').style.width = xpW; }
     this.clock(sim); this.ripe(s);
-    const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
+    if (sim.s.seeds !== this.seeds && sim.s.seeds.join() !== this.seeds.join()) this.seeds = [...sim.s.seeds];
+    const seed = this.activeSeed();
+    const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, seed, this.seeds.length].join('|');
     if (key !== this.key) {
       this.key = key;
       $('#fLvlN').textContent = '' + s.level;
       $('#fDay').textContent = '' + s.day;
-      $('#fSeed').hidden = true; // 21.11.2026: every field has a fixed crop, no seed choice
+      const sn = this.cfg.crops[seed]?.name ?? this.cfg.names.items[seed] ?? seed;
+      $('#bSeed').innerHTML = `${ic(seed)}<span>${sn}</span>`;
+      const pc = $('#fSeedPc'); pc.hidden = touch; pc.innerHTML = `<kbd>Tab</kbd>${ic(seed)}<span>${sn}</span>`;
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
       $('#fWater').innerHTML = w;
@@ -174,8 +197,10 @@ export class FarmHud {
       lab.classList.toggle('no', !hoverInfo.ok);
     } else lab.hidden = true;
     const act = $('#bAct'), t2 = touch && hoverInfo ? TOOL_ICON[hoverInfo.tool] : 'hands';
-    if (act.dataset.t !== t2 + (hoverInfo?.ok ?? '')) { act.dataset.t = t2 + (hoverInfo?.ok ?? ''); act.innerHTML = ic(t2); }
-    act.classList.toggle('idle', !hoverInfo || !hoverInfo.ok);
+    // pulled up (Basti 22.11.2026): the knob shows the weapon, else the tool of the spot
+    const atk = $('#bDual').classList.contains('atk'), kk = atk ? 'atk' + $('#bAtk').innerHTML.length : t2 + (hoverInfo?.ok ?? '');
+    if (act.dataset.t !== kk) { act.dataset.t = kk; act.innerHTML = atk ? $('#bAtk').innerHTML : ic(t2); if (!atk) $('#bDn').innerHTML = ic(t2); }
+    act.classList.toggle('idle', !atk && (!hoverInfo || !hoverInfo.ok));
     // floating numbers follow their world point
     for (let i = this.nums.length - 1; i >= 0; i--) {
       const n = this.nums[i]; n.t += dt;
@@ -226,7 +251,8 @@ export class FarmHud {
   fightCard(on: boolean, text = '', touch = false) {
     const c = $('#fFight'); c.hidden = !on; if (!on) return;
     const mouse = `<svg viewBox="0 0 60 90"><rect x="4" y="4" width="52" height="82" rx="26" fill="#1a2027" stroke="#e3b964" stroke-width="3"/><path d="M30 4v34M4 38h52" stroke="#3a4550" stroke-width="3"/><path d="M33 7.5a23 23 0 0 1 19.5 22V36H33z" fill="#e3b964"/></svg>`;
-    c.innerHTML = `<div class="fk">${touch ? `<div class="tb">${ic('rake')}</div>` : mouse}</div><div class="ft">${text}</div>`;
+    const up = '<svg viewBox="0 0 40 40"><path d="M20 34V8M9 18l11-11 11 11" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    c.innerHTML = `<div class="fk">${touch ? `<div class="tbd"><i class="ar">${up}</i><div class="tb">${ic('rake')}</div></div>` : mouse}</div><div class="ft">${text}</div>`;
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }

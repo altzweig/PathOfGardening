@@ -66,11 +66,18 @@
 #fWater{display:flex;gap:1px}#fWater i{width:18px;height:18px}#fWater svg{width:100%;height:100%;filter:drop-shadow(0 1px 1px #000)}
 #fWeap{display:flex;align-items:center;gap:4px;padding:2px 8px 2px 4px;border-radius:999px;background:#0b1016b3;border:1px solid #3a4550}
 #fWeap>svg{width:30px;height:30px}#fWeap span{display:flex;align-items:center;gap:2px;font:700 15px var(--f-body)}#fWeap span svg{width:20px;height:20px}
-#fSeed{position:relative;width:46px;height:46px;border-radius:50%;padding:0}#fSeed>svg{width:34px;height:34px}#fSeed em{position:absolute;right:-6px;bottom:-6px;width:22px;height:22px}#fSeed em svg{width:100%;height:100%}
-#fSeeds{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);display:grid;grid-template-columns:repeat(5,52px);gap:6px;padding:10px;border-radius:14px;
-  background:#0b1016e6;border:2px solid var(--gold-dim);box-shadow:0 8px 28px #000c;pointer-events:auto;animation:fSeedIn .15s ease-out}
-#fSeeds button{width:52px;height:52px;border-radius:10px;border:2px solid #3a4550;background:#1d252d;display:grid;place-items:center;cursor:pointer;padding:0}
-#fSeeds button svg{width:38px;height:38px}#fSeeds button.on{border-color:var(--gold);box-shadow:0 0 10px #e3b96477}
+/* seeds (Basti 22.11.2026): active seed with icon + name; phone: button beside the action button (tap = next, hold = list), PC: chip with [Tab] */
+#fSeedPc{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:7px;padding:5px 14px 5px 7px;border-radius:999px;
+  background:#0b1016c8;border:2px solid var(--gold-dim);font:700 18px var(--f-body);color:var(--parch);text-shadow:0 1px 2px #000}
+#fSeedPc svg{width:32px;height:32px}#fSeedPc kbd{display:inline-grid;place-items:center;height:22px;padding:0 6px;border:2px solid #fff2c0;border-radius:5px;background:#1a2027;color:var(--gold);font:700 13px var(--f-body)}
+body[data-input=touch] #fSeedPc{display:none}
+#fSeedPc.pop,#bSeed.pop{animation:seedPop .25s ease-out}
+@keyframes seedPop{40%{transform:scale(1.12)}}
+#fSeeds{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(max(16px,env(safe-area-inset-bottom,0px)) + 150px);display:grid;grid-template-columns:repeat(3,auto);gap:8px;padding:10px;border-radius:16px;
+  max-width:calc(100vw - 24px);max-height:calc(100vh - 190px);overflow:auto;background:#0b1016ee;border:2px solid var(--gold-dim);box-shadow:0 8px 28px #000c;pointer-events:auto;animation:fSeedIn .15s ease-out;z-index:5}
+#fSeeds button{display:flex;align-items:center;gap:6px;min-width:120px;height:54px;padding:0 12px 0 6px;border-radius:12px;border:2px solid #3a4550;background:#1d252d;color:var(--parch);font:700 17px var(--f-body);cursor:pointer;touch-action:none}
+#fSeeds button svg{width:40px;height:40px;flex:none}#fSeeds button.on{border-color:var(--gold);box-shadow:0 0 10px #e3b96477;color:var(--gold)}
+#fSeedsBg{position:absolute;inset:0;pointer-events:auto;z-index:4}
 @keyframes fSeedIn{from{opacity:0;transform:translateY(-6px)}}
 #fRCol{position:relative}
 #fQuests{position:absolute;right:0;top:calc(100% + 8px);pointer-events:auto;width:max-content;max-width:min(300px,62vw);padding:7px 12px;border-radius:12px;background:#0b1016c8;border:1px solid #3a4550;color:var(--parch);
@@ -93,6 +100,8 @@
 #fFight{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 30px;border-radius:18px;
   background:#0b1016e6;border:2px solid var(--gold);box-shadow:0 10px 40px #000c;animation:fPulse 1.2s ease-in-out infinite}
 #fFight .fk svg{width:70px;height:100px}#fFight .tb{width:90px;height:90px;border-radius:50%;background:#1d252d;border:4px solid #ff8a70;display:grid;place-items:center}#fFight .tb svg{width:64%;height:64%}
+#fFight .tbd{display:flex;flex-direction:column;align-items:center;gap:4px}#fFight .tbd .ar{width:40px;height:40px;color:#ff8a70}#fFight .tbd .ar svg{width:100%;height:100%}#fFight .tbd .tb{animation:pullUp 1.2s ease-in-out infinite}
+@keyframes pullUp{0%,20%{transform:translateY(24px)}60%,100%{transform:translateY(0)}}
 #fFight .ft{font:700 26px var(--f-display);color:var(--gold)}
 @keyframes fPulse{50%{box-shadow:0 10px 40px #000c,0 0 0 6px #e3b96433}}
 #fCursor{position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;background:#0b1016cc;border:2px solid #fff2c0;display:grid;place-items:center;pointer-events:none}
@@ -117,10 +126,19 @@ body[data-input=touch] #fLabel.down{transform-origin:center;filter:brightness(1.
 body[data-input=touch] #fBtns{display:flex}
 #fBtns button{pointer-events:auto;touch-action:none;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);cursor:pointer;transition:transform .08s}
 #fBtns button svg{width:62%;height:62%;filter:drop-shadow(0 2px 2px #000)}
-#bAct{width:104px;height:104px;border:4px solid var(--gold);box-shadow:0 0 18px #e3b96455}
-#bAct.idle{border-color:#5a6068;box-shadow:none;opacity:.75}
-#bAtk{width:84px;height:84px;border:4px solid #ff8a70;margin-bottom:46px}
-#fBtns button.down{transform:scale(.92)}
+/* one button for both (Basti 22.11.2026): pull up = fight, tap / pull down = work */
+#bDual{position:relative;width:104px;height:224px;pointer-events:none}
+#bDual::before{content:"";position:absolute;left:50%;top:10px;bottom:10px;width:58px;margin-left:-29px;border-radius:29px;background:#0b10168c;border:2px solid #ffffff1c}
+#bDual .end{position:absolute;left:50%;width:46px;height:46px;margin-left:-23px;border-radius:50%;display:grid;place-items:center;background:#161d24;transition:transform .12s,box-shadow .12s}
+#bDual .end svg{width:70%;height:70%}
+#bDual .up{top:0;border:3px solid #ff8a70}#bDual .dn{bottom:0;border:3px solid var(--gold)}
+#bDual.atk .up{transform:scale(1.2);box-shadow:0 0 16px #ff8a70}#bDual.act .dn{transform:scale(1.2);box-shadow:0 0 16px #e3b964}
+#bAct{position:absolute;left:0;top:60px;width:104px;height:104px;border:4px solid var(--gold);box-shadow:0 0 18px #e3b96455;transition:none!important}
+#bAct.idle{border-color:#5a6068;box-shadow:none}
+#bDual.atk #bAct{border-color:#ff8a70;box-shadow:0 0 18px #ff8a7066}
+#fBtns #bSeed{display:flex;align-items:center;gap:4px;height:54px;max-width:150px;padding:0 12px 0 5px;margin-bottom:85px;border-radius:999px!important;border:3px solid var(--gold-dim);color:var(--parch);font:700 16px var(--f-body);text-shadow:0 1px 2px #000;white-space:nowrap;overflow:hidden}
+#fBtns #bSeed svg{width:40px!important;height:40px!important;flex:none}#bSeed span{overflow:hidden;text-overflow:ellipsis}
+#bSeed.down{filter:brightness(1.3)}
 #fBars{position:absolute;inset:0;pointer-events:none}
 #fBars i{position:absolute;left:0;right:0;height:0;background:#000;transition:height .6s ease}#fBars i:first-child{top:0}#fBars i:last-child{bottom:0}
 #fBars.on i{height:9vh}
@@ -180,7 +198,8 @@ body[data-input=touch] #fBtns{display:flex}
   #fHint svg{width:28px;height:28px}
   #fLeft{width:min(170px,28vw)} #fClock,#fClock svg.ck{width:112px} #fClock svg.ck{height:54px} #fClock .ckDay{top:28px;font-size:16px} #fClock .ckCd{font-size:14px;padding:0 8px 0 4px} #fClock .ckCd svg{width:17px;height:17px}
   #fWarn{top:calc(env(safe-area-inset-top,0px) + 96px)}
-  #bAct{width:88px;height:88px} #bAtk{width:70px;height:70px;margin-bottom:40px}
+  #bDual{width:84px;height:168px} #bAct{width:84px;height:84px;top:42px} #bDual .end{width:36px;height:36px;margin-left:-18px} #fBtns #bSeed{height:46px;margin-bottom:61px;font-size:15px} #fBtns #bSeed svg{width:34px!important;height:34px!important}
+  #fSeeds{bottom:calc(max(10px,env(safe-area-inset-bottom,0px)) + 120px);grid-template-columns:repeat(4,auto)} #fSeeds button{height:48px;min-width:110px}
   .fo .panel{padding:10px;gap:7px} .fo .ttl b{font-size:21px} .row{padding:5px 8px} .hb.big{padding:8px;font-size:17px}
 }
 

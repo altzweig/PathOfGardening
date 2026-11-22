@@ -440,7 +440,7 @@ Umgesetzt, gemessen im selben Lauf gegen den alten Stand (`main` vorher), Headle
 | PC, Nacht | 10,2 ms | 6,5–8,0 ms | 2,01 Mio. → 0,47 Mio. |
 | Handy, Buch offen | 35,4 ms | **0,2 ms** (keine Draw Calls) | → 0 |
 | Handy, Abend im Haus | 32,7 ms | **0,1 ms** | → 0 |
-| Sounds nach dem ersten Klick | 9,1 MB (WAV) | **1,1 MB** (MP3) | |
+| Sounds nach dem ersten Klick | 9,1 MB (meist WAV) | **2,9 MB** (alles MP3, inkl. der neuen Kampf-Sounds) | |
 
 Was drin ist:
 - **1.1:** Unter dem Buch (Abend und Tagesbuch) wird die Welt weder animiert noch gezeichnet. Das Canvas behält das letzte Bild als unscharfen Hintergrund. Das Kaminfeuer läuft mit 20 statt 30 fps.

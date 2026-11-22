@@ -51,8 +51,9 @@ export class Online {
   /** own profile: name + level of the character, created on first use */
   async profile(name: string, level: number) {
     name = name.trim().slice(0, 28) || 'Gast';
-    const { data } = await this.db.from('profiles').select('name, friend_code, level').eq('id', this.me.id).maybeSingle();
-    if (!data) { const r = await this.db.from('profiles').insert({ id: this.me.id, name, level }).select('friend_code').single(); if (r.error) throw r.error; this.me.code = r.data.friend_code; }
+    const { data, error } = await this.db.from('profiles').select('name, friend_code, level').eq('id', this.me.id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) { const r = await this.db.from('profiles').insert({ id: this.me.id, name, level }).select('friend_code').single(); if (r.error) throw new Error(r.error.message); this.me.code = r.data.friend_code; }
     else { this.me.code = data.friend_code; if (data.name !== name || data.level !== level) await this.db.from('profiles').update({ name, level }).eq('id', this.me.id); }
     this.me.name = name; this.me.level = level;
     if (this.presence) await this.track();

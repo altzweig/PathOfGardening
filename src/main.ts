@@ -29,7 +29,7 @@ import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
 import { NetGuest, NetHost, Visitor, cleanCode } from './farm/net';
-import { Phase, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
+import { Phase, resetSnapSeq, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
 import type { Ev } from './farm/sim';
 import * as THREE from 'three';
 
@@ -491,7 +491,7 @@ class Game {
   private sendSnap(dt: number) {
     const h = this.netHost, sim = this.sim; if (!h?.guests.length || !sim) { this.hostEv = []; return; }
     for (const e of sim.ev) if (e.k !== 'faint') this.hostEv.push(e);
-    if ((this.snapT += dt) >= .05) { this.snapT = 0; h.broadcast({ t: 'sn', d: snapOf(sim, this.hostEv) }); this.hostEv = []; }
+    if ((this.snapT += dt) >= .05) { this.snapT = 0; h.broadcastFast({ t: 'sn', d: snapOf(sim, this.hostEv) }); this.hostEv = []; }
     if ((this.stT += dt) >= .25) this.sendState(false);
   }
   /** the whole farm to the guests: on every change of phase / in the book (now) or 4 times a second when it changed */
@@ -513,7 +513,7 @@ class Game {
   }
   private join() {
     const code = cleanCode(($('#visitCode') as HTMLInputElement).value); if (code.length < 5) return;
-    this.netGuest?.close();
+    this.netGuest?.close(); resetSnapSeq();
     const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
     this.netGuest = g; go.disabled = true; msg.textContent = '…';
     this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;

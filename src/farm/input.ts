@@ -29,6 +29,8 @@ export class FarmInput {
   /** every touch on the canvas: where it is now */
   private tp = new Map<number, { x: number; y: number }>();
   onZoom: (dy: number) => void = () => {};
+  /** Tab is held: the mouse wheel switches the berry instead of zooming */
+  tabHeld = false;
   /** next (1) / previous (-1) seed: Tab / Shift+Tab, tap on the seed button (Basti 22.11.2026) */
   onSeed: (dir: number) => void = () => {};
   /** seed button held: the list of seeds */
@@ -63,10 +65,11 @@ export class FarmInput {
       if (e.code === 'Space') e.preventDefault(); // no button click / page scroll
       if (this.enabled && e.code === 'KeyE') { this.eDown = true; this.eHeld = true; this.kb = true; this.setTouch(false); }
       if (this.enabled && e.code === 'Space') { this.spaceHeld = true; this.kb = true; this.setTouch(false); }
-      if (e.code === 'Tab' && this.enabled) { e.preventDefault(); this.onSeed(e.shiftKey ? -1 : 1); }
+      // Basti 22.11.2026: Tab = next berry; Tab held + mouse wheel = switch quickly back and forth
+      if (e.code === 'Tab') { e.preventDefault(); if (this.enabled && !e.repeat) { this.tabHeld = true; this.onSeed(e.shiftKey ? -1 : 1); } }
       this.keys.add(e.code); if (this.enabled) this.onAny();
     });
-    addEventListener('keyup', e => { this.keys.delete(e.code); if (e.code === 'KeyE') this.eHeld = false; if (e.code === 'Space') this.spaceHeld = false; });
+    addEventListener('keyup', e => { this.keys.delete(e.code); if (e.code === 'Tab') this.tabHeld = false; if (e.code === 'KeyE') this.eHeld = false; if (e.code === 'Space') this.spaceHeld = false; });
     addEventListener('blur', () => this.releaseAll());
     c.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('pointerlockerror', () => {

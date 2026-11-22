@@ -10,7 +10,8 @@ export type PlotStage = 'wild' | 'empty' | 'sown' | 'ripe' | 'done';
  *  t = s left of a short step (sprouting after sowing, clearing after the last harvest), grow = s grown since watering (20.11.2026) */
 /** kind: unused since 22.11.2026 (any field grows any seed the farm has, the active seed is sown) */
 /** hp = field health during the night (hares gnaw it down, undefined = full); broken = trampled, must be repaired (actions.repair) */
-export interface PlotState { hp?: number; broken?: boolean; open: boolean; kind?: string; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number; /** harvest experiment: fractions of the side yields (straw ...) */ acc?: Record<ItemId, number> }
+export interface PlotState { hp?: number; broken?: boolean; open: boolean; kind?: string; stage: PlotStage; crop: string | null; days: number; watered: boolean; bites: number; yieldLeft: number; weeds: number; fert: number; fertDay: number; t: number; grow: number; /** harvest experiment: fractions of the side yields (straw ...) */ acc?: Record<ItemId, number>;
+  /** sowing plan (Basti 22.11.2026): the crop of this field, set at night in the house book ("Aussaatplan"), grows from the next morning on */ plan?: string }
 export type BushPhase = 'dry' | 'growing' | 'ripe' | 'empty';
 /** berries = big berries left on the bush, small = small picks left after that */
 export interface BushState { phase: BushPhase; t: number; berries: number; small: number; picked: number }
@@ -80,9 +81,10 @@ export function newState(cfg: FarmCfg): FarmState {
     v: 1, day: 1, tutorialDone: false, money: cfg.start.money, xp: 0, level: 1, items: { ...cfg.start.items }, water: cfg.can.start,
     plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false, v: WILD_V },
     quests: { active: [], offers: [], seq: 1 },
-    weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [], lvShow: [],
+    weapon: 'shotgun', ammo: cfg.weapons.shotgun.ammo[0] ?? null, ammoCount: 0, phase: 'day', summary: null, levelUps: [], lvShow: [],
     seed: cfg.seeds.start[0] ?? 'wheat', seeds: [...cfg.seeds.start], seedPicks: [], perennial: { trees: [], brambles: [] }, fieldPicks: [], fieldsGained: 0,
   };
+  s.plots.forEach((p, i) => { if (p.open) p.plan = cfg.seeds.start[i % cfg.seeds.start.length] ?? 'wheat'; });
   rollDaily(cfg, s);
   return s;
 }
@@ -115,7 +117,7 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
     for (const _ of s.fieldPicks) { openField(s); s.seedPicks.push(seedOffer(cfg, s)); }
     s.fieldPicks = [];
   }
-  for (const p of s.plots) delete p.kind;
+  for (const p of s.plots) { delete p.kind; if (p.open && (!p.plan || !s.seeds.includes(p.plan))) p.plan = p.crop && s.seeds.includes(p.crop) ? p.crop : s.seeds[0]; }
   s.seeds = s.seeds.filter(k => !!cfg.crops[k]); if (!s.seeds.length) s.seeds = [...cfg.seeds.start];
   s.seedPicks = (s.seedPicks ?? []).filter(o => o.length);
   if (!s.seed || !s.seeds.includes(s.seed)) s.seed = s.seeds[0];
@@ -126,7 +128,7 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   s.lvShow ??= s.seedPicks.length ? [s.level] : []; // older saves: a seed still to choose comes with a level-up screen
   // 21.11.2026: no weapon choice in the morning any more: ammo taken out goes back into the storage
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
-  s.weapon = null; s.ammo = null; s.ammoCount = 0;
+  armBerries(cfg, s);
   s.wild ??= { weeds: [], forage: [], seq: 1, init: false };
   if (s.wild.v !== WILD_V) s.wild = { weeds: [], forage: [], seq: s.wild.seq, init: false, v: WILD_V }; // 20.11.2026: weeds + forage sit by theme now
   if (s.bush.small === undefined) s.bush = freshBush();
@@ -136,6 +138,12 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   return s;
 }
 
+/** berry shotgun (Basti 22.11.2026): always in hand, the chosen berry stays (a valid one of the list) */
+export function armBerries(cfg: FarmCfg, s: FarmState) {
+  const list = cfg.weapons.shotgun?.ammo ?? [];
+  s.weapon = cfg.weapons.shotgun?.available ? 'shotgun' : null; s.ammoCount = 0;
+  if (!s.ammo || !list.includes(s.ammo)) s.ammo = list[0] ?? null;
+}
 // ---------------- goods + money ----------------
 export const count = (s: FarmState, id: ItemId) => s.items[id] ?? 0;
 export function addItem(cfg: FarmCfg, s: FarmState, id: ItemId, n: number) {
@@ -168,7 +176,7 @@ const RARITIES: Rarity[] = ['Common', 'Uncommon', 'Rare'];
 /** opens the next free field spot of the farm (false: no spot left) */
 export function openField(s: FarmState) {
   const i = s.plots.findIndex(q => !q.open); if (i < 0) return false;
-  s.plots[i] = newPlot(true); s.fieldsGained++; return true;
+  s.plots[i] = newPlot(true); s.plots[i].plan = s.seeds[0] ?? 'wheat'; s.fieldsGained++; return true;
 }
 /** new seed after a level-up: seeds.offer random crops the farm has no seed of yet, from the lowest rarity that still has some
  *  (commons first, then uncommons, then rares); nothing when every seed is there */
@@ -365,8 +373,16 @@ export function nextDay(cfg: FarmCfg, s: FarmState) {
   // the bush ripens overnight too when it was watered and still growing in the evening
   const grew = s.bush.phase === 'growing', B = cfg.bush;
   claimQuests(cfg, s); s.day++; s.bush = freshBush();
+  applyPlan(cfg, s);
   if (grew) Object.assign(s.bush, { phase: 'ripe', t: B.ripen, picked: 0, small: 0, berries: B.picks * B.berries }); s.phase = 'morning'; s.summary = null; s.levelUps = [];
   rollDaily(cfg, s);
+}
+/** sowing plan (Basti 22.11.2026): in the morning every field that should grow something else starts small with its new crop */
+export function applyPlan(cfg: FarmCfg, s: FarmState) {
+  for (const p of s.plots) {
+    if (!p.open || p.broken || !p.plan || !cfg.crops[p.plan] || p.crop === p.plan) continue;
+    Object.assign(p, { stage: 'sown', crop: p.plan, grow: 0, t: 0, yieldLeft: 0, bites: 0, fert: 0, watered: false, acc: {} });
+  }
 }
 /** growth speed of a plot: every weed slows it down (plots.weeds.slow, Basti 21.11.2026) */
 export function growMul(cfg: FarmCfg, p: PlotState) {

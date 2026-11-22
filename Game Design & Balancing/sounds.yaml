@@ -87,6 +87,9 @@ hare:
 
 fight:                                                # Treffer auf Tiere (Harke, Schrot), 22.11.2026
   impact: { files: [hit_thwack_1, hit_thwack_2, hit_thwack_3], vol: 0.45, pitch: [0.9, 1.12], gap: 0.05 }   # dumpfer Schlag aufs Fell
+  juice:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.35, pitch: [0.55, 0.75], gap: 0.05, lp: 2400 }   # Beeren-Schrotflinte: Saft spritzt aus dem Lauf (22.11.2026)
+  splat:  { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.22, pitch: [0.8, 1.1], gap: 0.04 }              # Beere platzt (Treffer oder nach 20 m)
+  doom:   { files: [merge], vol: 0.45, pitch: [0.4, 0.5], gap: 0.2, lp: 1200 }                                  # Doom: Leben fällt in den dunkellila Bereich, Gegner sofort vertrieben
 
 squirrel:
   # Eichhörnchen: Waschbär-Laute sehr hoch und schnell (Keckern), Rascheln in der Krone beim Erscheinen

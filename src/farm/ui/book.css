@@ -404,3 +404,16 @@
 .book .arow{display:flex;align-items:center;gap:10px;padding:5px 4px;border-bottom:1px dashed #6a44264d;font:600 14px Alegreya,Georgia,serif}
 .book .arow>b{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .book .arow .an,.book .arow .ar{display:flex;gap:8px}.book .arow .gd{display:flex;align-items:center;gap:2px;font-size:14px}.book .arow svg{width:18px;height:18px}
+
+/* sowing plan (Basti 22.11.2026): the farm as an abstract map, fields with their planned crop */
+.plMap{position:relative;width:min(100%,46vh);aspect-ratio:1;margin:6px auto;border-radius:50%;background:radial-gradient(#e7d6a9 55%,#d8c38e);box-shadow:inset 0 0 18px #8a6a2a55}
+.plMap>*{position:absolute;transform:translate(-50%,-50%)}
+.plHouse svg{width:34px;height:34px;opacity:.75}
+.plF{display:grid;place-items:center;aspect-ratio:1;border:2px solid #8a6a2a;border-radius:30%;background:#6a4a2a;cursor:pointer;padding:0}
+.plF svg{width:72%;height:72%}
+.plF.sel{border-color:#e3b964;box-shadow:0 0 0 3px #e3b96488,0 0 14px #e3b964}
+.plF.lock{background:#8a6a2a22;border:1px dashed #8a6a2a77;cursor:default}
+.plF.soon i{position:absolute;right:-10%;bottom:-10%;width:45%;height:45%;border-radius:50%;background:#2a1a10;opacity:.75;display:grid;place-items:center}
+.plF.soon i svg{width:80%;height:80%;opacity:.7}
+.plList{display:flex;flex-direction:column;gap:6px}
+.plS{width:100%;text-align:left;cursor:pointer}.plS.on{outline:3px solid #e3b964}.plS:disabled{cursor:default;opacity:.8}

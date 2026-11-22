@@ -40,6 +40,8 @@ export interface Intent {
   attack: boolean;                  // right click / attack button held
   /** active seed (Basti 22.11.2026): sown on an empty field */
   seed?: string;
+  /** berry shotgun: chosen berry */
+  ammo?: ItemId;
   /** co-op guest: where its own farmer already is on its screen (it walks ahead locally); the owner follows within the walk speed */
   px?: number; pz?: number;
 }
@@ -82,12 +84,16 @@ export interface Player {
   shotT: number; cd: number; hurt: number; stun: number;
   /** harvest experiment: XP fractions of the fruits harvested (whole XP are booked) */
   hx?: number;
+  /** berry shotgun: the berry this farmer shoots (Tab carousel; the owner's is s.ammo) */
+  ammo?: ItemId;
 }
 export type AnimalState = 'enter' | 'go' | 'steal' | 'eat' | 'attack' | 'flee' | 'wander' | 'run' | 'script';
 export interface Animal {
   id: number; type: AnimalType; x: number; z: number; f: number; hp: number; maxHp: number;
   state: AnimalState; target: Target | Lager | null; gap: number; t: number; act: number;
   carry: Record<ItemId, number>; carryN: number; stun: number; freeze: number; flash: number; bite: number;
+  /** berry shotgun: s of bleeding left (strawberries), doom = HP at or under which it is driven off at once (brambles, dark purple bar) */
+  bleed?: number; doom?: number;
   shy: boolean; brave: boolean; driven: boolean; gone: boolean; speedMul: number; dmgMul: number;
   stuck: number; lx: number; lz: number; detour: { x: number; z: number } | null;
   /** hares (21.11.2026): hop around home, run dest when startled, scared = times startled */
@@ -101,7 +107,8 @@ export interface Animal {
   /** co-op: ids of the players who hit it (each gets the XP when it is driven off) */
   hitBy?: number[];
 }
-export interface Pellet { pid?: number; x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId }
+export interface Pellet { pid?: number; x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId;
+  /** berry shotgun (Basti 22.11.2026): s before it leaves the barrel (berries slightly staggered), bleed / doom of the berry */ wait?: number; bleed?: number; doom?: number }
 /** goods on the ground: dropped by a raccoon (stolen) or shaken off a tree (new) */
 export interface Loot { id: number; item: ItemId; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number; fresh?: boolean; /** pieces in this pile (default 1) */ n?: number;
   /** harvest experiment: a fruit out of a field (collected within harvest.collect every tick, 3 alike merge into a bigger one); land = s on the ground */ h?: boolean; land?: number }
@@ -164,6 +171,8 @@ export class DaySim {
   /** night after the day (21.11.2026): s long, 0 = none (tutorial); nightOn from nightfall on; waves = start of every wave (s of the clock) */
   nightLen: number; nightOn = false; waves: number[] = []; broken = 0;
   got: Record<ItemId, number> = {}; lost: Record<ItemId, number> = {}; driven = 0; xpGained = 0;
+  /** berries shot today (berry shotgun) */
+  used: Record<ItemId, number> = {};
   stalls = {} as Record<StallId, Stall>;
   apples: number[];
   brambles: { n: number; t: number }[];
@@ -539,7 +548,7 @@ export class DaySim {
     return s.seeds.includes(k) && this.cfg.crops[k] ? k : s.seeds.find(x => this.cfg.crops[x]) ?? 'wheat';
   }
   // ---------------- harvest experiment (Basti 22.11.2026) ----------------
-  /** a field plants itself again right after the harvest: small, grows by itself */
+  /** a field plants itself again right after the harvest: small, grows by itself (its crop from the sowing plan) */
   private replant(i: number, seed?: string) {
     const s = this.s, k = seed && s.seeds.includes(seed) && this.cfg.crops[seed] ? seed : s.seeds.find(x => this.cfg.crops[x]) ?? 'wheat';
     Object.assign(s.plots[i], { stage: 'sown', crop: k, days: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0, fertDay: 0, t: 0, grow: 0, acc: {} });
@@ -558,7 +567,7 @@ export class DaySim {
       // XP per fruit (fractions add up per farmer)
       P.hx = (P.hx ?? 0) + cropXp(this.cfg, p.crop!);
       if (P.hx >= 1) { const n = Math.floor(P.hx); P.hx -= n; this.giveXp(P, n, this.cfg.hof.plots[t.i]); }
-      if (--p.yieldLeft <= 0) { this.replant(t.i, P.seed ?? this.s.seed); this.ev.push({ k: 'plotCleared', i: t.i }); this.endHarvest(A); return; }
+      if (--p.yieldLeft <= 0) { this.replant(t.i, p.plan); this.ev.push({ k: 'plotCleared', i: t.i }); this.endHarvest(A); return; }
     }
   }
   private endHarvest(A: NonNullable<Player['action']>) {
@@ -622,7 +631,7 @@ export class DaySim {
       if (!p.open) return;
       // harvest experiment (Basti 22.11.2026): an empty field plants itself (active seed of the owner), grows without water or weeds
       if (p.broken) return;
-      if (p.stage === 'empty' || p.stage === 'done' || (p.stage === 'sown' && !p.crop)) { this.replant(i, this.s.seed); return; }
+      if (p.stage === 'empty' || p.stage === 'done' || (p.stage === 'sown' && !p.crop)) { this.replant(i, p.plan); return; }
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
         if (!p.crop || this.nightOn) return; // crops grow by day only
@@ -649,6 +658,7 @@ export class DaySim {
   private updatePlayer(dt: number, it: Intent) {
     const P = this.player, C = this.cfg.player;
     if (it.seed && this.s.seeds.includes(it.seed)) P.seed = it.seed;
+    if (it.ammo && this.cfg.ammo[it.ammo]) P.ammo = it.ammo;
     P.cd = Math.max(0, P.cd - dt); P.hurt = Math.max(0, P.hurt - dt); P.stun = Math.max(0, P.stun - dt);
     // --- fighting (right click): never together with an action, the player stands up for the swing
     if (it.attack && !P.swing && P.cd <= 0) {
@@ -904,7 +914,9 @@ export class DaySim {
 
   // ---------------- fighting ----------------
   /** weapon of the day can fire? */
-  canShoot() { const s = this.s, W = s.weapon && s.weapon !== 'rake' ? this.cfg.weapons[s.weapon] : null; return !!W && W.available && !!s.ammo && s.ammoCount >= (W.ammoPerShot ?? 1); }
+  /** berry shotgun (Basti 22.11.2026): always there, shoots the chosen berry straight out of the storage */
+  ammoOf(P: Player = this.player) { const a = P.ammo ?? this.s.ammo; return a && this.cfg.ammo[a] ? a : null; }
+  canShoot() { const s = this.s, W = s.weapon && s.weapon !== 'rake' ? this.cfg.weapons[s.weapon] : null, a = this.ammoOf(); return !!W && W.available && !!a && count(s, a) >= (W.ammoPerShot ?? 1); }
   private aimDir(it: Intent, range: number) {
     const P = this.player;
     if (it.aimAuto) {
@@ -917,15 +929,17 @@ export class DaySim {
   private attack(it: Intent) {
     const P = this.player, s = this.s;
     if (this.canShoot()) {
-      const W = this.cfg.weapons[s.weapon as Exclude<typeof s.weapon, 'rake' | null>]!, A = this.cfg.ammo[s.ammo!] ?? { damage: 1 };
+      const W = this.cfg.weapons[s.weapon as Exclude<typeof s.weapon, 'rake' | null>]!, am = this.ammoOf()!, A = this.cfg.ammo[am] ?? { damage: 1 };
       const dir = this.aimDir(it, W.range ?? 6); P.f = dir; P.cd = W.cooldown ?? .7; P.shotT = .18;
-      s.ammoCount -= W.ammoPerShot ?? 1;
-      const n = W.pellets ?? 6, cone = (W.cone ?? 26) * Math.PI / 180, sp = W.speed ?? 20;
+      addItem(this.cfg, s, am, -(W.ammoPerShot ?? 1)); this.used[am] = (this.used[am] ?? 0) + (W.ammoPerShot ?? 1);
+      // Basti 22.11.2026: 3 berries close together (cone), slightly staggered one behind the other, they burst at the end of the range
+      const n = W.pellets ?? 6, cone = (W.cone ?? 26) * Math.PI / 180, sp = W.speed ?? 20, side = { x: Math.cos(dir), z: -Math.sin(dir) };
       for (let i = 0; i < n; i++) {
-        const a = dir + (Math.random() - .5) * cone, v = sp * rnd(.85, 1.1);
-        this.pellets.push({ pid: P.id, x: P.x + Math.sin(dir) * .5, z: P.z + Math.cos(dir) * .5, vx: Math.sin(a) * v, vz: Math.cos(a) * v, life: (W.range ?? 7) / v, dmg: (W.damage ?? 2) * A.damage, freeze: A.freeze ?? 0, ammo: s.ammo! });
+        const k = n > 1 ? i / (n - 1) - .5 : 0, a = dir + k * cone + (Math.random() - .5) * cone * .3, v = sp * rnd(.95, 1.05), off = (Math.random() - .5) * .16;
+        this.pellets.push({ pid: P.id, x: P.x + Math.sin(dir) * .5 + side.x * off, z: P.z + Math.cos(dir) * .5 + side.z * off, vx: Math.sin(a) * v, vz: Math.cos(a) * v,
+          life: (W.range ?? 7) / v, dmg: (W.damage ?? 2) * A.damage, freeze: A.freeze ?? 0, bleed: A.bleed, doom: A.doom, ammo: am, wait: i * (W.stagger ?? 0) + Math.random() * .02 });
       }
-      this.ev.push({ k: 'shot', x: P.x, z: P.z, dir, ammo: s.ammo });
+      this.ev.push({ k: 'shot', x: P.x, z: P.z, dir, ammo: am });
       return;
     }
     const W = this.cfg.weapons.rake, dir = this.aimDir(it, W.range);
@@ -946,19 +960,24 @@ export class DaySim {
   }
   private updatePellets(dt: number) {
     for (let i = this.pellets.length - 1; i >= 0; i--) {
-      const p = this.pellets[i], x0 = p.x, z0 = p.z; p.x += p.vx * dt; p.z += p.vz * dt; p.life -= dt;
+      const p = this.pellets[i]; if (p.wait && p.wait > 0) { p.wait -= dt; continue; }
+      const x0 = p.x, z0 = p.z; p.x += p.vx * dt; p.z += p.vz * dt; p.life -= dt;
       let hit = false;
       for (const a of this.animals) { // swept test: a fast pellet must not tunnel through an animal between two frames
         if (a.gone || a.state === 'script') continue;
-        if (segDist(x0, z0, p.x, p.z, a.x, a.z) < this.cfg.animals[a.type].radius + .1) { this.hitAnimal(a, p.dmg, { freeze: p.freeze, fromX: p.x - p.vx, fromZ: p.z - p.vz, knock: .08, pid: p.pid }); hit = true; break; }
+        if (segDist(x0, z0, p.x, p.z, a.x, a.z) < this.cfg.animals[a.type].radius + .1) { this.hitAnimal(a, p.dmg, { freeze: p.freeze, bleed: p.bleed, doom: p.doom, fromX: p.x - p.vx, fromZ: p.z - p.vz, knock: .08, pid: p.pid }); hit = true; break; }
       }
       if (!hit) for (const o of this.hof.near(p.x, p.z, .05, this.pelletBuf)) { if (o.id === 'bush' || o.kind === 'box') continue; if (obsDist(o, p.x, p.z) <= 0) { hit = true; break; } }
-      if (hit || p.life <= 0) { if (hit) this.ev.push({ k: 'pelletHit', x: p.x, z: p.z, ammo: p.ammo }); this.pellets.splice(i, 1); }
+      if (hit || p.life <= 0) { this.ev.push({ k: 'pelletHit', x: p.x, z: p.z, ammo: p.ammo, end: !hit }); this.pellets.splice(i, 1); } // burst on a hit or at the end of the range
     }
   }
-  hitAnimal(a: Animal, dmg: number, o: { stun?: number; knock?: number; freeze?: number; fromX: number; fromZ: number; pid?: number }) {
+  hitAnimal(a: Animal, dmg: number, o: { stun?: number; knock?: number; freeze?: number; bleed?: number; doom?: number; fromX: number; fromZ: number; pid?: number }) {
     if (a.gone) return;
     a.hp -= dmg; a.flash = .25;
+    // berry effects (Basti 22.11.2026): strawberries make it bleed, brambles grow the doom bar: HP at or under it = driven off at once
+    if (o.bleed) a.bleed = Math.max(a.bleed ?? 0, this.cfg.bleed?.time ?? 4);
+    if (o.doom) a.doom = Math.min(a.maxHp, (a.doom ?? 0) + o.doom);
+    if (a.doom && a.hp > 0 && a.hp <= a.doom) { a.hp = 0; this.ev.push({ k: 'doom', id: a.id, x: a.x, z: a.z }); }
     if (o.pid !== undefined && !(a.hitBy ??= []).includes(o.pid)) a.hitBy.push(o.pid);
     if (o.stun) a.stun = Math.max(a.stun, o.stun);
     if (o.freeze) a.freeze = Math.max(a.freeze, o.freeze);
@@ -1285,6 +1304,11 @@ export class DaySim {
       if (a.gone) continue;
       const C = this.cfg.animals[a.type];
       a.flash = Math.max(0, a.flash - dt); a.stun = Math.max(0, a.stun - dt); a.bite = Math.max(0, a.bite - dt);
+      if (a.bleed && a.bleed > 0 && !a.driven) { // bleeding (strawberry shot): HP drip away, red drops
+        a.bleed -= dt; a.hp -= (this.cfg.bleed?.dps ?? 1) * dt;
+        if (Math.random() < dt * 6) this.ev.push({ k: 'bleed', x: a.x, z: a.z });
+        if (a.hp <= 0 || (a.doom && a.hp <= a.doom)) { if (a.doom && a.hp > 0) this.ev.push({ k: 'doom', id: a.id, x: a.x, z: a.z }); a.hp = 0; a.bleed = 0; this.driveOff(a); }
+      }
       if (a.freeze > 0) { a.freeze -= dt; continue; }
       const slow = a.stun > 0 ? 1 - a.stun / Math.max(.01, this.cfg.weapons.rake.stun) : 1;
       const sp = C.speed * a.speedMul * slow, fsp = C.fleeSpeed * a.speedMul * slow;

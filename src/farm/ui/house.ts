@@ -14,10 +14,10 @@ import { GraphMode, storeLeft, storeRight, storeSections } from './storePage';
 import './book.css';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
-type Tab = 'store' | 'quests' | 'build' | 'prod';
+type Tab = 'store' | 'quests' | 'plan' | 'build' | 'prod';
 /** bookmarks: id, icon, name, ribbon colour, page side */
 const TABS: [Tab, string, string, string][] = [
-  ['store', 'box', 'Lager', '#d9772b'], ['quests', 'shop', 'Hofladen', '#a8403a'],
+  ['store', 'box', 'Lager', '#d9772b'], ['quests', 'shop', 'Hofladen', '#a8403a'], ['plan', 'plot', 'Aussaatplan', '#8a6a2a'],
   ['build', 'hammer', 'Bauen', '#3d6a9e'], ['prod', 'gear', 'Produktion', '#5a7f34'],
 ];
 const FLIP_MS = 900;
@@ -130,7 +130,7 @@ export class HouseUi {
     // Basti 22.11.2026: nothing lies on the book any more: the evening opens on the orders (delivered ones sparkle, collected
     // by their button), the new seed of a level-up is chosen on the level-up screen (levelUp.ts)
     book.classList.remove('modal'); $('#hRewards').hidden = true;
-    $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 2 ? ' right' : ''}" style="--c:${col};--x:${[3, 20.5, 53, 70.5][k]}%;--d:${[1, 3, 2, 4][k]}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
+    $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 3 ? ' right' : ''}" style="--c:${col};--x:${[1.5, 17, 32.5, 53, 70.5][k]}%;--d:${[1, 3, 5, 2, 4][k]}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
     const [l, r] = this.pages();
     $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r;
     book.dataset.tab = this.tab;
@@ -142,12 +142,39 @@ export class HouseUi {
       if (!storeSections(this.cfg).some(S => S.goods.some(g => g.id === this.sel))) this.sel = storeSections(this.cfg)[0]?.goods[0]?.id ?? 'wheat';
       return [storeLeft(this.cfg, this.s, seen, this.sel), storeRight(this.cfg, this.s, seen, this.sel, this.gmode)];
     }
+    if (tab === 'plan') return this.planPages();
     if (tab === 'quests') { if (this.arch) this.archN = ARCH_PAGE; return [shopLeft(this.cfg, this.s, this.shop), this.arch ? archivePage(this.cfg, this.s) : questsRight(this.cfg, this.s, this.day)]; }
     const rows = tab === 'build' ? this.buildList() : this.prodList(), head = `<h2>${ic(tab === 'build' ? 'hammer' : 'gear')}</h2>`;
     // a short list stays on the left page; the right page of "Bauen" shows what the next levels unlock
     const half = rows.length > 7 ? Math.ceil(rows.length / 2) : rows.length;
     const right = half < rows.length ? `<h2 class="sp"></h2>` + rows.slice(half).join('') : tab === 'build' ? this.nextUnlocks() : '';
     return [head + rows.slice(0, half).join(''), right];
+  }
+  // ---------------- sowing plan (Basti 22.11.2026) ----------------
+  /** field picked on the plan */
+  planSel = -1;
+  /** left: the farm as an abstract map (fields with their planned crop, the house for orientation); right: the seeds to choose.
+   *  Only at night / in the evening (the day book shows it read-only). The new crop grows from the next morning on. */
+  private planPages(): [string, string] {
+    const s = this.s, C = this.cfg, H = C.hof, P = H.plots;
+    if (this.planSel < 0 || !s.plots[this.planSel]?.open) this.planSel = s.plots.findIndex(p => p.open);
+    const pts = [...P, H.door], xs = pts.map(p => p.x), zs = pts.map(p => p.z);
+    const x0 = Math.min(...xs) - 2, x1 = Math.max(...xs) + 2, z0 = Math.min(...zs) - 2, z1 = Math.max(...zs) + 2, sc = Math.max(x1 - x0, z1 - z0);
+    const fw = (C.plots.size / sc * 100 * .96).toFixed(1);
+    const pos = (x: number, z: number) => `width:${fw}%;left:${((x - (x0 + x1) / 2) / sc * 100 + 50).toFixed(1)}%;top:${((z - (z0 + z1) / 2) / sc * 100 + 50).toFixed(1)}%`;
+    const name = (k: string) => C.crops[k]?.name ?? this.name(k);
+    let map = `<div class="plMap"><span class="plHouse" style="${pos(H.door.x, H.door.z)};width:auto">${ic('house')}</span>`;
+    P.forEach((q, i) => {
+      const p = s.plots[i];
+      if (!p.open) { map += `<span class="plF lock" style="${pos(q.x, q.z)}"></span>`; return; }
+      const k = p.plan ?? p.crop ?? s.seeds[0], soon = p.crop !== k;
+      map += `<button class="plF${i === this.planSel ? ' sel' : ''}${soon ? ' soon' : ''}" data-plot="${i}" style="${pos(q.x, q.z)}" title="${name(k)}">${ic(k)}${soon ? `<i>${ic(p.crop ?? k)}</i>` : ''}</button>`;
+    });
+    map += '</div>';
+    const cur = s.plots[this.planSel]?.plan ?? '', ro = this.day ? ' disabled' : '';
+    const list = s.seeds.filter(k => C.crops[k]).map(k => { const c = C.crops[k];
+      return `<button class="row plS${k === cur ? ' on' : ''}" data-plan="${k}"${ro}>${ic(k)}<div class="bn"><b>${name(k)}</b><div class="cost"><span class="gd">${ic('sun')}<b>${c.grow} s</b></span><span class="gd">${ic('sickle')}<b>${c.every} s</b></span></div></div>${k === cur ? ic('check') : ''}</button>`; }).join('');
+    return [`<h2>${ic('plot')}</h2>${map}`, `<h2>${ic('seed')}${this.day ? ic('lock') : ''}</h2><div class="plList">${list}</div>`];
   }
   /** levels to come with what they bring (buildings + one field each) */
   private nextUnlocks() {
@@ -430,6 +457,8 @@ export class HouseUi {
       $('#hBody').querySelectorAll('.cell.sel').forEach(c => c.classList.remove('sel')); t.classList.add('sel');
       return;
     }
+    if (d.plot) { this.planSel = +d.plot; this.onSound('ui.click'); const [l, r] = this.planPages(); $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r; return; }
+    if (d.plan) { const p = s.plots[this.planSel]; if (p?.open && !this.day && s.seeds.includes(d.plan)) { p.plan = d.plan; this.onSound('ui.confirm'); this.onChange(); } const [l, r] = this.planPages(); $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r; return; }
     if (d.gmode) { this.gmode = d.gmode as GraphMode; this.onSound('ui.click'); $('#hBodyR').innerHTML = storeRight(C, s, markSeen(s), this.sel, this.gmode); return; }
     if (this.shopClick(t, d)) return;
     if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }

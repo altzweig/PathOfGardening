@@ -273,7 +273,7 @@ wild:                      # was auf dem Hof von selbst wächst (nie im Sichtber
       mushroom: [edge]
       stone: [edge]
   brambles: { count: 5, every: 2, picks: 3, pick: 5 }   # wilde Brombeeren: alle 2 Tage reif, 3x Pflücken je 5 Beeren
-  trees: [apple, apple, nut]   # Bäume auf dem Hof der Reihe nach: Apfel, Apfel, Nuss, Apfel ...
+  trees: [apple, apple, nut, apple, apple, apple]   # Bäume auf dem Hof der Reihe nach (Welt-Editor-Reihenfolge), danach wieder von vorn; der 6. ist der große Apfelbaum in der Hofmitte
   apples: { every: 1, picks: 3, shake: 2 }   # Apfelbaum: jeden Tag, 3x Schütteln, je 2 Äpfel fallen herunter
   nuts: { every: 3, picks: 3, shake: 3 }     # Nussbaum: alle 3 Tage, 3x Schütteln, je 3 Nüsse
   barrel: 10               # Fass am Brunnen fasst so viel Wasser
@@ -303,7 +303,7 @@ laternen:                  # altmodische Laternen: 3 am Hofbaum, weitere an den 
   baum:
     anzahl: 3              # je 120° um den Stamm, die erste zeigt zur Hofmitte
     radius: [0.9, 2.6]     # m vom Stamm, in dem ein Ast zum Einhängen gesucht wird
-    hoehen: [2.0, 2.25, 1.8]   # m Unterkante jeder Laterne über dem Boden (leicht unterschiedlich)
+    hoehen: [1.75, 1.9, 1.6]   # m Unterkante jeder Laterne über dem Boden (leicht unterschiedlich; Apfelbaum ist halb so hoch wie der alte Baum)
     drehung: 0             # Grad, dreht alle drei um den Stamm
     punkt: null            # [x, z] wenn ein anderer Baum gemeint ist (sonst der Baum, der der Hofmitte am nächsten steht)
   glas: 2.2                # Leuchtkraft des Glases

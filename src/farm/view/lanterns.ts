@@ -11,6 +11,7 @@ import { modelParts } from '../../view/nature';
 import { MODEL } from '../../world/catalog';
 import { toInst } from '../../world/props';
 import type { PropRec } from '../../world/data';
+import type { AppleTreeShape } from './appleTree';
 
 /** look + layout values (balancing.yaml `laternen`) */
 export interface LanternCfg {
@@ -23,7 +24,7 @@ export interface LanternCfg {
   /** swing of the hanging lanterns (rad) */
   pendeln: number;
 }
-export const LANTERN_DEFAULT: LanternCfg = { baum: { anzahl: 3, radius: [.9, 2.6], hoehen: [2.0, 2.25, 1.8] }, glas: 2.2, halo: [1.1, .45], boden: [2.2, .32], licht: [9, 9], pendeln: .05 };
+export const LANTERN_DEFAULT: LanternCfg = { baum: { anzahl: 3, radius: [.9, 2.6], hoehen: [1.75, 1.9, 1.6] }, glas: 2.2, halo: [1.1, .45], boden: [2.2, .32], licht: [9, 9], pendeln: .05 };
 
 // ---------------- the lantern model (origin = bottom centre, 0.53 m high incl. the ring) ----------------
 const iron = new THREE.MeshStandardMaterial({ color: 0x2e2822, metalness: .55, roughness: .5, flatShading: true });
@@ -76,6 +77,15 @@ const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 interface Lamp { g: THREE.Group; halo: THREE.Sprite; pivot?: THREE.Group; ph: number; f: number }
 const down = new THREE.Vector3(0, -1, 0);
 
+/** bark vertices of a placed tree model in world space (its branches) */
+function barkPoints(tree: PropRec) {
+  const it = toInst(tree), m4 = new THREE.Matrix4().compose(new THREE.Vector3(it.x, it.y ?? 0, it.z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(it.tx ?? 0, it.ry ?? 0, it.tz ?? 0)), new THREE.Vector3().setScalar(it.s));
+  const pts: THREE.Vector3[] = [], v = new THREE.Vector3();
+  for (const q of modelParts(tree.m)) if (q.mat.startsWith('Bark')) { const P = q.geo.getAttribute('position'); for (let i = 0; i < P.count; i++) pts.push(v.fromBufferAttribute(P, i).applyMatrix4(m4).clone()); }
+  return pts;
+}
+
 export class Lanterns {
   root = new THREE.Group();
   lamps: Lamp[] = [];
@@ -87,16 +97,18 @@ export class Lanterns {
 
   /** build everything: props = all placed world objects, layer = the meshes of the placed objects (to stand on fence posts / rocks),
    *  near = the point the yard tree is closest to (centre of fields + house) */
-  build(props: PropRec[], layer: THREE.Object3D, near: { x: number; z: number }) {
+  build(props: PropRec[], layer: THREE.Object3D, near: { x: number; z: number }, apple?: AppleTreeShape) {
     GEO ??= lanternGeos();
     for (const p of props) if (p.m === 'Laterne') this.stand(p, layer);
+    // the big apple tree (22.11.2026): the lanterns hang from its three lantern branches
+    if (apple) { this.hangOn(apple, apple.hookPts, near); return; }
     const P = this.C.baum.punkt ?? null, aim = P ? { x: P[0], z: P[1] } : near;
     let best: PropRec | null = null, bd = Infinity;
     for (const p of props) {
       if (MODEL.get(p.m)?.cat !== 'Bäume' || !modelParts(p.m).some(q => q.mat.startsWith('Bark'))) continue;
       const d = Math.hypot(p.x - aim.x, p.z - aim.z); if (d < bd) { bd = d; best = p; }
     }
-    if (best && bd < 25) this.hangOn(best, near);
+    if (best && bd < 25) this.hangOn(best, barkPoints(best), near);
   }
 
   /** a standing lantern: on top of whatever is below (fence post, rock: a flat spot nearby), else on the ground */
@@ -120,13 +132,9 @@ export class Lanterns {
   }
 
   /** three lanterns 120° apart around the trunk, each on a chain from a branch */
-  private hangOn(tree: PropRec, near: { x: number; z: number }) {
-    const C = this.C.baum, it = toInst(tree), m4 = new THREE.Matrix4().compose(new THREE.Vector3(it.x, it.y ?? 0, it.z),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(it.tx ?? 0, it.ry ?? 0, it.tz ?? 0)), new THREE.Vector3().setScalar(it.s));
+  private hangOn(tree: { x: number; z: number }, pts: THREE.Vector3[], near: { x: number; z: number }) {
+    const C = this.C.baum;
     this.tree = { x: tree.x, z: tree.z };
-    // bark vertices in world space (the branches)
-    const pts: THREE.Vector3[] = [], v = new THREE.Vector3();
-    for (const q of modelParts(tree.m)) if (q.mat.startsWith('Bark')) { const P = q.geo.getAttribute('position'); for (let i = 0; i < P.count; i++) pts.push(v.fromBufferAttribute(P, i).applyMatrix4(m4).clone()); }
     // the first lantern faces the middle of the yard
     const a0 = Math.atan2(near.z - tree.z, near.x - tree.x) + (C.drehung ?? 0) * Math.PI / 180, n = Math.max(1, C.anzahl), hooks: THREE.Vector3[] = [];
     for (let k = 0; k < n; k++) {

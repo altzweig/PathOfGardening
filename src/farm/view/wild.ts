@@ -1,6 +1,7 @@
 // Things that grow on the farm by themselves: wild herb tufts in the yard (weed + wild garlic + sorrel + dandelion),
 // weed tufts on the plots, forage at the forest edge (mushrooms, firewood, stones), wild bramble bushes and the apples in the farm's trees. Instanced, cheap.
 import * as THREE from 'three';
+import { appleSpots, appleTreeShape, yardMid } from './appleTree';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { scene, windU } from '../../view/core';
 import { buildPlant } from '../../view/models';
@@ -135,7 +136,8 @@ export class WildView {
     const per = Math.max(...cfg.hof.trees.map((_, i) => treeCfg(cfg, i).picks * treeCfg(cfg, i).shake), 1);
     this.apples = new THREE.InstancedMesh(new THREE.SphereGeometry(.09, 8, 6), amat, cfg.hof.trees.length * per); this.apples.count = 0; this.apples.castShadow = true; this.apples.frustumCulled = false; scene.add(this.apples);
     this.rims.set(this.apples, outlineFor(this.apples, .018));
-    this.appleSpots = cfg.hof.trees.map(t => Array.from({ length: per }, () => { const a = rnd() * Math.PI * 2, r = .7 + rnd() * .45, y = 1.7 + rnd() * .8; return new THREE.Vector3(t.x + Math.cos(a) * r, y, t.z + Math.sin(a) * r); }));
+    const mid = yardMid(cfg.hof);
+    this.appleSpots = cfg.hof.trees.map(t => t.big ? appleSpots(appleTreeShape(t.x, t.z, mid), per, rnd) : Array.from({ length: per }, () => { const a = rnd() * Math.PI * 2, r = .7 + rnd() * .45, y = 1.7 + rnd() * .8; return new THREE.Vector3(t.x + Math.cos(a) * r, y, t.z + Math.sin(a) * r); }));
   }
   update(s: FarmState, sim: DaySim | null, now: number) {
     const W = s.wild, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();

@@ -61,7 +61,7 @@ export interface DailyQuestCfg { count: number; load: number; cycle: number; obj
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
-  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; nextField?: number; turnWithCam?: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
+  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; turnWithCam?: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };

@@ -221,6 +221,8 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - **Steuerung PC (Third Person):** Maus wird beim ersten Klick gefangen und dreht die Kamera, WASD laufen relativ zur Kamera (W = Blickrichtung). Linke Maustaste oder **E** = Aktion am nächsten Ziel vor der Figur (halten = weiter), rechte Maustaste oder **Leertaste** = Kämpfen (zielt automatisch auf das nächste Tier). Mausrad = Zoom, mittlere Maustaste ist frei. Esc gibt die Maus frei und pausiert. Die Kamera kann tiefer geneigt werden (`camera.pitch` ab 0,35).
 - **Freie Sicht auf die Figur:** Alles zwischen Kamera und Figur (Bäume, Büsche, Gebäude, Zäune) wird rund um die Figur sanft ausgeblendet (feines Dithering, ein leichter Schatten des Objekts bleibt sichtbar). Gras und Beete bleiben.
 
+- **Nachtrag 22.11.2026:** Ausblendung vor der Kamera doppelt so groß. Ein schlafendes Feld zeigt nur die „Z“, keinen Balken/Namen. Ernte-Popups: „Anzahl Icon Name“, Schrift in der Farbe der Seltenheit (Common weiß, Uncommon grün, Rare blau), enger untereinander, steigen von unten auf; ein Glückswurf (Kräuter beim Jäten) etwas größer.
+
 ### Annahmen (bitte prüfen)
 - Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
 - Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.

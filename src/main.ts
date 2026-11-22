@@ -21,6 +21,7 @@ import { FarmView } from './farm/view/farmView';
 import { FarmInput } from './farm/input';
 import { FarmHud } from './farm/ui/hud';
 import { HouseUi } from './farm/ui/house';
+import { LevelUpUi } from './farm/ui/levelUp';
 import { Tutorial } from './farm/tutorial';
 import { mobileControls, pcControls } from './farm/ui/controls';
 import { sensRows } from './farm/sens';
@@ -62,7 +63,7 @@ type Mode = 'menu' | 'day' | 'evening';
 
 class Game {
   cfg!: FarmCfg; hof!: Hof; s!: FarmState;
-  view!: FarmView; input = new FarmInput(isTouch); hud!: FarmHud; house!: HouseUi;
+  view!: FarmView; input = new FarmInput(isTouch); hud!: FarmHud; house!: HouseUi; lv!: LevelUpUi;
   sim: DaySim | null = null; tut: Tutorial | null = null;
   mode: Mode = 'menu';
   private menu = new StartMenu(loadLook());
@@ -70,6 +71,8 @@ class Game {
   private paused = false;
   /** the house book opened during the day (key B / book button): the game is paused while it is open */
   private bookOpen = false;
+  /** the level-up screen paused the day (Basti 22.11.2026) */
+  private lvPause = false;
   private mouse = { x: 0, y: 0 };
   private ending = false;
   /** the save this game writes to (null = tutorial: nothing is saved) */
@@ -121,6 +124,7 @@ class Game {
     this.view.setLook(this.menu.look);
     this.hud = new FarmHud(this.cfg);
     this.house = new HouseUi(this.cfg, this.s);
+    this.lv = new LevelUpUi(this.cfg);
     this.view.floatXp = (x, z, xp) => this.hud.float(x, z, `${ic('xp')}+${xp}`, 'xp');
     this.wire();
     this.only(null); this.updateMenu();
@@ -191,6 +195,11 @@ class Game {
     this.house.onChange = () => { this.view.syncBuildings(); this.persist(false); this.sendState(true); };
     this.house.onSleep = () => this.sleep();
     this.house.onClose = () => this.closeBook();
+    this.house.onLevel = () => this.openLevel(false);
+    this.lv.onSound = k => sfx(k);
+    this.lv.onDone = () => this.levelDone();
+    this.hud.onLvNote = () => this.openLevel(true);
+    addEventListener('keydown', e => { if (e.code === 'KeyL' && !e.repeat && this.mode === 'day' && this.s.lvShow.length && !(e.target as HTMLElement)?.closest?.('input,textarea')) this.openLevel(true); });
     click('#fBook', () => this.toggleBook());
     // co-op
     click('#visitBtn', () => this.openVisit(''));
@@ -326,12 +335,13 @@ class Game {
     this.closeFarm(); if (this.netGuest) { this.bookGuestXp(); this.netGuest.close(); this.netGuest = null; }
     this.paused = false; this.bookOpen = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
-    this.house.showEvening(false);
+    this.house.showEvening(false); this.lv.hide(); this.lvPause = false;
     this.house.s = this.s; this.view.setState(this.s);
     this.only('#menu'); this.updateMenu();
   }
   /** the house book over the running day (Basti 21.11.2026): pauses the game, Esc / B / the button close it again */
   private toggleBook() {
+    if (this.lv.open) return;
     if (this.bookOpen) { this.closeBook(); return; }
     if (this.netGuest && this.mode === 'evening' && !this.paused) { this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); return; }
     if (this.mode !== 'day' || !this.sim || this.ending || this.paused || this.tut || this.cut.active) return;
@@ -346,6 +356,7 @@ class Game {
     if (this.mode === 'day') this.input.lock();
   }
   private togglePause() {
+    if (this.lv.open) return; // the level-up screen closes with its own button / the seed choice
     if (this.bookOpen) { this.closeBook(); return; }
     if (this.mode === 'menu' || this.ending || (this.mode === 'day' && !this.sim)) return;
     if (this.tut?.waitingForAttack) return;
@@ -423,8 +434,30 @@ class Game {
   private toEvening(fade: boolean) {
     this.mode = 'evening'; this.view.setState(this.s); this.house.s = this.s; this.view.resetLight();
     this.house.tab = 'quests'; this.house.showEvening(true); // Basti 22.11.2026: the evening opens on orders + farm shop
+    this.openLevel(false); // a level-up of the night (or one not looked at yet) comes before the book
     this.sendState(true);
     if (fade) setTimeout(() => this.hud.fade(false, true), 300); else this.hud.fade(false);
+  }
+  // ---------------- level-up screen (Basti 22.11.2026) ----------------
+  /** shows the level-up screen if one is waiting. By day only when nothing else runs; force = opened by the note (also at night) */
+  private openLevel(force: boolean) {
+    const s = this.s;
+    if (!this.lv || this.lv.open || this.netGuest || (!s.lvShow.length && !s.seedPicks.length)) return false;
+    if (this.mode === 'day') {
+      const sim = this.sim;
+      if (!sim || this.ending || this.cut.active || this.bookOpen || this.paused) return false;
+      if (!force && (sim.nightOn || this.tut)) return false;
+      if (!this.lv.show(s)) return false;
+      this.paused = true; this.lvPause = true; this.input.releaseAll(); this.input.unlock();
+      return true;
+    }
+    return this.mode === 'evening' && this.lv.show(s);
+  }
+  private levelDone() {
+    if (this.lv.show(this.s)) return; // the next level reached at the same time
+    if (this.lvPause) { this.lvPause = false; this.paused = false; if (this.mode === 'day') this.input.lock(); }
+    if (this.mode === 'evening') this.house.render();
+    this.persist(false); this.sendState(true);
   }
   private async sleep() {
     this.hud.fade(true, true); await wait(1500);
@@ -478,6 +511,9 @@ class Game {
     // daily orders: delivered as soon as all goods are in the storage (reward in the evening)
     if (this.s.tutorialDone) for (const q of checkQuests(this.cfg, this.s)) { sfx('ui.levelup'); this.hud.float(sim.player.x, sim.player.z, `${ic('check')}${q.title ?? ''}`, 'xp'); }
     if (sim.finished === 'time' && !this.tut) this.endOfDay('time');
+    // level-up (Basti 22.11.2026): by day the screen comes at once; at night / in the tutorial the XP bar lights up + a note
+    if (this.s.lvShow.length && !this.lv.open) this.openLevel(false);
+    this.hud.lvNote(this.s.lvShow.length && !this.lv.open && !this.ending ? this.s.level : null, this.input.lastTouch);
     // last seconds before the night / of the night: a dry clock tick
     const left = sim.nightLen ? (sim.nightOn ? sim.nightLeft : sim.dayLeft) : 99, sec = Math.ceil(left);
     if (sec !== this.cdTick) { this.cdTick = sec; if (sec <= 10 && sec > 0 && !sim.finished) play('cdTick', sec <= 3); }

@@ -1,0 +1,72 @@
+/* ---------- level-up screen (Basti 22.11.2026) ---------- */
+#fLvUp{position:absolute;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;box-sizing:border-box;
+  padding:max(14px,env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-right,0px)) max(14px,env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));
+  background:radial-gradient(ellipse at 50% 40%,#2a1a08cc,#05080bee 70%);--ink:#3e230f;--ink3:#9a5c34;font-family:Alegreya,Georgia,serif}
+#fLvUp[hidden]{display:none}
+#fLvUp.in{animation:luFade .35s ease-out}
+@keyframes luFade{from{opacity:0}}
+.luWrap{position:relative;width:min(640px,100%);max-height:100%;display:flex;flex-direction:column;padding-top:56px;box-sizing:border-box}
+.luBox{position:relative;width:100%;max-height:100%;overflow:auto;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:78px 26px 24px;border-radius:14px;color:var(--ink);
+  background:radial-gradient(ellipse 92% 88% at 50% 48%,#0000 55%,#a8701f3a 82%,#8a5414b0 100%),#efe0b6;
+  box-shadow:0 30px 70px #000c,0 0 0 3px #6a4426,0 0 0 6px #e3b96455,inset 0 0 30px #9a622060}
+#fLvUp.in .luWrap{animation:luPop .55s cubic-bezier(.2,1.4,.4,1)}
+@keyframes luPop{from{transform:translateY(30px) scale(.86);opacity:0}}
+/* big star with the level, golden rays turning behind it */
+.luStar{position:absolute;z-index:2;left:50%;top:-2px;width:132px;height:132px;transform:translateX(-50%);display:grid;place-items:center}
+.luStar>svg{position:relative;width:132px;height:132px;filter:drop-shadow(0 4px 10px #0009) drop-shadow(0 0 22px #ffd04099)}
+.luStar>b{position:absolute;top:47%;left:50%;transform:translate(-50%,-50%);font:800 40px Cinzel,Alegreya,serif;color:#5a3408;text-shadow:0 1px 0 #fff6c8}
+#fLvUp.in .luStar>svg,#fLvUp.in .luStar>b{animation:luStar .8s .15s cubic-bezier(.2,1.6,.4,1) backwards}
+@keyframes luStar{from{transform:scale(.2) rotate(-40deg);opacity:0}}
+#fLvUp.in .luStar>b{animation-name:luNum}@keyframes luNum{from{transform:translate(-50%,-50%) scale(.2);opacity:0}}
+.luRays{position:absolute;inset:-70px;animation:luSpin 14s linear infinite;pointer-events:none}
+.luRays i{position:absolute;left:50%;top:50%;width:26px;height:50%;margin-left:-13px;transform-origin:50% 0;transform:rotate(var(--a));
+  background:linear-gradient(180deg,#ffe08a00 20%,#ffe08a66 55%,#ffe08a00);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%)}
+@keyframes luSpin{to{transform:rotate(360deg)}}
+.luT{margin:0;font:800 34px Cinzel,Alegreya,serif;letter-spacing:.04em;color:#6a3a10;text-shadow:0 1px 0 #fff8}
+.luUn{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.luU{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;padding:12px 8px 10px;box-sizing:border-box;border-radius:12px;
+  border:2px solid #8a5a10;background:linear-gradient(160deg,#fff6d6,#f3dea0);box-shadow:0 3px 0 #6a442655,0 0 18px #e8b84a55}
+#fLvUp.in .luU{animation:luIn .45s calc(.45s + var(--i) * .12s) cubic-bezier(.2,1.4,.4,1) backwards}
+@keyframes luIn{from{transform:translateY(16px) scale(.8);opacity:0}}
+.luU svg{width:44px;height:44px}.luU b{font:800 15px/1.1 Alegreya,Georgia,serif;text-align:center}
+.luU em{position:absolute;top:-9px;right:-7px;padding:1px 7px;border-radius:10px;background:#3a8a1c;color:#fff;font:800 14px Alegreya,Georgia,serif;font-style:normal;box-shadow:0 2px 4px #0005}
+.luSeedH{display:flex;align-items:center;gap:8px;margin-top:6px;font:italic 800 24px Alegreya,Georgia,serif;color:var(--ink3)}.luSeedH svg{width:36px;height:36px}
+.luSeeds{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:100%}
+.luSeed{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:12px;border:2px solid #8a5a10;cursor:pointer;color:var(--ink);
+  background:#fffdf2cc;font-family:Alegreya,Georgia,serif;transition:transform .12s,box-shadow .12s}
+#fLvUp.in .luSeed{animation:luIn .45s calc(.8s + var(--i) * .12s) cubic-bezier(.2,1.4,.4,1) backwards}
+.luSeed:hover,.luSeed:focus-visible{transform:translateY(-3px) scale(1.03);box-shadow:0 0 22px #e8b84a99;outline:none}
+.luSeed>svg{width:46px;height:46px}.luSeed>b{font:800 19px Alegreya,Georgia,serif}
+.luSeed .rew{display:flex;gap:10px}.luSeed .gd{display:flex;align-items:center;gap:2px;font-size:16px;color:var(--ink)}.luSeed .gd.xp{color:#2f4a9a}.luSeed .gd svg{width:22px;height:22px}
+.luGo{display:flex;align-items:center;gap:8px;margin-top:4px;padding:10px 26px;border-radius:12px;border:2px solid #4a2a10;cursor:pointer;
+  background:linear-gradient(180deg,#f6d27a,#d9a040);color:#3e230f;font:800 20px Alegreya,Georgia,serif;box-shadow:0 3px 0 #6a4426}
+.luGo:hover{filter:brightness(1.08)}.luGo svg{width:24px;height:24px}
+/* sparkles over the card */
+.luSparks{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:14px}
+.luSparks i{position:absolute;left:var(--x);top:var(--y);width:10px;height:10px;transform:scale(0);
+  background:radial-gradient(circle,#fff 0 18%,#ffe08a 30%,#0000 60%);animation:luTw 2.4s var(--d) ease-in-out infinite}
+.luSparks i::before{content:'';position:absolute;inset:-6px 4px;background:linear-gradient(#0000,#fff8,#0000)}
+.luSparks i::after{content:'';position:absolute;inset:4px -6px;background:linear-gradient(90deg,#0000,#fff8,#0000)}
+@keyframes luTw{0%,100%{transform:scale(0)}50%{transform:scale(var(--s))}}
+@media (max-width:600px){
+  .luWrap{padding-top:46px}.luBox{padding:62px 14px 18px;gap:10px}
+  .luStar{top:-6px;width:104px;height:104px}.luStar>svg{width:104px;height:104px}.luStar>b{font-size:32px}
+  .luT{font-size:28px}.luU{width:96px;padding:10px 6px 8px}.luU svg{width:36px;height:36px}.luU b{font-size:13.5px}
+  .luSeeds{grid-template-columns:1fr}.luSeed{flex-direction:row;justify-content:flex-start;gap:12px;padding:8px 12px}.luSeed>svg{width:38px;height:38px}.luSeed .rew{margin-left:auto}
+}
+@media (prefers-reduced-motion:reduce){.luRays,.luSparks i{animation:none}}
+
+/* ---------- at night: the XP bar lights up, a note under it opens the screen (Basti 22.11.2026) ---------- */
+#fLeft .fBar.xp.lvGlow .track{border-color:#ffd04099;box-shadow:0 0 12px #ffd040,0 0 22px #ffd04088;animation:lvBar 1s ease-in-out infinite alternate}
+#fLeft .fBar.xp.lvGlow #fXpFill{background:linear-gradient(180deg,#fff3b0,#ffd040 55%,#c88a10);box-shadow:0 0 14px #ffd040}
+#fLeft .fBar.xp.lvGlow>i.lvl{box-shadow:0 0 14px #ffd040;animation:lvBar 1s ease-in-out infinite alternate}
+@keyframes lvBar{from{filter:brightness(1)}to{filter:brightness(1.45)}}
+#fLvNote{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;height:30px;padding:0 12px 0 6px;border-radius:16px;cursor:pointer;pointer-events:auto;
+  border:2px solid #ffd040;background:linear-gradient(180deg,#5a3a08ee,#2a1a04ee);color:#fff3c0;font:800 15px Alegreya,Georgia,serif;white-space:nowrap;
+  box-shadow:0 0 14px #ffd040aa;animation:lvNote .5s cubic-bezier(.2,1.6,.4,1),lvBar 1s .5s ease-in-out infinite alternate}
+#fLvNote[hidden]{display:none}
+#fLvNote svg{width:22px;height:22px}
+#fLvNote kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 3px;border-radius:4px;background:#fff3c0;color:#2a1a04;font:800 12px 'Alegreya Sans',sans-serif}
+@keyframes lvNote{from{transform:translateX(-30px) scale(.6);opacity:0}}
+@media (max-width:600px){#fLvNote{height:26px;font-size:13px;margin-top:22px}#fLvNote svg{width:18px;height:18px}}

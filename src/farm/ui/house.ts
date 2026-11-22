@@ -2,9 +2,9 @@
 // with coloured bookmarks: Lager, Aufträge, Bauen, Produktion. Changing the page turns a leaf. Delivered orders and the
 // crop choice of a new field are shown on the open book before anything else. No explaining texts: icons, numbers, names.
 import type { BuildingId, FarmCfg, ItemId } from '../config';
-import { BUILDING_IDS, STALL_IDS, cropXp } from '../config';
+import { BUILDING_IDS, STALL_IDS } from '../config';
 import type { FarmState } from '../state';
-import { build, buildStatus, claimQuest, takeSeed, count, unclaimed, markSeen } from '../state';
+import { build, buildStatus, claimQuest, count, unclaimed, markSeen } from '../state';
 import type { SaleMode } from '../shop';
 import { shopState } from '../shop';
 import { ARCH_PAGE, ShopUi, archivePage, archiveRows, questsRight, shopLeft } from './shopPage';
@@ -39,6 +39,8 @@ export class HouseUi {
   private live: Record<string, number> | null = null;
   onChange: () => void = () => {};
   onSound: (k: string) => void = () => {};
+  /** collecting an order brought a level-up: the level-up screen comes (Basti 22.11.2026) */
+  onLevel: () => void = () => {};
   /** farm shop page: stock tab, picked good (tap, then tap a slot), slot in edit mode */
   shop: ShopUi = { cat: '', pick: null, edit: null };
   private drag: { id: string; from: number | null; x: number; y: number; ghost: HTMLElement | null } | null = null;
@@ -124,16 +126,10 @@ export class HouseUi {
     $('#hLvl').innerHTML = `${ic('star')}<b>${s.level}</b>`;
     $('#hSleep').innerHTML = `<span class="nd">${ic('sun')}<b>Nächster Tag</b><small>Tag ${s.day + 1}</small></span><i class="bar"></i>`;
     $('#hClose').innerHTML = `${ic('book')}<span>Zuklappen</span>`;
-    const book = $('#hBook'), rw = $('#hRewards');
-    // the new seed of a level-up lies on the open book first (orders are collected on the shop page)
-    const F = this.day ? null : s.seedPicks[0];
-    book.classList.toggle('modal', !!F);
-    rw.hidden = !F;
-    if (F) {
-      // new seed from a level-up (Basti 22.11.2026): pick one, from then on it can be sown on every field (the new field opened by itself)
-      rw.innerHTML = `<div class="fpick">${ic('seed')}<b>Neues Saatgut</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-seed="${k}">${ic(k)}<b>${this.name(k)}</b>
-        <div class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cfgXp(C, k)}</b></span></div></button>`).join('')}</div>`;
-    }
+    const book = $('#hBook');
+    // Basti 22.11.2026: nothing lies on the book any more: the evening opens on the orders (delivered ones sparkle, collected
+    // by their button), the new seed of a level-up is chosen on the level-up screen (levelUp.ts)
+    book.classList.remove('modal'); $('#hRewards').hidden = true;
     $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 2 ? ' right' : ''}" style="--c:${col};--x:${[3, 20.5, 53, 70.5][k]}%;--d:${[1, 3, 2, 4][k]}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
     const [l, r] = this.pages();
     $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r;
@@ -377,13 +373,13 @@ export class HouseUi {
     if (this.day) return;
     list.forEach((q, k) => setTimeout(() => {
       const card = $('#hBodyR').querySelector(`[data-q="${q.id}"]`) as HTMLElement | null, r = card?.getBoundingClientRect();
+      const lv = this.s.lvShow.length;
       if (!claimQuest(this.cfg, this.s, q)) return;
       this.onSound('ui.coins');
-      const lv = this.s.levelUps.length;
       this.onChange(); this.pagesOnly();
       const fav = $('#qFav'), to = fav?.getBoundingClientRect();
       if (r && to) this.coins(r, to, q.reward.money);
-      if (this.s.levelUps.length > lv || this.s.seedPicks.length) this.render(); // a level-up: the choice of the new seed
+      if (this.s.lvShow.length > lv) this.onLevel(); // a level-up: its screen with the new seed
       const nc = $('#hBodyR').querySelector(`[data-q="${q.id}"]`); nc?.classList.add('pop');
     }, k * 260));
   }
@@ -437,14 +433,11 @@ export class HouseUi {
     if (d.gmode) { this.gmode = d.gmode as GraphMode; this.onSound('ui.click'); $('#hBodyR').innerHTML = storeRight(C, s, markSeen(s), this.sel, this.gmode); return; }
     if (this.shopClick(t, d)) return;
     if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
-    else if (d.seed) { if (takeSeed(C, s, 0, d.seed)) this.onSound('ui.levelup'); }
     // the stock line of today follows what happens in the evening
     const h = s.hist?.[s.hist.length - 1]; if (h && h.d === s.day) { h.st = { ...s.items }; delete h.st.water; }
     this.onChange(); this.render();
   }
 }
-
-const cfgXp = (C: FarmCfg, k: string) => cropXp(C, k) * (C.crops[k]?.cuts ?? 3);
 
 /** clip-path of a torn page: ragged outer edges with a few small tears, straight spine side */
 function torn(seed: number, side: 'L' | 'R') {

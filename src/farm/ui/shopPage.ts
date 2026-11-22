@@ -91,20 +91,23 @@ export function questsRight(cfg: FarmCfg, s: FarmState, day: boolean) {
   for (let i = open; i < S.max; i++) h += `<div class="qc lock"><span class="lv">${ic('star')}<b>${lv[i - S.start] ?? ''}</b></span></div>`;
   h += `</div>`;
   h += `<div class="qfoot"><button class="hb arcB" data-arch="1" ${s.quests.archive?.length ? '' : 'disabled'}>${ic('book')}<span>Archiv</span></button>`;
-  if (claimable) h += `<button class="hb big go qall" data-claimall="1">${ic('check')}<span>Alle abschließen</span></button>`;
+  if (claimable) h += `<button class="hb big go qall" data-claimall="1">${ic('check')}<span>Alle abholen</span></button>`;
   return h + '</div>';
 }
 /** delivered + not collected first, then collected, then open, then expired */
 const rank = (q: Quest) => q.done && !q.claimed ? 0 : q.claimed ? 1 : q.expired ? 3 : 2;
 function card(cfg: FarmCfg, q: Quest, p: Record<ItemId, number>, day: boolean) {
   const st = q.claimed ? 'claimed' : q.done ? 'done' : q.expired && !day ? 'gone' : 'open';
-  const tag = st === 'done' && !day ? 'button' : 'div';
-  return `<${tag} class="qc ${st}" data-q="${q.id}"${tag === 'button' ? ` data-claimq="${q.id}"` : ''}>
+  // delivered (Basti 22.11.2026): the card sparkles, its blinking button collects the reward
+  const ready = st === 'done' && !day;
+  const sparks = ready ? `<span class="qsp">${[[12, 18, 0], [78, 12, .7], [88, 58, 1.3], [8, 70, 1.9], [50, 6, 2.4], [40, 88, 1.1]].map(([x, y, d]) => `<i style="left:${x}%;top:${y}%;animation-delay:${d}s"></i>`).join('')}</span>` : '';
+  return `<div class="qc ${st}${ready ? ' ready' : ''}" data-q="${q.id}">${sparks}
     <b class="qt">${q.title ?? ''}</b>
     <div class="ob">${Object.entries(q.need).map(([k, v]) => `<span class="o${(p[k] ?? 0) >= v ? ' ok' : ''}"><b>${q.done ? v : p[k] ?? 0}/${v}</b>${ic(k)}<span>${name(cfg, k)}</span></span>`).join('')}</div>
     <div class="qr"><span class="gd xp">${ic('xp')}<b>${q.reward.xp}</b></span><span class="gd">${ic('coin')}<b>${q.reward.money}</b></span></div>
+    ${ready ? `<button class="qget" data-claimq="${q.id}">${ic('check')}<span>Abholen</span></button>` : ''}
     ${st === 'claimed' ? `<span class="stamp">${ic('check')}</span>` : ''}
-  </${tag}>`;
+  </div>`;
 }
 
 // ---------------- archive of collected orders (Basti 22.11.2026): newest first, loaded in pages while scrolling ----------------

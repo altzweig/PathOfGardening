@@ -268,3 +268,4 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Im Bereich startet die Aktion sofort (leiser Klick, Ring ploppt, Balken läuft), die Figur läuft dabei selbst an die Arbeitsstelle und kniet sich erst dort hin. Der Schritt wird erst fertig, wenn sie angekommen ist.
 - Handy (Basti, 22.11.2026 nachmittags): Das Info-Label über dem Ziel („[Gießen]“, „[Ernten]“) ist antippbar, ein Tippen = ein Arbeitsschritt (wie Aktionsknopf, Ring oder Antippen des Ziels).
 - Durchsicht durch Bäume, Dächer und Zäune: am PC 50 % größer, am Handy doppelt so groß wie vorher (camera.occlusion).
+- Steuerungs-Empfindlichkeit (Basti, 22.11.2026): Regler unter dem Steuerungsbild in den Optionen. PC: Maus. Handy: Joystick (wie weit der Daumen für volles Tempo muss), Zoom (Pinch), Kamera (wie schnell sie hinter die Figur schwenkt). 0,25× bis 3×, Mitte = 1× rastet ein, pro Gerät lokal gespeichert.

@@ -10,6 +10,7 @@ import {
 import { NIGHT_BLOOM, updateDayNight, dayNow, resetDayNight, fogFocus } from '../../view/daynight';
 import { updateSeasons } from '../../view/seasons';
 import { setTexCfg } from '../../view/textures';
+import { SENS } from '../sens';
 import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
 import type { FruitType } from '../../config';
 import { animate, makeAnimal, Animal as AView } from '../../view/animals';
@@ -988,7 +989,7 @@ export class FarmView {
     if (this.follow && mode === 'day' && P && !k) {
       const d = ((P.f + Math.PI - this.camYaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
       const mv = clamp(P.speed / (this.cfg.player.speed || 4.6), 0, 1), w = (1 + Math.cos(d)) / 2;
-      this.camYaw += d * (1 - Math.exp(-dt * (this.cfg.camera.follow ?? 2.4) * mv * w));
+      this.camYaw += d * (1 - Math.exp(-dt * (this.cfg.camera.follow ?? 2.4) * SENS.cam * mv * w));
     }
     const cy = Math.sin(this.camYaw), cz = Math.cos(this.camYaw), fwd = V(-cy, 0, -cz);
     const head = V(this.camX + sx, 1.35, this.camZ + sz);

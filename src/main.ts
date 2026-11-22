@@ -23,6 +23,7 @@ import { FarmHud } from './farm/ui/hud';
 import { HouseUi } from './farm/ui/house';
 import { Tutorial } from './farm/tutorial';
 import { mobileControls, pcControls } from './farm/ui/controls';
+import { sensRows } from './farm/sens';
 import { ic } from './farm/ui/ficons';
 import { LoadScreen } from './farm/ui/loading';
 import { CutscenePlayer } from './farm/cutscene/cutscene';
@@ -225,6 +226,7 @@ class Game {
   private ctrlTab(t: string) {
     document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
+    sensRows($('#ctrlSens'), t === 'pc' ? 'pc' : 'mobile');
   }
 
   // ---------------- saves ----------------

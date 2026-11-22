@@ -176,6 +176,10 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #ctrlView{width:min(1100px,96vw);max-height:72vh;display:flex;justify-content:center}
 #ctrlView svg{width:100%;height:auto;max-height:72vh}
 #ctrlView text{font-family:var(--f-body);font-weight:700}
+#ctrlSens{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;width:min(900px,96vw)}
+#ctrlSens .sens{display:flex;align-items:center;gap:10px;font:700 18px var(--f-body);color:var(--gold)}
+@media (max-height:520px){#ctrlView,#ctrlView svg{max-height:50vh}#ctrlSens{gap:4px 22px}#ctrlSens .sens{font-size:15px}#ctrlSens input{width:min(150px,22vw)}}
+#ctrlSens input{width:min(220px,42vw);accent-color:var(--gold);touch-action:none}#ctrlSens b{min-width:3.2em;color:var(--parch)}
 @media (orientation:portrait){.card{touch-action:pan-y}} /* stacked cards must stay scrollable */
 @media (prefers-reduced-motion:reduce){.skill.pulse::before,.card.wpn::before{animation:none}}
 @media (max-height:430px){.ov h1{font-size:30px}.ov{gap:8px;justify-content:flex-start}.card .pic,.card.wpn .pic{width:64px;height:64px}.card{padding:8px 10px}.card.wpn .stats span{font-size:13px}.btn{padding:9px 22px;font-size:16px}.col{gap:8px}}

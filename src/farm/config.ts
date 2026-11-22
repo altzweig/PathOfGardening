@@ -91,7 +91,7 @@ export interface FarmCfg {
   faint: { loseHarvest: boolean; breakFields: boolean };
   night: NightCfg;
   /** co-op visits (Basti 22.11.2026): guests help on the farm, the yield goes to the farm, XP to whoever does the work */
-  coop?: { maxPlayers: number; koTime: number; hostShare: number; nightCountExp: number };
+  coop?: { maxPlayers: number; koTime: number; hostShare: number; nightCountExp: number; messages?: string[] };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   /** farm shop in the house book (Basti 22.11.2026) */

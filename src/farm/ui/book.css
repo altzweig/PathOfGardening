@@ -248,7 +248,144 @@
 #hClose{display:none}
 #fHouse.dayBook{background:#0b0704a6;-webkit-backdrop-filter:blur(7px) saturate(.9);backdrop-filter:blur(7px) saturate(.9)}
 #fHouse.dayBook #hBg{display:none}
-#fHouse.dayBook #hSleep{display:none}
+#fHouse.dayBook #hSleep{display:none!important}
 #fHouse.dayBook #hClose{display:flex;width:auto;margin-left:auto;padding:9px 22px;font-size:19px}
 @media (max-height:560px){#fHouse.dayBook #hClose{padding:6px 16px;font-size:16px}#fHouse.dayBook #hClose svg{width:24px;height:24px}}
 @media (max-width:699px) and (orientation:portrait){#fHouse.dayBook #hClose{padding:7px 12px;font-size:15px}}
+
+/* ---------- orders + farm shop (Basti 22.11.2026) ---------- */
+.book .page.L .pc:has(.epanel){overflow:hidden}
+.book .earn{margin-left:auto;display:flex;align-items:center;gap:3px;font:800 17px Alegreya,Georgia,serif;font-style:normal;color:var(--plus)}.book .earn svg{width:24px;height:24px}
+.book .sh3{margin:6px 2px 4px;font:italic 700 18px Alegreya,Georgia,serif;color:#b0703e}
+.book .shopLock{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;margin:12% auto 0;width:60%}
+.book .shopLock>svg{width:62%;height:auto;filter:grayscale(1) sepia(.4);opacity:.35}
+.book .shopLock .lk{position:absolute;top:18%;left:50%;transform:translateX(-50%)}.book .shopLock .lk svg{width:52px;height:52px}
+.book .shopLock .req{display:flex;align-items:center;gap:10px;font:800 20px Alegreya,Georgia,serif}.book .shopLock .req svg{width:28px;height:28px}
+/* short stock list: at most a third of the page */
+.book .stock,.book .slots,.book .sh3,.book .qgrid,.book .qfoot,.book .arch{flex:none}.book .stock{display:flex;flex-direction:column;min-height:0}
+.book .stTabs{display:flex;gap:4px;margin:0 0 4px}
+.book .stTabs button{border:1px solid #6a442655;border-radius:6px;background:none;color:var(--ink2);font:700 13px Alegreya,Georgia,serif;padding:2px 9px;cursor:pointer}
+.book .stTabs button.on{background:#6a4426;color:#fbeccb}
+.book .sgl{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:0 6px;max-height:7.2em;overflow:auto}
+.book .sg{display:flex;align-items:center;gap:4px;min-width:0;padding:1px 4px;border:0;border-radius:5px;background:none;color:var(--ink);font:600 13.5px Alegreya,Georgia,serif;text-align:left;cursor:grab;touch-action:none;-webkit-tap-highlight-color:transparent}
+.book .sg b{min-width:22px;text-align:right;font-weight:800}.book .sg svg{flex:none;width:20px;height:20px}
+.book .sg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.book .sg:hover{background:#ffffff40}.book .sg.pick{background:#e8b84a55;box-shadow:inset 0 0 0 1.5px #a8781a}
+.book .sg.used{opacity:.55}
+.book .sgl .empty{display:flex;align-items:center;gap:4px;opacity:.5}.book .sgl .empty svg{width:22px;height:22px}
+/* sale slots */
+.book .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:2px}
+.book .slot{position:relative;display:flex;flex-direction:column;align-items:stretch;aspect-ratio:1/.8;min-width:0;padding:5px 6px 6px;border:2px solid #5a3a1e;border-radius:9px;
+  background:#fff8e440;color:var(--ink);font:inherit;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;box-shadow:inset 0 0 0 1px #ffffff40,0 1px 0 #ffffff60}
+.book .slot::before{content:'';position:absolute;left:22%;right:22%;top:20%;height:52%;border-radius:50%;background:radial-gradient(closest-side,var(--g,#0000) 0%,var(--g2,#0000) 55%,#0000 100%);pointer-events:none}
+.book .slot .st{position:relative;font:600 13px Alegreya,Georgia,serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.book .slot .st b{font-weight:800}
+.book .slot .si{position:relative;flex:1;display:grid;place-items:center;min-height:0}.book .slot .si svg{height:88%;width:auto;max-width:70%;filter:drop-shadow(0 2px 2px #4a28104d)}
+.book .slot .pr{align-self:center}
+.book .slot .sold{position:absolute;right:6px;top:4px;font:800 12px Alegreya,Georgia,serif;font-style:normal;color:#a8322a}
+.book .slot.free{border-style:dashed;border-color:#6a442688;background:none;box-shadow:none;align-items:center;justify-content:center}
+.book .slot.free .plus{font:300 34px Alegreya,Georgia,serif;color:#6a442666}
+.book .slot.free.hot{border-color:#a8781a;background:#e8b84a22;animation:slotHot 1.2s ease-in-out infinite}
+@keyframes slotHot{50%{box-shadow:0 0 12px #e8b84a88}}
+.book .slot.out .si svg{filter:grayscale(1) sepia(.3);opacity:.4}
+.book .slot.over{border-color:#3a8a1c;box-shadow:0 0 16px #8ee05acc;transform:scale(1.03)}
+.book .slot.land{animation:slotLand .35s ease-out}
+@keyframes slotLand{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:none}}
+.book .slot.ed{border-color:#a8781a}
+.book .slot.lock,.book .qc.lock{display:grid;place-items:center;cursor:default;border-color:#6a6058;
+  background:repeating-linear-gradient(135deg,#0000 0 9px,#4a3a2a18 9px 11px),linear-gradient(#a8a090aa,#8a8274aa);box-shadow:inset 0 0 14px #0003}
+.book .slot.lock::after,.book .qc.lock::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background:linear-gradient(35deg,#0000 47%,#3a2e22 48%,#0000 50%) 0 0/50% 50% no-repeat,linear-gradient(-40deg,#0000 47%,#3a2e22 48%,#0000 50%) 100% 0/45% 45% no-repeat,
+    linear-gradient(-30deg,#0000 47%,#3a2e22 48%,#0000 50%) 0 100%/45% 45% no-repeat,linear-gradient(40deg,#0000 47%,#3a2e22 48%,#0000 50%) 100% 100%/50% 50% no-repeat}
+.book .slot.lock .lv,.book .qc.lock .lv{display:flex;align-items:center;gap:4px;font:800 16px Alegreya,Georgia,serif;color:#2e241a}.book .slot.lock svg,.book .qc.lock svg{width:22px;height:22px}
+/* price: white standard, red Sale with a tag, golden glossy Premium with a tag */
+.book .pr{position:relative;display:inline-flex;align-items:center;gap:3px;padding:1px 9px 1px 10px;border-radius:999px;background:#3e230fd9;font:800 15px Alegreya,Georgia,serif;color:#fff;box-shadow:0 1px 0 #ffffff40}
+.book .pr svg{width:17px;height:17px}
+.book .pr .tag,.book .mb .tag{position:absolute;top:-11px;right:-14px;padding:0 6px;border-radius:3px;font:italic 800 11px Alegreya,Georgia,serif;transform:rotate(9deg);white-space:nowrap;box-shadow:0 1px 2px #0005}
+.book .pr .tag::before,.book .mb .tag::before{content:'';position:absolute;left:3px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:#fff8}
+.book .pr.sale b,.book .mb.sale b{color:#ff6a58}
+.book .pr.sale .tag,.book .mb.sale .tag{background:#c8322a;color:#fff;padding-left:10px}
+.book .pr.prem,.book .mb.prem{background:linear-gradient(180deg,#5a3a10,#3a2408);box-shadow:0 0 8px #e8b84a88,inset 0 0 0 1px #f2d38a88}
+.book .pr.prem b,.book .mb.prem b{background:linear-gradient(100deg,#c8902a 0%,#ffe9a0 30%,#fff 38%,#ffe9a0 46%,#c8902a 70%,#a8701a 100%) 0 0/250% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:gShine 2.6s linear infinite}
+.book .pr.prem .tag,.book .mb.prem .tag{background:linear-gradient(110deg,#a8701a,#f2d38a 40%,#fff6d0 50%,#f2d38a 60%,#a8701a);background-size:250% 100%;color:#3a2408;padding-left:10px;animation:gShine 2.6s linear infinite}
+@keyframes gShine{0%{background-position:120% 0}100%{background-position:-120% 0}}
+/* edit mode of a slot */
+.book .epanel{position:absolute;z-index:6;left:6%;right:6%;bottom:5%;display:flex;flex-direction:column;gap:12px;padding:14px 16px 12px;border:2px solid #5a3a1e;border-radius:12px;
+  background:#f1e2bd;background-image:radial-gradient(ellipse at 50% 0,#fff7dd 0,#0000 70%);box-shadow:0 10px 30px #3e230f88;animation:edIn .18s ease-out}
+@keyframes edIn{from{transform:translateY(10px);opacity:0}}
+.book .epanel .eh{display:flex;align-items:center;gap:8px}.book .epanel .eh>svg{width:44px;height:44px}.book .epanel .eh>b{flex:1;font:800 21px Alegreya,Georgia,serif}
+.book .eprice{display:flex;align-items:center;justify-content:center;gap:22px;padding-top:6px}
+.book .eprice>.pr{font-size:20px;padding:3px 14px}
+.book .mb{position:relative;display:inline-flex;align-items:center;padding:4px 12px;border:0;border-radius:999px;background:#3e230fd9;color:#fff;font:800 15px Alegreya,Georgia,serif;cursor:pointer;opacity:.75;transition:transform .1s,opacity .1s}
+.book .mb.on{opacity:1;transform:scale(1.08);outline:2px solid #fff;outline-offset:1px}.book .mb:hover{opacity:1}
+.book .eamt{display:flex;align-items:center;gap:10px}
+.book .eamt input[type=range]{flex:1;accent-color:#6a3c18;height:26px}
+.book .eamt input[type=text]{width:66px;padding:4px 6px;border:1.5px solid #6a4426;border-radius:6px;background:#fffbea;color:var(--ink);font:800 16px Alegreya,Georgia,serif;text-align:center}
+.book .ebtn{display:flex;align-items:center;gap:10px}.book .ebtn span{flex:1}
+.book .eb{display:grid;place-items:center;width:44px;height:38px;border:0;border-radius:8px;font:800 22px system-ui,sans-serif;color:#fff;cursor:pointer;box-shadow:0 2px 0 #0005}
+.book .eb.ok{background:linear-gradient(#6cc04a,#3a8a1c)}.book .eb.no{background:linear-gradient(#e0584a,#a8322a)}
+.book .eb.del{background:none;box-shadow:none;opacity:.7}.book .eb.del svg{width:26px;height:26px}
+.dragGhost{position:fixed;z-index:200;left:0;top:0;width:60px;height:60px;margin:-30px 0 0 -30px;pointer-events:none;filter:drop-shadow(0 6px 6px #0008)}.dragGhost svg{width:100%;height:100%}
+.book.dragging,.book.dragging *{cursor:grabbing!important}
+/* orders */
+.book .fav{margin-left:auto;display:flex;align-items:center;gap:4px;font:800 20px Alegreya,Georgia,serif;font-style:normal;color:var(--ink)}
+.book .fav small{font:600 15px Alegreya,Georgia,serif;color:var(--ink2)}.book .fav svg{width:26px;height:26px}
+.book .fav.bump{animation:favBump .25s ease-out}@keyframes favBump{50%{transform:scale(1.18)}}
+.book .qgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.book .qc{position:relative;display:flex;flex-direction:column;gap:5px;min-width:0;min-height:118px;padding:9px 9px 8px;border:2px solid #5a3a1e;border-radius:12px;background:#fffdf2cc;color:var(--ink);
+  font:inherit;text-align:left;box-shadow:0 2px 0 #3e230f33}
+.book .qc .qt{font:800 15px/1.15 Alegreya,Georgia,serif}
+.book .qc .ob{display:flex;flex-direction:column;gap:2px;flex:1}
+.book .qc .o{display:flex;align-items:center;gap:4px;font:600 13.5px Alegreya,Georgia,serif;min-width:0}.book .qc .o b{font-weight:800;min-width:34px}
+.book .qc .o svg{flex:none;width:19px;height:19px}.book .qc .o span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.book .qc .o.ok b{color:#2f7a12}
+.book .qc .qr{display:flex;justify-content:flex-end;gap:10px}.book .qc .qr .gd{display:flex;align-items:center;gap:2px;font-size:15px}.book .qc .qr svg{width:20px;height:20px}
+.book .qc.done{background:linear-gradient(160deg,#cdf26a,#a6d83a);border-color:#4a7a12;cursor:pointer;animation:qGlow 1.6s ease-in-out infinite;transition:transform .12s}
+.book .qc.done:hover{transform:translateY(-3px) scale(1.02)}
+@keyframes qGlow{50%{box-shadow:0 0 16px #b8f04acc,0 2px 0 #3e230f33}}
+.book .qc.claimed{background:linear-gradient(160deg,#cde69a,#b0c880);border-color:#6a7a4a;opacity:.7}
+.book .qc .stamp{position:absolute;right:8px;bottom:30px;transform:rotate(-12deg);opacity:.9}.book .qc .stamp svg{width:40px;height:40px;filter:drop-shadow(0 1px 0 #fff)}
+.book .qc.gone{opacity:.5;filter:grayscale(.6)}
+.book .qc.free{border-style:dashed;border-color:#6a442677;background:none;box-shadow:none}
+.book .qc.pop{animation:qPop .45s ease-out}@keyframes qPop{0%{transform:scale(1.08);box-shadow:0 0 30px #fff3b0}100%{transform:none}}
+.book .qfoot{display:flex;align-items:center;gap:12px;margin:14px 0 4px}.book .qfoot .qall{display:flex;align-items:center;gap:8px;width:auto;min-width:0;flex:0 1 auto;margin-left:auto;padding:8px 18px;font-size:17px}
+.book .arcB{display:flex;align-items:center;gap:6px;padding:6px 14px}.book .arcB svg{width:22px;height:22px}.book .qall svg{width:24px;height:24px}
+.flyCoin{position:fixed;z-index:200;left:0;top:0;width:28px;height:28px;margin:-14px 0 0 -14px;pointer-events:none;filter:drop-shadow(0 0 6px #ffd86a)}.flyCoin svg{width:100%;height:100%}
+.claimFx{position:fixed;z-index:199;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;pointer-events:none;box-shadow:0 0 0 3px #fff6c0,0 0 30px 12px #ffe58a;animation:cfx .6s ease-out forwards}
+@keyframes cfx{to{transform:scale(18);opacity:0}}
+@media (max-height:560px){
+  .book .slots{gap:6px}.book .slot{padding:3px 4px 4px}.book .slot .st{font-size:11.5px}.book .pr{font-size:13px;padding:0 7px}.book .pr svg{width:14px;height:14px}
+  .book .sgl{max-height:4.4em}.book .sg{font-size:12px}.book .sg svg{width:17px;height:17px}.book .sgl{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  .book .qgrid{gap:6px}.book .qc{min-height:92px;padding:6px 6px 5px;gap:3px}.book .qc .qt{font-size:13px}.book .qc .o{font-size:12px}.book .qc .o svg{width:16px;height:16px}
+  .book .qc .qr .gd{font-size:13px}.book .qc .qr svg{width:16px;height:16px}.book .fav{font-size:16px}.book .fav small{display:none}
+  .book .epanel{gap:7px;padding:8px 12px}.book .epanel .eh>svg{width:32px;height:32px}.book .epanel .eh>b{font-size:17px}
+}
+@media (max-width:699px) and (orientation:portrait){.book .qgrid{grid-template-columns:repeat(2,1fr)}.book .stock{max-height:none}}
+
+/* next day: big button right beside the book, held for 0.6 s while a bar runs (Basti 22.11.2026) */
+#fHouse:not(.dayBook) #hShell{padding-right:max(176px,env(safe-area-inset-right,0px))}
+.nextDay{position:absolute;z-index:3;right:max(14px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);width:150px;padding:20px 10px 26px;overflow:hidden;
+  border:2px solid #6a4426;border-radius:16px;background:linear-gradient(180deg,#f6dc94,#d9a84a);box-shadow:0 6px 0 #6a4416,0 14px 30px #000a,inset 0 1px 0 #fff8;
+  color:#3e230f;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;transition:transform .1s}
+.nextDay .nd{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+.nextDay svg{width:54px;height:54px;filter:drop-shadow(0 0 8px #fff6b0)}
+.nextDay b{font:700 20px/1.1 var(--f-display);text-align:center}.nextDay small{font:800 17px Alegreya,Georgia,serif;color:#6a3c18}
+.nextDay .bar{position:absolute;left:10px;right:10px;bottom:10px;height:8px;border-radius:4px;background:#3e230f40;overflow:hidden}
+.nextDay .bar::after{content:'';position:absolute;inset:0;width:calc(var(--p,0) * 100%);background:linear-gradient(90deg,#5ab02a,#a6e04a);box-shadow:0 0 8px #a6e04a}
+.nextDay.hold{transform:translateY(-50%) scale(.97)}
+.nextDay:hover{filter:brightness(1.05)}
+@media (max-height:560px){
+  #fHouse:not(.dayBook) #hShell{padding-right:max(112px,env(safe-area-inset-right,0px))}
+  .nextDay{width:96px;padding:12px 6px 20px;border-radius:12px}.nextDay svg{width:36px;height:36px}.nextDay b{font-size:15px}.nextDay small{font-size:14px}.nextDay .bar{bottom:7px;height:6px;left:8px;right:8px}
+}
+@media (max-width:699px) and (orientation:portrait){
+  #fHouse:not(.dayBook) #hShell{padding-right:max(12px,env(safe-area-inset-right,0px));padding-bottom:max(84px,env(safe-area-inset-bottom,0px))}
+  .nextDay{top:auto;bottom:max(10px,env(safe-area-inset-bottom,0px));left:12px;right:12px;width:auto;transform:none;padding:8px 10px 16px}
+  .nextDay .nd{flex-direction:row;justify-content:center;gap:10px}.nextDay svg{width:30px;height:30px}.nextDay.hold{transform:scale(.98)}
+}
+/* archive of collected orders */
+.book .arch{display:flex;flex-direction:column}
+.book .aday{margin:10px 2px 2px;font:italic 700 16px Alegreya,Georgia,serif;color:#b0703e;border-bottom:1px solid #b0703e55}
+.book .arow{display:flex;align-items:center;gap:10px;padding:5px 4px;border-bottom:1px dashed #6a44264d;font:600 14px Alegreya,Georgia,serif}
+.book .arow>b{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book .arow .an,.book .arow .ar{display:flex;gap:8px}.book .arow .gd{display:flex;align-items:center;gap:2px;font-size:14px}.book .arow svg{width:18px;height:18px}

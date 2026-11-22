@@ -56,8 +56,12 @@ export interface NightCfg {
   raccoon: { hp: number; speed: number; damage: number; biteInterval: number; steal: number; bites: number; xp: number };
   plotHp: number; brokenShow: number;
 }
-export interface DailyQuestCfg { count: number; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; xpShare?: number; money: number; moneyLevel: number; minMoney: number }
+/** slots: open orders per day (Basti 22.11.2026): from `level` (default 1) `start` slots, +1 at level `first` and every `every` levels after it, at most max */
+export interface SlotCfg { level?: number; start: number; first: number; every: number; max: number }
+export interface DailyQuestCfg { slots: SlotCfg; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; xpShare?: number; money: number; moneyLevel: number; minMoney: number }
 
+/** farm shop: sale slots, price per piece = field seconds x rate (products: ingredients x craft, others: prices), demand per slot and day */
+export interface ShopCfg { slots: SlotCfg; rate: number; craft: number; demand: number; spread: number; sale: { price: number; demand: number }; premium: { price: number; demand: number }; prices: Record<ItemId, number>; base: number }
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
@@ -87,6 +91,8 @@ export interface FarmCfg {
   night: NightCfg;
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
+  /** farm shop in the house book (Basti 22.11.2026) */
+  shop: ShopCfg;
   buildings: Record<BuildingId, BuildingCfg>;
   loading: { minTime: number; tipEvery: number; fade: number; tips: string[] };
   tutorial: { raccoonHp: number; raccoonSteal: number; raccoonSpeed: number; raccoonStart: number; fieldHint: number; texts: Record<string, string> };
@@ -153,3 +159,11 @@ export function nightPlan(cfg: FarmCfg, night: number, level: number): { at: num
   }
   return waves;
 }
+
+/** open slots at a level: none below slots.level (default 1), then start, +1 at first, first + every, ... (Basti 22.11.2026) */
+export function slotsAt(S: SlotCfg, level: number): number {
+  if (level < (S.level ?? 1)) return 0;
+  return Math.min(S.max, S.start + (level >= S.first ? 1 + Math.floor((level - S.first) / S.every) : 0));
+}
+/** levels at which the next slots open (shown on the locked slots) */
+export function slotLevels(S: SlotCfg): number[] { return Array.from({ length: Math.max(0, S.max - S.start) }, (_, k) => S.first + k * S.every); }

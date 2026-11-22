@@ -3,8 +3,11 @@
 // crop choice of a new field are shown on the open book before anything else. No explaining texts: icons, numbers, names.
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, cropXp } from '../config';
-import type { FarmState, Quest } from '../state';
-import { build, buildStatus, claimQuests, placeField, count, unclaimed, markSeen } from '../state';
+import type { FarmState } from '../state';
+import { build, buildStatus, claimQuest, placeField, count, unclaimed, markSeen } from '../state';
+import type { SaleMode } from '../shop';
+import { shopState } from '../shop';
+import { ARCH_PAGE, ShopUi, archivePage, archiveRows, questsRight, shopLeft } from './shopPage';
 import { ic } from './ficons';
 import { HouseBg } from './houseBg';
 import { GraphMode, storeLeft, storeRight, storeSections } from './storePage';
@@ -14,10 +17,12 @@ const $ = (s: string) => document.querySelector(s) as HTMLElement;
 type Tab = 'store' | 'quests' | 'build' | 'prod';
 /** bookmarks: id, icon, name, ribbon colour, page side */
 const TABS: [Tab, string, string, string][] = [
-  ['store', 'box', 'Lager', '#d9772b'], ['quests', 'quest', 'Aufträge', '#a8403a'],
+  ['store', 'box', 'Lager', '#d9772b'], ['quests', 'shop', 'Hofladen', '#a8403a'],
   ['build', 'hammer', 'Bauen', '#3d6a9e'], ['prod', 'gear', 'Produktion', '#5a7f34'],
 ];
 const FLIP_MS = 900;
+/** ms the next-day button has to be held */
+const NEXT_HOLD = 600;
 
 export class HouseUi {
   tab: Tab = 'store';
@@ -34,6 +39,15 @@ export class HouseUi {
   private live: Record<string, number> | null = null;
   onChange: () => void = () => {};
   onSound: (k: string) => void = () => {};
+  /** farm shop page: stock tab, picked good (tap, then tap a slot), slot in edit mode */
+  shop: ShopUi = { cat: '', pick: null, edit: null };
+  private drag: { id: string; from: number | null; x: number; y: number; ghost: HTMLElement | null } | null = null;
+  private dragged = false;
+  /** right page of the orders shows the archive; rows shown so far */
+  private arch = false;
+  private archN = 0;
+  /** hold-to-start of the next day */
+  private holdT = 0;
   private bg: HouseBg;
   private flipping = 0;
   private curlRaf = 0;
@@ -41,7 +55,39 @@ export class HouseUi {
     const root = $('#fHouse');
     root.addEventListener('click', e => this.click(e));
     root.addEventListener('pointermove', e => this.hover(e));
-    root.addEventListener('pointerdown', e => this.hover(e));
+    root.addEventListener('pointerdown', e => { this.hover(e); this.dragStart(e); });
+    addEventListener('pointermove', e => this.dragMove(e));
+    addEventListener('pointerup', e => this.dragEnd(e));
+    addEventListener('pointercancel', () => this.dragEnd(null));
+    root.addEventListener('input', e => this.editInput(e));
+    // archive: the next rows come when the list is scrolled near its end
+    $('#hBodyR').addEventListener('scroll', () => {
+      const R = $('#hBodyR'), A = this.s.quests.archive ?? [];
+      if (!this.arch || this.archN >= A.length || R.scrollTop + R.clientHeight < R.scrollHeight - 200) return;
+      $('#hArch')?.insertAdjacentHTML('beforeend', archiveRows(this.cfg, this.s, this.archN, this.archN + ARCH_PAGE)); this.archN += ARCH_PAGE;
+    }, { passive: true });
+    // next day: hold the button for nextHold s, a bar runs from left to right; letting go earlier cancels (Basti 22.11.2026)
+    const nb = $('#hSleep');
+    let t0 = 0, pid = -1;
+    const stop = () => { cancelAnimationFrame(this.holdT); this.holdT = 0; nb.classList.remove('hold'); nb.style.setProperty('--p', '0'); };
+    const tick = () => {
+      const p = Math.min(1, (performance.now() - t0) / NEXT_HOLD); nb.style.setProperty('--p', '' + p);
+      if (p >= 1) { stop(); this.onSound('ui.confirm'); this.onSleep(); return; }
+      this.holdT = requestAnimationFrame(tick);
+    };
+    nb.addEventListener('pointerdown', e => {
+      if (e.button > 0) return; stop(); pid = e.pointerId;
+      try { nb.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+      nb.classList.add('hold'); t0 = performance.now(); this.holdT = requestAnimationFrame(tick);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) nb.addEventListener(ev, e => { if (this.holdT && (e as PointerEvent).pointerId === pid) stop(); });
+    nb.addEventListener('contextmenu', e => e.preventDefault());
+    // edit mode of a sale slot: Enter confirms, Esc goes back to the old setting
+    addEventListener('keydown', e => {
+      if (root.hidden || !this.shop.edit) return;
+      if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); this.editDone(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); this.editDone(false); }
+    }, true);
     // page block of the thick book: stacked paper edges above both pages
     $('#hStack').innerHTML = [0, 1, 2, 3, 4, 5].map(i => `<i class="l" style="--i:${i}"></i><i class="r" style="--i:${i}"></i>`).join('');
     this.bg = new HouseBg($('#hBg') as HTMLCanvasElement);
@@ -58,7 +104,7 @@ export class HouseUi {
 
   // ---------------- evening ----------------
   showEvening(on: boolean) {
-    this.day = false; this.live = null; $('#fHouse').classList.remove('dayBook');
+    this.day = false; this.live = null; this.arch = false; $('#fHouse').classList.remove('dayBook');
     $('#fHouse').hidden = !on;
     if (on) { this.render(); this.bg.start(); } else this.bg.stop();
   }
@@ -74,19 +120,14 @@ export class HouseUi {
     $('#hDay').textContent = '' + s.day;
     $('#hMoney').innerHTML = `${ic('coin')}<b>${s.money}</b>`;
     $('#hLvl').innerHTML = `${ic('star')}<b>${s.level}</b>`;
-    $('#hSleep').innerHTML = `${ic('sleep')}<span>Schlafen</span>`;
+    $('#hSleep').innerHTML = `<span class="nd">${ic('sun')}<b>Nächster Tag</b><small>Tag ${s.day + 1}</small></span><i class="bar"></i>`;
     $('#hClose').innerHTML = `${ic('book')}<span>Zuklappen</span>`;
     const book = $('#hBook'), rw = $('#hRewards');
-    // delivered orders: one tile each, the reward is collected here (Basti 21.11.2026)
-    const R = this.day ? [] : unclaimed(s), F = R.length || this.day ? null : s.fieldPicks[0];
-    book.classList.toggle('modal', !!(R.length || F));
-    rw.hidden = !(R.length || F);
-    if (R.length) {
-      rw.innerHTML = `<div class="tiles">${R.map((q, i) => `<div class="tile" style="animation-delay:${i * .15}s">${ic('check')}<b>${q.title ?? ''}</b>
-        <div class="need">${Object.entries(q.need).map(([k, v]) => `<span class="gd">${ic(k)}<b>${v}</b></span>`).join('')}</div>
-        <div class="rew"><span class="gd xp">${ic('xp')}<b>+${q.reward.xp}</b></span><span class="gd">${ic('coin')}<b>+${q.reward.money}</b></span></div></div>`).join('')}</div>
-        <button class="hb big go" data-claim="1">${ic('coin')}<span>Abholen</span></button>`;
-    } else if (F) {
+    // the crop choice of a new field from a level-up lies on the open book first (orders are collected on the shop page)
+    const F = this.day ? null : s.fieldPicks[0];
+    book.classList.toggle('modal', !!F);
+    rw.hidden = !F;
+    if (F) {
       // new field from a level-up (Basti 21.11.2026): pick its crop, it is placed on the farm by itself
       rw.innerHTML = `<div class="fpick">${ic('plot')}<b>${C.names.buildings.plot}</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-field="${k}">${ic(k)}<b>${this.name(k)}</b>
         <div class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cfgXp(C, k)}</b></span></div></button>`).join('')}</div>`;
@@ -103,7 +144,7 @@ export class HouseUi {
       if (!storeSections(this.cfg).some(S => S.goods.some(g => g.id === this.sel))) this.sel = storeSections(this.cfg)[0]?.goods[0]?.id ?? 'wheat';
       return [storeLeft(this.cfg, this.s, seen, this.sel), storeRight(this.cfg, this.s, seen, this.sel, this.gmode)];
     }
-    if (tab === 'quests') return [this.quests(), this.daySummary()];
+    if (tab === 'quests') { if (this.arch) this.archN = ARCH_PAGE; return [shopLeft(this.cfg, this.s, this.shop), this.arch ? archivePage(this.cfg, this.s) : questsRight(this.cfg, this.s, this.day)]; }
     const rows = tab === 'build' ? this.buildList() : this.prodList(), head = `<h2>${ic(tab === 'build' ? 'hammer' : 'gear')}</h2>`;
     // a short list stays on the left page; the right page of "Bauen" shows what the next levels unlock
     const half = rows.length > 7 ? Math.ceil(rows.length / 2) : rows.length;
@@ -123,40 +164,8 @@ export class HouseUi {
   private badge(t: Tab) {
     const s = this.s; let n = 0;
     if (t === 'build') n = BUILDING_IDS.filter(id => buildStatus(this.cfg, s, id) === 'ok').length;
-    if (t === 'quests') n = s.levelUps.length;
+    if (t === 'quests') n = this.day ? 0 : unclaimed(s).length;
     return n ? `<em>${n}</em>` : '';
-  }
-  /** today's orders (21.11.2026): delivered ones with a green tick, the rest expired; tomorrow brings new ones */
-  private quest(q: Quest) {
-    const open = this.day && !q.done && !q.expired; // during the day an order is still open, not expired
-    return `<div class="row q${q.done ? ' ready' : open ? '' : ' gone'}">${ic(q.done ? 'check' : open ? 'quest' : 'lock')}
-      <div class="qt"><b>${q.title ?? ''}</b><div class="need">${this.goods(q.need)}</div></div>
-      <div class="rew">${this.goods({ money: q.reward.money })}<span class="gd xp">${ic('xp')}<b>${q.reward.xp}</b></span></div>
-    </div>`;
-  }
-  private quests() {
-    const list = this.s.quests.active;
-    return `<h2>${ic('quest')}<span>${list.filter(q => q.done).length}/${list.length}</span></h2>${list.map(q => this.quest(q)).join('')}`;
-  }
-  /** right page of the orders: what the day brought, level-ups */
-  private daySummary() {
-    const s = this.s, C = this.cfg;
-    const S = this.day ? (this.live ? { day: s.day, got: this.live, lost: {} as Record<string, number>, driven: 0, xp: 0, fainted: false, broken: 0 } : null) : s.summary;
-    let h = `<h2>${ic('sun')}<span>Tag ${S?.day ?? s.day}</span></h2>`;
-    for (const L of s.levelUps) {
-      const un = C.levels.unlocks[L] ?? [];
-      h += `<div class="lvlup">${ic('star')}<b>${L}</b><span>${un.map(id => ic(id)).join('')}${ic('plot')}<i>+1</i></span></div>`;
-    }
-    if (S) {
-      const got = Object.entries(S.got).filter(([, v]) => v > 0), lost = Object.entries(S.lost).filter(([, v]) => v > 0);
-      h += `<div class="sum${S.fainted ? ' faint' : ''}">${S.fainted ? `<span class="gd miss">${ic('heart')}<b>0</b></span>` : ''}
-        ${got.map(([k, v]) => `<span class="gd">${ic(k)}<b>+${v}</b></span>`).join('')}
-        ${lost.map(([k, v]) => `<span class="gd miss">${ic(k)}<b>−${v}</b></span>`).join('')}</div>
-        <div class="sum">${S.driven ? `<span class="gd">${ic('raccoon')}<b>×${S.driven}</b></span>` : ''}
-        ${S.broken ? `<span class="gd miss">${ic('plot')}<b>×${S.broken}</b></span>` : ''}
-        ${S.xp ? `<span class="gd xp">${ic('xp')}<b>+${S.xp}</b></span>` : ''}</div>`;
-    }
-    return h;
   }
   private buildList() {
     const s = this.s, C = this.cfg;
@@ -277,6 +286,123 @@ export class HouseUi {
     this.curlRaf = requestAnimationFrame(tick);
   }
 
+  // ---------------- orders + farm shop (Basti 22.11.2026) ----------------
+  /** only the two pages + the footer, the bookmarks stay */
+  private pagesOnly() {
+    const [l, r] = this.pages(); $('#hBody').innerHTML = l; $('#hBodyR').innerHTML = r;
+    $('#hMoney').innerHTML = `${ic('coin')}<b>${this.s.money}</b>`;
+    $('#hTabs').querySelectorAll('.bm').forEach(b => { const t = (b as HTMLElement).dataset.tab as Tab; b.querySelector('em')?.remove(); b.insertAdjacentHTML('beforeend', this.badge(t)); });
+  }
+  private shopClick(t: HTMLButtonElement, d: DOMStringMap) {
+    const s = this.s, sh = shopState(s), ui = this.shop;
+    if (d.claimq) { const q = s.quests.active.find(x => x.id === d.claimq); if (q) this.claim([q]); return true; }
+    if (d.claimall) { this.claim(unclaimed(s)); return true; }
+    if (d.arch !== undefined) { this.arch = d.arch === '1'; this.onSound('ui.page'); this.pagesOnly(); $('#hBodyR').scrollTop = 0; return true; }
+    if (d.scat) { ui.cat = d.scat; this.onSound('ui.click'); this.pagesOnly(); return true; }
+    if (d.sg) { ui.pick = ui.pick === d.sg ? null : d.sg; this.onSound('ui.click'); this.pagesOnly(); return true; }
+    if (d.slot !== undefined) {
+      const i = +d.slot;
+      if (ui.pick) { this.place(i, ui.pick, null); ui.pick = null; return true; }
+      const sl = sh.slots[i]; if (!sl) return true;
+      ui.edit = { i, limit: sl.limit, mode: sl.mode }; this.onSound('ui.click'); this.pagesOnly(); return true;
+    }
+    if (d.emode && ui.edit) { const m = d.emode as SaleMode; ui.edit.mode = ui.edit.mode === m ? 'norm' : m; this.onSound(m === 'prem' ? 'ui.premium' : 'ui.sale'); this.pagesOnly(); return true; }
+    if (d.eok) { this.editDone(true); return true; }
+    if (d.eno) { this.editDone(false); return true; }
+    if (d.edel && ui.edit) { sh.slots[ui.edit.i] = null; ui.edit = null; this.onSound('ui.drop'); this.onChange(); this.pagesOnly(); return true; }
+    return false;
+  }
+  /** a good goes into a sale slot (from the stock list or from another slot: then the two swap) */
+  private place(i: number, id: string, from: number | null) {
+    const sh = shopState(this.s);
+    if (from !== null) { if (from === i) return; const a = sh.slots[from]; sh.slots[from] = sh.slots[i]; sh.slots[i] = a; }
+    else {
+      const j = sh.slots.findIndex(x => x?.id === id);
+      if (j >= 0 && j !== i) { sh.slots[i] = sh.slots[j]; sh.slots[j] = null; }
+      else if (j !== i) sh.slots[i] = { id, limit: null, mode: 'norm' };
+    }
+    this.shop.edit = null; this.onSound('ui.drop'); this.onChange(); this.pagesOnly();
+    const el = $('#hBody').querySelector(`[data-slot="${i}"]`); el?.classList.add('land');
+  }
+  private editDone(ok: boolean) {
+    const e = this.shop.edit; if (!e) return;
+    const sl = shopState(this.s).slots[e.i];
+    if (ok && sl) { sl.limit = e.limit; sl.mode = e.mode; this.onChange(); }
+    this.shop.edit = null; this.onSound(ok ? 'ui.confirm' : 'ui.click'); this.pagesOnly();
+  }
+  /** slider and number field of the edit mode (slider at the end = everything) */
+  private editInput(ev: Event) {
+    const e = this.shop.edit, t = ev.target as HTMLInputElement; if (!e) return;
+    const R = $('#eRange') as HTMLInputElement, N = $('#eNum') as HTMLInputElement; if (!R || !N) return;
+    const top = +R.max;
+    if (t === R) { const v = +R.value; e.limit = v >= top ? null : v; N.value = e.limit === null ? 'Alle' : '' + e.limit; }
+    else if (t === N) {
+      const v = parseInt(N.value.replace(/\D/g, ''), 10);
+      e.limit = isNaN(v) ? null : v; R.value = '' + (e.limit === null ? top : Math.min(top - 1, e.limit));
+    }
+    const sl = shopState(this.s).slots[e.i], st = $('#hBody').querySelector(`[data-slot="${e.i}"] .st b`);
+    if (sl && st) st.textContent = e.limit === null ? 'Alle' : '' + e.limit;
+  }
+  // drag & drop with pointer events (mouse + touch): stock good or filled slot -> slot; a slot dropped off the slots is emptied
+  private dragStart(e: PointerEvent) {
+    const el = (e.target as HTMLElement).closest('[data-drag]') as HTMLElement | null;
+    if (!el || this.shop.edit || e.button > 0) return;
+    this.drag = { id: el.dataset.drag!, from: el.dataset.from !== undefined ? +el.dataset.from : null, x: e.clientX, y: e.clientY, ghost: null };
+  }
+  private dragMove(e: PointerEvent) {
+    const D = this.drag; if (!D) return;
+    if (!D.ghost) {
+      if (Math.hypot(e.clientX - D.x, e.clientY - D.y) < 7) return;
+      D.ghost = document.createElement('div'); D.ghost.className = 'dragGhost'; D.ghost.innerHTML = ic(D.id);
+      $('#fHouse').append(D.ghost); $('#hBook').classList.add('dragging');
+    }
+    D.ghost.style.transform = `translate(${e.clientX}px,${e.clientY}px)`;
+    const over = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest('.slot[data-slot]');
+    $('#hBody').querySelectorAll('.slot.over').forEach(x => x !== over && x.classList.remove('over')); over?.classList.add('over');
+  }
+  private dragEnd(e: PointerEvent | null) {
+    const D = this.drag; this.drag = null; if (!D?.ghost) return;
+    D.ghost.remove(); $('#hBook').classList.remove('dragging'); this.dragged = true; setTimeout(() => this.dragged = false, 50);
+    if (!e) return;
+    const over = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest('.slot[data-slot]') as HTMLElement | null;
+    if (over) { this.shop.pick = null; this.place(+over.dataset.slot!, D.id, D.from); return; }
+    const onSlots = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest('.slots');
+    if (D.from !== null && !onSlots) { shopState(this.s).slots[D.from] = null; this.onSound('ui.drop'); this.onChange(); this.pagesOnly(); }
+    else this.pagesOnly();
+  }
+  /** collects delivered orders one after another: card pops, coins fly to the Gefallen counter */
+  private claim(list: import('../state').Quest[]) {
+    if (this.day) return;
+    list.forEach((q, k) => setTimeout(() => {
+      const card = $('#hBodyR').querySelector(`[data-q="${q.id}"]`) as HTMLElement | null, r = card?.getBoundingClientRect();
+      if (!claimQuest(this.cfg, this.s, q)) return;
+      this.onSound('ui.coins');
+      const lv = this.s.levelUps.length;
+      this.onChange(); this.pagesOnly();
+      const fav = $('#qFav'), to = fav?.getBoundingClientRect();
+      if (r && to) this.coins(r, to, q.reward.money);
+      if (this.s.levelUps.length > lv || this.s.fieldPicks.length) this.render(); // a level-up: the crop choice of the new field
+      const nc = $('#hBodyR').querySelector(`[data-q="${q.id}"]`); nc?.classList.add('pop');
+    }, k * 260));
+  }
+  private coins(from: DOMRect, to: DOMRect, money: number) {
+    const root = $('#fHouse'), n = Math.min(10, 4 + Math.floor(money / 10));
+    const fx = document.createElement('div'); fx.className = 'claimFx';
+    fx.style.left = from.left + from.width / 2 + 'px'; fx.style.top = from.top + from.height / 2 + 'px';
+    root.append(fx); setTimeout(() => fx.remove(), 700);
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div'); c.className = 'flyCoin'; c.innerHTML = ic('coin'); root.append(c);
+      const x0 = from.left + from.width * (.3 + Math.random() * .4), y0 = from.top + from.height * (.35 + Math.random() * .3);
+      const x1 = to.left + 18, y1 = to.top + to.height / 2, mx = (x0 + x1) / 2 + (Math.random() - .5) * 120, my = Math.min(y0, y1) - 60 - Math.random() * 60;
+      const a = c.animate([
+        { transform: `translate(${x0}px,${y0}px) scale(.4)`, opacity: 0 },
+        { transform: `translate(${(x0 + mx) / 2}px,${(y0 + my) / 2}px) scale(1.1)`, opacity: 1, offset: .25 },
+        { transform: `translate(${mx}px,${my}px) scale(1)`, opacity: 1, offset: .55 },
+        { transform: `translate(${x1}px,${y1}px) scale(.6)`, opacity: .9 }], { duration: 650 + i * 45, easing: 'cubic-bezier(.4,0,.7,1)', fill: 'forwards' });
+      a.onfinish = () => { c.remove(); const f = $('#qFav'); if (f) { f.classList.remove('bump'); void f.offsetWidth; f.classList.add('bump'); } };
+    }
+  }
+
   /** graph: crosshair + value of the day under the pointer */
   private hover(e: PointerEvent) {
     const t = e.target as Element, g = t.closest?.('.graph'); if (!g) return;
@@ -291,9 +417,12 @@ export class HouseUi {
   }
 
   private click(e: Event) {
-    const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t || t.disabled) return;
+    if (this.dragged) { this.dragged = false; return; }
+    const tgt = e.target as HTMLElement;
+    // edit mode of a sale slot: a click anywhere outside the panel confirms
+    if (this.shop.edit && !tgt.closest('[data-epanel]')) { this.editDone(true); return; }
+    const t = tgt.closest('button') as HTMLButtonElement | null; if (!t || t.disabled) return;
     const s = this.s, C = this.cfg, d = t.dataset;
-    if (t.id === 'hSleep') { this.onSound('ui.confirm'); this.onSleep(); return; }
     if (t.id === 'hClose') { this.onClose(); return; }
     if (d.tab) { if (d.tab !== this.tab) { this.onSound('ui.click'); this.turnTo(d.tab as Tab); } return; }
     if (d.item) {
@@ -304,8 +433,8 @@ export class HouseUi {
       return;
     }
     if (d.gmode) { this.gmode = d.gmode as GraphMode; this.onSound('ui.click'); $('#hBodyR').innerHTML = storeRight(C, s, markSeen(s), this.sel, this.gmode); return; }
-    if (d.claim) { claimQuests(C, s); this.onSound('ui.levelup'); }
-    else if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
+    if (this.shopClick(t, d)) return;
+    if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
     else if (d.field) { if (placeField(C, s, 0, d.field)) this.onSound('ui.levelup'); }
     // the stock line of today follows what happens in the evening
     const h = s.hist?.[s.hist.length - 1]; if (h && h.d === s.day) { h.st = { ...s.items }; delete h.st.water; }

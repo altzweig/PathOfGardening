@@ -128,6 +128,14 @@ export const SND: Record<string, (arg?: any) => void> = {
   zapS() { if (can('zapS', .08)) { noise({ t: .09, vol: .07, type: 'bandpass', f: rand(3000, 5000), q: 2 }); tone({ type: 'sawtooth', f: 180, f2: 120, t: .08, vol: .03 }); } },
   /** turning a page of the house book: soft papery swish, rising then falling (21.11.2026) */
   page() { if (!can('page', .15)) return; noise({ t: .32, vol: .06, type: 'bandpass', f: 1800, f2: 4200, q: .8, at: .08 }); noise({ t: .18, vol: .035, type: 'highpass', f: 3000, when: .2 }); },
+  /** collecting an order in the house book: bright little coin jingle (22.11.2026) */
+  coins() { if (!can('coins', .08)) return; [1568, 2093, 2637, 3136].forEach((f, i) => tone({ type: 'triangle', f, f2: f * 1.01, t: .16, vol: .05, when: i * .045 })); noise({ t: .12, vol: .03, type: 'highpass', f: 5000, when: .02 }); },
+  /** a good lands in a sale slot: soft wooden knock */
+  drop() { if (!can('drop', .06)) return; tone({ f: 240, f2: 150, t: .09, vol: .12 }); noise({ t: .05, vol: .05, type: 'bandpass', f: 1400, q: 2 }); },
+  /** Sale: two falling notes */
+  sale() { if (!can('sale', .1)) return; tone({ type: 'triangle', f: 880, t: .1, vol: .07 }); tone({ type: 'triangle', f: 660, t: .14, vol: .07, when: .08 }); },
+  /** Premium: rising shimmer */
+  premium() { if (!can('premium', .1)) return; [1047, 1319, 1568].forEach((f, i) => tone({ type: 'sine', f, t: .22, vol: .05, when: i * .05 })); noise({ t: .25, vol: .02, type: 'highpass', f: 6000, when: .1 }); },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }

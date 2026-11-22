@@ -437,17 +437,16 @@ levels:
   # (je Feld realistisch ca. 125 XP/Tag, Level L hat L+2 Felder), daher Abstand ca. 2,5 Tage x 125 x (L+2).
   xp: [0, 250, 1500, 3050, 4950, 7100, 9600, 12400, 15500, 19000]   # XP ab Level 1, 2, 3, ...
   unlocks:                 # was ein Level freischaltet (Gebäude-Ids; dazu gibt jedes Level-up 1 Feld)
-    2: [shop]
     3: [mill, juicer]
     4: [bakery]
     5: [carpentry, workshop]
     6: [dairy, cows, chickens, sheep]
-    7: [silo]
+    7: [silo, shop]
 
 quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automatisch angenommen, abends verfallen die offenen
   daily:
-    count: 3               # Aufträge pro Tag, alle zusammen an einem Tag schaffbar
-    load: 0.55             # Anteil der Feld-Sekunden des Tages (Felder x Taglänge), den die 3 Aufträge zusammen belegen
+    slots: { start: 2, first: 5, every: 5, max: 9 }   # Aufträge pro Tag (Basti 22.11.2026): 2 am Anfang, +1 auf Level 5, 10, 15, ... 35
+    load: 0.55             # Anteil der Feld-Sekunden des Tages (Felder x Taglänge), den alle Aufträge zusammen belegen (alle an einem Tag schaffbar)
     cycle: 10              # s Arbeit pro Feld-Durchgang ohne Wachstum (Säen, Keimen, Gießen, Ernten, Räumen)
     objectives: [1, 1, 2, 2, 2, 3]   # höchstens so viele Ziele pro Auftrag auf Level 1, 2, 3, ...
     blue: { max: 10, min: 5, sec: 8 }  # Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
@@ -459,6 +458,35 @@ quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automati
   titles:                  # 3-5 Wörter; {item} = Name der Ware
     one: ["{item} für den Markt", "Eine Kiste {item}", "Der Händler will {item}", "{item} für das Dorffest", "Ein Korb voll {item}", "Die Nachbarin braucht {item}", "{item} für das Gasthaus"]
     many: ["Gemüsekorb für das Dorf", "Bestellung vom Wochenmarkt", "Einkauf für das Gasthaus", "Lieferung für die Nachbarn", "Proviant für die Wanderer", "Vorräte für das Dorffest", "Großer Korb für die Mühle"]
+
+shop:                      # Hofladen im Haus-Buch (Basti 22.11.2026): Waren per Drag & Drop in die Verkaufs-Slots, verkauft wird über den Tag (abgerechnet abends)
+  slots: { level: 7, start: 2, first: 12, every: 5, max: 9 }   # ab Level 7 2 Slots, +1 auf Level 12, 17, 22, ...
+  rate: 0.08               # Normalpreis pro Stück = Feld-Sekunden pro Stück x rate (Aufträge zahlen 0.12 pro Feld-Sekunde)
+  craft: 1.25              # Erzeugnisse aus Rezepten: Wert der Zutaten x craft
+  demand: 6                # Nachfrage pro Slot und Tag: Waren im Wert von so vielen Gefallen (zum Normalpreis)
+  spread: 0.3              # Nachfrage schwankt jeden Tag um ± diesen Anteil
+  sale:    { price: 0.7, demand: 1.6 }   # Sale: -30 % Preis, es wird mehr verkauft
+  premium: { price: 1.3, demand: 0.5 }   # Premium: +30 % Preis, es wird weniger verkauft
+  base: 0.2                # Preis pro Stück für Waren ohne Feld, Rezept oder Eintrag unten
+  prices:                  # Preis pro Stück (Gefallen) für Waren ohne Feld oder Rezept
+    apple: 0.3
+    nut: 0.3
+    bramble: 0.1
+    baerlauch: 0.4
+    dandel: 0.4
+    sorrel: 0.4
+    mushroom: 0.5
+    wood: 0.2
+    stone: 0.2
+    straw: 0.1
+    green: 0.05
+    slurry: 0.05
+    fert: 0.3
+    milk: 0.6
+    egg: 0.5
+    cran: 0.3
+    goose: 0.5
+    lemon: 1.5
 
 buildings:                 # level = ab diesem Level baubar, cost = Taler + Waren
   # action = was man tagsüber am fertigen Gebäude macht (Linksklick im Radius), recipes = Rezepte, das erste machbare wird genommen
@@ -476,9 +504,9 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
     cost: { money: 60, straw: 4, stone: 6 }
     action: { label: Mahlen, time: 3.0 }
     recipes: [{ in: { wheat: 2 }, out: { flour: 1 } }]
-  shop:                    # Hofladen (Basti 21.11.2026): ab Level 2, erst nach Tag 2 bezahlbar
-    level: 2               # Gefallen aus Aufträgen (20.000 simulierte Starts): Tag 1 = 55-87, Tag 2 = 79-104, Tag 1+2 mind. 134
-    cost: { money: 90 }    # knapp über dem Maximum von Tag 1
+  shop:                    # Hofladen: ab Level 7 (Basti 22.11.2026, vorher Level 2)
+    level: 7
+    cost: { money: 90 }
   juicer:
     level: 3
     cost: { money: 80, wood: 6 }

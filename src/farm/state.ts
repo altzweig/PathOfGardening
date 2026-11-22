@@ -1,6 +1,8 @@
 // Persistent farm state (saved by saves.ts): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
-import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, STALL_IDS, WeaponId, cropsOf, levelFor } from './config';
+import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, STALL_IDS, WeaponId, cropsOf, levelFor, slotsAt } from './config';
+import type { ShopState } from './shop';
+import { sellDay } from './shop';
 
 /** 21.11.2026: no ploughing / raking any more: an open plot is 'empty' (ready to sow) right away and again after the harvest */
 export type PlotStage = 'wild' | 'empty' | 'sown' | 'ripe' | 'done';
@@ -17,6 +19,8 @@ const WILD_V = 3; // 3 = 21.11.2026: wild garlic / dandelion / sorrel live in th
 export interface WildState { weeds: { id: number; x: number; z: number }[]; forage: { id: number; k: ItemId; x: number; z: number; /** picks left (wild plants) */ n?: number }[]; seq: number; init: boolean; /** placement version: older saves grow their weeds + forage anew */ v?: number }
 /** daily order (21.11.2026): taken in the morning, delivered by itself as soon as the goods are in the storage, expires in the evening */
 export interface Quest { id: string; title?: string; need: Record<ItemId, number>; reward: { money: number; xp: number; items?: Record<ItemId, number> }; start?: boolean; done?: boolean; expired?: boolean; claimed?: boolean }
+/** a collected order in the archive: day, title, goods, Gefallen, XP */
+export interface ArchivedQuest { d: number; t: string; n: Record<ItemId, number>; m: number; x: number }
 export interface Production { recipe: number; doneDay: number }
 export interface BuildingState { built: boolean; prod?: Production | null }
 export interface DaySummary { day: number; got: Record<ItemId, number>; lost: Record<ItemId, number>; driven: number; xp: number; fainted: boolean; /** fields broken in the night */ broken?: number }
@@ -34,7 +38,7 @@ export interface FarmState {
   bush: BushState;
   wild: WildState;
   buildings: Record<BuildingId, BuildingState>;
-  quests: { active: Quest[]; offers: Quest[]; seq: number };
+  quests: { active: Quest[]; offers: Quest[]; seq: number; /** collected orders, oldest first (house book archive, 22.11.2026) */ archive?: ArchivedQuest[] };
   weapon: WeaponId | null;     // null = only the hand rake (21.11.2026: no morning choice, the game starts without a weapon)
   ammo: ItemId | null;
   ammoCount: number;           // taken out of the storage for the day, the rest goes back in the evening
@@ -54,6 +58,8 @@ export interface FarmState {
   hist?: DayRecord[];
   /** goods ever owned (the storage page shows the others locked) */
   seen?: ItemId[];
+  /** farm shop: sale slots (22.11.2026) */
+  shop?: ShopState;
 }
 export interface DayRecord { d: number; st: Record<ItemId, number>; got: Record<ItemId, number> }
 
@@ -175,13 +181,19 @@ export function completeQuest(cfg: FarmCfg, s: FarmState, q: Quest) {
 }
 /** evening: rewards of the delivered orders (XP + Gefallen of the village = money) */
 export const unclaimed = (s: FarmState) => s.quests.active.filter(q => q.done && !q.claimed);
-export function claimQuests(cfg: FarmCfg, s: FarmState) {
-  for (const q of unclaimed(s)) {
-    s.money += q.reward.money; gainXp(cfg, s, q.reward.xp);
-    for (const [k, v] of Object.entries(q.reward.items ?? {})) addItem(cfg, s, k, v);
-    q.claimed = true;
-  }
+export function claimQuests(cfg: FarmCfg, s: FarmState) { for (const q of unclaimed(s)) claimQuest(cfg, s, q); }
+/** one delivered order (house book: click on the order, Basti 22.11.2026) */
+export function claimQuest(cfg: FarmCfg, s: FarmState, q: Quest) {
+  if (!q.done || q.claimed) return false;
+  s.money += q.reward.money; gainXp(cfg, s, q.reward.xp);
+  for (const [k, v] of Object.entries(q.reward.items ?? {})) addItem(cfg, s, k, v);
+  q.claimed = true;
+  const A = (s.quests.archive ??= []); A.push({ d: s.day, t: q.title ?? '', n: { ...q.need }, m: q.reward.money, x: q.reward.xp });
+  if (A.length > 5000) A.splice(0, A.length - 5000);
+  return true;
 }
+/** orders per day at the farm's level (2 at the start, +1 on level 5, 10, 15, ...) */
+export const questSlots = (cfg: FarmCfg, level: number) => Math.max(1, slotsAt(cfg.quests.daily.slots, level));
 /** during the day: every order whose goods are all there is delivered at once (returns the delivered ones) */
 export function checkQuests(cfg: FarmCfg, s: FarmState) { return s.quests.active.filter(q => !q.done && !q.expired && completeQuest(cfg, s, q)); }
 
@@ -204,14 +216,14 @@ export function rollDaily(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, L = s.level, T = cfg.quests.titles;
   const yesterday = new Set(s.quests.active.flatMap(q => Object.keys(q.need)));
   const fields = Math.max(1, s.plots.filter(p => p.open).length);
-  const budget = fields * cfg.day.length * D.load, share = budget / D.count;
+  const N = questSlots(cfg, L), budget = fields * cfg.day.length * D.load, share = budget / N;
   // without a working well the can only holds a few fillings: every field pass needs one
   let water = s.buildings.well.built ? Infinity : Math.max(0, s.water - 1), blueLeft = D.blue.max; // one filling stays for the blueberry bush
   const src = questSources(cfg, s), maxObj = D.objectives[Math.min(D.objectives.length - 1, L - 1)] ?? 1;
-  const xp = cfg.levels.xp, gap = (xp[L] ?? xp[xp.length - 1] * 1.3) - (xp[L - 1] ?? 0), xpQuest = gap * (D.xpShare ?? 1) / D.daysPerLevel / D.count;
+  const xp = cfg.levels.xp, gap = (xp[L] ?? xp[xp.length - 1] * 1.3) - (xp[L - 1] ?? 0), xpQuest = gap * (D.xpShare ?? 1) / D.daysPerLevel / N;
   const name = (k: ItemId) => cfg.names.items[k] ?? k;
   s.quests.active = [];
-  for (let q = 0; q < D.count; q++) {
+  for (let q = 0; q < N; q++) {
     const want = share * (0.8 + Math.random() * 0.4), k = 1 + Math.floor(Math.random() * maxObj);
     const need: Record<ItemId, number> = {}; let sec = 0;
     const pool = [...src];
@@ -274,6 +286,7 @@ export function endDay(cfg: FarmCfg, s: FarmState) {
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
   s.ammoCount = 0; s.phase = 'evening';
   expireQuests(s);
+  sellDay(cfg, s);
   recordDay(cfg, s);
 }
 /** remembers the stock and the goods of the day for the storage graph (once per day) */

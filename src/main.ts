@@ -393,7 +393,7 @@ class Game {
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
     if (reason === 'faint') sim.applyKO(); // the worst case: harvest of the day gone, every field trampled (Basti 21.11.2026)
     // stolen goods still on the ground are picked up in the evening
-    else for (const l of sim.loot) { const n = l.n ?? 1; s.items[l.item] = (s.items[l.item] ?? 0) + n; sim.lost[l.item] = Math.max(0, (sim.lost[l.item] ?? 0) - n); }
+    else for (const l of sim.loot) { const n = l.n ?? 1; s.items[l.item] = (s.items[l.item] ?? 0) + n; if (l.fresh) sim.got[l.item] = (sim.got[l.item] ?? 0) + n; else sim.lost[l.item] = Math.max(0, (sim.lost[l.item] ?? 0) - n); }
     s.summary = { day: s.day, got: { ...sim.got }, lost: { ...sim.lost }, driven: sim.driven, xp: sim.xpGained, fainted: reason === 'faint', broken: sim.broken };
     if (reason === 'faint') await this.faintScene(sim);
     else { this.hud.fade(true, true); await wait(this.tut ? 200 : 1500); }
@@ -504,7 +504,7 @@ class Game {
     for (const e of sim.ev) {
       if (e.k === 'store' && (e.pid ?? 0) === sim.localId) this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
       if (e.k === 'faint') this.endOfDay('faint');
-      if (e.k === 'xp' && (e.pid ?? 0) === sim.localId) this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
+      if (e.k === 'xp' && (e.pid ?? 0) === sim.localId) this.hud.xp(e.x ?? sim.player.x, e.z ?? sim.player.z, e.xp);
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
       if (e.k === 'pocket') { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
     }
@@ -718,7 +718,7 @@ class Game {
     for (const e of sim.ev) {
       const mine = (e.pid ?? -1) === sim.localId;
       if (e.k === 'store' && mine) this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
-      if (e.k === 'xp' && mine) this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
+      if (e.k === 'xp' && mine) this.hud.xp(e.x ?? sim.player.x, e.z ?? sim.player.z, e.xp);
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
       if (e.k === 'pocket' && mine) { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
     }

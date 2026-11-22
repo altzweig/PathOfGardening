@@ -56,7 +56,7 @@ export class FarmHud {
   private s: FarmState | null = null;
   /** quest list open (Q / tap on the box) */
   questsOpen = true; private qKey = '';
-  private nums: { el: HTMLElement; x: number; y: number; z: number; t: number }[] = [];
+  private nums: { el: HTMLElement; x: number; y: number; z: number; t: number; key?: string; total?: number }[] = [];
   /** animated progress bar of the running action (22.11.2026) */
   private bar: ActBar; private lastT = performance.now();
   constructor(public cfg: FarmCfg) {
@@ -179,7 +179,7 @@ export class FarmHud {
       const pc = $('#fSeedPc'); pc.hidden = touch; pc.innerHTML = `<kbd>Tab</kbd>${ic(seed)}<span>${sn}</span>`;
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
-      $('#fWater').innerHTML = w;
+      $('#fWater').innerHTML = w; $('#fWater').style.display = this.cfg.harvest ? 'none' : ''; // harvest experiment: no watering can
       const gun = sim.canShoot() || (s.weapon && s.weapon !== 'rake' && s.ammo);
       $('#fWeap').innerHTML = gun ? `${ic(s.weapon!)}<span>${ic(s.ammo!)}<b>${s.ammoCount}</b></span>` : ic('rake');
       $('#bAtk').innerHTML = gun && s.ammoCount > 0 ? ic(s.weapon!) : ic('rake');
@@ -252,10 +252,17 @@ export class FarmHud {
     const same = this.nums.filter(n => n.t < .05 && Math.abs(n.x - x) < .3 && Math.abs(n.z - z) < .3).length;
     this.nums.push({ el, x, y: .6 + same * .3, z, t: 0 });
   }
+  /** harvest experiment: quick pickups add up in one rising number while it is young (no flood of floats) */
+  sum(key: string, x: number, z: number, n: number, html: (n: number) => string, cls: string) {
+    const o = this.nums.find(m => m.key === key && m.t < .7);
+    if (o) { o.total = (o.total ?? 0) + n; o.el.innerHTML = html(o.total); o.x = x; o.z = z; o.t = Math.min(o.t, .15); o.el.classList.remove('bump'); void o.el.offsetWidth; o.el.classList.add('bump'); return; }
+    this.float(x, z, html(n), cls); const m = this.nums[this.nums.length - 1]; m.key = key; m.total = n;
+  }
+  xp(x: number, z: number, n: number) { this.sum('xp', x, z, n, v => `${ic('xp')}+${v}`, 'xp'); }
   /** harvest (Basti 22.11.2026): "amount icon name", the text in the colour of the rarity; a lucky roll a bit bigger */
   harvest(x: number, z: number, item: string, n: number, lucky = false) {
     const name = (this.cfg.names.items as Record<string, string>)[item] ?? item, r = goodInfo(this.cfg, item).rarity;
-    this.float(x, z, `<span class="hn">${n}</span>${ic(item)}<span>${name}</span>`, `harv r${r[0]}${lucky ? ' lucky' : ''}`);
+    this.sum('h:' + item, x, z, n, v => `<span class="hn">${v}</span>${ic(item)}<span>${name}</span>`, `harv r${r[0]}${lucky ? ' lucky' : ''}`);
   }
   hint(text: string | null, icon?: string) {
     const h = $('#fHint'); h.hidden = !text; if (text) h.innerHTML = (icon ? ic(icon) : '') + `<span>${text}</span>`;

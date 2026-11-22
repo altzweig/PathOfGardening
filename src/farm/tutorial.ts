@@ -26,17 +26,13 @@ export class Tutorial {
     this.t += dt;
     const plot = s.plots[0], b = s.bush, near = (x: number, z: number) => dist(P.x, P.z, x, z) < this.cfg.player.reach + 1.2;
     switch (this.step) {
-      case 'water':
-        V.setArrow({ x: H.bush.x, z: H.bush.z, y: 2.1 });
-        this.hud.hint(near(H.bush.x, H.bush.z) || P.action ? T.waterHere : T.water, 'can');
-        if (b.phase === 'growing') this.go('field');
-        break;
+      case 'water': this.go('field'); break; // harvest experiment (22.11.2026): nothing to water, the bush grows by itself
       case 'field': {
-        const p = H.plots[0]; V.setArrow({ x: p.x, z: p.z, y: 1.6 });
-        // what the field needs now (the action the button / click would do there)
-        const a = sim.actionFor({ k: 'plot', i: 0 }), sub = a?.kind === 'weed' ? ['rake', T.weed] : a?.kind === 'sow' ? ['seed', T.sow] : ['can', T.waterField];
-        this.hud.hint(this.t < 4 || !near(p.x, p.z) ? T.meanwhile : P.action && T.hold ? T.hold : sub[1], sub[0]);
-        if (plot.stage === 'sown' && plot.watered && plot.weeds <= 0 && !P.action) { this.go('daily'); V.setArrow(null); }
+        // harvest experiment: harvest the wheat (it grows by itself), then pick up what tumbled out
+        const p = H.plots[0], loose = sim.loot.some(l => l.h), collect = loose && !P.action;
+        V.setArrow(P.action || collect ? null : { x: p.x, z: p.z, y: 1.6 });
+        this.hud.hint(collect ? (T.collect ?? T.harvest) : (T.field ?? T.harvest), collect ? 'hands' : 'sickle');
+        if (count(s, 'wheat') >= 10 && !loose && !P.action) { this.go('daily'); V.setArrow(null); }
         break;
       }
       case 'daily':

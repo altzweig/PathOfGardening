@@ -2,7 +2,7 @@
 // the evening. Price per piece from the work behind it (field seconds x rate, products: ingredients x craft, others from
 // shop.prices). Sale = -30 % price, more is sold; Premium = +30 % price, less is sold.
 import type { FarmCfg, ItemId } from './config';
-import { slotsAt } from './config';
+import { cropMain, cropSec, slotsAt } from './config';
 import type { FarmState } from './state';
 import { addItem, count } from './state';
 
@@ -26,10 +26,8 @@ export function priceOf(cfg: FarmCfg, id: ItemId, depth = 0): number {
   const D = cfg.quests.daily;
   if (id === 'blue') return D.blue.sec * S.rate;
   // a crop on a field: field seconds per piece of its main good
-  for (const c of Object.values(cfg.crops)) {
-    const [main, n] = Object.entries(c.yield).sort((a, b) => b[1] - a[1])[0] ?? [];
-    if (main === id && n) return (c.grow + D.cycle) / (n * c.cuts) * S.rate;
-  }
+  // harvest experiment (22.11.2026): s of harvest work per piece (every x (1 + overhead))
+  for (const c of Object.values(cfg.crops)) if (cropMain(c) === id) return cropSec(cfg, c) * S.rate;
   // a product: what goes into it
   if (depth < 4) for (const B of Object.values(cfg.buildings)) for (const r of B.recipes ?? []) {
     const out = r.out[id]; if (!out) continue;

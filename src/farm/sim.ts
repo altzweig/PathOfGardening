@@ -80,6 +80,8 @@ export interface Player {
   /** active seed of this farmer (22.11.2026, from the intent; the owner's is s.seed) */
   seed?: string;
   shotT: number; cd: number; hurt: number; stun: number;
+  /** harvest experiment: XP fractions of the fruits harvested (whole XP are booked) */
+  hx?: number;
 }
 export type AnimalState = 'enter' | 'go' | 'steal' | 'eat' | 'attack' | 'flee' | 'wander' | 'run' | 'script';
 export interface Animal {
@@ -101,7 +103,8 @@ export interface Animal {
 }
 export interface Pellet { pid?: number; x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId }
 /** goods on the ground: dropped by a raccoon (stolen) or shaken off a tree (new) */
-export interface Loot { id: number; item: ItemId; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number; fresh?: boolean; /** pieces in this pile (default 1) */ n?: number }
+export interface Loot { id: number; item: ItemId; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number; fresh?: boolean; /** pieces in this pile (default 1) */ n?: number;
+  /** harvest experiment: a fruit out of a field (collected within harvest.collect every tick, 3 alike merge into a bigger one); land = s on the ground */ h?: boolean; land?: number }
 /** a stall during the day: fed 0..maxFed (this half of the day), collected this half, fresh straw today */
 export interface Stall { fed: number; done: boolean; straw: boolean }
 
@@ -356,13 +359,13 @@ export class DaySim {
     switch (t.k) {
       case 'bush': {
         const b = s.bush;
-        if (b.phase === 'dry') return this.act('water', 'can', noWater);
+        if (b.phase === 'dry') return null; // harvest experiment: no watering, the bush grows by itself
         if (b.phase === 'ripe') return this.act('harvestBush', 'hands');
         return null;
       }
       case 'well': {
-        if (!s.buildings.well.built) return this.act('refill', 'can', { ok: false, why: 'well' });
-        if (this.can < this.cfg.can.capacity) return this.act('refill', 'can', { count: `${this.can}/${this.cfg.can.capacity}` });
+        if (!s.buildings.well.built) return null;
+        // harvest experiment: no watering can any more
         const n = count(s, 'water'), cap = this.cfg.wild.barrel;
         return n < cap ? this.act('draw', 'bucket', { count: `${n}/${cap}` }) : null;
       }
@@ -372,16 +375,11 @@ export class DaySim {
         // 21.11.2026 (Basti): only sow, water, harvest + weed every morning. Weeds never block anything, they slow the growth.
         // Order = what helps most first: sow, water (growth starts), then weed; while sprouting / clearing there is time to weed.
         const fert = count(s, 'fert') > 0 && p.fertDay !== s.day, weed = p.weeds > 0 ? this.act('weed', 'handrake', { count: '' + p.weeds }) : null;
-        if (p.stage === 'ripe') return this.act('harvestPlot', p.crop === 'wheat' ? 'sickle' : 'hands', { count: '' + p.yieldLeft });
-        if (p.stage === 'empty') return this.act('sow', 'seed', { item: this.seedCrop(t.i) });
-        if (p.stage === 'sown') {
-          if (p.t > 0) return weed;                       // sprouting
-          if (!p.watered) { const w = this.act('water', 'can', noWater); return !w.ok && weed ? weed : w; }
-          if (weed) return weed;
-          if (fert) return this.act('fertilize', 'hands');
-          return null;
-        }
-        return weed;                                      // 'done': cleared in a moment
+        // harvest experiment (Basti 22.11.2026): no sowing, watering, weeding. Ripe = harvest continuously (no bar, no end time), else nothing
+        void weed; void noWater;
+        if (p.stage === 'ripe') return this.act('harvestPlot', p.crop === 'wheat' ? 'sickle' : 'hands', { dur: 1e9, repeat: false });
+        if (p.stage === 'sown' && fert) return this.act('fertilize', 'hands');
+        return null;
       }
       case 'bld': {
         const B = this.cfg.buildings[t.id]; if (!B?.action || !B.recipes?.length || !s.buildings[t.id]?.built) return null;
@@ -540,6 +538,80 @@ export class DaySim {
     const s = this.s, k = this.player.seed ?? s.seed;
     return s.seeds.includes(k) && this.cfg.crops[k] ? k : s.seeds.find(x => this.cfg.crops[x]) ?? 'wheat';
   }
+  // ---------------- harvest experiment (Basti 22.11.2026) ----------------
+  /** a field plants itself again right after the harvest: small, grows by itself */
+  private replant(i: number, seed?: string) {
+    const s = this.s, k = seed && s.seeds.includes(seed) && this.cfg.crops[seed] ? seed : s.seeds.find(x => this.cfg.crops[x]) ?? 'wheat';
+    Object.assign(s.plots[i], { stage: 'sown', crop: k, days: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0, fertDay: 0, t: 0, grow: 0, acc: {} });
+    this.ev.push({ k: 'replant', i });
+  }
+  /** continuous harvest: one fruit every crops.*.every s tumbles out of the plant; empty = the plant is small again at once */
+  private harvestTick(A: NonNullable<Player['action']>, dt: number) {
+    const P = this.player, t = A.target; if (t.k !== 'plot') return;
+    const p = this.s.plots[t.i], C = p?.crop ? this.cfg.crops[p.crop] : null;
+    if (!p || p.stage !== 'ripe' || !C) { this.endHarvest(A); return; }
+    const every = Math.max(.05, C.every);
+    A.t += dt;
+    while (A.t >= every && p.stage === 'ripe') {
+      A.t -= every; A.pick++;
+      this.dropFruit(t.i, C.yield);
+      // XP per fruit (fractions add up per farmer)
+      P.hx = (P.hx ?? 0) + cropXp(this.cfg, p.crop!);
+      if (P.hx >= 1) { const n = Math.floor(P.hx); P.hx -= n; this.giveXp(P, n, this.cfg.hof.plots[t.i]); }
+      if (--p.yieldLeft <= 0) { this.replant(t.i, P.seed ?? this.s.seed); this.ev.push({ k: 'plotCleared', i: t.i }); this.endHarvest(A); return; }
+    }
+  }
+  private endHarvest(A: NonNullable<Player['action']>) {
+    const P = this.player; if (P.action !== A) return;
+    P.action = null; P.crouch = false; P.after = null; P.rest = 0;
+    this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
+  }
+  /** one fruit out of a field: main good + side goods as their fractions add up */
+  private dropFruit(i: number, yieldPer: Record<ItemId, number>) {
+    const p = this.s.plots[i], c = this.cfg.hof.plots[i], H = this.cfg.harvest, acc = (p.acc ??= {});
+    const r = this.cfg.plots.size / 2 * .6, a0 = rnd(0, Math.PI * 2), r0 = Math.sqrt(Math.random()) * r;
+    const x = c.x + Math.cos(a0) * r0, z = c.z + Math.sin(a0) * r0;
+    for (const [k, v] of Object.entries(yieldPer)) {
+      acc[k] = (acc[k] ?? 0) + v;
+      while (acc[k] >= 1 - 1e-6) {
+        acc[k] -= 1;
+        const an = rnd(0, Math.PI * 2), sp = rnd(...H.throw);
+        this.loot.push({ id: this.nid++, item: k, x, z, y: .35, vx: Math.cos(an) * sp, vz: Math.sin(an) * sp, vy: rnd(...H.up), t: 0, fresh: true, h: true, n: 1 });
+        this.ev.push({ k: 'cropDrop', i, item: k, x, z, crop: p.crop });
+      }
+    }
+  }
+  private collectT = 0;
+  /** every harvest.tick s: fruits on the ground within harvest.collect of a farmer are collected, 3 alike merge into a bigger one */
+  private collectTick() {
+    const H = this.cfg.harvest, L = this.loot, got = new Map<string, { item: ItemId; n: number; pid: number; x: number; z: number }>();
+    for (let i = L.length - 1; i >= 0; i--) {
+      const l = L[i]; if (!l.h || l.land === undefined || l.land < H.settle) continue;
+      const near = this.nearestPlayer(l.x, l.z); if (!near || near.d > H.collect) continue;
+      const n = l.n ?? 1; L.splice(i, 1); addItem(this.cfg, this.s, l.item, n);
+      this.got[l.item] = (this.got[l.item] ?? 0) + n;
+      this.ev.push({ k: 'pickup', item: l.item, x: l.x, z: l.z, n, pid: near.P.id, h: true });
+      const key = near.P.id + ':' + l.item, g = got.get(key);
+      if (g) g.n += n; else got.set(key, { item: l.item, n, pid: near.P.id, x: near.P.x, z: near.P.z });
+    }
+    for (const g of got.values()) this.ev.push({ k: 'store', item: g.item, n: g.n, x: g.x, z: g.z, pid: g.pid, collect: true });
+    // merging: merge (3) fruits of the same kind and size close together become one (3 -> 9 -> 27 ...)
+    const M = Math.max(2, H.merge), r2 = H.mergeRadius * H.mergeRadius;
+    for (let i = 0; i < L.length; i++) {
+      const a = L[i]; if (!a.h || a.land === undefined || a.land < H.settle) continue;
+      const grp = [a];
+      for (let j = i + 1; j < L.length && grp.length < M; j++) {
+        const b = L[j]; if (!b.h || b.item !== a.item || (b.n ?? 1) !== (a.n ?? 1) || b.land === undefined || b.land < H.settle) continue;
+        if ((b.x - a.x) ** 2 + (b.z - a.z) ** 2 <= r2) grp.push(b);
+      }
+      if (grp.length < M) continue;
+      const x = grp.reduce((v, b) => v + b.x, 0) / M, z = grp.reduce((v, b) => v + b.z, 0) / M, n = (a.n ?? 1) * M;
+      for (const b of grp) L.splice(L.indexOf(b), 1);
+      L.push({ id: this.nid++, item: a.item, x, z, y: .05, vx: 0, vz: 0, vy: 2.2, t: 0, fresh: true, h: true, n });
+      this.ev.push({ k: 'merge', item: a.item, x, z, n });
+      i = -1; // the list changed: look again from the start (lists are small)
+    }
+  }
   /** XP for every harvest pass (Basti 21.11.2026) */
   private harvestXp(xp: number, at: { x: number; z: number }) {
     this.giveXp(this.player, xp, at);
@@ -548,18 +620,20 @@ export class DaySim {
   private updatePlots(dt: number) {
     this.s.plots.forEach((p, i) => {
       if (!p.open) return;
+      // harvest experiment (Basti 22.11.2026): an empty field plants itself (active seed of the owner), grows without water or weeds
+      if (p.broken) return;
+      if (p.stage === 'empty' || p.stage === 'done' || (p.stage === 'sown' && !p.crop)) { this.replant(i, this.s.seed); return; }
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
-        if (!p.watered || !p.crop || this.nightOn) return; // crops grow by day only
-        const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p); // every weed slows the growth
-        if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); this.ev.push({ k: 'plotRipe', i }); }
-      } else if (p.stage === 'done') {
-        if ((p.t -= dt) <= 0) Object.assign(p, { stage: 'empty', crop: null, t: 0, grow: 0, watered: false, bites: 0, yieldLeft: 0, fert: 0 }); // sow again right away
+        if (!p.crop || this.nightOn) return; // crops grow by day only
+        const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p);
+        if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); p.acc = {}; this.ev.push({ k: 'plotRipe', i }); }
       }
     });
   }
   private updateBush(dt: number) {
     const b = this.s.bush, B = this.cfg.bush;
+    if (b.phase === 'dry') { b.phase = 'growing'; b.t = 0; } // harvest experiment: no watering
     if (b.phase === 'growing') {
       b.t += dt * (this.ripenMul ?? 1);
       if (b.t >= B.ripen) {
@@ -619,6 +693,8 @@ export class DaySim {
       else if (!steering) { const g = this.low(go.target, go.info) ? this.workPoint(go.target, go.info.kind) : this.targetPos(go.target), l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
     }
     const swinging = !!P.swing && P.swing.t < this.cfg.weapons.rake.swing;
+    // harvest experiment: steering away stops the field harvest (the fruits so far lie on the ground)
+    if (P.action?.info.kind === 'harvestPlot' && steering) { this.cancelAction(); P.held = false; P.crouch = false; }
     // harvesting pauses the walk; it goes on by itself when the harvest is done or the button is let go
     if (P.action && !P.action.go && HARVEST_ACTIONS.has(P.action.info.kind)) { mx = 0; mz = 0; }
     const base = P.action?.go && !steering ? C.speed : P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
@@ -647,8 +723,9 @@ export class DaySim {
     if (P.action && this.tooFar(P.action.target, P.action.info)) this.cancelAction();
     if (P.action) {
       const A = P.action, tp = this.facePoint(A.target, A.info.kind); P.f = angTo(P.x, P.z, tp.x, tp.z);
-      A.t += dt; if (A.go) A.t = Math.min(A.t, A.info.dur * .9); // the bar runs from the press on, the step lands once in place
-      if (A.t >= A.info.dur) {
+      if (A.info.kind === 'harvestPlot') this.harvestTick(A, dt); // harvest experiment: continuous, no bar
+      else { A.t += dt; if (A.go) A.t = Math.min(A.t, A.info.dur * .9); } // the bar runs from the press on, the step lands once in place
+      if (P.action && A.t >= A.info.dur) {
         // Basti 22.11.2026: after every step back to the idle pose (stand up), short pause, then the next step on the same spot
         P.action = null; P.crouch = false; this.finishAction(A.target, A.info);
         const gap = this.cfg.player.actionGap ?? .5;
@@ -924,9 +1001,18 @@ export class DaySim {
   }
   private updateLoot(dt: number) {
     const C = this.cfg.player;
+    if (this.cfg.harvest && (this.collectT += dt) >= this.cfg.harvest.tick) { this.collectT = 0; this.collectTick(); }
     for (let i = this.loot.length - 1; i >= 0; i--) {
       const l = this.loot[i]; l.t += dt;
       if (l.y > 0 || l.vy > 0) { l.vy -= 14 * dt; l.y = Math.max(0, l.y + l.vy * dt); l.x += l.vx * dt; l.z += l.vz * dt; if (l.y === 0) { l.vy = 0; l.vx *= .3; l.vz *= .3; } }
+      if (l.h) { // harvest experiment: fruits roll out a little after landing, never into a wall; collected in collectTick
+        if (l.y === 0) {
+          if (l.land === undefined) l.land = 0; l.land += dt;
+          if (Math.abs(l.vx) + Math.abs(l.vz) > .01) { l.x += l.vx * dt; l.z += l.vz * dt; const k = Math.exp(-dt * 6); l.vx *= k; l.vz *= k; }
+        }
+        const c = this.hof.collide(l.x, l.z, .08, false); l.x = c.x; l.z = c.z;
+        continue;
+      }
       const near = this.nearestPlayer(l.x, l.z); if (!near) continue;
       const P = near.P, d = near.d;
       if (l.t > .5 && d < C.magnetRadius) { const k = Math.min(1, C.magnetSpeed * dt / Math.max(.01, d)); l.x += (P.x - l.x) * k; l.z += (P.z - l.z) * k; }

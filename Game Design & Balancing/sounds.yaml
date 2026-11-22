@@ -116,6 +116,17 @@ can:                                                  # Gießkanne (21.11.2026, 
 harvest:                                              # erfolgreiches Ernten, egal ob Feld, Blaubeerbusch, Brombeeren, Obstbaum oder Wildpflanze (21.11.2026)
   ok:   { files: [harvest_pop], vol: 0.3, pitch: [0.88, 1.12], gap: 0.06 }   # Ernte-Plopp bei jedem Erntedurchgang (aus soundreality "pop sound")
   done: { files: [harvest_ding], vol: 0.2, pitch: [1.0, 1.08], gap: 0.3 }    # letzter Durchgang: Feld/Busch leer geerntet (Glas-Ding)
+  # Ernte-Experiment (Basti 22.11.2026): bei jeder Frucht, die aus der Pflanze purzelt, ein angenehmes Geräusch, jedes Mal etwas anders
+  # gepitcht (zufällige Datei + Tonhöhe). Klanggruppe je Pflanze in balancing.yaml crops.*.sound.
+  tick: { files: [harvest_pop], vol: 0.12, pitch: [0.85, 1.35], gap: 0.03 }   # leiser Plopp unter jeder Frucht
+  pop:
+    grain: { files: [rip_1, rip_2, rip_3, rip_4, rip_5], vol: 0.2, pitch: [1.35, 1.8], gap: 0.03, lp: 5000 }   # Weizen: helles Rascheln/Sichelschnitt
+    berry: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.22, pitch: [1.05, 1.45], gap: 0.03 }         # Erbsen, Bohnen, Erdbeeren (wie Blaubeeren)
+    fruit: { files: [berry_1, berry_2, berry_3, berry_4], vol: 0.24, pitch: [0.7, 0.9], gap: 0.03, lp: 2600 }  # Tomate, Paprika, Zucchini, Chili: runder, tiefer
+    leaf:  { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [0.95, 1.25], gap: 0.03 }                         # Kohl, Salat, Sellerie, Fenchel: Blätter knacken
+    root:  { files: [cab_1, cab_2, cab_3], vol: 0.3, pitch: [0.62, 0.82], gap: 0.03, lp: 1600 }               # Karotte, Kartoffel, Zwiebel: dumpf aus der Erde
+    hard:  { files: [wood_1, wood_2, wood_3, wood_4, wood_5], vol: 0.24, pitch: [1.05, 1.35], gap: 0.03 }     # Mais, Lauch, Spargel, Rhabarber: Knacken
+    big:   { files: [cab_1, cab_2, cab_3], vol: 0.4, pitch: [0.45, 0.6], gap: 0.03, lp: 1200 }                # Kürbis, Melone: schwerer Plumps
 
 plants:
   ripe:  { files: [ripe_1], vol: 0.32, pitch: [0.96, 1.06], gap: 0.5 }      # Feld/Busch fertig gewachsen und erntebereit (helles Glöckchen, aus koiroylers "clear notification")
@@ -231,8 +242,9 @@ ui:
 collect:
   xp:    { files: [bb_collect_1, bb_collect_2, bb_collect_3, bb_collect_4], vol: 0.16, pitch: [0.95, 1.04], rising: true, lp: 2200 }    # Blaubeeren einsammeln (aus blueberry.mp3: dumpf, kurz, leicht tiefer)
   ammo:  { files: [collect_ammo_1, collect_ammo_2, collect_ammo_3, collect_ammo_4], vol: 0.14, pitch: [0.72, 0.85], gap: 0.04, lp: 1500 } # Munition
-  big:   { files: [collect_big], vol: 0.2, pitch: [0.72, 0.82], lp: 1800 }                 # große Frucht (Stufe 2/3)
-  merge: { files: [merge], vol: 0.4, pitch: [0.9, 1.15], gap: 0.1 }              # 10 Früchte verschmelzen
+  crop:  { files: [bb_collect_1, bb_collect_2, bb_collect_3, bb_collect_4], vol: 0.13, pitch: [1.0, 1.1], rising: true, lp: 2600 }   # Ernte-Experiment: Frucht vom Boden einsammeln (steigt bei schnellem Einsammeln)
+  big:   { files: [collect_big], vol: 0.2, pitch: [0.72, 0.82], lp: 1800 }   # (Ernte-Experiment: auch große verschmolzene Früchte ab 9)                 # große Frucht (Stufe 2/3)
+  merge: { files: [merge], vol: 0.3, pitch: [0.9, 1.25], gap: 0.1 }              # Ernte-Experiment: 3 gleiche Früchte verschmelzen zu einer größeren
 
 effects:
   pool:  { files: [pool_1, pool_2, pool_3], vol: 0.3, pitch: [0.85, 1.1], gap: 0.15 }  # Kohl-Giftlache blubbert

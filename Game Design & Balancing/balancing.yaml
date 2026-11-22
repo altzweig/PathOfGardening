@@ -168,32 +168,47 @@ bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> 
 #   Säen 2 s (kostenlos) -> 1 s sieht man die Pflanze sprießen -> Gießen 2 s -> grow s wachsen -> cuts x Ernten (je 1,33 s)
 #   -> 1 s abräumen, dann ist das Feld wieder bereit. Also etwa 10 s + grow pro Durchgang.
 # name = Anzeige über dem Feld (nur in der Nähe), level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
-crops:                     # Feldfrüchte aus Bastis Fruchttabelle (Stand 21.11.2026). Seit 22.11.2026 wächst auf jedem Feld das gesäte Saatgut.
-  # Neues Saatgut gibt es per Level-up (seeds.offer): erst die Commons, danach Uncommons, dann Rares.
-  wheat:    { name: Weizen, rarity: Common,   grow: 60,  cuts: 3, yield: { wheat: 5, straw: 1 } }
-  carrot:   { name: Karotte, rarity: Common,   grow: 80,  cuts: 3, yield: { carrot: 1 } }
-  potato:   { name: Kartoffel, rarity: Common,   grow: 100, cuts: 3, yield: { potato: 3 } }
-  onion:    { name: Zwiebel, rarity: Common,   grow: 60,  cuts: 3, yield: { onion: 1 } }
-  garlic:   { name: Knoblauch, rarity: Common,   grow: 50,  cuts: 3, yield: { garlic: 1 } }
-  pea:      { name: Erbsen, rarity: Common,   grow: 80,  cuts: 3, yield: { pea: 5 } }
-  celery:   { name: Sellerie, rarity: Common,   grow: 70,  cuts: 3, yield: { celery: 1 } }
-  cab:      { name: Kohl, rarity: Common,   grow: 220, cuts: 3, yield: { cab: 1 } }
-  radish:   { name: Radieschen, rarity: Uncommon, grow: 80,  cuts: 3, yield: { radish: 2 } }
-  bean:     { name: Bohnen, rarity: Uncommon, grow: 100, cuts: 3, yield: { bean: 3 } }
-  leek:     { name: Lauch, rarity: Uncommon, grow: 90,  cuts: 3, yield: { leek: 1 } }
-  strawb:   { name: Erdbeeren, rarity: Uncommon, grow: 70,  cuts: 3, yield: { strawb: 3 } }
-  lettuce:  { name: Salat, rarity: Uncommon, grow: 70,  cuts: 3, yield: { lettuce: 1 } }
-  corn:     { name: Mais, rarity: Uncommon, grow: 120, cuts: 3, yield: { corn: 1 } }
-  pepper:   { name: Paprika, rarity: Uncommon, grow: 130, cuts: 3, yield: { pepper: 1 } }
-  tomato:   { name: Tomate, rarity: Uncommon, grow: 140, cuts: 3, yield: { tomato: 1 } }
-  zucchini: { name: Zucchini, rarity: Uncommon, grow: 130, cuts: 3, yield: { zucchini: 1 } }
-  eggplant: { name: Aubergine, rarity: Uncommon, grow: 150, cuts: 3, yield: { eggplant: 1 } }
-  asp:      { name: Spargel, rarity: Rare,     grow: 180, cuts: 3, yield: { asp: 1 } }
-  pumpkin:  { name: Kürbis, rarity: Rare,     grow: 400, cuts: 3, yield: { pumpkin: 1 } }
-  melon:    { name: Melone, rarity: Rare,     grow: 440, cuts: 3, yield: { melon: 1 } }
-  chili:    { name: Chili, rarity: Rare,     grow: 320, cuts: 3, yield: { chili: 3 } }
-  rhubarb:  { name: Rhabarber, rarity: Rare,     grow: 360, cuts: 3, yield: { rhubarb: 1 } }
-  fennel:   { name: Fenchel, rarity: Rare,     grow: 230, cuts: 3, yield: { fennel: 1 } }
+crops:                     # Feldfrüchte. ERNTE-EXPERIMENT (Basti 22.11.2026): kein Säen, Gießen, Jäten. Die Pflanze wächst von selbst,
+  # dann wird so lange durchgehend geerntet, wie sie zum Wachsen gebraucht hat (harvest, Standard = grow). Alle every s purzelt
+  # eine Frucht heraus (yield = pro Frucht; Bruchteile sammeln sich, z. B. Stroh jede 5. Ähre). Danach ist die Pflanze sofort wieder klein.
+  # Zeiten = alte Wachstumszeit / 10. every: 0,2 s (Weizen) .. 0,8 s (Kürbis, Melone), nach dem alten Wert pro Stück (logarithmisch).
+  # sound = Klanggruppe beim Ernten (sounds.yaml harvest.pop.*): grain, berry, fruit, leaf, root, hard, big
+  # Vorher (Stand vor-ernte-experiment): grow 50-440 s, cuts 3, yield pro Erntevorgang.
+  wheat:    { name: Weizen, rarity: Common,   grow: 6, every: 0.2, sound: grain, yield: { wheat: 1, straw: 0.2 } }
+  carrot:   { name: Karotte, rarity: Common,   grow: 8, every: 0.5, sound: root,  yield: { carrot: 1 } }
+  potato:   { name: Kartoffel, rarity: Common,   grow: 10, every: 0.35, sound: root,  yield: { potato: 1 } }
+  onion:    { name: Zwiebel, rarity: Common,   grow: 6, every: 0.5, sound: root,  yield: { onion: 1 } }
+  garlic:   { name: Knoblauch, rarity: Common,   grow: 5, every: 0.45, sound: root,  yield: { garlic: 1 } }
+  pea:      { name: Erbsen, rarity: Common,   grow: 8, every: 0.25, sound: berry, yield: { pea: 1 } }
+  celery:   { name: Sellerie, rarity: Common,   grow: 7, every: 0.5, sound: leaf,  yield: { celery: 1 } }
+  cab:      { name: Kohl, rarity: Common,   grow: 22, every: 0.7, sound: leaf,  yield: { cab: 1 } }
+  radish:   { name: Radieschen, rarity: Uncommon, grow: 8, every: 0.4, sound: root,  yield: { radish: 1 } }
+  bean:     { name: Bohnen, rarity: Uncommon, grow: 10, every: 0.35, sound: berry, yield: { bean: 1 } }
+  leek:     { name: Lauch, rarity: Uncommon, grow: 9, every: 0.55, sound: hard,  yield: { leek: 1 } }
+  strawb:   { name: Erdbeeren, rarity: Uncommon, grow: 7, every: 0.3, sound: berry, yield: { strawb: 1 } }
+  lettuce:  { name: Salat, rarity: Uncommon, grow: 7, every: 0.5, sound: leaf,  yield: { lettuce: 1 } }
+  corn:     { name: Mais, rarity: Uncommon, grow: 12, every: 0.6, sound: hard,  yield: { corn: 1 } }
+  pepper:   { name: Paprika, rarity: Uncommon, grow: 13, every: 0.6, sound: fruit, yield: { pepper: 1 } }
+  tomato:   { name: Tomate, rarity: Uncommon, grow: 14, every: 0.6, sound: fruit, yield: { tomato: 1 } }
+  zucchini: { name: Zucchini, rarity: Uncommon, grow: 13, every: 0.6, sound: fruit, yield: { zucchini: 1 } }
+  eggplant: { name: Aubergine, rarity: Uncommon, grow: 15, every: 0.6, sound: fruit, yield: { eggplant: 1 } }
+  asp:      { name: Spargel, rarity: Rare,     grow: 18, every: 0.65, sound: hard,  yield: { asp: 1 } }
+  pumpkin:  { name: Kürbis, rarity: Rare,     grow: 40, every: 0.8, sound: big,   yield: { pumpkin: 1 } }
+  melon:    { name: Melone, rarity: Rare,     grow: 44, every: 0.8, sound: big,   yield: { melon: 1 } }
+  chili:    { name: Chili, rarity: Rare,     grow: 32, every: 0.55, sound: fruit, yield: { chili: 1 } }
+  rhubarb:  { name: Rhabarber, rarity: Rare,     grow: 36, every: 0.75, sound: hard,  yield: { rhubarb: 1 } }
+  fennel:   { name: Fenchel, rarity: Rare,     grow: 23, every: 0.7, sound: leaf,  yield: { fennel: 1 } }
+
+harvest:                   # Ernte-Experiment (Basti 22.11.2026): durchgehend ernten, Früchte purzeln heraus und werden eingesammelt
+  tick: 0.1                # s: so oft wird eingesammelt und verschmolzen (10x pro Sekunde)
+  collect: 1.6             # m um die Figur: liegende Früchte in diesem Umkreis werden jeden Tick eingesammelt
+  settle: 0.3              # s nach der Landung, erst dann kann eine Frucht eingesammelt werden / verschmelzen
+  throw: [0.7, 2.4]        # m/s seitlich: so weit purzeln die Früchte aus der Pflanze (Weizenähren fliegen ein Stück weg)
+  up: [2.6, 4.2]           # m/s nach oben
+  merge: 3                 # so viele gleiche Früchte gleicher Größe verschmelzen zu einer größeren (3 -> 9 -> 27 ...)
+  mergeRadius: 0.7         # m: so nah müssen sie beieinander liegen
+  xp: 1.2                  # XP pro Sekunde Ernten (x Seltenheit aus harvestXp.rarity), Bruchteile sammeln sich
+  overhead: 0.6            # Aufschlag auf die reine Erntezeit für Einsammeln + Laufwege (Aufträge und Preise rechnen mit every x (1 + overhead))
 
 # XP pro Erntevorgang (Basti 21.11.2026, Formel aus der Fruchttabelle):
 #   XP pro Ernte = Seltenheit x (Feldzeit + workWeight x Arbeitszeit) / div, gerundet auf ganze XP pro Vorgang
@@ -488,20 +503,20 @@ levels:
 quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automatisch angenommen, abends verfallen die offenen
   daily:
     slots: { start: 2, first: 5, every: 5, max: 9 }   # Aufträge pro Tag (Basti 22.11.2026): 2 am Anfang, +1 auf Level 5, 10, 15, ... 35
-    load: 0.55             # Anteil der Feld-Sekunden des Tages (Felder x Taglänge), den alle Aufträge zusammen belegen (alle an einem Tag schaffbar)
-    cycle: 10              # s Arbeit pro Feld-Durchgang ohne Wachstum (Säen, Keimen, Gießen, Ernten, Räumen)
+    load: 0.45             # Ernte-Experiment: Anteil des Tages (Taglänge), den alle Aufträge zusammen an Ernte-Arbeit belegen (Stück x every x (1 + harvest.overhead)); vorher 0,55 der Feld-Sekunden
+    cycle: 10              # nicht mehr benutzt (Ernte-Experiment: Aufträge rechnen mit harvest.overhead)
     objectives: [1, 1, 2, 2, 2, 3]   # höchstens so viele Ziele pro Auftrag auf Level 1, 2, 3, ...
-    blue: { max: 10, min: 5, sec: 8 }  # Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
+    blue: { max: 10, min: 5, sec: 2 }  # (Ernte-Experiment: vorher sec 8) Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
     wild:                  # Wildauftrag (Basti 22.11.2026): Kräuter aus den Wildkräuter-Büscheln jäten
       level: 2             # ab diesem Level
       chance: 0.5          # Chance pro Tag, dass einer der Aufträge ein Wildauftrag ist
       kinds: [1, 2]        # so viele verschiedene Kräuter
       n: [2, 3]            # Stück je Kraut (ein Büschel gibt im Schnitt ca. 0,27 je Kraut)
-      sec: 22              # s Arbeit pro Kraut (Suchen + Jäten), daraus Belohnung wie bei den anderen Aufträgen
+      sec: 6               # (Ernte-Experiment: vorher 22) s Arbeit pro Kraut (Suchen + Jäten), daraus Belohnung wie bei den anderen Aufträgen
       titles: ["Kräuter für die Apotheke", "Wildkräuter für die Suppe", "Die Kräuterfrau bittet", "Salat von der Wiese", "Kräuter für das Gasthaus"]
     daysPerLevel: 2.5      # Tage pro Level ...
     xpShare: 0.1           # ... davon kommt dieser Anteil der XP aus Aufträgen (der Rest aus Ernten)
-    money: 0.12            # Taler pro Feld-Sekunde Arbeit ...
+    money: 0.45            # Taler pro Sekunde Ernte-Arbeit (Ernte-Experiment, vorher 0,12 pro Feld-Sekunde) ...
     moneyLevel: 0.15       # ... plus so viel Anteil je Level über 1
     minMoney: 15           # mindestens so viele Taler pro Auftrag (Tag 1 ohne Brunnen: kleine Aufträge, trotzdem reicht es abends für die Reparatur)
   titles:                  # 3-5 Wörter; {item} = Name der Ware
@@ -510,7 +525,7 @@ quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automati
 
 shop:                      # Hofladen im Haus-Buch (Basti 22.11.2026): Waren per Drag & Drop in die Verkaufs-Slots, verkauft wird über den Tag (abgerechnet abends)
   slots: { level: 7, start: 2, first: 12, every: 5, max: 9 }   # ab Level 7 2 Slots, +1 auf Level 12, 17, 22, ...
-  rate: 0.08               # Normalpreis pro Stück = Feld-Sekunden pro Stück x rate (Aufträge zahlen 0.12 pro Feld-Sekunde)
+  rate: 0.3                # Normalpreis pro Stück = Ernte-Sekunden pro Stück x rate (Ernte-Experiment; Aufträge zahlen 0.45 pro Sekunde)
   craft: 1.25              # Erzeugnisse aus Rezepten: Wert der Zutaten x craft
   demand: 6                # Nachfrage pro Slot und Tag: Waren im Wert von so vielen Gefallen (zum Normalpreis)
   spread: 0.3              # Nachfrage schwankt jeden Tag um ± diesen Anteil
@@ -642,7 +657,9 @@ tutorial:
     hold: Gedrückt halten, dann geht es von selbst weiter
     sow: Säen
     waterField: Gießen
-    daily: Einmal gießen, dann wächst der Weizen.
+    daily: Die Pflanzen wachsen von selbst nach.
+    field: Weizen ernten
+    collect: Einsammeln
     almost: Die Blaubeeren sind fast reif
     harvest: Ernten
     hunger: Hunger!

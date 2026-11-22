@@ -2,7 +2,7 @@
 // plants, products), nearly invisible grid, rarity glow, amount + green "+yield of the day"; goods never owned are greyed
 // out with a lock. Right page: graph (stock / yield per day) and the data of the selected good.
 import type { FarmCfg, ItemId, Rarity } from '../config';
-import { BUILDING_IDS, STALL_IDS, cropXp, otherXp } from '../config';
+import { BUILDING_IDS, STALL_IDS, cropHarvestTime, cropPieces, cropXpTotal, otherXp } from '../config';
 import type { FarmState } from '../state';
 import { count } from '../state';
 import { ic } from './ficons';
@@ -87,12 +87,12 @@ function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
   const cycle = cfg.quests?.daily?.cycle ?? 10;
   if (g.kind === 'crop') {
     const C = cfg.crops[id], fields = s.plots.filter(p => p.open && p.crop === id).length;
-    const perPass = C.cuts * (C.yield[id] ?? 0), perDay = D / (cycle + C.grow) * perPass;
-    rows.push(fact('Wachstum', dur(C.grow, cfg)), fact('Ernten', `${C.cuts} ×`), fact('pro Ernte', goods(C.yield)),
-      fact('pro Feld und Tag', `≈ ${n0(perDay)}`), fact('Felder', `${fields}`), fact('XP pro Ernte', `${cropXp(cfg, id)}`));
+    // harvest experiment (22.11.2026): grows by itself, then continuous harvest, one fruit every `every` s
+    const pieces = cropPieces(cfg, id), per = pieces * (C.yield[id] ?? 0), perDay = D / ((C.grow + cropHarvestTime(C)) * (1 + (cfg.harvest?.overhead ?? 0))) * per; void cycle;
+    rows.push(fact('Wachstum', dur(C.grow, cfg)), fact('Ernten', dur(cropHarvestTime(C), cfg)), fact('pro Ernte', goods({ [id]: per })),
+      fact('pro Feld und Tag', `≈ ${n0(perDay)}`), fact('Felder', `${fields}`), fact('XP pro Ernte', `${cropXpTotal(cfg, id)}`));
     const silo = s.buildings.silo?.built;
     bonus.push(`<div class="b${silo || count(s, 'fert') ? '' : ' off'}">${ic('fert')}<span>${cfg.names.items.fert}</span><b>+${Math.round(cfg.plots.fertBonus * 100)} % Ernten</b></div>`);
-    bonus.push(`<div class="b neg">${ic('green')}<span>Unkraut</span><b>${cfg.plots.weeds.slow.map(v => `−${Math.round(v * 100)} %`).join(' / ')}</b></div>`);
   } else if (g.kind === 'bush') {
     rows.push(fact('Reifezeit', dur(cfg.bush.ripen, cfg)), fact('Ernten', `${cfg.bush.picks} ×`), fact('pro Ernte', goods({ [id]: cfg.bush.berries })),
       fact('Büsche', '1'), fact('XP pro Ernte', `${otherXp(cfg, id, cfg.bush.picks)}`));
@@ -134,7 +134,7 @@ function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
       bonus.push(`<div class="b${s.buildings[st]?.built ? '' : ' off'}">${ic('straw')}<span>${cfg.names.items.straw}</span><b>+${Math.round(cfg.stalls.strawBonus * 100)} %</b></div>`);
     } else if (S.feed === id) used.push(line);
   }
-  for (const [cid, C] of Object.entries(cfg.crops)) if (cid !== id && C.yield[id]) made.push(`<div class="rc">${ic('plot')}<span class="gl">${ic(cid)}</span>${ic('arrowR')}<span class="gl">${goods({ [id]: C.yield[id] * C.cuts })}</span></div>`);
+  for (const [cid, C] of Object.entries(cfg.crops)) if (cid !== id && C.yield[id]) made.push(`<div class="rc">${ic('plot')}<span class="gl">${ic(cid)}</span>${ic('arrowR')}<span class="gl">${goods({ [id]: Math.round(C.yield[id] * cropPieces(cfg, cid)) })}</span></div>`);
   if (id === 'green') made.push(`<div class="rc">${ic('handrake')}<span class="gl">${ic('green')}</span></div>`);
   const uniq = (a: string[]) => [...new Set(a)];
   return `${rows.length ? `<div class="facts">${rows.join('')}</div>` : ''}

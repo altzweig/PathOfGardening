@@ -21,7 +21,7 @@ import { cleanLook, type Look } from '../../look';
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, StallId } from '../config';
 import type { FarmState } from '../state';
-import { growMul, ripeCuts } from '../state';
+import { ripeCuts } from '../state';
 import type { Hof } from '../hof';
 import type { Animal, DaySim, Ev, Player, Target } from '../sim';
 import { HofWorld } from './hofWorld';
@@ -64,6 +64,9 @@ export const itemHex = (id: ItemId) => ITEM_HEX[id] ?? 0xcccccc;
 const itemMats = new Map<string, THREE.MeshStandardMaterial>();
 function itemMat(id: ItemId) { let m = itemMats.get(id); if (!m) { m = new THREE.MeshStandardMaterial({ color: itemHex(id), roughness: .55, emissive: itemHex(id), emissiveIntensity: .15 }); itemMats.set(id, m); } return m; }
 /** small world model of a good (loot, carry pile) */
+/** harvest experiment: size of a fruit on the ground by how many merged into it (1, 3, 9, 27 ...) */
+const lootScale = (n: number) => 1.5 * Math.pow(1.45, Math.log(Math.max(1, n)) / Math.log(3));
+const cropMainId = (cfg: FarmCfg, crop: string) => { const y = cfg.crops[crop]?.yield ?? {}; return Object.entries(y).sort((a, b) => b[1] - a[1])[0]?.[0] ?? crop; };
 function itemMesh(id: ItemId, s = 1): THREE.Object3D {
   if (id === 'blue') return fruitMesh('blue', .9 * s);
   const g = new THREE.Group();
@@ -409,28 +412,24 @@ export class FarmView {
     }
     v.wet = lerp(v.wet, p.open && p.watered ? 1 : 0, 1 - Math.exp(-dt * 3));
     v.wetMat.opacity = v.wet * .95;
-    v.drop.visible = day && !this.cine && p.open && p.stage === 'sown' && !p.watered;
+    v.drop.visible = false; // harvest experiment: no watering
     if (v.drop.visible) v.drop.position.y = 1 + Math.sin(performance.now() / 300 + i) * .06;
     // growth timer: bar + time left while the crop grows (watered, after sprouting)
     // 21.11.2026: only shown when the player is close by (soft fade), with the name of the plant above it;
     // ripe = full golden bar + tick; grows longer than the rest of the day = it finishes overnight: rising "Z"s instead of the time
-    const T = v.timer, growing = p.open && p.stage === 'sown' && p.watered && p.t <= 0 && !!C, ripeNow = p.open && p.stage === 'ripe' && !!C;
-    const pp = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), tLeft = growing ? (gm > 0 ? (C!.grow - p.grow) / gm : 1e9) : 0;
-    const sleeping = growing && (night || (!!sim && tLeft > sim.dayLeft));
-    T.a = day && (growing || ripeNow) && !this.cine ? this.infoFade(T.a, pp.x, pp.z, sim, dt) : 0;
-    // 22.11.2026: a sleeping field shows only the Z, no bar, time or name
-    const aw = sleeping ? 0 : T.a; fadeObj(T.bar, aw); fadeObj(T.txt, aw); fadeObj(T.name.s, aw);
+    // harvest experiment (Basti 22.11.2026): no growth bar or time any more, only a clear sign when the field is ripe:
+    // a big golden tick bobbing over the field (seen from afar), the name of the plant only close by
+    const T = v.timer, ripeNow = p.open && p.stage === 'ripe' && !!C && !p.broken;
+    const pp = this.cfg.hof.plots[i], show = day && ripeNow && !this.cine;
+    T.a = lerp(T.a, show ? 1 : 0, 1 - Math.exp(-dt * 6)); if (!show && T.a < .02) T.a = 0;
+    const na = show ? this.infoFade((v as any).na ?? 0, pp.x, pp.z, sim, dt) : 0; (v as any).na = na;
+    fadeObj(T.bar, 0); fadeObj(T.txt, T.a); fadeObj(T.name.s, Math.min(T.a, na));
     if (T.a > .01) {
-      // phone upright: everything is smaller on screen, so the timer grows a bit
-      const k = VP.portrait ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = sleeping ? 0 : TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
-      const frac = ripeNow ? clamp(p.yieldLeft / Math.max(1, ripeCuts(this.cfg, p)), 0, 1) : C0;
-      T.bar.position.set(pp.x - rx.x * off, y, pp.z - rx.z * off); T.bar.quaternion.copy(camera.quaternion); T.bar.scale.setScalar(k); setBar(T.bar, frac);
-      (T.bar.userData.fg.material as THREE.MeshBasicMaterial).color.setHex(ripeNow ? 0xf2c84a : 0x9ad65a);
-      T.txt.position.set(pp.x + rx.x * tx, y, pp.z + rx.z * tx); T.txt.scale.set(TIMER_TXT * k, TIMER_TXT * k * 52 / 128, 1);
-      const txt = ripeNow ? '\u2713' : clockText(tLeft); if (txt !== T.last) { T.last = txt; drawTimer(T.g, txt); T.tex.needsUpdate = true; }
+      const k = (VP.portrait ? 1.5 : 1) * 1.6, y = 1.35 + Math.sin(performance.now() / 260 + i) * .07, s = k * (1 + Math.max(0, Math.sin(performance.now() / 520 + i)) * .08);
+      T.txt.position.set(pp.x, y, pp.z); T.txt.scale.set(TIMER_TXT * s, TIMER_TXT * s * 52 / 128, 1);
+      if (T.last !== '\u2713') { T.last = '\u2713'; drawTimer(T.g, T.last); T.tex.needsUpdate = true; }
       drawName(T.name, this.cropName(p.crop!));
-      T.name.s.position.set(pp.x, y + .24 * k, pp.z); T.name.s.scale.set(NAME_W * k, NAME_H * k, 1);
-      if (sleeping) this.sleepAt('p' + i, pp.x - rx.x * .1 * k, y - .25, pp.z - rx.z * .1 * k, T.a, k);
+      T.name.s.position.set(pp.x, y + .3 * k, pp.z); T.name.s.scale.set(NAME_W * k / 1.6, NAME_H * k / 1.6, 1);
     }
     v.shake = Math.max(0, v.shake - dt * 2.5);
     v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;
@@ -712,7 +711,7 @@ export class FarmView {
     const live = new Set<number>();
     for (const l of sim?.loot ?? []) {
       live.add(l.id); let m = this.lootViews.get(l.id);
-      if (!m) { m = itemMesh(l.item, 1.1 * (1 + Math.min(1.2, Math.log10(l.n ?? 1) * .6))); this.dyn.add(m); this.lootViews.set(l.id, m); }
+      if (!m) { m = itemMesh(l.item, l.h ? lootScale(l.n ?? 1) : 1.1 * (1 + Math.min(1.2, Math.log10(l.n ?? 1) * .6))); this.dyn.add(m); this.lootViews.set(l.id, m); }
       m.position.set(l.x, .1 + l.y + Math.sin(l.t * 5) * .03, l.z); m.rotation.y += dt * 3;
     }
     for (const [id, m] of this.lootViews) if (!live.has(id)) { this.dyn.remove(m); this.lootViews.delete(id); }
@@ -857,7 +856,24 @@ export class FarmView {
       case 'eat': sfx(e.from === 'bush' ? 'plants.eaten.blue' : 'plants.eaten.straw', e.x, e.z); break;
       case 'spawn': sfx(e.type === 'raccoon' ? 'raccoon.wave' : 'hare.wave', e.x, e.z); break;
       case 'drop': burst(V(e.x, .5, e.z), 0xffffff, 8, 1.5, .1, .4); break;
-      case 'pickup': sfx('collect.xp', e.x, e.z); break;
+      case 'pickup':
+        if (e.h) { // harvest experiment: the fruit hops into the farmer's hands
+          const to = { x: P.x, z: P.z }, m = itemMesh(e.item, lootScale(e.n ?? 1)); m.visible = false; this.dyn.add(m);
+          const from = V(e.x, .12, e.z); m.position.copy(from);
+          this.bits.push({ m, vx: 0, vy: 0, vz: 0, t: 0, life: rand(.22, .32), leaf: false, spin: 0, s0: 1, from, to: V(to.x, .8, to.z) });
+          sfx((e.n ?? 1) >= 9 ? 'collect.big' : 'collect.crop', e.x, e.z);
+        } else sfx('collect.xp', e.x, e.z);
+        break;
+      // harvest experiment: a fruit tumbles out of the plant (sound by group, pitched a little differently every time)
+      case 'cropDrop': {
+        const b = this.plots[e.i]; if (b) b.shake = Math.max(b.shake, .55);
+        const grp = this.cfg.crops[e.crop]?.sound ?? 'fruit';
+        if (e.item === cropMainId(this.cfg, e.crop)) { sfx('harvest.pop.' + grp, e.x, e.z); sfx('harvest.tick', e.x, e.z); }
+        burst(V(e.x, .45, e.z), grp === 'grain' ? 0xe8c860 : 0x7aa84a, 4, 1.4, .07, .4, { g: 5 });
+        break;
+      }
+      case 'plotCleared': { const p = this.cfg.hof.plots[e.i]; if (p) { sfx('harvest.done', p.x, p.z); burst(V(p.x, .3, p.z), 0x6a4a30, 10, 1.2, .08, .5, { g: 6 }); } break; }
+      case 'merge': burst(V(e.x, .25, e.z), 0xfff2b0, 10, 1.4, .08, .45, { g: -1 }); sfx('collect.merge', e.x, e.z); break;
       case 'hurt': {
         if (e.type) { sfx(e.type + '.attack', e.x, e.z); sfx(e.type + '.bite', e.x, e.z); } // the animal snaps at the farmer
         if (mine) { this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); } else sfx('player.hurt', e.x, e.z);

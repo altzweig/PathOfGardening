@@ -9,8 +9,11 @@ import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 import { goodInfo } from './storePage';
 import { ActBar } from './actbar';
+import { VP } from '../../view/core';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
+/** setAttribute only when the value changed (the clock is updated every frame) */
+const setA = (el: Element, k: string, v: string) => { const o = el as unknown as Record<string, string>, c = '_a' + k; if (o[c] !== v) { o[c] = v; el.setAttribute(k, v); } };
 /** remaining seconds as "m:ss" */
 const mss = (sec: number) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 const mix = (a: number[], b: number[], k: number) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
@@ -78,16 +81,16 @@ export class FarmHud {
     const u = -.035 + k * 1.07, a = Math.PI * (1 - u), x = 75 + Math.cos(a) * 58, y = 56 - Math.sin(a) * 46;
     const sun = $('#ckSun'), moon = $('#ckMoon');
     const body = night ? moon : sun, other = night ? sun : moon;
-    body.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`); body.setAttribute('opacity', '1'); other.setAttribute('opacity', '0');
+    setA(body, 'transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`); setA(body, 'opacity', '1'); setA(other, 'opacity', '0');
     if (!night) {
       const c = sunCol(k), low = 1 - Math.min(1, Math.sin(Math.max(0, Math.min(Math.PI, a))) * 1.6); // near the horizon: bigger, redder glow
-      $('#ckCore').setAttribute('fill', rgb(c)); $('#ckRays').setAttribute('stroke', rgb(c));
-      $('#ckRays').setAttribute('transform', `rotate(${(performance.now() / 120) % 360}) scale(${(1 + low * .15).toFixed(3)})`);
-      (sun.firstElementChild as SVGElement).setAttribute('r', (17 + low * 6).toFixed(1));
+      setA($('#ckCore'), 'fill', rgb(c)); setA($('#ckRays'), 'stroke', rgb(c));
+      setA($('#ckRays'), 'transform', `rotate(${(performance.now() / 120) % 360}) scale(${(1 + low * .15).toFixed(3)})`);
+      setA((sun.firstElementChild as SVGElement), 'r', (17 + low * 6).toFixed(1));
     }
-    $('#ckTrail').setAttribute('stroke', night ? 'url(#ckNightG)' : 'url(#ckDayG)');
-    $('#ckTrail').setAttribute('stroke-dasharray', `${(Math.min(1, Math.max(0, u)) * 100).toFixed(2)} 100`);
-    $('#ckStars').setAttribute('opacity', night ? (.5 + .5 * Math.min(1, sim.nightK * 8)).toFixed(2) : (sim.k > .9 ? ((sim.k - .9) * 4).toFixed(2) : '0'));
+    setA($('#ckTrail'), 'stroke', night ? 'url(#ckNightG)' : 'url(#ckDayG)');
+    setA($('#ckTrail'), 'stroke-dasharray', `${(Math.min(1, Math.max(0, u)) * 100).toFixed(2)} 100`);
+    setA($('#ckStars'), 'opacity', night ? (.5 + .5 * Math.min(1, sim.nightK * 8)).toFixed(2) : (sim.k > .9 ? ((sim.k - .9) * 4).toFixed(2) : '0'));
     // countdown: to the night (moon), at night the rest of the night + one dot per wave (red = it came)
     const left = night ? sim.nightLeft : sim.dayLeft, hot = night ? left <= 15 : left <= 30;
     const txt = mss(left), waves = night ? sim.waves.length : 0, inn = night ? sim.wavesIn : 0;
@@ -123,12 +126,14 @@ export class FarmHud {
     const p = $('#fSeeds'); p.hidden = !on || !this.s; if (p.hidden) return;
     const s = this.s!; p.innerHTML = ([] as string[]).map(c => `<button data-c="${c}" class="${c === s.seed ? 'on' : ''}">${ic(c)}</button>`).join('');
   }
+  private hpW = ''; private xpW = '';
   /** per frame */
   update(sim: DaySim, s: FarmState, view: FarmView, hover: Target | null, hoverInfo: ActionInfo | null, touch: boolean, mouse: { x: number; y: number }) {
     const P = sim.player; this.s = s;
-    ($('#fHpFill')).style.width = (P.hp / P.maxHp * 100).toFixed(1) + '%';
+    // style writes only on change (performance plan 1.2)
+    const hpW = (P.hp / P.maxHp * 100).toFixed(1) + '%'; if (hpW !== this.hpW) { this.hpW = hpW; $('#fHpFill').style.width = hpW; }
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
-    $('#fXpFill').style.width = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%';
+    const xpW = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%'; if (xpW !== this.xpW) { this.xpW = xpW; $('#fXpFill').style.width = xpW; }
     this.clock(sim); this.ripe(s);
     const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
     if (key !== this.key) {
@@ -160,7 +165,7 @@ export class FarmHud {
       // buildings: over the wall next to the player, not over the middle of the roof
       const tp = hover.k === 'bld' || hover.k === 'stall' ? sim.facePoint(hover) : sim.targetPos(hover), p = view.screen(tp.x, LABEL_Y[hover.k] ?? 1.5, tp.z);
       lab.hidden = !p.on;
-      const x = Math.max(110, Math.min(innerWidth - 110, p.x)), y = Math.max(110, Math.min(innerHeight - 20, p.y));
+      const x = Math.max(110, Math.min(VP.w - 110, p.x)), y = Math.max(110, Math.min(VP.h - 20, p.y));
       lab.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       const need = !hoverInfo.ok && hoverInfo.need ? Object.entries(hoverInfo.need).map(([k, n]) => `<span class="need">${ic(k)}${n}</span>`).join('') : '';
       const why = !hoverInfo.ok && !need ? ic(hoverInfo.why === 'water' ? 'dropEmpty' : hoverInfo.why === 'seed' ? 'seed' : hoverInfo.why === 'weeds' ? 'green' : 'lock') : '';
@@ -173,7 +178,7 @@ export class FarmHud {
     act.classList.toggle('idle', !hoverInfo || !hoverInfo.ok);
     // floating numbers follow their world point
     for (let i = this.nums.length - 1; i >= 0; i--) {
-      const n = this.nums[i]; n.t += 1 / 60;
+      const n = this.nums[i]; n.t += dt;
       // 22.11.2026: they come up from below (fast, then slowing down) and fade in, then out
       const k = Math.min(1, n.t / 1.2), rise = 1.5 * (1 - (1 - k) * (1 - k));
       const p = view.screen(n.x, n.y + rise, n.z);

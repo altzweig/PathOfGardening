@@ -425,3 +425,69 @@ Prinzip: Alles vorberechnen, was nur von der Position abhängt und sich nie änd
 3. Screenshot-Vergleich an festen Kamerapositionen (neues `tools/perf/shots.cjs`: Feld nah, Feld 10 m, Brunnen, Waldrand, Kartenrand; Tag + Nacht).
 4. Editor öffnen, malen, speichern, Spiel neu laden. Der Bake muss die Änderung übernehmen.
 5. Erst dann mergen (Merge-Regel: direkt, danach melden).
+
+---
+
+## 9. Umsetzungsstand (22.11.2026, PR „Performance Phase 1–3“)
+
+Umgesetzt, gemessen im selben Lauf gegen den alten Stand (`main` vorher), Headless-Chromium mit SwiftShader. Die Messungen streuen auf dieser Maschine um etwa ±15 %.
+
+| Szene | vorher CPU/Frame | nachher | Dreiecke vorher → nachher |
+|---|---|---|---|
+| Handy 4×, Tag | 35,4 ms | 28,5–30,7 ms | 1,87 Mio. → 0,31 Mio. |
+| Handy 4×, Nacht | 42,9 ms | 29–34 ms | 1,98 Mio. → 0,41 Mio. |
+| PC, Tag | 8,5 ms | 5,8–6,2 ms | 1,89 Mio. → 0,38 Mio. |
+| PC, Nacht | 10,2 ms | 6,5–8,0 ms | 2,01 Mio. → 0,47 Mio. |
+| Handy, Buch offen | 35,4 ms | **0,2 ms** (keine Draw Calls) | → 0 |
+| Handy, Abend im Haus | 32,7 ms | **0,1 ms** | → 0 |
+| Sounds nach dem ersten Klick | 9,1 MB (WAV) | **1,1 MB** (MP3) | |
+
+Was drin ist:
+- **1.1:** Unter dem Buch (Abend und Tagesbuch) wird die Welt weder animiert noch gezeichnet. Das Canvas behält das letzte Bild als unscharfen Hintergrund. Das Kaminfeuer läuft mit 20 statt 30 fps.
+- **1.2:** Die Viewport-Größe wird bei `resize` gemerkt (`VP` in `core.ts`) und im Frame nicht mehr gelesen. HP/XP-Balken und Uhr schreiben nur bei Änderung. Die Schwebezahlen nutzen echtes `dt`.
+- **1.3/1.4:**
+  - Feldplätze bauen ihre 3D-Ansicht erst, wenn sie offen sind.
+  - Statische Teile haben `matrixAutoUpdate = false`.
+  - Versteckte Teilbäume werden beim Matrix-Update pro Frame übersprungen und beim Wiederanzeigen nachgeführt (`core.ts`).
+  - Die Szene hat jetzt ~2.500 statt 9.400 Objekte.
+- **1.5:** Der Nebel misst vom Kamera-Ziel statt von der Weltmitte. `camera.far` folgt dem Nebel.
+- **1.6:** `antialias:false` (mit Composer ohnehin wirkungslos).
+- **1.7:**
+  - Alle Clips liegen als MP3 vor. Ein Name ohne Endung lädt erst `.mp3`, dann `.wav`, damit frisch geschnittene Clips weiter funktionieren.
+  - Die Ambient-Loops nutzen dieselben Loop-Grenzen wie der Regen.
+- **2.1:** `public/world/hidden.json` (aus `tools/perf/hidden.cjs`) enthält 7 nie sichtbare Objekte und 5 Farne im Fels. Das Spiel lässt sie beim Laden weg, der Editor zeigt alle.
+- **2.2:**
+  - Der Wald ist in 16-m-Kacheln aufgeteilt, ein InstancedMesh pro Modell, Material und Kachel (`src/world/props.ts`).
+  - three.js cullt Kacheln außerhalb von Kamera und Schattenkamera.
+  - Allein das hat die Dreiecke pro Frame um ~80 % gesenkt.
+- **2.3:**
+  - Fern-Versionen `<Modell>__lod1` für 26 Modelle (`tools/build-lod.mjs`, in `nature.glb`): Rinde und Felsen mit meshopt vereinfacht, Blattkarten ausgedünnt und die übrigen vergrößert.
+  - Kacheln ab 24 m Abstand zur Kamera zeigen sie (2 m Hysterese).
+  - Insgesamt 56.900 → 20.500 Dreiecke über alle Modelle.
+  - Der Editor zeigt immer die vollen Modelle.
+- **2.5:** Blattkronen werfen nur in Kacheln bis 26 m vom Spieler Schatten. Stämme, Felsen und Büsche behalten ihren.
+- **3:**
+  - Der Boden-Shader läuft nur über die tatsächlich genutzten Schicht-Slots (Konstante beim Kompilieren, neu bei geänderter Slot-Zahl).
+  - Unbenutzte Gewichtstexturen werden nicht gelesen.
+  - Die Schichten selbst sind unverändert.
+
+**Korrektur zu 1.4 der Messergebnisse:** Die Schattenkamera ist nicht fest. `FarmView.sun()` passt sie jedes Frame an das an, was die Kamera sieht. Teuer war nur, dass der ungekachelte Wald immer komplett in die Schattenkarte gezeichnet wurde. Das ist mit 2.2 behoben.
+
+**Sichtprüfung:**
+- `tools/perf/shots.cjs` fotografiert 7 feste Kamerapositionen (Feld nah/weit, Haus, zwei Waldränder, flach über das Gras, Nacht).
+- Vorher und nachher zeigen keinen sichtbaren Unterschied am Wald. Abweichungen gibt es nur bei zufälligen Dingen wie Figur, Quests und Wildpflanzen.
+
+**Noch offen (nächste Schritte):**
+- Impostor für sehr ferne Bäume (2.4), falls nötig.
+- Boden-Vorbacken der Top-4-Schichten (3.1).
+- Rauschtextur (3.2).
+- Qualitätsstufen-Automatik (4.1).
+- Tiere und Farmer vereinfachen (4.2).
+- Weizen-Ähren (4.3).
+- Auf dem Handy dominiert jetzt die CPU-Seite von three.js (Szenen-Walk, Frustum-Tests, Draw Calls, zusammen ~23 ms bei 4× Drosselung). Der nächste große Hebel wäre `BatchedMesh` pro Kachel und weniger Einzelobjekte bei Figuren und Gebäuden.
+
+Neue Werkzeuge:
+- `tools/build-lod.mjs`: Fern-Versionen erzeugen. Nach jedem `build-nature.mjs` erneut laufen lassen.
+- `tools/perf/hidden.cjs`: Liste unsichtbarer Objekte nach Änderungen im Welt-Editor neu erzeugen, nach `pvs.cjs` und `inrock.cjs`.
+- `tools/perf/shots.cjs`: Sichtvergleich.
+- `run.cjs` mit `URL=` und `TAG=` für Vorher-/Nachher-Läufe.

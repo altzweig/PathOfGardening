@@ -9,6 +9,7 @@ import type { DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { BarArgs, H, W, drawScene, sceneFor } from './barScenes';
 import { sfx } from '../../audio';
+import { VP } from '../../view/core';
 
 const tkey = (t: Target) => t.k + ':' + ((t as any).i ?? (t as any).id ?? '');
 function hash(n: number) { let x = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); x ^= x >>> 13; x = Math.imul(x, 0xc2b2ae35); x ^= x >>> 16; return (x >>> 0) / 4294967296; }
@@ -111,9 +112,9 @@ export class ActBar {
     } else return;
     const S = this.ses!, inp = this.last!; S.t += dt;
     // over the head (lower while kneeling), kept on screen
-    const cssW = touch ? Math.min(200, innerWidth * .46) : 232; this.c.size(cssW);
+    const cssW = touch ? Math.min(200, VP.w * .46) : 232; this.c.size(cssW);
     const p = view.screen(P.x, P.crouch ? 1.55 : 2.1, P.z), h = cssW * H / W;
-    const x = Math.max(cssW / 2 + 6, Math.min(innerWidth - cssW / 2 - 6, p.x)), y = Math.max(h + 6, Math.min(innerHeight - 10, p.y));
+    const x = Math.max(cssW / 2 + 6, Math.min(VP.w - cssW / 2 - 6, p.x)), y = Math.max(h + 6, Math.min(VP.h - 10, p.y));
     // smoothed so the bar does not jitter with the walk cycle
     if (!this.sx) { this.sx = x; this.sy = y; } this.sx += (x - this.sx) * Math.min(1, dt * 14); this.sy += (y - this.sy) * Math.min(1, dt * 14);
     this.c.el.style.transform = `translate(${this.sx.toFixed(1)}px,${this.sy.toFixed(1)}px) translate(-50%,-100%)`;

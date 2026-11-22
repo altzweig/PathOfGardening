@@ -1,0 +1,77 @@
+{
+ "note": "tools/perf/hidden.cjs: Objekte, die das Spiel weglässt (Editor zeigt alle)",
+ "props": [
+  {
+   "m": "Rock_Medium_1",
+   "x": 88.99,
+   "z": -12.5,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Rock_Medium_1",
+   "x": 65.39,
+   "z": -20.04,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Rock_Medium_3",
+   "x": 41.63,
+   "z": -67.62,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Pine_4",
+   "x": 83.07,
+   "z": -4.73,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Pine_1",
+   "x": 66.34,
+   "z": -26.93,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Fern_1",
+   "x": 7.02,
+   "z": 32.03,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Fern_1",
+   "x": 8.68,
+   "z": 32.59,
+   "why": "nie sichtbar"
+  },
+  {
+   "m": "Fern_1",
+   "x": 7.02,
+   "z": 32.03,
+   "why": "im Fels"
+  },
+  {
+   "m": "Fern_1",
+   "x": 8.25,
+   "z": 37.36,
+   "why": "im Fels"
+  },
+  {
+   "m": "Fern_1",
+   "x": 9.02,
+   "z": 38.27,
+   "why": "im Fels"
+  },
+  {
+   "m": "Fern_1",
+   "x": 8.68,
+   "z": 36.17,
+   "why": "im Fels"
+  },
+  {
+   "m": "Fern_1",
+   "x": 8.68,
+   "z": 32.59,
+   "why": "im Fels"
+  }
+ ]
+}

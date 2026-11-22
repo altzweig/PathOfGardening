@@ -2,7 +2,7 @@
 #  PathOfGardening – Sounds
 # ---------------------------------------------------------------------
 #  Ereignis -> Sound-Dateien. Wird wie balancing.yaml beim Start gelesen.
-#  files:  Clips aus public/audio/ (ohne .wav), pro Abspielen wird zufällig
+#  files:  Clips aus public/audio/ (ohne Endung: erst .mp3, sonst .wav), pro Abspielen wird zufällig
 #          einer gewählt (nie zweimal derselbe hintereinander)
 #  vol:    Lautstärke 0..1
 #  pitch:  [min, max] Abspielgeschwindigkeit (1 = original, 0.8 = tiefer)

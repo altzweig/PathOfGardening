@@ -5,9 +5,9 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {
   GEO, PART, V, burst, camera, clamp, composer, decal, gardenLight, gradePass, hemi, lantern, lerp, lerpAngle, makeBar, moon, punchStar,
-  rand, renderer, scene, setBar, slashSmear, torch, updateFx, windU,
+  rand, renderer, scene, setBar, slashSmear, torch, updateFx, windU, VP,
 } from '../../view/core';
-import { updateDayNight, dayNow, resetDayNight } from '../../view/daynight';
+import { updateDayNight, dayNow, resetDayNight, fogFocus } from '../../view/daynight';
 import { updateSeasons } from '../../view/seasons';
 import { setTexCfg } from '../../view/textures';
 import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
@@ -94,6 +94,8 @@ interface PlotView { g: THREE.Group; bed: THREE.Group; earth: THREE.MeshStandard
   hpBar: THREE.Group; tramp: THREE.Group; hit: number }
 /** remaining seconds as "m:ss" */
 export const clockText = (sec: number) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+/** leaf crowns further than this from the camera target cast no shadow (performance plan 2.5) */
+const LEAF_SHADOW_R = 26;
 const TIMER_W = .9, TIMER_TXT = .62;
 function timerText() {
   const cv = document.createElement('canvas'); cv.width = 128; cv.height = 52;
@@ -216,7 +218,7 @@ const SHADOW_RAYS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0,
 export class FarmView {
   world: HofWorld;
   buildings = new Map<BuildingId, BuildingView>();
-  plots: PlotView[] = [];
+  plots: (PlotView | null)[] = [];
   bush: { g: THREE.Group; fruits: THREE.Mesh[]; bar: THREE.Group; name: NameTag; a: number; leaf: THREE.MeshStandardMaterial; unripe: THREE.MeshStandardMaterial; drop: THREE.Sprite; shake: number; sy: number[] };
   wild: WildView;
   /** livestock per stall: animals wander in the pen (local coordinates of the building), hunger bubble / Zzz above */
@@ -265,7 +267,8 @@ export class FarmView {
     const house = this.buildings.get('house');
     if (house?.lamp) { house.root.updateMatrixWorld(true); const p = house.root.localToWorld(house.lamp.clone()); lantern.position.copy(p); lantern.distance = 10; }
     // plots
-    H.plots.forEach((p, i) => this.plots.push(this.makePlot(p.x, p.z, i)));
+    // performance plan 1.3: a plot's 3D view (~115 objects) is only built once the plot is open
+    this.plots = H.plots.map(() => null);
     // bush
     const leaf = new THREE.MeshStandardMaterial({ color: 0x3f7a34, roughness: .85, flatShading: true }), head = new THREE.MeshStandardMaterial({ color: 0x5a3a20 });
     const bp = buildPlant('blue', { leaf, head }); bp.g.scale.setScalar(1.25); bp.g.position.set(H.bush.x, 0, H.bush.z); scene.add(bp.g);
@@ -331,6 +334,9 @@ export class FarmView {
     for (let k = 0; k < 26; k++) { const p = inHex(H * .8), m = new THREE.Mesh(stemGeo, TRAMPLE.stalk); m.scale.set(1.2, rand(.22, .5), 1.2); m.position.set(p.x, .03, p.z); m.rotation.set(Math.PI / 2 - rand(0, .25), rand(0, 7), 0, 'YXZ'); m.castShadow = true; tramp.add(m); }
     // chewed leaf scraps
     for (let k = 0; k < 14; k++) { const p = inHex(H * .85), m = new THREE.Mesh(LEAF_GEO, TRAMPLE.leaf); m.scale.setScalar(rand(.8, 1.4)); m.position.set(p.x, .035, p.z); m.rotation.set(-Math.PI / 2 + rand(-.3, .3), 0, rand(0, 7)); tramp.add(m); }
+    // static parts: matrices once, then three.js skips them in updateMatrixWorld (performance plan 1.3/1.4)
+    g.updateMatrixWorld(true);
+    for (const o of [g, bed, seeds, tramp]) o.traverse(c => { if (c === g || (c !== stems && c !== ears)) c.matrixAutoUpdate = false; });
     return { g, bed, earth, wetMat, seeds, stems, ears, spots, key: '', drop, wet: 0, shake: 0, crop: null, timer, hpBar, tramp, hit: 0 };
   }
   private zs = new Map<string, Zzz>();
@@ -352,7 +358,7 @@ export class FarmView {
   }
   /** bushes, trees, brambles that give nothing more today: "Z"s close by (plots do it in updatePlot) */
   private updateSleep(sim: DaySim | null, dt: number, day: boolean) {
-    const B = this.cfg.bush, b = this.s.bush, H = this.cfg.hof, k = innerHeight > innerWidth ? 1.5 : 1;
+    const B = this.cfg.bush, b = this.s.bush, H = this.cfg.hof, k = VP.portrait ? 1.5 : 1;
     const one = (key: string, x: number, z: number, y: number, asleep: boolean) => {
       const a = day && !this.cine && asleep ? this.infoFade(this.sleepA.get(key) ?? 0, x, z, sim, dt) : 0;
       this.sleepA.set(key, a); if (a > .01) this.sleepAt(key, x + .25, y, z, a, k);
@@ -381,7 +387,7 @@ export class FarmView {
     v.hpBar.visible = hurt && (day || !!p.broken) && !this.cine;
     v.hit = Math.max(0, v.hit - dt * 3);
     if (v.hpBar.visible) {
-      const pos = this.cfg.hof.plots[i], k = innerHeight > innerWidth ? 1.5 : 1;
+      const pos = this.cfg.hof.plots[i], k = VP.portrait ? 1.5 : 1;
       v.hpBar.position.set(pos.x, .95 + v.hit * .05, pos.z); v.hpBar.quaternion.copy(camera.quaternion); v.hpBar.scale.setScalar(k * (1 + v.hit * .12));
       setBar(v.hpBar, p.broken ? N.brokenShow : (p.hp ?? N.plotHp) / N.plotHp);
     }
@@ -400,7 +406,7 @@ export class FarmView {
     const aw = sleeping ? 0 : T.a; fadeObj(T.bar, aw); fadeObj(T.txt, aw); fadeObj(T.name.s, aw);
     if (T.a > .01) {
       // phone upright: everything is smaller on screen, so the timer grows a bit
-      const k = innerHeight > innerWidth ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = sleeping ? 0 : TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
+      const k = VP.portrait ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = sleeping ? 0 : TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
       const frac = ripeNow ? clamp(p.yieldLeft / Math.max(1, ripeCuts(this.cfg, p)), 0, 1) : C0;
       T.bar.position.set(pp.x - rx.x * off, y, pp.z - rx.z * off); T.bar.quaternion.copy(camera.quaternion); T.bar.scale.setScalar(k); setBar(T.bar, frac);
       (T.bar.userData.fg.material as THREE.MeshBasicMaterial).color.setHex(ripeNow ? 0xf2c84a : 0x9ad65a);
@@ -476,7 +482,7 @@ export class FarmView {
     if (this.hof.setBuilt(id => id === 'house' || !!this.s.buildings[id]?.built) || !this.underDone) { this.underDone = true; this.world.buildingsChanged(); }
   }
   private underDone = false;
-  setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) p.key = ''; }
+  setState(s: FarmState) { this.s = s; this.syncBuildings(); for (const p of this.plots) if (p) p.key = ''; }
 
   // ---------------- player ----------------
   setLook(look: Look) {
@@ -714,7 +720,7 @@ export class FarmView {
     this.bush.a = showBar ? this.infoFade(this.bush.a, BH.x, BH.z, sim, dt) : 0;
     fadeObj(bar, this.bush.a); fadeObj(this.bush.name.s, this.bush.a);
     if (this.bush.a > .01) {
-      const k = innerHeight > innerWidth ? 1.5 : 1;
+      const k = VP.portrait ? 1.5 : 1;
       bar.position.set(BH.x, 1.55, BH.z); bar.quaternion.copy(camera.quaternion); bar.scale.setScalar(k); setBar(bar, growK);
       drawName(this.bush.name, this.cropName('blue')); this.bush.name.s.position.set(BH.x, 1.55 + .2 * k, BH.z); this.bush.name.s.scale.set(NAME_W * k, NAME_H * k, 1);
     }
@@ -855,8 +861,12 @@ export class FarmView {
     windU.value += dt;
     const now = performance.now() / 1000, day = mode === 'day';
     if (sim) for (const e of sim.ev) this.event(e, sim);
+    if (!this.render3d) return; // under the book: no animation, no render (performance plan 1.1)
     const night = !!sim?.nightOn && day;
-    this.plots.forEach((v, i) => this.updatePlot(v, i, dt, day, night, day ? sim : null));
+    this.plots.forEach((v, i) => {
+      if (!v) { if (!this.s.plots[i]?.open) return; const P = this.cfg.hof.plots[i]; v = this.plots[i] = this.makePlot(P.x, P.z, i); }
+      this.updatePlot(v, i, dt, day, night, day ? sim : null);
+    });
     this.animBush(dt, day, sim, now);
     this.updateSleep(sim, dt, day);
     this.updateBits(dt);
@@ -901,29 +911,32 @@ export class FarmView {
     if (Math.random() < dt * 2.5 * dn) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(this.camX + Math.cos(a) * r, rand(.4, 2), this.camZ + Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); }
     PART.update(dt); updateFx(dt);
     this.updateCamera(dt, sim, mode);
+    this.world.props?.updateLod(camera.position.x, camera.position.z); // far versions of the forest (performance plan 2.3)
     // free line of sight to the farmer: what stands in between fades out (world props, buildings)
     if ((this.occT -= dt) <= 0) { this.occT = 1; occludeTree(this.world.nature, this.bush.g, ...[...this.buildings.values()].map(b => b.root)); }
     const PP = sim?.player; updateOcclusion(camera.position, PP?.x ?? 0, PP?.z ?? 0, day && !!PP && !this.cine, dt);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = this.hurtT * .7;
     gradePass.uniforms.uLow.value = sim && day && !this.cine ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;
-    composer.render();
+    if (this.render3d) composer.render();
   }
+  /** false while the house book covers the screen (performance plan 1.1) */
+  render3d = true;
   /** cutscene camera (cutscene.ts): position, look-at point, roll, field of view; null = the normal camera */
   cine: CineFrame | null = null;
   private fov0 = camera.fov;
   private updateCamera(dt: number, sim: DaySim | null, mode: 'menu' | 'day' | 'evening') {
-    const portrait = innerHeight > innerWidth;
+    const portrait = VP.portrait;
     if (this.cine) {
       const c = this.cine; camera.position.copy(c.pos); camera.up.set(0, 1, 0); camera.lookAt(c.look); camera.rotateZ(c.roll);
       if (Math.abs(camera.fov - c.fov) > .01) { camera.fov = c.fov; camera.updateProjectionMatrix(); }
-      setListener(c.pos.x, c.pos.z); this.camX = c.pos.x; this.camZ = c.pos.z; this.sun(c.pos.x, c.pos.z); return;
+      setListener(c.pos.x, c.pos.z); this.camX = c.pos.x; this.camZ = c.pos.z; fogFocus.x = c.look.x; fogFocus.z = c.look.z; this.sun(c.pos.x, c.pos.z); return;
     }
     if (camera.fov !== this.fov0) { camera.fov = this.fov0; camera.updateProjectionMatrix(); }
     if (mode === 'menu') {
       const t = performance.now() / 1000 * .03 + .7, R = portrait ? 22 : 18, Hh = portrait ? 14 : 9;
       camera.position.set(Math.sin(t) * R, Hh, Math.cos(t) * R); camera.lookAt(0, 0, -2);
-      this.sun(0, -2); return;
+      fogFocus.x = 0; fogFocus.z = -2; this.sun(0, -2); return;
     }
     let tx: number, tz: number, z = this.zoom;
     const P = sim?.player, door = this.cfg.hof.door;
@@ -969,9 +982,11 @@ export class FarmView {
     camera.lookAt(this.camLook);
     torch.position.set(this.camX, 3, this.camZ + .6);
     setListener(P ? P.x : this.camX, P ? P.z : this.camZ);
+    fogFocus.x = this.camX; fogFocus.z = this.camZ;
+    if ((this.leafT -= dt) <= 0) { this.leafT = .5; this.world.props?.shadowNear(this.camX, this.camZ, LEAF_SHADOW_R); }
     this.sun(this.camX, this.camZ);
   }
-  private lastShot: CamShot = null; camZoom = 1; private occT = 0;
+  private lastShot: CamShot = null; camZoom = 1; private occT = 0; private leafT = 0;
   /** camera target without a player (world editor) */
   focus: { x: number; z: number } | null = null;
   /** fixed hour of the light (world editor) */
@@ -1010,14 +1025,14 @@ export class FarmView {
   }
   /** screen point -> ground point */
   ground(cx: number, cy: number): { x: number; z: number } | null {
-    const nx = cx / innerWidth * 2 - 1, ny = -(cy / innerHeight) * 2 + 1;
+    const nx = cx / VP.w * 2 - 1, ny = -(cy / VP.h) * 2 + 1;
     const o = camera.position, d = V(nx, ny, .5).unproject(camera).sub(o).normalize(); if (d.y >= -1e-3) return null;
     const t = -o.y / d.y; return { x: o.x + d.x * t, z: o.z + d.z * t };
   }
   /** world -> screen px (null when behind the camera) */
   screen(x: number, y: number, z: number): { x: number; y: number; on: boolean } {
     const v = V(x, y, z).project(camera);
-    return { x: (v.x * .5 + .5) * innerWidth, y: (-v.y * .5 + .5) * innerHeight, on: v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 };
+    return { x: (v.x * .5 + .5) * VP.w, y: (-v.y * .5 + .5) * VP.h, on: v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 };
   }
   /** jump to the light of the new time of day (after a fade) */
   resetLight() { resetDayNight(); }

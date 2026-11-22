@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { bloom, camera, envU, gardenLight, hemi, lantern, moon, renderer, scene, torch } from './core';
 import { setEyeNight, setFogLook, setTorchLevel } from '../farm/view/hofWorld';
 import { setDayNight } from '../audio';
+/** the point the camera looks at (set by the view each frame); the fog is measured from the camera to it */
+export const fogFocus = { x: 0, z: 0 };
+const _fc = new THREE.Vector3();
 
 const C = (h: number) => new THREE.Color(h);
 const sm = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -62,9 +65,11 @@ function apply(S: DayState) {
   (scene.background as THREE.Color).copy(sky);
   // light distance fog only: starts behind the player (relative to the camera distance, so zooming out does not fog the view)
   // and only softens the far forest; never a uniform veil over the garden
-  const fog = scene.fog as THREE.Fog, cd = camera.position.length();
+  const fog = scene.fog as THREE.Fog, cd = camera.position.distanceTo(_fc.set(fogFocus.x, 0, fogFocus.z)); // distance camera <-> what it looks at (performance plan 1.5)
   fog.color.copy(sky); fog.near = cd + 2; fog.far = cd + (night * 26 + day * 48) * (1 - warm * .15);
   envU.uFogCol.value.copy(sky); envU.uFogNear.value = fog.near; envU.uFogFar.value = fog.far;
+  // nothing beyond the fog is drawn: the far plane follows it (performance plan 1.5)
+  const far = Math.max(40, fog.far + 4); if (Math.abs(camera.far - far) > 1) { camera.far = far; camera.updateProjectionMatrix(); }
   envU.uDay.value = day;
   renderer.toneMappingExposure = 1.05 * night + 1.22 * day;
   // bloom: strong glow in the dark, gentle in daylight (otherwise sunlit surfaces would bloom)

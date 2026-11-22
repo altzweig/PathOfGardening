@@ -2,7 +2,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const INPAGE = fs.readFileSync(__dirname + '/inpage.js', 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const DEV = 'http://localhost:5173/';
+const DEV = process.env.URL || 'http://localhost:5173/';
 const DEVICES = {
   pc: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
   handy: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
@@ -112,8 +112,8 @@ if (require.main === module) (async () => {
     out.heap = await p.evaluate(() => ({ used: performance.memory.usedJSHeapSize / 1048576, total: performance.memory.totalJSHeapSize / 1048576 }));
   }
   fs.mkdirSync(__dirname + '/out', { recursive: true });
-  fs.writeFileSync(`${__dirname}/out/${dev}_${scene}_x${throttle}.json`, JSON.stringify(out, null, 1));
+  fs.writeFileSync(`${__dirname}/out/${process.env.TAG ? process.env.TAG + "_" : ""}${dev}_${scene}_x${throttle}.json`, JSON.stringify(out, null, 1));
   const a = out.async, s = out.sync;
-  console.log(dev, scene, 'x' + throttle, 'fps', a.fps.toFixed(1), 'cpu', a.cpuMean.toFixed(1), 'p95', a.ivP95.toFixed(1), 'calls', a.calls, 'tris', a.tris, s ? 'gpu ' + s.gpuMean.toFixed(1) : '');
+  console.log(process.env.TAG || '', dev, scene, 'x' + throttle, 'fps', a.fps.toFixed(1), 'cpu', a.cpuMean.toFixed(1), 'p95', a.ivP95.toFixed(1), 'calls', a.calls, 'tris', a.tris, s ? 'gpu ' + s.gpuMean.toFixed(1) : '');
   await b.close();
 })().catch(e => { console.error(e); process.exit(1); });

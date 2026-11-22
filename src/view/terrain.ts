@@ -116,9 +116,13 @@ export function layeredGround(W: GroundWeights) {
     if (my !== req) { c?.dispose(); n?.dispose(); return; }
     const oc = U.tCol.value, on = U.tNor.value;
     if (c) U.tCol.value = c; if (n) U.tNor.value = n; U.uN.value = ids.length;
+    if (Math.max(1, ids.length) !== NL) mat.needsUpdate = true; // other slot count: new loop bounds
     if (c && oc !== c) setTimeout(() => oc.dispose(), 500); if (n && on !== n) setTimeout(() => on.dispose(), 500);
   };
+  /** loops only over the slots in use (compile-time constant, performance plan 3: the 16-slot loops cost ~10 % of the frame) */
+  let NL = Math.max(1, W.slots.length);
   mat.onBeforeCompile = sh => {
+    NL = Math.max(1, W.slots.length);
     Object.assign(sh.uniforms, TERRAIN_U, U, { uDay: envU.uDay, uSnow: envU.uSnow, uAutumn: envU.uAutumn });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vWP;
@@ -134,7 +138,7 @@ ${GLSL_LAYER}
       .replace('#include <map_fragment>', /* glsl */`
   vec2 p = vWP.xz;
   vec2 wuv = clamp(vec2(p.x/uExt + .5, .5 - p.y/uExt), vec2(0.), vec2(1.));
-  vec4 A0 = texture2D(tW0, wuv), A1 = texture2D(tW1, wuv), A2 = texture2D(tW2, wuv), A3 = texture2D(tW3, wuv);
+  vec4 A0 = texture2D(tW0, wuv), A1 = ${NL > 4 ? 'texture2D(tW1, wuv)' : 'vec4(0.)'}, A2 = ${NL > 8 ? 'texture2D(tW2, wuv)' : 'vec4(0.)'}, A3 = ${NL > 12 ? 'texture2D(tW3, wuv)' : 'vec4(0.)'};
   float w[${MAX_TEX}];
   w[0]=A0.r; w[1]=A0.g; w[2]=A0.b; w[3]=A0.a; w[4]=A1.r; w[5]=A1.g; w[6]=A1.b; w[7]=A1.a;
   w[8]=A2.r; w[9]=A2.g; w[10]=A2.b; w[11]=A2.a; w[12]=A3.r; w[13]=A3.g; w[14]=A3.b; w[15]=A3.a;
@@ -142,13 +146,13 @@ ${GLSL_LAYER}
   // ragged borders: every texture gets its own noise "height", the highest ones win (no clean round brush edge)
   float fr = .7*uFray/.55, mx = -9.;
   float t[${MAX_TEX}];
-  for (int i = 0; i < ${MAX_TEX}; i++) { t[i] = (i < uN && w[i] > .004) ? w[i] + (tFbm(p*.42 + float(i)*3.37 + 1.3) - .5)*fr*min(1., w[i]*4.) : -9.; mx = max(mx, t[i]); }
+  for (int i = 0; i < ${NL}; i++) { t[i] = (i < uN && w[i] > .004) ? w[i] + (tFbm(p*.42 + float(i)*3.37 + 1.3) - .5)*fr*min(1., w[i]*4.) : -9.; mx = max(mx, t[i]); }
   mx -= .22/max(uSharp/2.5, .3);
   float qs = 0.;
-  for (int i = 0; i < ${MAX_TEX}; i++) qs += max(t[i] - mx, 0.);
+  for (int i = 0; i < ${NL}; i++) qs += max(t[i] - mx, 0.);
   bool useN = uNorOn > .5;
   vec3 gc = vec3(0.);
-  for (int i = 0; i < ${MAX_TEX}; i++) { float q = max(t[i] - mx, 0.)/max(qs, 1e-4); if (q > .003) layerS(tCol, tNor, float(i), p/uTileL[i], k, gc, gNor, q, useN); }
+  for (int i = 0; i < ${NL}; i++) { float q = max(t[i] - mx, 0.)/max(qs, 1e-4); if (q > .003) layerS(tCol, tNor, float(i), p/uTileL[i], k, gc, gNor, q, useN); }
   float lf = tFbm(p*.035+7.), lf2 = tFbm(p*.07+2.), n1 = tFbm(p*.18), n3 = tFbm(p*.6+5.);
   gc *= mix(vec3(1.), mix(vec3(.86, .92, 1.02), vec3(1.1, 1.05, .9), lf), uVary) * (1. + (lf2-.5)*uVary*1.2);
   // outside the map: darker the further out
@@ -164,7 +168,7 @@ ${GLSL_LAYER}
   { vec3 tn = normalize(vec3(gNor.xy*uNorK, max(gNor.z, .2)));
     normal = normalize((viewMatrix * vec4(tn.x, tn.z, -tn.y, 0.)).xyz); }`);
   };
-  mat.customProgramCacheKey = () => 'groundL1';
+  mat.customProgramCacheKey = () => 'groundL1-' + Math.max(1, W.slots.length);
   void setSlots();
   return { mat, setSlots, U };
 }

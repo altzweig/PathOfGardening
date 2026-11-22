@@ -30,7 +30,7 @@ import { faintCutscene } from './farm/cutscene/faint';
 import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
-import { NetGuest, NetHost, Visitor, cleanCode } from './farm/net';
+import { NetGuest, NetHost, Visitor, cleanCode, peek } from './farm/net';
 import { Online, VisitAsk } from './online/online';
 import { Phase, resetSnapSeq, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
 import type { Ev } from './farm/sim';
@@ -41,13 +41,14 @@ const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const WANDER = 'pog-wanderer-v1';
 const wanderer = (): { level: number; xp: number } => { try { const w = JSON.parse(localStorage.getItem(WANDER) ?? ''); if (w && Number.isFinite(w.xp)) return { level: w.level ?? 1, xp: w.xp }; } catch { /* none yet */ } return { level: 1, xp: 0 }; };
 const saveWanderer = (w: { level: number; xp: number }) => { try { localStorage.setItem(WANDER, JSON.stringify(w)); } catch { /* private mode */ } };
-const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop', '#friends'];
+const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop', '#friends', '#joinSave', '#joining'];
 const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const esc = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const SAVE_I = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 28c-6-3-10-8-10-15 4 0 8 1 10 4 2-3 6-4 10-4 0 7-4 12-10 15z" fill="currentColor" fill-opacity=".25"/><path d="M16 28V12M16 12c0-4 2-7 5-9"/></svg>';
 const TRASH_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 3h4M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
-const PLUS_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const COPY_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
+const MSG_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>';
 const GO_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6 8 6v9h-5v-5h-6v5H4z"/></svg>';
 const YES_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
 const NO_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -188,17 +189,23 @@ class Game {
     // co-op
     click('#visitBtn', () => this.openVisit(''));
     click('#visitFrom', () => { const ids = [...listSaves().map(m => m.id), null]; this.gFrom = ids[(ids.indexOf(this.gFrom ?? null) + 1) % ids.length]; this.showFrom(); });
-    click('#visitBack', () => { this.knock?.cancel(); this.knock = null; this.netGuest?.close(); this.netGuest = null; this.only(this.online ? '#friends' : '#menu'); if (this.online) this.friendList(); });
-    click('#friendBtn', () => this.openFriends());
-    click('#frBack', () => this.only('#menu'));
-    click('#frMine', () => { const c = this.online?.me.code; if (!c) return; navigator.clipboard?.writeText(c).then(() => { $('#frMsg').textContent = 'Kopiert'; setTimeout(() => { $('#frMsg').textContent = ''; }, 1500); }).catch(() => prompt('Code', c)); });
-    $('#frAdd').innerHTML = PLUS_I;
-    $('#frForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); void this.addFriend(); });
+    click('#visitBack', () => this.only('#menu'));
+    for (const id of ['#vJoin', '#pJoin']) this.wireJoin($(id));
+    click('#friendBtn', () => this.openFriends('#menu'));
+    click('#pFriendBtn', () => this.openFriends('#pause'));
+    click('#frBack', () => { this.knock?.cancel(); this.knock = null; this.online?.markRead(); this.only(this.frBack); });
+    $('#frCopy').innerHTML = COPY_I;
+    click('#frCopy', () => { const c = this.online?.me.code; if (!c) return; navigator.clipboard?.writeText(c).then(() => this.toast('Code kopiert')).catch(() => prompt('Code', c)); });
+    $('#frYes').innerHTML = YES_I; $('#frNo').innerHTML = NO_I;
+    click('#frYes', () => void this.addFriend());
+    click('#frNo', () => this.clearFound());
+    $('#frForm').addEventListener('submit', e => e.preventDefault());
     $('#frCode').addEventListener('keydown', e => e.stopPropagation());
-    $('#frCode').addEventListener('input', () => { const i = $('#frCode') as HTMLInputElement; i.value = i.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
-    $('#visitForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); this.join(); });
-    $('#visitCode').addEventListener('keydown', e => e.stopPropagation());
-    $('#visitCode').addEventListener('input', () => { const i = $('#visitCode') as HTMLInputElement; i.value = cleanCode(i.value); });
+    $('#frCode').addEventListener('input', () => { const i = $('#frCode') as HTMLInputElement; i.value = i.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); void this.findFriend(i.value); });
+    click('#jsYes', () => this.joinGo(true));
+    click('#jsNo', () => this.joinGo(false));
+    click('#jsBack', () => { this.pendingJoin = null; this.only('#pause'); });
+    click('#joinBack', () => { this.netGuest?.close(); this.netGuest = null; this.only('#menu'); this.updateMenu(); });
     click('#coopBtn', () => this.openCoop());
     click('#coopBack', () => this.only('#pause'));
     click('#coopClose', () => { this.closeFarm(); this.only('#pause'); });
@@ -299,8 +306,9 @@ class Game {
     else if (this.s.phase === 'morning') this.startDay();
     else { this.startDay(); if (snap && this.sim) { this.sim.restore(snap); this.view.snapCamera(this.sim.player.x, this.sim.player.z); } }
   }
-  private leave() {
-    this.persist(false); // a day that is left halfway goes on from here next time
+  private leave(save = true) {
+    if (save) this.persist(false); // a day that is left halfway goes on from here next time
+    else if (this.netGuest) this.bookGuestXp();
     this.house.closeDay();
     const visited = !this.slot && !this.tutorialMode; // back from someone else's farm (co-op guest)
     if (this.tutorialMode || visited) { // back to the farm of the newest save behind the menu
@@ -338,6 +346,7 @@ class Game {
     else if (this.mode === 'day') this.input.lock(); // third person: back to the captured mouse
     $('#saveBtn').hidden = !this.slot || this.tutorialMode;
     $('#coopBtn').hidden = !this.slot || this.tutorialMode || !!this.netGuest;
+    $('#pFriendBtn').hidden = !this.online;
     sfx(this.paused ? 'ui.pauseIn' : 'ui.pauseOut');
   }
   startDay() {
@@ -478,6 +487,7 @@ class Game {
       this.netHost = h;
       $('#coopCode').textContent = '…';
       h.onTicket = v => { if (h.let(v)) this.admit(v); };
+      h.name = this.menu.look.name || 'Gast';
       try { $('#coopCode').textContent = await h.open(); void this.online?.setOpen(true); }
       catch { $('#coopCode').textContent = '—'; this.netHost = null; }
     } else $('#coopCode').textContent = this.netHost.code;
@@ -537,17 +547,56 @@ class Game {
 
   // ---------------- co-op: the guest ----------------
   private openVisit(code: string) {
-    ($('#visitCode') as HTMLInputElement).value = code; $('#visitMsg').textContent = ''; ($('#visitGo') as HTMLButtonElement).disabled = false;
+    $('#visitMsg').textContent = '';
     if (this.gFrom === undefined || (this.gFrom && !listSaves().some(m => m.id === this.gFrom))) this.gFrom = listSaves()[0]?.id ?? null;
     this.showFrom();
     this.only('#visit');
-    if (!this.input.isTouch) setTimeout(() => $('#visitCode').focus(), 60);
+    const i = $('#vJoin').querySelector('input')!; i.value = code; i.dispatchEvent(new Event('input'));
+    if (!this.input.isTouch) setTimeout(() => i.focus(), 60);
   }
-  private join(ticket?: string) {
-    const code = cleanCode(($('#visitCode') as HTMLInputElement).value); if (code.length < 5) return;
+  /** a join row (main menu "Besuchen", pause menu): typing the code asks the farm whose it is, the button then says "Welt von …" */
+  private wireJoin(form: HTMLElement) {
+    const inp = form.querySelector('input')!, go = form.querySelector<HTMLButtonElement>('.jGo')!, small = go.querySelector('small')!;
+    let ask: ReturnType<typeof peek> | null = null, name = '';
+    inp.addEventListener('keydown', e => e.stopPropagation());
+    inp.addEventListener('input', () => {
+      inp.value = cleanCode(inp.value); ask?.cancel(); ask = null; name = ''; go.disabled = true; small.textContent = '';
+      const code = inp.value; if (code.length < 5) return;
+      if (this.netHost && code === this.netHost.code) { small.textContent = 'Dein Hof'; return; }
+      small.textContent = '…'; const a = peek(code, versionOf(this.cfg)); ask = a;
+      void a.done.then(r => {
+        if (ask !== a) return; ask = null;
+        if (typeof r === 'object') { name = r.name; small.textContent = 'Welt von ' + r.name; go.disabled = false; }
+        else if (r === 'lost') go.disabled = false; // no answer in time: joining may still work (the farm says then)
+        else small.textContent = { notfound: 'Kein Hof', version: 'Andere Version', full: 'Hof voll' }[r];
+      });
+    });
+    form.addEventListener('submit', e => {
+      e.preventDefault(); if (go.disabled || inp.value.length < 5) return;
+      initAudio(); sfx('ui.confirm'); const code = inp.value; inp.value = ''; go.disabled = true; small.textContent = '';
+      this.goJoin(code, name);
+    });
+  }
+  /** join a farm: from my own farm first the question whether to save, then my world closes and the connecting screen comes */
+  private pendingJoin: { code: string; name: string; ticket?: string } | null = null;
+  private goJoin(code: string, name: string, ticket?: string) {
+    this.pendingJoin = { code, name, ticket };
+    if (this.mode !== 'menu' && this.slot && !this.tutorialMode && !this.netGuest) { this.only('#joinSave'); return; }
+    this.joinGo(true);
+  }
+  private joinGo(save: boolean) {
+    const j = this.pendingJoin; this.pendingJoin = null; if (!j) return;
+    // where the guest's XP go: the farm it comes from (in the menu: the chosen one, tutorial: the wanderer profile)
+    if (this.mode !== 'menu') { if (!this.netGuest) this.gFrom = this.tutorialMode ? null : this.slot; this.leave(save); }
+    else if (this.gFrom === undefined || (this.gFrom && !listSaves().some(m => m.id === this.gFrom))) this.gFrom = listSaves()[0]?.id ?? null;
+    $('#joinName').textContent = j.name || j.code; $('#joinMsg').textContent = '';
+    this.only('#joining');
+    this.join(j.code, j.ticket);
+  }
+  private join(code: string, ticket?: string) {
     this.netGuest?.close(); resetSnapSeq();
-    const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
-    this.netGuest = g; go.disabled = true; msg.textContent = '…';
+    const g = new NetGuest(), msg = $('#joinMsg');
+    this.netGuest = g;
     this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;
     const level = levelFor(this.cfg, this.gXp0);
     g.onWait = () => { msg.textContent = 'Klopf, klopf …'; };
@@ -560,8 +609,8 @@ class Game {
       if (this.netGuest !== g) return;
       this.netGuest = null; const inGame = this.mode !== 'menu'; this.bookGuestXp();
       if (inGame) this.leave();
-      this.openVisit(code);
-      msg.textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
+      this.openVisit('');
+      $('#visitMsg').textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
     };
     g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0, ticket });
   }
@@ -585,7 +634,7 @@ class Game {
         this.gSt = raw; this.gLast = performance.now(); return;
       }
     } else if (this.mode !== 'evening') { // the owner went into the house: the guest reads along in the book
-      this.mode = 'evening'; this.sim = null; this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
+      this.only(null); this.mode = 'evening'; this.sim = null; this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
       this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.house.closeDay();
       Object.assign(this.s, d.s); this.view.setState(this.s); this.view.resetLight();
       this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); this.gSt = raw; this.bookGuestXp(); return;
@@ -641,50 +690,82 @@ class Game {
   }
 
   // ---------------- friends (Supabase, Basti 22.11.2026) ----------------
+  private toast(t: string, ms = 2600) { const e = $('#toast'); e.textContent = t; e.classList.add('in'); clearTimeout((e as any)._t); (e as any)._t = setTimeout(() => e.classList.remove('in'), ms); }
   /** best level of this device: the friends see it next to the name */
   private bestLevel() { return Math.max(levelFor(this.cfg, wanderer().xp), ...listSaves().map(m => m.level)); }
+  private msgText(n: number) { return this.cfg.coop?.messages?.[n] ?? '…'; }
   private async startOnline() {
     const o = await Online.start(); if (!o) return;
     this.online = o; $('#friendBtn').hidden = false;
-    o.onChange = () => { $('#friendDot').hidden = !o.asks.length; if (!$('#friends').hidden) this.friendList(); };
+    o.onChange = () => { $('#friendDot').hidden = !o.asks.length && !o.unread.size; if (!$('#friends').hidden) this.friendList(); };
     o.onVisit = a => { if (!this.netHost) { void o.answerVisit(a.id, false, ''); return; } this.asks.push(a); this.showAsk(); };
+    o.onMessage = (_from, name, n) => { sfx('ui.levelup'); this.toast(`${name}: ${this.msgText(n)}`, 4000); };
     try { await o.profile(this.menu.look.name || 'Gast', this.bestLevel()); await o.goOnline(); }
     catch (e) { console.warn('online', e); }
   }
-  private openFriends() {
+  /** where "Zurück" in the friends list goes (main menu or pause menu) */
+  private frBack = '#menu';
+  /** the friend found by the code that is being typed */
+  private found: { id: string; name: string; level: number; code: string } | null = null;
+  /** friend whose message choice is open */
+  private msgFor = '';
+  private openFriends(back: string) {
     const o = this.online; if (!o) return;
-    $('#frMine').textContent = o.me.code || '…'; $('#frMsg').textContent = ''; ($('#frCode') as HTMLInputElement).value = '';
+    this.frBack = back; this.msgFor = '';
+    $('#frMine').textContent = o.me.code || '…'; $('#frMsg').textContent = ''; ($('#frCode') as HTMLInputElement).value = ''; this.clearFound();
     this.only('#friends'); this.friendList();
     void o.profile(this.menu.look.name || 'Gast', this.bestLevel()).then(() => { $('#frMine').textContent = o.me.code; }).catch(() => {});
     void o.refresh();
   }
+  private clearFound() { this.found = null; $('#frFound').hidden = true; }
+  /** a full code typed: show whose it is, then add (✓) or not (✗) */
+  private async findFriend(code: string) {
+    const o = this.online; this.clearFound(); $('#frMsg').textContent = ''; if (!o || code.length < 6) return;
+    const r = await o.lookup(code); if (($('#frCode') as HTMLInputElement).value !== code) return;
+    if (r === 'self') { $('#frMsg').textContent = 'Das ist dein Code.'; return; }
+    if (!r) { $('#frMsg').textContent = 'Kein Spieler mit diesem Code.'; return; }
+    if (o.friends.some(f => f.id === r.id && !f.pending)) { $('#frMsg').textContent = `${r.name} ist schon dein Freund.`; return; }
+    this.found = { ...r, code }; $('#frFoundName').innerHTML = `${esc(r.name)} <i class="lv">${r.level}</i>`; $('#frFound').hidden = false; sfx('ui.hover');
+  }
   private async addFriend() {
-    const o = this.online, i = $('#frCode') as HTMLInputElement; if (!o || i.value.length < 6) return;
-    const r = await o.addFriend(i.value); i.value = '';
-    $('#frMsg').textContent = { notfound: 'Kein Spieler mit diesem Code.', self: 'Das ist dein eigener Code.', accepted: '✓', sent: 'Anfrage gesendet.', error: 'Verbindung verloren.' }[r];
+    const o = this.online, f = this.found; if (!o || !f) return;
+    this.clearFound(); ($('#frCode') as HTMLInputElement).value = '';
+    const r = await o.addFriend(f.code);
+    if (r === 'sent' || r === 'accepted') { sfx('ui.confirm'); this.toast(`${f.name} hinzugefügt`); }
+    else $('#frMsg').textContent = r === 'error' ? 'Verbindung verloren.' : 'Kein Spieler mit diesem Code.';
   }
   private friendList() {
     const o = this.online; if (!o) return;
-    const box = $('#frList');
-    box.innerHTML = o.asks.map(a => `<div class="fr ask" data-ask="${a.id}"><b>${esc(a.name)}</b><i class="lv">${a.level}</i><button class="sDel no" aria-label="Ablehnen">${NO_I}</button><button class="sDel yes" aria-label="Annehmen">${YES_I}</button></div>`).join('')
-      + o.friends.map(f => `<div class="fr" data-id="${f.id}"><span class="dot${f.open ? ' open' : f.online ? ' on' : ''}"></span><b>${esc(f.name)}</b><i class="lv">${f.level}</i>${f.open ? `<button class="sDel yes go" aria-label="Besuchen">${GO_I}</button>` : ''}<button class="sDel del" aria-label="Entfernen">${NO_I}</button></div>`).join('');
+    const box = $('#frList'), msgs = this.cfg.coop?.messages ?? [];
+    const status = (f: (typeof o.friends)[number]) => f.pending ? 'Angefragt' : f.open ? 'Hof offen' : f.online ? 'Online' : 'Offline';
+    const last = (id: string) => { const m = o.inbox.get(id); return m ? `<small class="${o.unread.has(id) ? 'new' : ''}">„${esc(this.msgText(m.msg))}“</small>` : ''; };
+    box.innerHTML = o.asks.map(a => `<div class="fr ask" data-ask="${a.id}"><div class="nm"><b>${esc(a.name)}</b><small>Anfrage</small></div><i class="lv">${a.level}</i><button class="sDel no" aria-label="Ablehnen">${NO_I}</button><button class="sDel yes" aria-label="Annehmen">${YES_I}</button></div>`).join('')
+      + o.friends.map(f => `<div class="fr" data-id="${f.id}"><span class="dot${f.pending ? ' pend' : f.open ? ' open' : f.online ? ' on' : ''}"></span><div class="nm"><b>${esc(f.name)}</b>${last(f.id) || `<small>${status(f)}</small>`}</div><i class="lv">${f.level}</i>`
+        + (f.open ? `<button class="sDel yes go" aria-label="Besuchen">${GO_I}</button>` : '')
+        + (f.pending ? '' : `<button class="sDel msg" aria-label="Nachricht">${MSG_I}</button>`)
+        + `<button class="sDel del" aria-label="Entfernen">${NO_I}</button></div>`
+        + (this.msgFor === f.id ? `<div class="frMsgs" data-to="${f.id}">${msgs.map((t, i) => `<button data-m="${i}">${esc(t)}</button>`).join('')}</div>` : '')).join('');
     box.querySelectorAll<HTMLElement>('.fr.ask').forEach(r => r.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); void o.answerFriend(r.dataset.ask!, b.classList.contains('yes')); })));
     box.querySelectorAll<HTMLElement>('.fr[data-id]').forEach(r => {
       const id = r.dataset.id!;
       r.querySelector('.go')?.addEventListener('click', () => { sfx('ui.confirm'); this.visitFriend(id); });
+      r.querySelector('.msg')?.addEventListener('click', () => { sfx('ui.click'); this.msgFor = this.msgFor === id ? '' : id; this.friendList(); });
       const del = r.querySelector<HTMLElement>('.del')!;
       // two taps remove a friend (no browser dialog)
-      del.addEventListener('click', () => { sfx('ui.click'); if (del.classList.contains('sure')) void o.removeFriend(id); else { del.classList.add('sure'); del.style.borderColor = '#d05a4a'; setTimeout(() => { del.classList.remove('sure'); del.style.borderColor = ''; }, 2500); } });
+      del.addEventListener('click', () => { sfx('ui.click'); if (del.classList.contains('sure')) void o.removeFriend(id); else { del.classList.add('sure'); setTimeout(() => del.classList.remove('sure'), 2500); } });
     });
+    box.querySelectorAll<HTMLElement>('.frMsgs button').forEach(b => b.addEventListener('click', async () => {
+      const to = b.parentElement!.dataset.to!, f = o.friends.find(x => x.id === to); this.msgFor = ''; this.friendList();
+      sfx('ui.confirm'); this.toast(await o.send(to, +b.dataset.m!) ? `An ${f?.name ?? '?'}: ${b.textContent}` : 'Nicht gesendet');
+    }));
   }
   /** knock at a friend's open farm: once the friend says yes, the game joins with room code + ticket */
   private visitFriend(id: string) {
-    const o = this.online; if (!o) return;
-    this.openVisit(''); const msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
-    go.disabled = true; msg.textContent = 'Klopf, klopf …';
+    const o = this.online, f = o?.friends.find(x => x.id === id); if (!o || !f) return;
+    const msg = $('#frMsg'); msg.textContent = `Klopf, klopf bei ${f.name} …`;
     this.knock?.cancel(); const k = o.visit(id); this.knock = k;
-    k.done.then(({ room, ticket }) => { if (this.knock !== k) return; this.knock = null; ($('#visitCode') as HTMLInputElement).value = room; go.disabled = false; this.join(ticket); })
-      .catch((e: Error) => { if (this.knock !== k) return; this.knock = null; go.disabled = false; msg.textContent = { deny: 'Nicht reingelassen.', timeout: 'Keine Antwort.', notfriend: 'Nicht reingelassen.', lost: 'Verbindung verloren.' }[e.message] ?? ''; });
+    k.done.then(({ room, ticket }) => { if (this.knock !== k) return; this.knock = null; msg.textContent = ''; this.goJoin(room, f.name, ticket); })
+      .catch((e: Error) => { if (this.knock !== k) return; this.knock = null; msg.textContent = { deny: 'Nicht reingelassen.', timeout: 'Keine Antwort.', notfriend: 'Nicht reingelassen.', lost: 'Verbindung verloren.' }[e.message] ?? ''; });
   }
 
   /** tests (co-op without a network): n computer farmers join the farm, bot(0) sends them home */

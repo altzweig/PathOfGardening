@@ -5,7 +5,7 @@
 // Switched on by public/online.json ({ "url": "...", "anonKey": "..." }); without it there is no friends menu.
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
-export interface Friend { id: string; name: string; level: number; online: boolean; open: boolean }
+export interface Friend { id: string; name: string; level: number; online: boolean; open: boolean; /** I asked, the friend has not said yes yet */ pending?: boolean }
 export interface FriendAsk { id: string; name: string; level: number }
 export interface VisitAsk { id: string; visitorId: string; name: string; level: number }
 interface Presence { id: string; name: string; level: number; open: boolean }
@@ -25,6 +25,11 @@ export class Online {
   onChange: () => void = () => {};
   /** a friend knocks (only while my farm is open) */
   onVisit: (a: VisitAsk) => void = () => {};
+  /** a short message from a friend arrived (number of the sentence in balancing.yaml coop.messages) */
+  onMessage: (from: string, name: string, msg: number) => void = () => {};
+  /** newest message of each friend (last 7 days) and who wrote something I have not looked at yet */
+  inbox = new Map<string, { msg: number; at: number }>();
+  unread = new Set<string>();
 
   /** null = no Supabase configured (or not reachable): the game plays without friends */
   static async start(): Promise<Online | null> {
@@ -54,6 +59,11 @@ export class Online {
   }
 
   // ---------------- friends ----------------
+  /** who has this friend code (shown before adding) */
+  async lookup(code: string): Promise<{ id: string; name: string; level: number } | 'self' | null> {
+    const { data } = await this.db.from('profiles').select('id, name, level').eq('friend_code', code.trim().toUpperCase()).maybeSingle();
+    if (!data) return null; return data.id === this.me.id ? 'self' : data;
+  }
   async addFriend(code: string): Promise<'notfound' | 'self' | 'accepted' | 'sent' | 'error'> {
     const { data, error } = await this.db.rpc('add_friend', { code }); if (error) return 'error';
     if (data === 'sent') this.sent.push(code.toUpperCase());
@@ -75,8 +85,10 @@ export class Online {
     const names = new Map<string, { name: string; level: number }>();
     if (ids.length) { const p = await this.db.from('profiles').select('id, name, level').in('id', ids); for (const x of p.data ?? []) names.set(x.id, x); }
     const nm = (id: string) => names.get(id) ?? { name: '?', level: 1 };
-    this.friends = rows.filter(r => r.status === 'accepted').map(r => { const id = r.user_a === this.me.id ? r.user_b : r.user_a, p = this.online.get(id); return { id, name: p?.name ?? nm(id).name, level: p?.level ?? nm(id).level, online: !!p, open: !!p?.open }; })
-      .sort((a, b) => +b.open - +a.open || +b.online - +a.online || a.name.localeCompare(b.name));
+    this.friends = rows.filter(r => r.status === 'accepted' || r.user_a === this.me.id).map(r => {
+      const id = r.user_a === this.me.id ? r.user_b : r.user_a, pending = r.status !== 'accepted', p = pending ? undefined : this.online.get(id);
+      return { id, name: p?.name ?? nm(id).name, level: p?.level ?? nm(id).level, online: !!p, open: !!p?.open, pending };
+    }).sort((a, b) => +b.open - +a.open || +b.online - +a.online || +!!a.pending - +!!b.pending || a.name.localeCompare(b.name));
     this.asks = rows.filter(r => r.status === 'pending' && r.user_b === this.me.id).map(r => ({ id: r.user_a, ...nm(r.user_a) }));
     this.onChange();
   }
@@ -88,13 +100,20 @@ export class Online {
     ch.on('presence', { event: 'sync' }, () => {
       this.online.clear();
       for (const [id, metas] of Object.entries(ch.presenceState<Presence>())) { const m = metas[0]; if (m) this.online.set(id, { id, name: m.name, level: m.level, open: m.open }); }
-      for (const f of this.friends) { const p = this.online.get(f.id); f.online = !!p; f.open = !!p?.open; if (p) { f.name = p.name; f.level = p.level; } }
+      for (const f of this.friends) { if (f.pending) continue; const p = this.online.get(f.id); f.online = !!p; f.open = !!p?.open; if (p) { f.name = p.name; f.level = p.level; } }
       this.onChange();
     });
     // friend requests / answers come in live
     ch.on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => void this.refresh());
     await new Promise<void>((ok, bad) => ch.subscribe(s => { if (s === 'SUBSCRIBED') ok(); else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') bad(new Error(s)); }));
     this.presence = ch; await this.track(); await this.refresh();
+    await this.loadInbox();
+    // short messages to me
+    this.db.channel('messages:' + this.me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_id=eq.${this.me.id}` }, p => {
+      const r = p.new as { from_id: string; msg: number; created_at: string };
+      this.inbox.set(r.from_id, { msg: r.msg, at: Date.parse(r.created_at) || Date.now() }); this.unread.add(r.from_id);
+      this.onMessage(r.from_id, this.friends.find(f => f.id === r.from_id)?.name ?? '?', r.msg); this.onChange();
+    }).subscribe();
     // knocks at my farm
     this.db.channel('requests:' + this.me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'visit_requests', filter: `host_id=eq.${this.me.id}` }, async p => {
       const r = p.new as { id: string; visitor_id: string; status: string }; if (r.status !== 'pending') return;
@@ -103,6 +122,20 @@ export class Online {
       this.onVisit({ id: r.id, visitorId: r.visitor_id, name: f?.name ?? '?', level: f?.level ?? 1 });
     }).subscribe();
   }
+  // ---------------- short messages ----------------
+  private seenKey() { return 'pog-msg-seen-' + this.me.id; }
+  private async loadInbox() {
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    const { data } = await this.db.from('messages').select('from_id, msg, created_at').eq('to_id', this.me.id).gte('created_at', since).order('created_at', { ascending: true }).limit(200);
+    let seen = 0; try { seen = +(localStorage.getItem(this.seenKey()) ?? 0) || 0; } catch { /* ignore */ }
+    for (const r of data ?? []) { const at = Date.parse(r.created_at); this.inbox.set(r.from_id, { msg: r.msg, at }); if (at > seen) this.unread.add(r.from_id); }
+  }
+  /** the friends list was looked at: no more unread marks */
+  markRead() { this.unread.clear(); try { localStorage.setItem(this.seenKey(), String(Date.now())); } catch { /* ignore */ } this.onChange(); }
+  async send(to: string, msg: number) {
+    const { error } = await this.db.from('messages').insert({ from_id: this.me.id, to_id: to, msg }); return !error;
+  }
+
   private track() { return this.presence?.track({ id: this.me.id, name: this.me.name, level: this.me.level, open: this.open }); }
   /** my farm is open for friends (or closed again) */
   async setOpen(open: boolean) { if (this.open === open) return; this.open = open; await this.track(); }

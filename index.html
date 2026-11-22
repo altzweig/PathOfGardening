@@ -129,33 +129,47 @@
 
   <div class="ov" id="visit" hidden>
     <h2>Besuchen</h2>
-    <form id="visitForm" class="col" autocomplete="off">
-      <input id="visitCode" class="sName coopCode" maxlength="5" spellcheck="false" autocapitalize="characters" aria-label="Code" placeholder="ABCDE">
+    <div class="col">
+      <form class="join" id="vJoin" autocomplete="off"><input class="jCode" maxlength="5" spellcheck="false" autocapitalize="characters" aria-label="Code" placeholder="Code"><button class="jGo" type="submit" disabled><small></small><span>Beitreten</span></button></form>
       <button class="btn sec" id="visitFrom" type="button"></button>
       <div class="coopMsg" id="visitMsg"></div>
-      <div class="row">
-        <button class="btn" id="visitGo" type="submit">Beitreten</button>
-        <button class="btn sec" id="visitBack" type="button">Zurück</button>
-      </div>
-    </form>
+      <button class="btn sec" id="visitBack" type="button">Zurück</button>
+    </div>
   </div>
 
   <div class="ov" id="friends" hidden>
     <h2>Freunde</h2>
-    <div class="col">
-      <button class="btn sec coopCode" id="frMine" type="button" aria-label="Mein Freundescode"></button>
-      <form id="frForm" class="row" autocomplete="off">
-        <input id="frCode" class="sName coopCode" maxlength="6" spellcheck="false" autocapitalize="characters" aria-label="Freundescode" placeholder="ABC234">
-        <button class="sDel yes" id="frAdd" type="submit" aria-label="Hinzufügen"></button>
-      </form>
+    <div class="col frCol">
+      <div class="frMine"><span class="coopCode" id="frMine" aria-label="Mein Freundescode"></span><button class="sDel" id="frCopy" type="button" aria-label="Kopieren"></button></div>
+      <form id="frForm" autocomplete="off"><input id="frCode" class="sName coopCode" maxlength="6" spellcheck="false" autocapitalize="characters" aria-label="Freundescode" placeholder="Code"></form>
+      <div id="frFound" hidden><b id="frFoundName"></b><button class="sDel no" id="frNo" type="button" aria-label="Abbrechen"></button><button class="sDel yes" id="frYes" type="button" aria-label="Hinzufügen"></button></div>
       <div class="coopMsg" id="frMsg"></div>
       <div id="frList"></div>
       <button class="btn sec" id="frBack" type="button">Zurück</button>
     </div>
   </div>
 
+  <div class="ov" id="joinSave" hidden>
+    <h2>Speichern?</h2>
+    <div class="col">
+      <button class="btn" id="jsYes">Speichern</button>
+      <button class="btn sec" id="jsNo">Nicht speichern</button>
+      <button class="btn sec" id="jsBack">Abbrechen</button>
+    </div>
+  </div>
+
+  <div class="ov" id="joining" hidden>
+    <div id="joinImg"></div>
+    <div id="joinBox">
+      <small>Welt von</small><b id="joinName"></b>
+      <div id="joinBar"><i></i></div>
+      <div id="joinMsg"></div>
+      <button class="btn sec" id="joinBack">Abbrechen</button>
+    </div>
+  </div>
+
   <div class="ov" id="coop" hidden>
-    <h2>Besuch</h2>
+    <h2>Einladen</h2>
     <div class="col">
       <div class="sName coopCode" id="coopCode">…</div>
       <button class="btn sec" id="coopCopy">Link kopieren</button>
@@ -200,15 +214,18 @@
   <div class="ov" id="pause" hidden>
     <h2>Pause</h2>
     <div class="col">
+      <form class="join" id="pJoin" autocomplete="off"><input class="jCode" maxlength="5" spellcheck="false" autocapitalize="characters" aria-label="Code" placeholder="Code"><button class="jGo" type="submit" disabled><small></small><span>Beitreten</span></button></form>
       <button class="btn" id="resumeBtn">Weiter</button>
       <button class="btn sec" id="saveBtn">Speichern</button>
-      <button class="btn sec" id="coopBtn">Besuch</button>
+      <button class="btn sec" id="coopBtn">Einladen</button>
+      <button class="btn sec" id="pFriendBtn" hidden>Freunde</button>
       <button class="btn sec" id="pCtrlBtn">Steuerung</button>
       <button class="btn sec" id="pQualBtn">Grafik</button>
       <button class="btn sec" id="pSndBtn">Ton</button>
       <button class="btn sec" id="leaveBtn">Hauptmenü</button>
     </div>
   </div>
+  <div id="toast"></div>
 </div>
 <script type="module" src="/src/main.ts"></script>
 </body>

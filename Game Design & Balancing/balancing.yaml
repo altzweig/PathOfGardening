@@ -456,6 +456,19 @@ coop:                      # Koop-Besuche (Basti 22.11.2026): Gäste helfen auf 
   koTime: 20                 # s k.o., dann steht man am Haus wieder auf (schlimmster Fall + Cutscene nur, wenn alle gleichzeitig k.o. sind)
   hostShare: 0.25            # Anteil der Gast-XP, den der Hofbesitzer zusätzlich bekommt (Hofbonus)
   nightCountExp: 0.5         # Tiere pro Nachtwelle x Spieler ^ Exponent (0,5 = Wurzel: 2 Spieler x1,41, 3 x1,73, 4 x2), Tier-HP bleiben gleich
+  # Kurznachrichten unter Freunden (Basti 22.11.2026: nur feste Sätze, kein freier Text). Gespeichert wird nur die Nummer
+  # (0-31): neue Sätze hinten anhängen, bestehende nicht umsortieren. Höchstens 32.
+  messages:
+    - Hallo!
+    - Komm vorbei!
+    - Mein Hof ist offen
+    - Darf ich vorbeikommen?
+    - Bin gleich da
+    - Jetzt nicht
+    - Danke für die Hilfe!
+    - Gute Ernte!
+    - Heute Nacht wird's wild
+    - Bis später!
 
 levels:
   # Basti 21.11.2026: grob alle 2-3 Tage ein Level, Level 2 schon an Tag 1. Ernte-XP pro Tag wachsen mit den Feldern

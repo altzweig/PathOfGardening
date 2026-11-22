@@ -237,17 +237,55 @@ body[data-input=touch] #fBtns{display:flex}
 /* friends (Supabase, 22.11.2026) */
 #friendBtn{position:relative}
 #friendDot{position:absolute;top:8px;right:10px;width:10px;height:10px;border-radius:50%;background:#e0b44c;box-shadow:0 0 8px #e0b44c}
-#frForm{gap:10px;align-items:center;justify-content:center}
-#frForm .sName{width:200px;margin:0}
-#frForm .sDel,#frList .sDel{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #3a4550;background:#0b1016;color:var(--parch);display:grid;place-items:center;cursor:pointer}
-#frForm .sDel svg,#frList .sDel svg{width:20px;height:20px}
-#frForm .sDel.yes,#frList .sDel.yes{background:#3f8a4a;color:#fff;border-color:#7ad08a}
-#frList{display:flex;flex-direction:column;gap:8px;width:min(420px,calc(100vw - 32px));max-height:46vh;overflow:auto}
+.frCol{width:min(440px,calc(100vw - 32px))}
+.frMine{display:flex;align-items:center;justify-content:center;gap:12px}
+.frMine .coopCode{min-width:0;color:var(--gold);font:700 34px var(--f-display);letter-spacing:.25em}
+#frForm{display:flex;justify-content:center}
+#frForm .sName{width:100%;max-width:300px;margin:0;font-size:28px}
+#frFound{display:flex;align-items:center;gap:10px;background:#0b1016ee;border:1px solid var(--gold);border-radius:12px;padding:8px 8px 8px 16px;color:var(--parch);font:700 20px var(--f-display);animation:frIn .25s ease-out}
+#frFound[hidden]{display:none}
+#frFound b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frCol .sDel{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #3a4550;background:#0b1016;color:var(--parch);display:grid;place-items:center;cursor:pointer}
+.frCol .sDel svg{width:20px;height:20px}
+.frCol .sDel.yes{background:#3f8a4a;color:#fff;border-color:#7ad08a}
+.frCol .sDel.sure{border-color:#d05a4a;background:#5a1f18}
+#frList{display:flex;flex-direction:column;gap:8px;max-height:42vh;overflow:auto}
 #frList .fr{display:flex;align-items:center;gap:10px;background:#0b1016cc;border:1px solid var(--gold-dim);border-radius:10px;padding:6px 6px 6px 12px;color:var(--parch)}
 #frList .fr.ask{border-color:var(--gold)}
-#frList .fr b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#frList .fr i{font-style:normal;opacity:.8}
+#frList .fr .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
+#frList .fr .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#frList .fr .nm small{font-size:13px;opacity:.7}
+#frList .fr .lv{font-style:normal;opacity:.8}
 #frList .dot{flex:none;width:10px;height:10px;border-radius:50%;background:#4a535c}
 #frList .dot.on{background:#7ad08a}
 #frList .dot.open{background:#e0b44c;box-shadow:0 0 6px #e0b44c}
-#frList .fr .sDel.go svg{width:22px;height:22px}
+#frList .dot.pend{background:none;border:1.5px dashed #8a949c}
+/* join row: code left, button right ("Welt von …" small, "Beitreten" big) */
+.join{display:flex;gap:10px;width:min(440px,calc(100vw - 32px))}
+.join .jCode{flex:1;min-width:0;font:700 26px var(--f-display);letter-spacing:.25em;text-transform:uppercase;text-align:center;color:var(--parch);background:#0b1016;border:1px solid var(--gold-dim);border-radius:10px;padding:8px 10px;outline:none}
+.join .jCode:focus{border-color:var(--gold)}
+.join .jCode::placeholder{letter-spacing:.08em;opacity:.35;text-transform:none}
+.join .jGo{flex:none;width:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 10px;font:700 19px var(--f-display);letter-spacing:.06em;color:#1a1206;background:linear-gradient(180deg,#f3d58f,#c99a45);border:1px solid #fff3;border-radius:10px;box-shadow:0 3px 0 #6b4f1f;cursor:pointer}
+.join .jGo small{font:600 12px var(--f-body,inherit);letter-spacing:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+.join .jGo small:empty{display:none}
+.join .jGo:disabled{background:#222b33;color:#8a949c;box-shadow:0 3px 0 #0a0d10;cursor:default}
+/* save before joining, connecting screen */
+#joining{justify-content:flex-end;background:#07090b}
+#joinImg{position:absolute;inset:0;background:#0d1410 url(./loading/farm.jpg) center/cover no-repeat;opacity:.55}
+#joining::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,#07090b00 35%,#07090bcc 75%,#07090b);pointer-events:none}
+#joinBox{position:relative;z-index:1;width:min(520px,86vw);padding:0 0 calc(env(safe-area-inset-bottom,0px) + 7vh);text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+#joinBox small{color:#c9b17c;font-size:16px}
+#joinBox b{font:700 clamp(26px,5vw,42px) var(--f-display);color:#f3dfae;text-shadow:0 2px 14px #000c;margin-bottom:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#joinBar{width:100%;height:10px;border-radius:6px;background:#0009;border:1px solid #e3b96466;overflow:hidden;position:relative}
+#joinBar i{position:absolute;top:0;bottom:0;width:35%;background:linear-gradient(90deg,#7cae3e,#c9df63);box-shadow:0 0 12px #c9df6399;animation:joinRun 1.4s ease-in-out infinite}
+@keyframes joinRun{from{left:-35%}to{left:100%}}
+#joinMsg{min-height:1.5em;margin:10px 0;color:#efe6d0;font-size:18px}
+/* toast */
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);transform:translate(-50%,20px);z-index:120;background:#0b1016f2;border:1px solid var(--gold);border-radius:12px;padding:10px 20px;color:var(--parch);font:700 18px var(--f-display);box-shadow:0 6px 24px #0008;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:calc(100vw - 32px);text-align:center}
+#toast.in{opacity:1;transform:translate(-50%,0)}
+@media (max-width:520px){.join .jGo{width:120px;font-size:17px}.join .jCode{font-size:22px;letter-spacing:.18em}.frMine .coopCode{font-size:28px}}
+#frList .fr .nm small.new{color:var(--gold);opacity:1}
+#frList .frMsgs{display:flex;flex-wrap:wrap;gap:6px;padding:2px 4px 6px;animation:frIn .2s ease-out}
+#frList .frMsgs button{font:600 15px var(--f-body);color:var(--parch);background:#18222b;border:1px solid var(--gold-dim);border-radius:16px;padding:6px 12px;cursor:pointer}
+#frList .frMsgs button:hover{border-color:var(--gold)}
+@keyframes frIn{from{opacity:0;transform:translateY(-6px)}}

@@ -95,5 +95,33 @@ grant update (status) on public.friendships to authenticated;
 revoke update on public.visit_requests from authenticated, anon;
 grant update (status, room, ticket) on public.visit_requests to authenticated;
 
+-- ---------- Kurznachrichten (22.11.2026): nur feste Sätze, gespeichert wird die Nummer (Text in balancing.yaml coop.messages) ----------
+create table public.messages (
+  id bigint generated always as identity primary key,
+  from_id uuid not null references public.profiles on delete cascade,
+  to_id uuid not null references public.profiles on delete cascade,
+  msg smallint not null check (msg between 0 and 31),
+  created_at timestamptz not null default now()
+);
+create index on public.messages (to_id, created_at);
+alter publication supabase_realtime add table public.messages;
+alter table public.messages enable row level security;
+create policy "Nachricht an Freunde" on public.messages for insert to authenticated
+  with check (from_id = auth.uid() and public.are_friends(from_id, to_id));
+create policy "Eigene Nachrichten" on public.messages for select to authenticated using (auth.uid() in (from_id, to_id));
+create policy "Nachricht löschen" on public.messages for delete to authenticated using (auth.uid() in (from_id, to_id));
+revoke insert, update on public.messages from authenticated, anon;
+grant insert (from_id, to_id, msg) on public.messages to authenticated;
+-- gegen Spam: höchstens 10 Nachrichten pro Minute
+create or replace function public.msg_limit() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from messages where from_id = new.from_id and created_at > now() - interval '1 minute') >= 10 then
+    raise exception 'too many messages';
+  end if;
+  return new;
+end;
+$$;
+create trigger msg_limit before insert on public.messages for each row execute function public.msg_limit();
+
 -- Alte Anfragen aufräumen (optional, braucht die Erweiterung pg_cron unter Database -> Extensions):
--- select cron.schedule('visit-cleanup', '0 4 * * *', $$delete from public.visit_requests where created_at < now() - interval '1 day'$$);
+-- select cron.schedule('visit-cleanup', '0 4 * * *', $$delete from public.visit_requests where created_at < now() - interval '1 day'; delete from public.messages where created_at < now() - interval '7 days'$$);

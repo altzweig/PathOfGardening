@@ -30,9 +30,11 @@ function peerOpts(): PeerOptions {
 export type ToHost =
   | { t: 'hello'; v: string; name: string; look: unknown; level: number; xp: number; ticket?: string }
   | { t: 'in'; i: unknown }
+  | { t: 'peek' }
   | { t: 'bye' };
 export type ToGuest =
   | { t: 'wait' } | { t: 'welcome'; id: number; key: string } | { t: 'no'; why: 'full' | 'deny' | 'version' | 'gone' }
+  | { t: 'info'; name: string; v: string; n: number; max: number }
   | { t: 'st'; [k: string]: unknown } | { t: 'sn'; [k: string]: unknown } | { t: 'bye' };
 
 export interface Visitor {
@@ -49,6 +51,8 @@ export class NetHost {
   code = '';
   visitors: Visitor[] = [];
   private nextId = 1;
+  /** the owner's name: shown to someone who types the code ("Welt von …") */
+  name = '';
   onAsk: (v: Visitor) => void = () => {};
   /** a friend whose visit the owner already accepted in the friends list (ticket from src/online): comes in right away */
   onTicket: (v: Visitor) => void = () => {};
@@ -85,6 +89,7 @@ export class NetHost {
     c.on('data', (d: any) => {
       const m = d as ToHost; if (!m || typeof m !== 'object') return;
       if (v) { const s = Math.floor(performance.now() / 1000); if (s !== v.sec) { v.sec = s; v.n = 0; } if (++v.n > RATE) return; }
+      if (m.t === 'peek' && !v) { c.send({ t: 'info', name: this.name, v: this.version, n: this.visitors.length, max: this.max }); setTimeout(() => c.close(), 300); return; }
       if (m.t === 'hello' && !v) {
         if (m.v !== this.version) { c.send({ t: 'no', why: 'version' }); setTimeout(() => c.close(), 300); return; }
         if (this.visitors.length + 1 >= this.max) { c.send({ t: 'no', why: 'full' }); setTimeout(() => c.close(), 300); return; }
@@ -112,6 +117,27 @@ export class NetHost {
     const p = this.peer; this.peer = null; this.visitors = []; this.code = '';
     setTimeout(() => p?.destroy(), 300);
   }
+}
+
+/** who is behind a code, before joining: name of the owner, or why it would not work */
+export function peek(code: string, version: string, timeout = 30000): { done: Promise<{ name: string } | 'notfound' | 'version' | 'full' | 'lost'>; cancel: () => void } {
+  let peer: Peer | null = null, timer = 0, fin: (r: any) => void = () => {};
+  const done = new Promise<{ name: string } | 'notfound' | 'version' | 'full' | 'lost'>(ok => {
+    fin = r => { clearTimeout(timer); const p = peer; peer = null; setTimeout(() => { try { p?.destroy(); } catch { /* ignore */ } }, 100); ok(r); fin = () => {}; };
+    timer = window.setTimeout(() => fin('lost'), timeout);
+    peer = new Peer(peerOpts());
+    peer.on('error', (err: any) => { console.warn('peek', err?.type); fin(err?.type === 'peer-unavailable' ? 'notfound' : 'lost'); });
+    peer.on('open', () => {
+      const c = peer!.connect(PREFIX + cleanCode(code), { reliable: true, serialization: 'json' });
+      c.on('open', () => c.send({ t: 'peek' }));
+      c.on('data', (d: any) => {
+        if (!d || d.t !== 'info') return;
+        fin(d.v !== version ? 'version' : d.n + 1 >= d.max ? 'full' : { name: String(d.name ?? '').replace(/[<>]/g, '').slice(0, 28) || '?' });
+      });
+      c.on('error', (e: any) => { console.warn('peek conn', e?.type ?? e); fin('lost'); });
+    });
+  });
+  return { done, cancel: () => fin('lost') };
 }
 
 /** a guest: knocks at the farm under a code and plays there once the owner lets it in */

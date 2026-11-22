@@ -16,6 +16,9 @@ Spielstände bleiben lokal im Browser. Supabase kennt nur Name, Level, Freundesc
    Der anon Key ist öffentlich gedacht, die Daten schützt Row Level Security aus `schema.sql`.
 5. Optional: **Database → Extensions** `pg_cron` einschalten und die letzte Zeile in `schema.sql` ausführen (räumt alte Anfragen nachts auf).
 
+## Nachträge
+- 22.11.2026 Kurznachrichten: den Block „Kurznachrichten“ aus `schema.sql` einmal im SQL Editor ausführen (für Projekte, die vorher eingerichtet wurden).
+
 ## Wie es läuft
 - Jeder Browser bekommt ein anonymes Konto (Schlüssel `pog-online-auth` im localStorage). Anderes Gerät = anderes Konto
   mit eigenem Freundescode. Später lässt sich E-Mail/Google an das Konto hängen.
@@ -23,6 +26,8 @@ Spielstände bleiben lokal im Browser. Supabase kennt nur Name, Level, Freundesc
 - Besuchen: Freund tippt bei dir auf das Haus → du bekommst oben die Anfrage → ✓ schickt Raumcode + Einmal-Ticket zurück →
   der Freund verbindet sich direkt (WebRTC/PeerJS) und kommt ohne zweite Nachfrage rein.
 - Anfragen sind laut RLS nur unter Freunden möglich, nur der Gastgeber kann sie annehmen.
+- Kurznachrichten: nur feste Sätze aus `balancing.yaml` (`coop.messages`), gespeichert wird die Nummer, nur an Freunde, höchstens 10 pro Minute.
+- Beitreten per Code geht auch ohne Supabase: der Code fragt den Hof direkt nach dem Namen („Welt von …“).
 
 ## Noch offen
 - TURN-Server für strenge Mobilnetze: `VITE_TURN_URL`, `VITE_TURN_USER`, `VITE_TURN_PASS` beim Build (z. B. Cloudflare Calls TURN, Metered).

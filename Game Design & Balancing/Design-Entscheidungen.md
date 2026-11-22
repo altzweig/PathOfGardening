@@ -251,3 +251,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Oben links unter HP/XP: Sobald ein Feld erntereif ist, blendet von unten eine Meldung „[Frucht] erntereif“ ein.
 - Jedes weitere reife Feld schiebt sich von unten in die vorhandene Meldung und lässt sie kurz aufploppen: „2 Felder erntereif“ usw.
 - Wird geerntet, zählt die Zahl herunter; ist nichts mehr reif, blendet die Meldung aus. Gezählt werden nur Felder (keine Büsche/Bäume).
+
+## Handy-Kamera und Interaktionsbereiche (Basti, 22.11.2026)
+- Handy: Die Kamera schaut immer in Laufrichtung und schwenkt beim Laufen hinter die Figur (camera.follow), auch im Top-Down. Kein Drehen per Wischen mehr. Läuft man auf die Kamera zu, dreht sie sich nicht um.
+- Handy: Zwei Finger = Pinch-Zoom (Third Person 3–10 m, weiter raus = Top-Down 10–15 m), überall auf dem Bildschirm, auch wenn ein Finger auf einem HUD-Feld landet.
+- Interaktion: Jedes Ziel hat einen Interaktionsbereich (player.zone vom Rand, Sammelkram/Unkraut player.zoneSmall, Felder plots.zone von der Mitte, Felder überlappen etwas). Nur im Bereich passiert etwas.
+- Immer das nächste Ziel, auch wenn dort gerade nichts zu tun ist; kein automatisches Wechseln. Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte.
+- Im Bereich startet die Aktion sofort (leiser Klick, Ring ploppt, Balken läuft), die Figur läuft dabei selbst an die Arbeitsstelle und kniet sich erst dort hin. Der Schritt wird erst fertig, wenn sie angekommen ist.

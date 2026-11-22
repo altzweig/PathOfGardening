@@ -60,7 +60,8 @@ export interface Player {
   /** a guest's own watering can (the host uses the farm's can, s.water) */
   water?: number;
   x: number; z: number; f: number; hp: number; maxHp: number; walk: number; speed: number;
-  action: { target: Target; info: ActionInfo; t: number; pick: number } | null;
+  /** go (Basti 22.11.2026): the action started at once inside the zone, the farmer still walks into the work spot (bar runs meanwhile) */
+  action: { target: Target; info: ActionInfo; t: number; pick: number; go?: boolean } | null;
   goal: Target | null;              // auto-walk to a clicked target, then act
   /** down on one knee / in a crouch: from a ground action on until the action button is released (then walking = waddling) */
   crouch: boolean;
@@ -451,6 +452,36 @@ export class DaySim {
     return best;
   }
 
+  /** interaction zone (Basti 22.11.2026): <= 0 = inside. Fields have a larger zone measured from their middle (plots.zone, the zones
+   *  of neighbouring fields overlap a little), small things (forage, weeds) player.zoneSmall, everything else player.zone from its edge */
+  zoneOut(t: Target, x: number, z: number) {
+    const C = this.cfg.player;
+    if (t.k === 'plot' || t.k === 'forage' || t.k === 'weed') { const p = this.targetPos(t); return dist(x, z, p.x, p.z) - (t.k === 'plot' ? this.cfg.plots.zone ?? 1.9 : C.zoneSmall ?? 1); }
+    return this.targetDist(t, x, z) - (C.zone ?? C.reach);
+  }
+  inZone(t: Target, margin = 0) { const P = this.player; return this.zoneOut(t, P.x, P.z) <= margin; }
+  /** distance to the middle (buildings: to the wall), decides between overlapping zones */
+  private midDist(t: Target, x: number, z: number) { if (t.k === 'bld' || t.k === 'stall') return this.targetDist(t, x, z); const p = this.targetPos(t); return dist(x, z, p.x, p.z); }
+  /** the spot the action button / E / left click works on (Basti 22.11.2026): always the nearest one whose zone the farmer stands in,
+   *  even when there is nothing to do there (no switching on by itself). Where zones overlap: the current spot if it is ready for
+   *  the next step, else the other one; without a current spot the one with the nearer middle. Outside every zone: none. */
+  focusTarget(): Target | null {
+    const P = this.player, s = this.s;
+    const cands = this.targetsNear(P.x, P.z, 3).filter(t =>
+      !((t.k === 'bld' || t.k === 'stall') && !s.buildings[t.id]?.built) && !(this.players.length > 1 && this.busy(t)) && this.zoneOut(t, P.x, P.z) <= 0);
+    if (!cands.length) return null;
+    const cur = P.action?.target ?? P.after?.target ?? P.last ?? null, here = cur ? cands.find(t => sameTarget(t, cur)) : undefined;
+    if (here) {
+      const a = this.actionFor(here), soon = here.k === 'plot' && (s.plots[here.i]?.t ?? 0) > 0; // sprouting / clearing: ready in a moment
+      if ((a && a.ok) || soon) return here;
+    }
+    const others = here ? cands.filter(t => t !== here) : cands;
+    if (!others.length) return here ?? null;
+    let best = others[0], bd = 1e9;
+    for (const t of others) { const d = this.midDist(t, P.x, P.z); if (d < bd) { bd = d; best = t; } }
+    return best;
+  }
+
   // ---------------- update ----------------
   update(dt: number, it: Intent) {
     this.ev.length = 0;
@@ -573,10 +604,16 @@ export class DaySim {
       else if (this.inPlace(P.goal, a, .85)) { const t = P.goal; P.goal = null; this.startAction(t, a); }
       else { const g = this.low(P.goal, a) ? this.workPoint(P.goal, a.kind) : this.targetPos(P.goal), l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
     }
+    // started inside the zone: walk straight into the work spot (normal speed), down on the knee once there
+    const go = P.action?.go ? P.action : null;
+    if (go) {
+      if (this.inPlace(go.target, go.info, .85)) { go.go = false; P.crouch = LOW_ACTIONS.has(go.info.kind); }
+      else if (!steering) { const g = this.low(go.target, go.info) ? this.workPoint(go.target, go.info.kind) : this.targetPos(go.target), l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
+    }
     const swinging = !!P.swing && P.swing.t < this.cfg.weapons.rake.swing;
     // harvesting pauses the walk; it goes on by itself when the harvest is done or the button is let go
-    if (P.action && HARVEST_ACTIONS.has(P.action.info.kind)) { mx = 0; mz = 0; }
-    const base = P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
+    if (P.action && !P.action.go && HARVEST_ACTIONS.has(P.action.info.kind)) { mx = 0; mz = 0; }
+    const base = P.action?.go && !steering ? C.speed : P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
     const sp = swinging ? 0 : base * Math.min(1, Math.hypot(mx, mz)) * (P.stun > 0 ? 1 - P.stun / C.hurtStun * .7 : 1);
     if (sp > 0) {
       const l = Math.hypot(mx, mz) || 1; let nx = P.x + mx / l * sp * dt, nz = P.z + mz / l * sp * dt;
@@ -602,7 +639,7 @@ export class DaySim {
     if (P.action && this.tooFar(P.action.target, P.action.info)) this.cancelAction();
     if (P.action) {
       const A = P.action, tp = this.facePoint(A.target, A.info.kind); P.f = angTo(P.x, P.z, tp.x, tp.z);
-      A.t += dt;
+      A.t += dt; if (A.go) A.t = Math.min(A.t, A.info.dur * .9); // the bar runs from the press on, the step lands once in place
       if (A.t >= A.info.dur) {
         // Basti 22.11.2026: after every step back to the idle pose (stand up), short pause, then the next step on the same spot
         P.action = null; P.crouch = false; this.finishAction(A.target, A.info);
@@ -626,7 +663,7 @@ export class DaySim {
     const next = A.info.repeat ? this.actionFor(A.target) : null;
     if (next && next.ok && next.kind === A.info.kind) {
       if (this.inPlace(A.target, next)) { P.crouch = LOW_ACTIONS.has(next.kind); P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); return; }
-      if (!this.tooFar(A.target, next)) { P.goal = A.target; return; } // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
+      if (!this.tooFar(A.target, next)) { this.startAction(A.target, next, true); return; } // the next weed of the plot lies elsewhere: shuffle over and go on
     }
     if (it.hold && this.holdNext(it, A.target, !steering)) return;
     // field still clearing after the harvest / sprouting after sowing: wait for it and go on (Basti 22.11.2026: harvest -> sow -> water in one go)
@@ -641,16 +678,17 @@ export class DaySim {
     for (const t of [last]) {
       if (!t) continue;
       const a = this.actionFor(t);
-      if (!a || this.targetDist(t, P.x, P.z) > reach || (this.players.length > 1 && this.busy(t))) continue;
+      if (!a || (this.targetDist(t, P.x, P.z) > reach && !this.inZone(t)) || (this.players.length > 1 && this.busy(t))) continue;
       // next step not possible (e.g. sown, but the can is empty): the same feedback as a manual try (Basti 22.11.2026)
       if (!a.ok) { this.ev.push({ k: 'deny', why: a.why, target: t }); continue; }
-      if (this.inPlace(t, a)) { this.startAction(t, a); return true; }
-      if (walk) { P.goal = t; return true; }
+      if (this.inPlace(t, a) || walk) { this.startAction(t, a, true); return true; }
     }
     return false;
   }
   /** click / chain: act right here, or walk over first */
-  private begin(t: Target, a: ActionInfo) { if (this.inPlace(t, a)) this.startAction(t, a); else this.player.goal = t; }
+  /** inside the zone (or close enough) the action starts at once (Basti 22.11.2026: no delay), the farmer walks into place meanwhile;
+   *  farther away (bot) walk over first */
+  private begin(t: Target, a: ActionInfo) { if (this.inPlace(t, a) || this.inZone(t)) this.startAction(t, a); else this.player.goal = t; }
   /** is this done down on the ground (kneeling, hand rake / hands in the soil)? */
   low(t: Target, a: ActionInfo) { return LOW_ACTIONS.has(a.kind) && (t.k === 'plot' || t.k === 'weed' || t.k === 'forage'); }
   /** ground work: the point the hands work at (the weed that comes out next, else the part of the plot facing the player) */
@@ -672,6 +710,8 @@ export class DaySim {
   /** walked away from a running action (Basti 21.11.2026: walking is fine, too far cancels) */
   private tooFar(t: Target, a: ActionInfo) {
     const P = this.player, C = this.cfg.player;
+    // still walking into place: only leaving the zone cancels
+    if (P.action?.go && sameTarget(P.action.target, t)) return this.zoneOut(t, P.x, P.z) > .4;
     if (this.low(t, a) && !HARVEST_ACTIONS.has(a.kind)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) > C.kneel * C.leave + .35; }
     return this.targetDist(t, P.x, P.z) > C.reach * C.leave;
   }
@@ -684,12 +724,13 @@ export class DaySim {
     }
     return this.targetPos(t);
   }
-  startAction(t: Target, a: ActionInfo) {
+  startAction(t: Target, a: ActionInfo, again = false) {
     const P = this.player; P.goal = null;
     if (a.kind === 'water' && this.can <= 0) return;
-    P.crouch = LOW_ACTIONS.has(a.kind); // down on one knee for ground work, up again for everything else
-    P.action = { target: t, info: a, t: 0, pick: 0 }; P.last = t;
-    this.ev.push({ k: 'act', kind: a.kind, tool: a.tool, target: t });
+    const go = !this.inPlace(t, a);
+    P.crouch = LOW_ACTIONS.has(a.kind) && !go; // down on one knee for ground work (once in place), up again for everything else
+    P.action = { target: t, info: a, t: 0, pick: 0, go }; P.last = t;
+    this.ev.push({ k: 'act', kind: a.kind, tool: a.tool, target: t, again });
   }
   cancelAction() { const P = this.player; P.rest = 0; P.after = null; if (P.action) this.ev.push({ k: 'actCancel', kind: P.action.info.kind }); P.action = null; }
   private finishAction(t: Target, a: ActionInfo) {

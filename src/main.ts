@@ -418,10 +418,10 @@ class Game {
     const sim = this.sim;
     if (this.mode !== 'day' || !sim || (this.paused && !this.coopLive)) return;
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
-    this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
+    this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
     // camera turning; the stick / WASD walk relative to the view
-    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy); this.view.follow = this.input.lastTouch;
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.tut) it = this.tut.update(dt, it);
@@ -569,9 +569,9 @@ class Game {
     if (this.mode !== 'day' || !sim || !g) return;
     sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
     const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
-    this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
+    this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
-    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy); this.view.follow = this.input.lastTouch;
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.paused || this.bookOpen) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false };

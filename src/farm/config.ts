@@ -65,19 +65,19 @@ export interface ShopCfg { slots: SlotCfg; rate: number; craft: number; demand: 
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
-  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; turnWithCam?: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
+  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; turnWithCam?: number; hover: number; /** interaction zone m from the edge / of small things (forage, weeds) from their middle */ zone?: number; zoneSmall?: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
   harvestXp: HarvestXpCfg;
-  plots: { size: number; /** field info (bar, time, name) only close by: m full / m gone / s fade */ info?: { near: number; far: number; fade: number }; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
+  plots: { size: number; /** m from the middle: interaction zone of a field (overlaps the neighbours a little) */ zone?: number; /** field info (bar, time, name) only close by: m full / m gone / s fade */ info?: { near: number; far: number; fade: number }; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
   wild: { weeds: { start: number; max: number; every: [number, number] }; /** wild herbs: weeds, wild garlic, dandelion, sorrel in one tuft (the yard weeds) */ herbs?: HerbsCfg; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
     brambles: { count: number; every: number; picks: number; pick: number }; trees?: TreeKind[]; apples: PerennialCfg; nuts?: PerennialCfg; barrel: number };
   /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */
   grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
-  camera: { rotate: number; /** PC mouse turn factor (x rotate per px) */ mouse?: number; pitch: [number, number];
+  camera: { rotate: number; /** PC mouse turn factor (x rotate per px) */ mouse?: number; /** phone: how fast the camera swings behind the walking direction (1/s) */ follow?: number; pitch: [number, number];
     /** 22.11.2026: third person near..far m, top = top-down height, push / back = wheel units against a detent (into / out of fp/td) */ zoom?: { near: number; far: number; top: number; topMax?: number; push: number; back: number } };
   storage: { capacity: number; sections?: StoreSection[]; rarity?: Record<ItemId, Rarity>; perennials?: Record<ItemId, { every: number; picks: number; pick: number }>; history?: number };
   saves: { autosave: number; nameMax: number };

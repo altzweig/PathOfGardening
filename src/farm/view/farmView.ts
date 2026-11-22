@@ -231,6 +231,10 @@ export class FarmView {
   private hl: { ring: THREE.Mesh; square: THREE.Group; mat: THREE.MeshBasicMaterial };
   /** camera: yaw around the player (middle mouse / two-finger drag), pitch = angle over the ground */
   camYaw = 0; camPitch = .55;
+  /** phone: the camera follows the farmer's walking direction (no turning by hand) */
+  follow = false;
+  /** 1 -> 0: the highlight ring pops when an action starts */
+  private hlPop = 0;
   /** camera (Basti 22.11.2026): 'tp' third person camDist m behind the farmer, 'fp' first person, 'td' top down;
    *  fpK / tdK = smoothed blend towards first person / top down, push = wheel pushed against a detent */
   camMode: 'tp' | 'td' = 'tp'; camDist = 3; tdH = 10; private fpK = 0; private tdK = 0; private push = 0; private pushT = 0;
@@ -783,6 +787,7 @@ export class FarmView {
     const P = (e.pid !== undefined ? sim.byId(e.pid) : null) ?? sim.player, mine = P === sim.player;
     switch (e.k) {
       case 'act':
+        if (mine && !e.again) { this.hlPop = 1; sfx('player.start', P.x, P.z); } // pressed: the ring pops and a soft click at once
         if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z);
         if (e.kind === 'water') { this.pourStop?.(); this.pourStop = sfx('can.pour', P.x, P.z); } // sounds.yaml can.*: pouring, filling at the well
         if (e.kind === 'refill') sfx('can.fill', P.x, P.z);
@@ -873,14 +878,15 @@ export class FarmView {
     this.hl.ring.visible = !!h && !rect; this.hl.square.visible = rect;
     if (h && sim) {
       const p = sim.targetPos(h), pulse = .55 + .25 * Math.sin(now * 6);
-      this.hl.mat.color.setHex(this.hoverOk ? 0xfff2c0 : 0xff8a70); this.hl.mat.opacity = pulse;
+      this.hlPop = Math.max(0, this.hlPop - dt * 4); const pop = 1 + this.hlPop * this.hlPop * .18;
+      this.hl.mat.color.setHex(this.hoverOk ? 0xfff2c0 : 0xff8a70); this.hl.mat.opacity = Math.min(1, pulse + this.hlPop * .45);
       if (rect && box && box.kind === 'box') {
         const W = box.hw + .25, D = box.hd + .25, sq = this.hl.square; sq.position.set(box.x, .06, box.z); sq.rotation.y = Math.atan2(box.s, box.c);
         sq.children.forEach((b, i) => { const hz = i < 2; b.scale.set(hz ? W * 2 + .12 : .12, hz ? .12 : D * 2 + .12, 1); b.position.set(hz ? 0 : (i === 2 ? -W : W), 0, hz ? (i === 0 ? -D : D) : 0); });
       } else {
         const r = h.k === 'well' ? (this.cfg.hof.buildings.well.r ?? 1) + .35 : h.k === 'plot' ? this.cfg.plots.size / 2 + .15 : h.k === 'bush' ? this.cfg.bush.radius + .25 : h.k === 'tree' ? 1.1
           : h.k === 'bramble' ? .95 : h.k === 'bld' || h.k === 'stall' ? ((box && box.kind === 'circle' ? box.r : 1) + .3) : .45;
-        this.hl.ring.scale.setScalar(r); this.hl.ring.position.set(p.x, .05, p.z);
+        this.hl.ring.scale.setScalar(r * pop); this.hl.ring.position.set(p.x, .05, p.z);
       }
     }
     // arrow + bubble
@@ -947,6 +953,13 @@ export class FarmView {
     this.fpK = 0; // first person removed again (Basti 22.11.2026: clunky)
     this.tdK = lerp(this.tdK, this.camMode === 'td' && mode === 'day' && !k ? 1 : 0, e);
     if ((this.pushT -= dt) <= 0) this.push = lerp(this.push, 0, 1 - Math.exp(-dt * 6));
+    // phone (Basti 22.11.2026): the camera always swings behind where the farmer walks (also in top down), no turning by hand;
+    // walking towards the camera does not spin it round (weight 0 straight back, 1 straight ahead)
+    if (this.follow && mode === 'day' && P && !k) {
+      const d = ((P.f + Math.PI - this.camYaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      const mv = clamp(P.speed / (this.cfg.player.speed || 4.6), 0, 1), w = (1 + Math.cos(d)) / 2;
+      this.camYaw += d * (1 - Math.exp(-dt * (this.cfg.camera.follow ?? 2.4) * mv * w));
+    }
     const cy = Math.sin(this.camYaw), cz = Math.cos(this.camYaw), fwd = V(-cy, 0, -cz);
     const head = V(this.camX + sx, 1.35, this.camZ + sz);
     // pushing against a detent nudges the camera a little, so one feels the resistance

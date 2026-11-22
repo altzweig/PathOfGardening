@@ -91,6 +91,7 @@ player:
   spawn:  { synth: respawn, gap: 0.5 }
   till:   { files: [rake_till_1, rake_till_2, rake_till_3, rake_till_4], vol: 0.3, pitch: [0.9, 1.1], gap: 0.1 }   # Hacke schlägt in den Boden (Harken-Geräusch, bei jedem Hackschlag)
   slash:  { synth: whoosh, gap: 0.08 }                                                                            # Schwung mit der Hacke (comicartiges Wusch)
+  start:  { files: [ui_hover], vol: 0.22, pitch: [0.78, 0.9], gap: 0.08 }                                   # Basti 22.11.2026: leiser Klick sofort beim Start jeder Arbeit (direktes Feedback)
 
 can:                                                  # Gießkanne (21.11.2026, Freesound, geschnitten mit tools/build-can.py)
   pour:   { files: [can_pour_1, can_pour_2, can_pour_3], vol: 0.55, pitch: [0.96, 1.03] }   # Gießen: Plätschern aus nokta (gut 1 Halbton tiefer) + leise, tiefpassgefiltert wobesound

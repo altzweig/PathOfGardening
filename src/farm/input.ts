@@ -4,7 +4,8 @@
 // right button / Space (hold) = fight (aims at the nearest animal), wheel = zoom, Esc = pause. The middle button is free.
 // Keyboard only (Basti 21.11.2026): E = action on the nearest spot (held = keeps going), Space (hold) = fight at the nearest animal.
 // Touch: left thumb anywhere = move stick, "Aktion" button = action on the nearest spot (held = keeps going), "Angriff" button (hold) = fight
-// with automatic aim; tapping a spot in the world also starts its action; dragging on the right half turns the camera.
+// with automatic aim; tapping a spot in the world (inside its zone) also starts its action. Basti 22.11.2026: the camera always looks
+// where the farmer walks (no turning by hand any more), two fingers anywhere = pinch zoom (also into / out of top down).
 import type { DaySim, Intent, Target } from './sim';
 import { emptyIntent } from './sim';
 import type { FarmView } from './view/farmView';
@@ -21,8 +22,10 @@ export class FarmInput {
   private wasHold = false;
   /** mouse capture wanted (unpaused game): retried a few times when the browser refuses right after Esc */
   private wantLock = 0;
-  /** touch: two fingers on the right half = pinch zoom */
-  private pinch: { id: number; d: number } | null = null; private pin = { x: 0, y: 0 };
+  /** touch: two fingers = pinch zoom (a and b = pointer ids, d = their distance last frame) */
+  private pinch: { a: number; b: number; d: number } | null = null;
+  /** every touch on the canvas: where it is now */
+  private tp = new Map<number, { x: number; y: number }>();
   onZoom: (dy: number) => void = () => {};
   /** any click / key (tutorial "continue") */
   onAny: () => void = () => {};
@@ -66,19 +69,22 @@ export class FarmInput {
       if (was && !this.locked) { this.unlockAt = performance.now(); if (this.enabled) { this.releaseAll(); this.onUnlock(); } }
     });
     c.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); }); // no auto scroll
-    c.addEventListener('pointermove', e => {
+    // on the window: a touch keeps sending to the element it started on (a pinch finger may land on the HUD)
+    addEventListener('pointermove', e => {
       if (e.pointerType === 'mouse') {
         if (this.locked) { const k = this.mouseSens; this.rot.dx += e.movementX * k; this.rot.dy += e.movementY * k; this.setTouch(false); return; }
         if (Math.hypot(e.clientX - this.mouse.x, e.clientY - this.mouse.y) > 6) this.kb = false;
         this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.on = true; this.setTouch(false);
-      } else if (this.pinch && (e.pointerId === this.pinch.id || e.pointerId === this.drag.id)) {
-        // two fingers: spreading = closer (into first person), pinching = further out (into top down)
-        if (e.pointerId === this.pinch.id) this.pin = { x: e.clientX, y: e.clientY }; else { this.drag.x = e.clientX; this.drag.y = e.clientY; }
-        const d = Math.hypot(this.pin.x - this.drag.x, this.pin.y - this.drag.y); this.onZoom((this.pinch.d - d) * 4); this.pinch.d = d;
-      } else if (e.pointerId === this.drag.id) {
-        const d = this.drag; if (!d.moved && Math.hypot(e.clientX - d.ox, e.clientY - d.oy) > 12) { d.moved = true; d.x = d.ox; d.y = d.oy; }
-        if (d.moved) { this.rot.dx += (e.clientX - d.x) * 1.4; this.rot.dy += (e.clientY - d.y) * 1.4; d.x = e.clientX; d.y = e.clientY; }
-      } else this.moveStick(e);
+      } else {
+        const t = this.tp.get(e.pointerId); if (t) { t.x = e.clientX; t.y = e.clientY; }
+        const P = this.pinch;
+        if (P && (e.pointerId === P.a || e.pointerId === P.b)) {
+          // two fingers: spreading = closer, pinching = further out (on into top down)
+          const a = this.tp.get(P.a), b = this.tp.get(P.b);
+          if (a && b) { const d = Math.hypot(a.x - b.x, a.y - b.y); this.onZoom((P.d - d) * 4); P.d = d; }
+        } else if (e.pointerId === this.drag.id) { const d = this.drag; if (!d.moved && Math.hypot(e.clientX - d.ox, e.clientY - d.oy) > 12) d.moved = true; }
+        else this.moveStick(e);
+      }
     });
     c.addEventListener('pointerdown', e => {
       if (!this.enabled) return;
@@ -90,13 +96,16 @@ export class FarmInput {
         this.onAny(); return;
       }
       this.setTouch(true); this.onAny();
-      if (e.clientX < innerWidth * .45 && this.stick.id < 0) { this.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, t: performance.now() }; this.drawStick(); }
+      this.tp.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pinchStart(e)) return;
+      const s = this.stick;
+      if (e.clientX < innerWidth * .45 && s.id < 0) { this.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, t: performance.now() }; this.drawStick(); }
       else if (this.drag.id < 0) this.drag = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, moved: false };
-      else if (!this.pinch) { this.pinch = { id: e.pointerId, d: Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) }; this.pin = { x: e.clientX, y: e.clientY }; this.drag.moved = true; }
     });
     const up = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') { if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; return; }
-      if (this.pinch && (e.pointerId === this.pinch.id || e.pointerId === this.drag.id)) { if (e.pointerId === this.drag.id) this.drag.id = -1; this.pinch = null; return; }
+      this.tp.delete(e.pointerId);
+      if (this.pinch && (e.pointerId === this.pinch.a || e.pointerId === this.pinch.b)) { this.pinch = null; return; }
       if (e.pointerId === this.drag.id) { if (!this.drag.moved) this.tapAt = { x: this.drag.ox, y: this.drag.oy }; this.drag.id = -1; }
       if (e.pointerId === this.stick.id) {
         // a short tap without moving on the left side is a tap on the world (not a stick)
@@ -104,7 +113,12 @@ export class FarmInput {
         s.id = -1; this.drawStick();
       }
     };
-    c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+    addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    // second finger of a pinch on a HUD panel (not on a button): still a pinch
+    addEventListener('pointerdown', e => {
+      if (!this.enabled || e.pointerType === 'mouse' || e.target === c || (e.target as Element | null)?.closest?.('button')) return;
+      this.tp.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (!this.pinchStart(e)) this.tp.delete(e.pointerId);
+    }, true);
     addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') return; if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; });
     // touch buttons
     const btn = (id: string, down: () => void, upF: () => void) => {
@@ -116,6 +130,15 @@ export class FarmInput {
     btn('#bAct', () => { this.actBtn = true; this.actHeld = true; }, () => { this.actHeld = false; });
     btn('#bAtk', () => { this.atkHeld = true; }, () => { this.atkHeld = false; });
     this.setTouch(touch);
+  }
+  /** a second finger: pinch with the free finger, or with a stick finger that has only just touched down and not moved yet */
+  private pinchStart(e: PointerEvent) {
+    const s = this.stick, young = s.id >= 0 && performance.now() - s.t < 350 && Math.hypot(s.x - s.ox, s.y - s.oy) < 14;
+    const other = this.drag.id >= 0 ? this.drag.id : young ? s.id : -1, o = this.tp.get(other);
+    if (this.pinch || other < 0 || !o) return false;
+    this.pinch = { a: other, b: e.pointerId, d: Math.hypot(e.clientX - o.x, e.clientY - o.y) };
+    if (other === s.id) { s.id = -1; this.drawStick(); } else this.drag.id = -1;
+    return true;
   }
   /** turn speed of the mouse relative to camera.rotate (balancing camera.mouse) */
   mouseSens = .55;
@@ -132,14 +155,19 @@ export class FarmInput {
   }
   /** camera turn since the last call (px) */
   takeRotate() { const r = this.rot; this.rot = { dx: 0, dy: 0 }; return r; }
-  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.pinch = null; this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
+  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.pinch = null; this.tp.clear(); this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
 
-  /** spot under the mouse (PC) or nearest spot with work (touch) */
+  /** the spot an action goes to (Basti 22.11.2026): the nearest one whose zone the farmer stands in (sim.focusTarget); PC without
+   *  captured mouse: the spot under the mouse when the farmer stands in its zone */
   hover(sim: DaySim, view: FarmView): Target | null {
-    if (this.lastTouch || this.kb || this.locked) return sim.nearestTarget(sim.cfg.player.hover, this.locked || this.kb);
-    // PC: the spot under the mouse, else the nearest spot the player stands at
+    if (this.lastTouch || this.kb || this.locked) return sim.focusTarget();
     const g = this.mouse.on ? view.ground(this.mouse.x, this.mouse.y) : null, t = g ? sim.targetAt(g.x, g.z) : null;
-    return t && sim.actionFor(t) ? t : sim.nearestTarget(sim.cfg.player.hover);
+    return t && sim.actionFor(t) && sim.inZone(t) ? t : sim.focusTarget();
+  }
+  /** a tapped / clicked spot: only inside its zone (outside nothing happens) */
+  private tapTarget(sim: DaySim, view: FarmView, x: number, y: number) {
+    const g = view.ground(x, y), t = g ? sim.targetAt(g.x, g.z) : null;
+    return t && sim.inZone(t) ? t : null;
   }
   intent(sim: DaySim, view: FarmView): Intent {
     const it = emptyIntent(); if (!this.enabled) return it;
@@ -151,9 +179,9 @@ export class FarmInput {
     it.mx = mx; it.mz = mz;
     if (this.lastTouch) {
       it.aimAuto = true; it.attack = this.atkHeld;
-      it.hold = this.actHeld; if (it.hold) it.holdAt = sim.nearestTarget(sim.cfg.player.hover);
-      if (this.actBtn) { it.act = sim.nearestTarget(sim.cfg.player.hover); this.actBtn = false; }
-      if (this.tapAt) { const g = view.ground(this.tapAt.x, this.tapAt.y); if (g) it.act = sim.targetAt(g.x, g.z) ?? it.act; this.tapAt = null; }
+      it.hold = this.actHeld; if (it.hold) it.holdAt = sim.focusTarget();
+      if (this.actBtn) { it.act = sim.focusTarget(); this.actBtn = false; }
+      if (this.tapAt) { it.act = this.tapTarget(sim, view, this.tapAt.x, this.tapAt.y) ?? it.act; this.tapAt = null; }
     } else {
       const g = view.ground(this.mouse.x, this.mouse.y); if (g) { it.aimX = g.x; it.aimZ = g.z; }
       it.attack = this.rmb || this.spaceHeld;
@@ -161,7 +189,7 @@ export class FarmInput {
       it.hold = this.lmb || this.eHeld; if (it.hold) it.holdAt = this.hover(sim, view);
       if (this.eDown) { it.act = this.hover(sim, view); this.eDown = false; }
       if (this.clickAt && this.locked) { it.act = this.hover(sim, view); this.clickAt = null; }
-      if (this.clickAt) { const c = view.ground(this.clickAt.x, this.clickAt.y), t = c ? sim.targetAt(c.x, c.z) : null; it.act = t && sim.actionFor(t) ? t : sim.nearestTarget(sim.cfg.player.hover); this.clickAt = null; }
+      if (this.clickAt) { const t = this.tapTarget(sim, view, this.clickAt.x, this.clickAt.y); it.act = t && sim.actionFor(t) ? t : sim.focusTarget(); this.clickAt = null; }
     }
     if (this.locked) it.face = view.camFace;
     // released this frame: the sim stops the work that was started by holding

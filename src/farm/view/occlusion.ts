@@ -8,7 +8,7 @@ export const occU = {
   uOccCam: { value: new THREE.Vector3() },
   uOccPly: { value: new THREE.Vector3() },
   /** x = inner radius (fully faded), y = outer radius (untouched), m */
-  uOccR: { value: new THREE.Vector2(.6, 1.4) },
+  uOccR: { value: new THREE.Vector2(1.2, 2.8) },
   /** 0..1, eased in/out (off in the menu and in cutscenes) */
   uOccOn: { value: 0 },
   /** how much of a covering mesh goes at most (rest = ghost) */

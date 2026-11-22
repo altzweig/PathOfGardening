@@ -92,6 +92,10 @@ body[data-input=touch] #fLabel{font-size:19px;padding:6px 14px 6px 10px}
 #fFloat{position:absolute;inset:0;overflow:hidden}
 #fFloat b{position:absolute;left:0;top:0;display:flex;align-items:center;gap:2px;font:800 18px var(--f-body);color:#fff;text-shadow:0 1px 2px #000,0 0 6px #000;white-space:nowrap}
 #fFloat b svg{width:22px;height:22px}#fFloat b.xp{color:#bcd0ff}
+/* harvest (22.11.2026): amount icon name, text in the rarity colour, lucky rolls bigger */
+#fFloat b.harv{gap:4px}#fFloat b.harv .hn{min-width:.6em;text-align:right}
+#fFloat b.harv.rC{color:#fff}#fFloat b.harv.rU{color:#9be86a}#fFloat b.harv.rR{color:#86b8ff}
+#fFloat b.harv.lucky{font-size:24px}#fFloat b.harv.lucky svg{width:28px;height:28px}
 #fStick{position:absolute;width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid #e3b96455;background:#0b101655}
 #fStick .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:var(--gold);opacity:.85}
 #fBtns{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));display:none;align-items:flex-end;gap:18px}

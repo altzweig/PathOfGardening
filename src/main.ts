@@ -369,7 +369,7 @@ class Game {
     if (this.tut) it = this.tut.update(dt, it);
     sim.update(dt, it);
     for (const e of sim.ev) {
-      if (e.k === 'store') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
+      if (e.k === 'store') this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
       if (e.k === 'faint') this.endOfDay('faint');
       if (e.k === 'xp') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);

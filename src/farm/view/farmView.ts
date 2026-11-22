@@ -388,7 +388,8 @@ export class FarmView {
     const pp = this.cfg.hof.plots[i], gm = growMul(this.cfg, p), tLeft = growing ? (gm > 0 ? (C!.grow - p.grow) / gm : 1e9) : 0;
     const sleeping = growing && (night || (!!sim && tLeft > sim.dayLeft));
     T.a = day && (growing || ripeNow) && !this.cine ? this.infoFade(T.a, pp.x, pp.z, sim, dt) : 0;
-    fadeObj(T.bar, T.a); fadeObj(T.txt, sleeping ? 0 : T.a); fadeObj(T.name.s, T.a);
+    // 22.11.2026: a sleeping field shows only the Z, no bar, time or name
+    const aw = sleeping ? 0 : T.a; fadeObj(T.bar, aw); fadeObj(T.txt, aw); fadeObj(T.name.s, aw);
     if (T.a > .01) {
       // phone upright: everything is smaller on screen, so the timer grows a bit
       const k = innerHeight > innerWidth ? 1.5 : 1, y = 1.3, rx = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), off = sleeping ? 0 : TIMER_TXT * .5 * k, tx = (TIMER_W / 2 + TIMER_TXT / 2 + .04) * k - off;
@@ -399,7 +400,7 @@ export class FarmView {
       const txt = ripeNow ? '\u2713' : clockText(tLeft); if (txt !== T.last) { T.last = txt; drawTimer(T.g, txt); T.tex.needsUpdate = true; }
       drawName(T.name, this.cropName(p.crop!));
       T.name.s.position.set(pp.x, y + .24 * k, pp.z); T.name.s.scale.set(NAME_W * k, NAME_H * k, 1);
-      if (sleeping) this.sleepAt('p' + i, pp.x + rx.x * (TIMER_W / 2 + .12) * k, y - .05, pp.z + rx.z * (TIMER_W / 2 + .12) * k, T.a, k);
+      if (sleeping) this.sleepAt('p' + i, pp.x - rx.x * .1 * k, y - .25, pp.z - rx.z * .1 * k, T.a, k);
     }
     v.shake = Math.max(0, v.shake - dt * 2.5);
     v.stems.rotation.z = Math.sin(performance.now() / 22) * v.shake * .06; v.ears.rotation.z = v.stems.rotation.z; if (v.crop) v.crop.g.rotation.z = v.stems.rotation.z;

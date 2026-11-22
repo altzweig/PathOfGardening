@@ -631,7 +631,7 @@ export class DaySim {
       case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) {
         // wild herbs (21.11.2026): one tuft = weed + maybe wild garlic / dandelion / sorrel; XP only for the herbs
         const f = w.weeds[i], H = cfg.wild.herbs; w.weeds.splice(i, 1);
-        let xp = 0; for (const [k, n] of Object.entries(rollHerbs(H))) { this.store(k, n, f); if (k !== 'green') xp += n * otherXp(cfg, k, H?.xpPicks ?? 3); }
+        let xp = 0; for (const [k, n] of Object.entries(rollHerbs(H))) { this.store(k, n, f, true, k !== 'green'); if (k !== 'green') xp += n * otherXp(cfg, k, H?.xpPicks ?? 3); }
         this.harvestXp(xp, f);
       } } break;
       case 'pickWild': if (t.k === 'bramble') {
@@ -671,10 +671,11 @@ export class DaySim {
     this.ev.push({ k: 'berry', n, small: b.berries <= 0, x: this.cfg.hof.bush.x, z: this.cfg.hof.bush.z });
   }
   /** harvest goes straight into the Lager */
-  store(item: ItemId, n: number, at?: { x: number; z: number }, show = true) {
+  /** lucky = a lucky roll (wild herbs instead of plain weed): shown a bit bigger */
+  store(item: ItemId, n: number, at?: { x: number; z: number }, show = true, lucky = false) {
     if (n <= 0) return; addItem(this.cfg, this.s, item, n);
     this.got[item] = (this.got[item] ?? 0) + n;
-    if (show) this.ev.push({ k: 'store', item, n, x: at?.x, z: at?.z });
+    if (show) this.ev.push({ k: 'store', item, n, x: at?.x, z: at?.z, lucky });
   }
 
   // ---------------- fighting ----------------

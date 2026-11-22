@@ -9,6 +9,7 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.119.2",
     "peerjs": "1.5.4",
     "three": "0.160.0",
     "yaml": "2.6.0"

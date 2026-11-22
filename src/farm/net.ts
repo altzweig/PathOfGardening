@@ -28,7 +28,7 @@ function peerOpts(): PeerOptions {
 }
 
 export type ToHost =
-  | { t: 'hello'; v: string; name: string; look: unknown; level: number; xp: number }
+  | { t: 'hello'; v: string; name: string; look: unknown; level: number; xp: number; ticket?: string }
   | { t: 'in'; i: unknown }
   | { t: 'bye' };
 export type ToGuest =
@@ -50,6 +50,9 @@ export class NetHost {
   visitors: Visitor[] = [];
   private nextId = 1;
   onAsk: (v: Visitor) => void = () => {};
+  /** a friend whose visit the owner already accepted in the friends list (ticket from src/online): comes in right away */
+  onTicket: (v: Visitor) => void = () => {};
+  tickets = new Set<string>();
   onIntent: (id: number, it: unknown) => void = () => {};
   onLeave: (v: Visitor) => void = () => {};
   onError: (msg: string) => void = () => {};
@@ -87,7 +90,9 @@ export class NetHost {
         if (this.visitors.length + 1 >= this.max) { c.send({ t: 'no', why: 'full' }); setTimeout(() => c.close(), 300); return; }
         const name = String(m.name ?? '').replace(/[<>]/g, '').trim().slice(0, 28) || 'Gast';
         v = { id: this.nextId++, conn: c, name, look: m.look, level: Math.max(1, Math.min(99, Math.floor(+m.level || 1))), xp: Math.max(0, Math.floor(+m.xp || 0)), ok: false, key: newCode() + newCode(), n: 0, sec: 0 };
-        this.visitors.push(v); c.send({ t: 'wait' }); this.onAsk(v);
+        this.visitors.push(v); c.send({ t: 'wait' });
+        const tk = typeof m.ticket === 'string' ? m.ticket : '';
+        if (tk && this.tickets.delete(tk)) this.onTicket(v); else this.onAsk(v);
       } else if (m.t === 'in' && v?.ok) this.onIntent(v.id, m.i);
       else if (m.t === 'bye') c.close();
     });

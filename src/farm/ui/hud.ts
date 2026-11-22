@@ -7,6 +7,7 @@ import { questProgress } from '../state';
 import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
+import { goodInfo } from './storePage';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 /** remaining seconds as "m:ss" */
@@ -166,8 +167,10 @@ export class FarmHud {
     // floating numbers follow their world point
     for (let i = this.nums.length - 1; i >= 0; i--) {
       const n = this.nums[i]; n.t += 1 / 60;
-      const p = view.screen(n.x, n.y + n.t * 1.2, n.z);
-      n.el.style.transform = `translate(${p.x}px,${p.y}px) translate(-50%,-50%)`; n.el.style.opacity = '' + Math.max(0, 1 - Math.max(0, n.t - .6) / .6);
+      // 22.11.2026: they come up from below (fast, then slowing down) and fade in, then out
+      const k = Math.min(1, n.t / 1.2), rise = 1.5 * (1 - (1 - k) * (1 - k));
+      const p = view.screen(n.x, n.y + rise, n.z);
+      n.el.style.transform = `translate(${p.x}px,${p.y}px) translate(-50%,-50%)`; n.el.style.opacity = '' + Math.min(n.t / .15, Math.max(0, 1 - Math.max(0, n.t - .75) / .45));
       if (n.t > 1.2) { n.el.remove(); this.nums.splice(i, 1); }
     }
   }
@@ -175,7 +178,12 @@ export class FarmHud {
     const el = document.createElement('b'); el.className = cls; el.innerHTML = html; $('#fFloat').appendChild(el);
     // several at once on one spot (wild herbs: weed + herbs) stack instead of covering each other
     const same = this.nums.filter(n => n.t < .05 && Math.abs(n.x - x) < .3 && Math.abs(n.z - z) < .3).length;
-    this.nums.push({ el, x, y: 1.6 + same * .38, z, t: 0 });
+    this.nums.push({ el, x, y: .6 + same * .3, z, t: 0 });
+  }
+  /** harvest (Basti 22.11.2026): "amount icon name", the text in the colour of the rarity; a lucky roll a bit bigger */
+  harvest(x: number, z: number, item: string, n: number, lucky = false) {
+    const name = (this.cfg.names.items as Record<string, string>)[item] ?? item, r = goodInfo(this.cfg, item).rarity;
+    this.float(x, z, `<span class="hn">${n}</span>${ic(item)}<span>${name}</span>`, `harv r${r[0]}${lucky ? ' lucky' : ''}`);
   }
   hint(text: string | null, icon?: string) {
     const h = $('#fHint'); h.hidden = !text; if (text) h.innerHTML = (icon ? ic(icon) : '') + `<span>${text}</span>`;

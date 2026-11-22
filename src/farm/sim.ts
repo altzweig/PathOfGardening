@@ -35,6 +35,8 @@ export interface Intent {
   hold: boolean; holdAt: Target | null;
   /** the button was let go this frame (Basti 21.11.2026: releasing cancels the work at once) */
   up?: boolean;
+  /** PC third person (22.11.2026): where the camera looks; a standing farmer turns that way with a little delay */
+  face?: number;
   attack: boolean;                  // right click / attack button held
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
@@ -53,6 +55,8 @@ export interface Player {
   rest: number; after: { target: Target; info: ActionInfo; pick: number } | null;
   /** the running work was started with the button held: letting go stops it */
   held?: boolean;
+  /** turning speed while following the camera (rad/s) */
+  fv?: number;
   swing: { t: number; dir: number; hit: boolean } | null;
   shotT: number; cd: number; hurt: number; stun: number;
 }
@@ -86,6 +90,7 @@ function segDist(ax: number, az: number, bx: number, bz: number, px: number, pz:
   const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz, t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
   return Math.hypot(ax + dx * t - px, az + dz * t - pz);
 }
+const clampN = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const angTo = (ax: number, az: number, bx: number, bz: number) => Math.atan2(bx - ax, bz - az); // three.js yaw (0 = +z)
 /** goods animals take from the Lager (not straw, wood, stones ...) */
 const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert']); // goods raccoons take from the Lager
@@ -470,7 +475,6 @@ export class DaySim {
       if (P.rest <= 0) { const A = P.after; P.after = null; P.rest = 0; this.chain(it, A, steering); }
     }
     // --- held (21.11.2026): whenever nothing runs, the next possible action at the aimed target starts by itself
-    if (it.hold && !P.action && !P.swing && !P.goal && !P.after) this.holdNext(it, null, !steering);
     // released: up again once the running action (and a repeat chain) is over
     if (!it.hold && !P.action && !P.after) P.crouch = false;
     // --- movement: walking is possible during an action (slower); in a crouch it is a slow waddle
@@ -490,7 +494,16 @@ export class DaySim {
       const c = this.hof.collide(nx, nz, C.radius, true);
       P.speed = dist(P.x, P.z, c.x, c.z) / dt; P.x = c.x; P.z = c.z;
       if (!P.swing && !P.action) P.f = Math.atan2(mx, mz);
-    } else P.speed = 0;
+    } else {
+      P.speed = 0;
+      // turn with the camera (Basti 22.11.2026): critically damped spring on the SHORTEST way to the view direction (the
+      // difference is wrapped every frame, so a fast spin never builds up extra turns), turn speed capped like a real body
+      if (it.face !== undefined && !P.swing && !P.action && !P.goal) {
+        const w = this.cfg.player.turnWithCam ?? 7, d = ((it.face - P.f + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+        P.fv = clampN((P.fv ?? 0) + (w * w * d - 2 * w * (P.fv ?? 0)) * Math.min(dt, .05), -12, 12);
+        P.f = ((P.f + P.fv * dt + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      } else P.fv = 0;
+    }
     P.walk += P.speed * dt * (P.crouch ? 3.4 : 2.1); // short quick steps in the crouch
     // --- running action: too far away = cancelled; when the bar is full it takes effect, then the next one follows
     if (P.action && this.tooFar(P.action.target, P.action.info)) this.cancelAction();
@@ -498,7 +511,8 @@ export class DaySim {
       const A = P.action, tp = this.facePoint(A.target, A.info.kind); P.f = angTo(P.x, P.z, tp.x, tp.z);
       A.t += dt;
       if (A.t >= A.info.dur) {
-        P.action = null; this.finishAction(A.target, A.info);
+        // Basti 22.11.2026: after every step back to the idle pose (stand up), short pause, then the next step on the same spot
+        P.action = null; P.crouch = false; this.finishAction(A.target, A.info);
         const gap = this.cfg.player.actionGap ?? .5;
         if (gap > 0) { P.after = { target: A.target, info: A.info, pick: A.pick }; P.rest = gap; this.ev.push({ k: 'actRest', kind: A.info.kind, target: A.target }); }
         else this.chain(it, A, steering);
@@ -521,28 +535,14 @@ export class DaySim {
       if (this.inPlace(A.target, next)) { P.crouch = LOW_ACTIONS.has(next.kind); P.action = { target: A.target, info: next, t: 0, pick: A.pick + 1 }; this.ev.push({ k: 'act', kind: next.kind, tool: next.tool, target: A.target, again: true }); return; }
       if (!this.tooFar(A.target, next)) { P.goal = A.target; return; } // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
     }
-    if (it.hold && (this.holdNext(it, A.target, !steering) || (!steering && this.nextPlot(A.target)))) return;
+    if (it.hold && this.holdNext(it, A.target, !steering)) return;
     this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
   }
-  /** button still held and nothing left to do here (Basti 21.11.2026): walk on to the nearest field with work (player.nextField m) */
-  private nextPlot(last: Target) {
-    const P = this.player, R = this.cfg.player.nextField ?? 5;
-    let best: Target | null = null, bd = 1e9;
-    this.s.plots.forEach((p, i) => {
-      if (!p.open || (last.k === 'plot' && last.i === i)) return;
-      const t: Target = { k: 'plot', i }, a = this.actionFor(t); if (!a || !a.ok) return;
-      const d = this.targetDist(t, P.x, P.z); if (d <= R && d < bd) { bd = d; best = t; }
-    });
-    if (!best) return false;
-    const a = this.actionFor(best)!;
-    if (this.inPlace(best, a)) this.startAction(best, a); else { P.goal = best; P.crouch = false; } // up and walk over normally
-    return true;
-  }
-  /** button held: start the next possible action at the aimed target (else at the one just finished). Within reach only;
-   *  ground work first shuffles over to its spot (walk = true, not while the player steers). false = none: the chain ends */
-  private holdNext(it: Intent, last: Target | null, walk: boolean) {
+  /** button held: the next possible action on the SAME spot (Basti 22.11.2026: never on to another field). Within reach only;
+   *  ground work first shuffles over to its spot (walk = true, not while the player steers). false = none: the chain ends, idle */
+  private holdNext(_it: Intent, last: Target | null, walk: boolean) {
     const P = this.player, reach = this.cfg.player.reach;
-    for (const t of [it.holdAt, last]) {
+    for (const t of [last]) {
       if (!t) continue;
       const a = this.actionFor(t);
       if (!a || !a.ok || this.targetDist(t, P.x, P.z) > reach) continue;
@@ -631,7 +631,7 @@ export class DaySim {
       case 'weedHof': if (t.k === 'weed') { const w = s.wild, i = w.weeds.findIndex(f => f.id === t.id); if (i >= 0) {
         // wild herbs (21.11.2026): one tuft = weed + maybe wild garlic / dandelion / sorrel; XP only for the herbs
         const f = w.weeds[i], H = cfg.wild.herbs; w.weeds.splice(i, 1);
-        let xp = 0; for (const [k, n] of Object.entries(rollHerbs(H))) { this.store(k, n, f); if (k !== 'green') xp += n * otherXp(cfg, k, H?.xpPicks ?? 3); }
+        let xp = 0; for (const [k, n] of Object.entries(rollHerbs(H))) { this.store(k, n, f, true, k !== 'green'); if (k !== 'green') xp += n * otherXp(cfg, k, H?.xpPicks ?? 3); }
         this.harvestXp(xp, f);
       } } break;
       case 'pickWild': if (t.k === 'bramble') {
@@ -671,10 +671,11 @@ export class DaySim {
     this.ev.push({ k: 'berry', n, small: b.berries <= 0, x: this.cfg.hof.bush.x, z: this.cfg.hof.bush.z });
   }
   /** harvest goes straight into the Lager */
-  store(item: ItemId, n: number, at?: { x: number; z: number }, show = true) {
+  /** lucky = a lucky roll (wild herbs instead of plain weed): shown a bit bigger */
+  store(item: ItemId, n: number, at?: { x: number; z: number }, show = true, lucky = false) {
     if (n <= 0) return; addItem(this.cfg, this.s, item, n);
     this.got[item] = (this.got[item] ?? 0) + n;
-    if (show) this.ev.push({ k: 'store', item, n, x: at?.x, z: at?.z });
+    if (show) this.ev.push({ k: 'store', item, n, x: at?.x, z: at?.z, lucky });
   }
 
   // ---------------- fighting ----------------

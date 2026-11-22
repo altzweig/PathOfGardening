@@ -19,6 +19,11 @@ export class FarmInput {
   onUnlock: () => void = () => {};
   private unlockAt = -1e9;
   private wasHold = false;
+  /** mouse capture wanted (unpaused game): retried a few times when the browser refuses right after Esc */
+  private wantLock = 0;
+  /** touch: two fingers on the right half = pinch zoom */
+  private pinch: { id: number; d: number } | null = null; private pin = { x: 0, y: 0 };
+  onZoom: (dy: number) => void = () => {};
   /** any click / key (tutorial "continue") */
   onAny: () => void = () => {};
   private keys = new Set<string>();
@@ -42,7 +47,7 @@ export class FarmInput {
     const c = $('#c');
     addEventListener('keydown', e => {
       if (e.repeat) return;
-      if (e.key === 'Escape') { if (performance.now() - this.unlockAt > 400) this.onPause(); return; }
+      if (e.key === 'Escape') { if (performance.now() - this.unlockAt > 250) this.onPause(); return; }
       if (e.code === 'Space') e.preventDefault(); // no button click / page scroll
       if (this.enabled && e.code === 'KeyE') { this.eDown = true; this.eHeld = true; this.kb = true; this.setTouch(false); }
       if (this.enabled && e.code === 'Space') { this.spaceHeld = true; this.kb = true; this.setTouch(false); }
@@ -51,6 +56,10 @@ export class FarmInput {
     addEventListener('keyup', e => { this.keys.delete(e.code); if (e.code === 'KeyE') this.eHeld = false; if (e.code === 'Space') this.spaceHeld = false; });
     addEventListener('blur', () => this.releaseAll());
     c.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('pointerlockerror', () => {
+      // Chrome refuses the capture for a moment after Esc gave the mouse back: try again shortly (the key press still counts)
+      if (this.wantLock && performance.now() < this.wantLock && this.enabled) setTimeout(() => this.lock(true), 350);
+    });
     document.addEventListener('pointerlockchange', () => {
       const was = this.locked; this.locked = document.pointerLockElement === c;
       // the browser lets go of the mouse with Esc: that is the pause
@@ -62,6 +71,10 @@ export class FarmInput {
         if (this.locked) { const k = this.mouseSens; this.rot.dx += e.movementX * k; this.rot.dy += e.movementY * k; this.setTouch(false); return; }
         if (Math.hypot(e.clientX - this.mouse.x, e.clientY - this.mouse.y) > 6) this.kb = false;
         this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.on = true; this.setTouch(false);
+      } else if (this.pinch && (e.pointerId === this.pinch.id || e.pointerId === this.drag.id)) {
+        // two fingers: spreading = closer (into first person), pinching = further out (into top down)
+        if (e.pointerId === this.pinch.id) this.pin = { x: e.clientX, y: e.clientY }; else { this.drag.x = e.clientX; this.drag.y = e.clientY; }
+        const d = Math.hypot(this.pin.x - this.drag.x, this.pin.y - this.drag.y); this.onZoom((this.pinch.d - d) * 4); this.pinch.d = d;
       } else if (e.pointerId === this.drag.id) {
         const d = this.drag; if (!d.moved && Math.hypot(e.clientX - d.ox, e.clientY - d.oy) > 12) { d.moved = true; d.x = d.ox; d.y = d.oy; }
         if (d.moved) { this.rot.dx += (e.clientX - d.x) * 1.4; this.rot.dy += (e.clientY - d.y) * 1.4; d.x = e.clientX; d.y = e.clientY; }
@@ -79,9 +92,11 @@ export class FarmInput {
       this.setTouch(true); this.onAny();
       if (e.clientX < innerWidth * .45 && this.stick.id < 0) { this.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, t: performance.now() }; this.drawStick(); }
       else if (this.drag.id < 0) this.drag = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, moved: false };
+      else if (!this.pinch) { this.pinch = { id: e.pointerId, d: Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) }; this.pin = { x: e.clientX, y: e.clientY }; this.drag.moved = true; }
     });
     const up = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') { if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; return; }
+      if (this.pinch && (e.pointerId === this.pinch.id || e.pointerId === this.drag.id)) { if (e.pointerId === this.drag.id) this.drag.id = -1; this.pinch = null; return; }
       if (e.pointerId === this.drag.id) { if (!this.drag.moved) this.tapAt = { x: this.drag.ox, y: this.drag.oy }; this.drag.id = -1; }
       if (e.pointerId === this.stick.id) {
         // a short tap without moving on the left side is a tap on the world (not a stick)
@@ -105,8 +120,8 @@ export class FarmInput {
   /** turn speed of the mouse relative to camera.rotate (balancing camera.mouse) */
   mouseSens = .55;
   /** capture the mouse (PC, needs a click / key press of the user) */
-  lock() { if (this.lastTouch || this.locked) return; const c = $('#c') as HTMLCanvasElement; try { const r = c.requestPointerLock() as unknown as Promise<void> | undefined; r?.catch?.(() => {}); } catch { /* not allowed now */ } }
-  unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
+  lock(retry = false) { if (!retry) this.wantLock = performance.now() + 2500; if (this.lastTouch || this.locked || !this.wantLock) return; const c = $('#c') as HTMLCanvasElement; try { const r = c.requestPointerLock() as unknown as Promise<void> | undefined; r?.catch?.(() => {}); } catch { /* not allowed now */ } }
+  unlock() { this.wantLock = 0; if (document.pointerLockElement) document.exitPointerLock(); }
   private setTouch(on: boolean) { if (this.lastTouch === on && document.body.dataset.input) return; this.lastTouch = on; document.body.dataset.input = on ? 'touch' : 'pc'; }
   private moveStick(e: PointerEvent) { if (e.pointerId !== this.stick.id) return; this.stick.x = e.clientX; this.stick.y = e.clientY; this.drawStick(); }
   private drawStick() {
@@ -117,7 +132,7 @@ export class FarmInput {
   }
   /** camera turn since the last call (px) */
   takeRotate() { const r = this.rot; this.rot = { dx: 0, dy: 0 }; return r; }
-  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
+  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.pinch = null; this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
 
   /** spot under the mouse (PC) or nearest spot with work (touch) */
   hover(sim: DaySim, view: FarmView): Target | null {
@@ -148,6 +163,7 @@ export class FarmInput {
       if (this.clickAt && this.locked) { it.act = this.hover(sim, view); this.clickAt = null; }
       if (this.clickAt) { const c = view.ground(this.clickAt.x, this.clickAt.y), t = c ? sim.targetAt(c.x, c.z) : null; it.act = t && sim.actionFor(t) ? t : sim.nearestTarget(sim.cfg.player.hover); this.clickAt = null; }
     }
+    if (this.locked) it.face = view.camFace;
     // released this frame: the sim stops the work that was started by holding
     it.up = this.wasHold && !it.hold; this.wasHold = it.hold;
     return it;

@@ -138,6 +138,7 @@ class Game {
     this.input.onPause = () => { if (this.mode !== 'menu') this.togglePause(); };
     this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
     this.input.mouseSens = this.cfg.camera.mouse ?? .55;
+    this.input.onZoom = dy => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(dy); };
     addEventListener('wheel', e => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(e.deltaY); }, { passive: true });
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });
@@ -369,7 +370,7 @@ class Game {
     if (this.tut) it = this.tut.update(dt, it);
     sim.update(dt, it);
     for (const e of sim.ev) {
-      if (e.k === 'store') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic(e.item)}+${e.n}`);
+      if (e.k === 'store') this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
       if (e.k === 'faint') this.endOfDay('faint');
       if (e.k === 'xp') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);

@@ -123,5 +123,22 @@ end;
 $$;
 create trigger msg_limit before insert on public.messages for each row execute function public.msg_limit();
 
+-- Rechte für die angemeldeten Spieler (neue Supabase-Projekte geben neue Tabellen nicht mehr automatisch frei, 22.11.2026)
+grant usage on schema public to anon, authenticated;
+grant select on public.profiles, public.friendships, public.visit_requests to authenticated;
+grant insert (id, name, level) on public.profiles to authenticated;
+grant update (name, level) on public.profiles to authenticated;
+grant update (status) on public.friendships to authenticated;
+grant delete on public.friendships to authenticated;
+grant insert on public.visit_requests to authenticated;
+grant update (status, room, ticket) on public.visit_requests to authenticated;
+grant execute on function public.add_friend(text), public.are_friends(uuid, uuid) to authenticated;
+do $$ begin
+  if to_regclass('public.messages') is not null then
+    execute 'grant select, delete on public.messages to authenticated';
+    execute 'grant insert (from_id, to_id, msg) on public.messages to authenticated';
+  end if;
+end $$;
+
 -- Alte Anfragen aufräumen (optional, braucht die Erweiterung pg_cron unter Database -> Extensions):
 -- select cron.schedule('visit-cleanup', '0 4 * * *', $$delete from public.visit_requests where created_at < now() - interval '1 day'; delete from public.messages where created_at < now() - interval '7 days'$$);

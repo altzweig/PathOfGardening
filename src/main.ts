@@ -714,7 +714,9 @@ class Game {
     this.frBack = back; this.msgFor = '';
     $('#frMine').textContent = o.me.code || '…'; $('#frMsg').textContent = ''; ($('#frCode') as HTMLInputElement).value = ''; this.clearFound();
     this.only('#friends'); this.friendList();
-    void o.profile(this.menu.look.name || 'Gast', this.bestLevel()).then(() => { $('#frMine').textContent = o.me.code; }).catch(() => {});
+    // without a code something is missing in Supabase: the reason shows (Basti sends it, 22.11.2026)
+    void o.profile(this.menu.look.name || 'Gast', this.bestLevel()).then(() => { $('#frMine').textContent = o.me.code; })
+      .catch((e: Error) => { $('#frMine').textContent = '—'; $('#frMsg').textContent = e.message || 'Keine Verbindung'; });
     void o.refresh();
   }
   private clearFound() { this.found = null; $('#frFound').hidden = true; }

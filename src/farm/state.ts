@@ -45,6 +45,8 @@ export interface FarmState {
   phase: 'morning' | 'day' | 'evening';
   summary: DaySummary | null;
   levelUps: number[];          // levels reached since the last evening (shown once)
+  /** level-up screens still to show (Basti 22.11.2026: at once by day, after the night when reached at night) */
+  lvShow: number[];
   /** active seed of the farmer (22.11.2026: sown on any empty field, switched with Tab / the seed button) */
   seed: string;
   /** seeds the farm has (endless, Basti 22.11.2026): crops that can be sown */
@@ -78,7 +80,7 @@ export function newState(cfg: FarmCfg): FarmState {
     v: 1, day: 1, tutorialDone: false, money: cfg.start.money, xp: 0, level: 1, items: { ...cfg.start.items }, water: cfg.can.start,
     plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false, v: WILD_V },
     quests: { active: [], offers: [], seq: 1 },
-    weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [],
+    weapon: null, ammo: null, ammoCount: 0, phase: 'day', summary: null, levelUps: [], lvShow: [],
     seed: cfg.seeds.start[0] ?? 'wheat', seeds: [...cfg.seeds.start], seedPicks: [], perennial: { trees: [], brambles: [] }, fieldPicks: [], fieldsGained: 0,
   };
   rollDaily(cfg, s);
@@ -120,6 +122,7 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) { s.buildings[id] ??= { built: !!cfg.buildings[id]?.built }; if (cfg.buildings[id]?.built) s.buildings[id].built = true; }
   for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
   s.levelUps ??= [];
+  s.lvShow ??= s.seedPicks.length ? [s.level] : []; // older saves: a seed still to choose comes with a level-up screen
   // 21.11.2026: no weapon choice in the morning any more: ammo taken out goes back into the storage
   if (s.ammo && s.ammoCount > 0) addItem(cfg, s, s.ammo, s.ammoCount);
   s.weapon = null; s.ammo = null; s.ammoCount = 0;
@@ -153,7 +156,7 @@ export function pay(cfg: FarmCfg, s: FarmState, c: Cost | undefined) {
 export function gainXp(cfg: FarmCfg, s: FarmState, n: number) {
   s.xp += n; const lv = levelFor(cfg, s.xp);
   while (s.level < lv) {
-    s.level++; s.levelUps.push(s.level);
+    s.level++; s.levelUps.push(s.level); (s.lvShow ??= []).push(s.level);
     openField(s);                                   // 22.11.2026: every level opens a field (any seed can grow on it)
     const o = seedOffer(cfg, s); if (o.length) s.seedPicks.push(o); // ... and offers new seed
   }

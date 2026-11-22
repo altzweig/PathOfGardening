@@ -70,8 +70,21 @@ export class FarmHud {
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fClock').innerHTML = CLOCK;
+    // level-up reached at night (Basti 22.11.2026): the XP bar lights up, this note opens the level-up screen
+    const n = document.createElement('button'); n.id = 'fLvNote'; n.hidden = true; $('#fLeft').appendChild(n);
+    n.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.onLvNote(); });
     const r = document.createElement('div'); r.id = 'fRipe'; $('#fLeft').appendChild(r);
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fBook').innerHTML = ic('book'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
+  }
+  /** the level-up note was tapped / clicked */
+  onLvNote: () => void = () => {};
+  private lvKey = '';
+  /** level-up note under the XP bar (null: none) */
+  lvNote(level: number | null, touch: boolean) {
+    const key = level ? level + '|' + touch : ''; if (key === this.lvKey) return; this.lvKey = key;
+    const n = $('#fLvNote'); n.hidden = !level;
+    document.querySelector('#fLeft .fBar.xp')?.classList.toggle('lvGlow', !!level);
+    if (level) n.innerHTML = `${ic('star')}<span>Level ${level}</span>${touch ? '' : '<kbd>L</kbd>'}`;
   }
   private cdKey = '';
   /** sun clock: by day the sun rises out of the horizon, crosses the arc and sinks behind it at nightfall, the countdown shows the
@@ -256,5 +269,5 @@ export class FarmHud {
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }
-  clear() { this.bar.hide(); this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
+  clear() { this.bar.hide(); this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); this.lvNote(null, false); }
 }

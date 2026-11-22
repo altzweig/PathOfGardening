@@ -280,3 +280,9 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Aufträge nehmen alle Waren des vorhandenen Saatguts (nicht mehr nur die Früchte der Felder); der Tagesumfang bleibt über die Feldzahl begrenzt.
 - **Wildauftrag** ab Level 2 (`quests.daily.wild`): mit 50 % Chance ist einer der Tagesaufträge ein Kräuterauftrag (1–2 Sorten aus Bärlauch, Löwenzahn, Sauerampfer, je 2–3 Stück) aus den Wildkräuter-Büscheln. Belohnung nach `sec` Arbeit pro Kraut wie bei den anderen Aufträgen.
 - Alte Spielstände: die Früchte der bisherigen Felder werden zu Saatgut, noch nicht platzierte Level-up-Felder öffnen sich und bringen je eine Saatgut-Wahl.
+
+## Abend-Aufträge + Level-up-Screen (Basti, 22.11.2026)
+- Abends liegt nichts mehr vorab auf dem Buch: man landet direkt auf der Auftragsseite (Lesezeichen Hofladen). Erledigte Aufträge funkeln (Glitzer über der Karte) und haben unten einen blinkenden Knopf „Abholen“; „Alle abholen“ holt alle auf einmal.
+- Jedes Level-up zeigt einen eigenen Screen: großer Stern mit der Levelzahl, darunter alles, was das Level freischaltet (Gebäude aus `levels.unlocks`, +1 Feld, +1 Auftrag / +1 Verkaufsplatz wenn die Slot-Regel greift, Wildkräuter-Aufträge auf `quests.daily.wild.level`) und die Wahl des neuen Saatguts (vorher eigene Buchseite „Neues Saatgut“). Ohne Saatgut-Wahl schließt „Weiter“.
+- Tagsüber kommt der Screen sofort und pausiert das Spiel. Nachts (und im Tutorial-Tag) nicht, weil er im Kampf stört: die XP-Leiste leuchtet golden und darunter erscheint „★ Level N“ (PC mit Taste **L**, Handy antippen), damit öffnet man ihn jederzeit. Sonst kommt er nach der Nacht vor dem Abend-Buch.
+- Mehrere Level auf einmal: ein Screen pro Level nacheinander. Level-up beim Abholen eines Auftrags: Screen sofort über dem Buch.

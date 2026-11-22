@@ -14,9 +14,9 @@ export type StallId = 'cows' | 'sheep' | 'chickens';
 export const STALL_IDS: StallId[] = ['cows', 'sheep', 'chickens'];
 export type Livestock = 'cow' | 'sheep' | 'goat' | 'chicken';
 export type AnimalType = 'raccoon' | 'hare';
-export type ActionKind = 'repair' | 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
+export type ActionKind = 'repair' | 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce' | 'chop' | 'craft' | 'unfence';
 /** handrake = kleine einhändige Handharke (Jäten, Notwaffe), 21.11.2026 */
-export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket';
+export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket' | 'axe';
 export interface ActionCfg { time: number; label: string; repeat?: boolean }
 
 /** Taler + goods */
@@ -36,6 +36,15 @@ export type Rarity = 'Common' | 'Uncommon' | 'Rare';
 export interface CropCfg { /** shown over the field (21.11.2026) */ name?: string; rarity: Rarity; grow: number; every: number; harvest?: number; sound?: string; /** old (before the experiment) */ cuts?: number; yield: Record<ItemId, number> }
 /** continuous harvest: collecting + merging of the fruits on the ground */
 export interface HarvestCfg { tick: number; collect: number; settle: number; throw: [number, number]; up: [number, number]; merge: number; mergeRadius: number; xp: number; overhead: number }
+/** wood + fences (Basti 22.11.2026): trees in the yard are chopped (continuous, wood drops like a harvest), notch -> fall ->
+ *  the trunk splits, a sapling grows between the halves; fences are made at the workbench and placed with F */
+export interface LumberCfg {
+  trees: { x: number; z: number; s?: number }[]; radius: number;
+  /** s of chopping until the tree falls, one piece of wood every `every` s */ chop: number; every: number; yield: Record<ItemId, number>;
+  fall: number; sapling: number; xp: number;
+  bench: { x: number; z: number; rot?: number; w: number; d: number; every: number; cost: Record<ItemId, number>; out: ItemId };
+  fence: { length: number; depth: number; hp: number; place: number; snap: number; max: number; detour: number; bite: Record<string, number>; biteEvery: number };
+}
 /** a section of the storage page in the house book (balancing.yaml storage.sections) */
 export interface StoreSection { id: string; title: string; items: ItemId[] }
 export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: number; workWeight: number; div: number; rarity: Record<Rarity, number>; other: Record<ItemId, { rarity: Rarity; water?: boolean }> }
@@ -78,6 +87,8 @@ export interface FarmCfg {
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
   harvest: HarvestCfg;
+  /** wood + fences (22.11.2026) */
+  lumber: LumberCfg;
   harvestXp: HarvestXpCfg;
   plots: { size: number; /** m from the middle: interaction zone of a field (overlaps the neighbours a little) */ zone?: number; /** field info (bar, time, name) only close by: m full / m gone / s fade */ info?: { near: number; far: number; fade: number }; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
   wild: { weeds: { start: number; max: number; every: [number, number] }; /** wild herbs: weeds, wild garlic, dandelion, sorrel in one tuft (the yard weeds) */ herbs?: HerbsCfg; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };

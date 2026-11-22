@@ -4,6 +4,7 @@
 // octile distance, no corner cutting, typed arrays reused between searches) and the path is pulled tight along lines
 // of sight, so an animal walks a few long straight legs instead of a zig-zag through the cells.
 import type { Hof } from './hof';
+import type { Obstacle } from './hof';
 import { boundR, obsDist } from './hof';
 
 export interface Pt { x: number; z: number }
@@ -12,6 +13,9 @@ export class NavGrid {
   readonly cs: number; readonly x0: number; readonly z0: number; readonly nx: number; readonly nz: number;
   /** 1 = blocked */
   readonly block: Uint8Array;
+  /** the same without the fences (22.11.2026): how far the way would be if nobody had built a fence */
+  readonly base: Uint8Array;
+  readonly R: number;
   /** ms the bake took (tests) */
   readonly bakeMs: number;
   private g: Float32Array; private from: Int32Array; private seen: Uint32Array; private closed: Uint32Array; private stamp = 0;
@@ -19,7 +23,7 @@ export class NavGrid {
 
   constructor(hof: Hof, o: { cs?: number; radius?: number } = {}) {
     const t0 = performance.now();
-    const cs = this.cs = o.cs ?? .5, R = o.radius ?? .3;
+    const cs = this.cs = o.cs ?? .5, R = this.R = o.radius ?? .3;
     // bounds: the map of the world editor (+ the spawns, they may lie outside) or the clearing of the generated farm
     let x0: number, z0: number, x1: number, z1: number;
     if (hof.logic) {
@@ -28,22 +32,46 @@ export class NavGrid {
     } else { x0 = -hof.rx * 1.7; x1 = hof.rx * 1.7; z0 = -hof.rz * 1.7; z1 = hof.rz * 1.7; }
     this.x0 = x0; this.z0 = z0;
     const nx = this.nx = Math.ceil((x1 - x0) / cs), nz = this.nz = Math.ceil((z1 - z0) / cs), N = nx * nz;
-    const B = this.block = new Uint8Array(N);
+    this.block = new Uint8Array(N); this.base = new Uint8Array(N);
     // rasterise every obstacle over the cells of its bounding circle
-    for (const ob of hof.obstacles) {
-      const r = boundR(ob) + R;
-      const i0 = Math.max(0, Math.floor((ob.x - r - x0) / cs)), i1 = Math.min(nx - 1, Math.floor((ob.x + r - x0) / cs));
-      const j0 = Math.max(0, Math.floor((ob.z - r - z0) / cs)), j1 = Math.min(nz - 1, Math.floor((ob.z + r - z0) / cs));
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const k = j * nx + i; if (B[k]) continue;
-        if (obsDist(ob, x0 + (i + .5) * cs, z0 + (j + .5) * cs) < R) B[k] = 1;
-      }
-    }
+    for (const ob of hof.obstacles) this.raster(ob);
     this.g = new Float32Array(N); this.from = new Int32Array(N); this.seen = new Uint32Array(N); this.closed = new Uint32Array(N);
     this.heap = new Int32Array(N); this.hf = new Float32Array(N);
     this.bakeMs = performance.now() - t0;
   }
 
+  private raster(ob: Obstacle) {
+    const { cs, x0, z0, nx, nz, R } = this, B = this.block, F = this.base, fence = ob.id === 'fence', r = boundR(ob) + R;
+    const i0 = Math.max(0, Math.floor((ob.x - r - x0) / cs)), i1 = Math.min(nx - 1, Math.floor((ob.x + r - x0) / cs));
+    const j0 = Math.max(0, Math.floor((ob.z - r - z0) / cs)), j1 = Math.min(nz - 1, Math.floor((ob.z + r - z0) / cs));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const k = j * nx + i; if (B[k] && (fence || F[k])) continue;
+      if (obsDist(ob, x0 + (i + .5) * cs, z0 + (j + .5) * cs) < R) { B[k] = 1; if (!fence) F[k] = 1; }
+    }
+  }
+  /** an obstacle came or went around (x, z) (yard tree, fence): the cells there are rasterised again from the obstacles nearby */
+  patch(hof: Hof, x: number, z: number, r: number) {
+    const { cs, x0, z0, nx, nz, R } = this, rr = r + R + cs;
+    const i0 = Math.max(0, Math.floor((x - rr - x0) / cs)), i1 = Math.min(nx - 1, Math.floor((x + rr - x0) / cs));
+    const j0 = Math.max(0, Math.floor((z - rr - z0) / cs)), j1 = Math.min(nz - 1, Math.floor((z + rr - z0) / cs));
+    if (i0 > i1 || j0 > j1) return;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * nx + i; this.block[k] = 0; this.base[k] = 0; }
+    const cx = x0 + (i0 + i1 + 1) / 2 * cs, cz = z0 + (j0 + j1 + 1) / 2 * cs, hr = Math.hypot(i1 - i0 + 1, j1 - j0 + 1) * cs / 2;
+    for (const ob of hof.near(cx, cz, hr + R)) {
+      // only the cells of the patched box (the rest is still right)
+      const rb = boundR(ob) + R;
+      const a0 = Math.max(i0, Math.floor((ob.x - rb - x0) / cs)), a1 = Math.min(i1, Math.floor((ob.x + rb - x0) / cs));
+      const b0 = Math.max(j0, Math.floor((ob.z - rb - z0) / cs)), b1 = Math.min(j1, Math.floor((ob.z + rb - z0) / cs));
+      const fence = ob.id === 'fence';
+      for (let j = b0; j <= b1; j++) for (let i = a0; i <= a1; i++) {
+        const k = j * nx + i; if (this.block[k] && (fence || this.base[k])) continue;
+        if (obsDist(ob, x0 + (i + .5) * cs, z0 + (j + .5) * cs) < R) { this.block[k] = 1; if (!fence) this.base[k] = 1; }
+      }
+    }
+    void nz;
+  }
+  /** walkable if there were no fences */
+  freeBase(x: number, z: number) { const k = this.cell(x, z); return k < 0 || !this.base[k]; }
   private ci(x: number, z: number) { return Math.floor((x - this.x0) / this.cs); }
   private cj(z: number) { return Math.floor((z - this.z0) / this.cs); }
   /** cell index of a point, -1 outside the grid */
@@ -53,21 +81,22 @@ export class NavGrid {
   private centre(k: number): Pt { return { x: this.x0 + (k % this.nx + .5) * this.cs, z: this.z0 + (Math.floor(k / this.nx) + .5) * this.cs }; }
 
   /** the straight line from a to b crosses no blocked cell (sampled at a quarter cell) */
-  los(ax: number, az: number, bx: number, bz: number) {
-    const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / (this.cs * .25));
-    for (let s = 1; s <= n; s++) { const t = s / n, k = this.cell(ax + (bx - ax) * t, az + (bz - az) * t); if (k >= 0 && this.block[k]) return false; }
+  los(ax: number, az: number, bx: number, bz: number, base = false) {
+    const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / (this.cs * .25)), B = base ? this.base : this.block;
+    for (let s = 1; s <= n; s++) { const t = s / n, k = this.cell(ax + (bx - ax) * t, az + (bz - az) * t); if (k >= 0 && B[k]) return false; }
     return true;
   }
   /** nearest free cell centre (ring search up to maxR m), the point itself when it is free */
-  nearestFree(x: number, z: number, maxR = 6): Pt | null {
-    if (this.free(x, z)) return { x, z };
+  nearestFree(x: number, z: number, maxR = 6, base = false): Pt | null {
+    const B = base ? this.base : this.block;
+    if (base ? this.freeBase(x, z) : this.free(x, z)) return { x, z };
     const i0 = this.ci(x, z), j0 = this.cj(z), R = Math.ceil(maxR / this.cs);
     let best: Pt | null = null, bd = 1e18;
     for (let r = 1; r <= R; r++) {
       for (let j = j0 - r; j <= j0 + r; j++) for (let i = i0 - r; i <= i0 + r; i++) {
         if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) !== r) continue;
         if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) continue;
-        const k = j * this.nx + i; if (this.block[k]) continue;
+        const k = j * this.nx + i; if (B[k]) continue;
         const c = this.centre(k), d = (c.x - x) ** 2 + (c.z - z) ** 2; if (d < bd) { bd = d; best = c; }
       }
       if (best) return best;
@@ -89,12 +118,12 @@ export class NavGrid {
   }
   /** path from a to b as a few corner points (without a, ending at b or the nearest free point to b); null = no way.
    *  maxNodes caps the work for unreachable goals */
-  path(ax: number, az: number, bx: number, bz: number, maxNodes = 40000): Pt[] | null {
-    const s0 = this.nearestFree(ax, az, 3), g0 = this.nearestFree(bx, bz, 6); if (!s0 || !g0) return null;
+  path(ax: number, az: number, bx: number, bz: number, maxNodes = 40000, base = false): Pt[] | null {
+    const s0 = this.nearestFree(ax, az, 3, base), g0 = this.nearestFree(bx, bz, 6, base); if (!s0 || !g0) return null;
     const S = this.cell(s0.x, s0.z), G = this.cell(g0.x, g0.z);
-    if (S < 0 || G < 0) return this.los(s0.x, s0.z, g0.x, g0.z) ? [g0] : null; // off the grid: open forest
+    if (S < 0 || G < 0) return this.los(s0.x, s0.z, g0.x, g0.z, base) ? [g0] : null; // off the grid: open forest
     if (S === G) return [g0];
-    const nx = this.nx, nz = this.nz, B = this.block, gs = this.g, from = this.from, seen = this.seen, closed = this.closed;
+    const nx = this.nx, nz = this.nz, B = base ? this.base : this.block, gs = this.g, from = this.from, seen = this.seen, closed = this.closed;
     const st = ++this.stamp, gi = G % nx, gj = Math.floor(G / nx), D2 = Math.SQRT2;
     const h = (k: number) => { const dx = Math.abs(k % nx - gi), dz = Math.abs(Math.floor(k / nx) - gj); return dx + dz + (D2 - 2) * Math.min(dx, dz); };
     this.hn = 0; seen[S] = st; gs[S] = 0; from[S] = -1; this.push(S, h(S));
@@ -121,7 +150,7 @@ export class NavGrid {
     const out: Pt[] = []; let cx = s0.x, cz = s0.z, i = 0;
     while (i < cells.length) {
       let j = cells.length - 1;
-      while (j > i && !this.los(cx, cz, cells[j].x, cells[j].z)) j--;
+      while (j > i && !this.los(cx, cz, cells[j].x, cells[j].z, base)) j--;
       out.push(cells[j]); cx = cells[j].x; cz = cells[j].z; i = j + 1;
     }
     return out;
@@ -131,4 +160,16 @@ export class NavGrid {
 /** the walk grid of a farm, baked on first use and kept as long as the farm exists */
 const cache = new WeakMap<Hof, { rev: number; n: NavGrid }>();
 /** baked again when the obstacles changed (world editor: a building went up, hof.rev) */
-export function navFor(hof: Hof) { let c = cache.get(hof); if (!c || c.rev !== hof.rev) cache.set(hof, c = { rev: hof.rev, n: new NavGrid(hof) }); return c.n; }
+/** yard trees + fences (22.11.2026): when every change since the bake is a patch (hof.navPatches), only those spots are redone */
+export function navFor(hof: Hof) {
+  let c = cache.get(hof);
+  if (c && c.rev !== hof.rev) {
+    const P = hof.navPatches, from = c.rev, list = P.filter(p => p.rev > from);
+    if (list.length === hof.rev - from && list.length < 60) { for (const p of list) c.n.patch(hof, p.x, p.z, p.r); c.rev = hof.rev; }
+    else c = undefined;
+  }
+  if (!c) cache.set(hof, c = { rev: hof.rev, n: new NavGrid(hof) });
+  return c.n;
+}
+/** length of a way (from a over the points) */
+export function pathLen(ax: number, az: number, pts: Pt[]) { let l = 0, x = ax, z = az; for (const p of pts) { l += Math.hypot(p.x - x, p.z - z); x = p.x; z = p.z; } return l; }

@@ -325,3 +325,16 @@ body[data-input=touch] #fBtns{display:flex}
 @keyframes carL{from{transform:translateX(22px)}to{transform:none}}
 @keyframes carR{from{transform:translateX(-22px)}to{transform:none}}
 #fSeeds button b{margin-left:auto;color:var(--gold);font-size:14px}
+
+/* fences (22.11.2026): count + F key (PC) above the ammo carousel, round fence button above the ammo button (phone) */
+#fFencePc{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(max(16px,env(safe-area-inset-bottom,0px)) + 62px);display:flex;align-items:center;gap:6px;padding:4px 12px 4px 7px;border-radius:999px;
+  background:#0b1016c8;border:2px solid var(--gold-dim);font:700 17px var(--f-body);color:var(--parch);text-shadow:0 1px 2px #000}
+#fFencePc[hidden]{display:none}
+#fFencePc svg{width:30px;height:30px}#fFencePc kbd{display:inline-grid;place-items:center;height:22px;padding:0 7px;border:2px solid #fff2c0;border-radius:5px;background:#1a2027;color:var(--gold);font:700 13px var(--f-body)}
+body[data-input=touch] #fFencePc{display:none}
+#fBtns #bFence{position:relative;width:60px;height:60px;margin-bottom:160px;margin-right:-8px;border:3px solid var(--gold-dim)}
+#fBtns #bFence[hidden]{display:none}
+#fBtns #bFence svg{width:70%!important;height:70%!important}
+#bFence b.an{position:absolute;right:-2px;bottom:-2px;min-width:20px;padding:0 4px;border-radius:10px;background:#1a2027;border:1px solid var(--gold-dim);color:var(--parch);font:700 12px var(--f-body);text-align:center}
+#bFence.down{filter:brightness(1.3)}
+@media (max-height:520px){#fBtns #bFence{width:50px;height:50px;margin-bottom:120px}}

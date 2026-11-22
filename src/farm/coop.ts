@@ -91,7 +91,7 @@ export function predict(sim: DaySim, it: Intent, dt: number) {
 }
 
 // ---------------- owner side ----------------
-const KINDS = new Set<Target['k']>(['bush', 'well', 'plot', 'bld', 'stall', 'tree', 'bramble', 'forage', 'weed']);
+const KINDS = new Set<Target['k']>(['bush', 'well', 'plot', 'bld', 'stall', 'tree', 'bramble', 'forage', 'weed', 'lumber', 'bench', 'fence']);
 const num = (v: unknown, a: number, b: number, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 function cleanTarget(t: any): Target | null {
   if (!t || typeof t !== 'object' || !KINDS.has(t.k)) return null;
@@ -108,6 +108,8 @@ export function cleanIntent(o: any): Intent {
   it.act = cleanTarget(o.act); it.hold = !!o.hold; it.holdAt = cleanTarget(o.holdAt); it.up = !!o.up; it.attack = !!o.attack;
   if (o.face !== undefined) it.face = num(o.face, -10, 10);
   if (typeof o.seed === 'string') it.seed = o.seed.slice(0, 24);
+  if (typeof o.ammo === 'string') it.ammo = o.ammo.slice(0, 24);
+  it.fence = !!o.fence;
   if (o.px !== undefined && o.pz !== undefined) { it.px = num(o.px, -500, 500); it.pz = num(o.pz, -500, 500); }
   return it;
 }

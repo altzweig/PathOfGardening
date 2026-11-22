@@ -762,7 +762,8 @@ class Game {
     });
     box.querySelectorAll<HTMLElement>('.frMsgs button').forEach(b => b.addEventListener('click', async () => {
       const to = b.parentElement!.dataset.to!, f = o.friends.find(x => x.id === to); this.msgFor = ''; this.friendList();
-      sfx('ui.confirm'); this.toast(await o.send(to, +b.dataset.m!) ? `An ${f?.name ?? '?'}: ${b.textContent}` : 'Nicht gesendet');
+      sfx('ui.confirm'); const err = await o.send(to, +b.dataset.m!);
+      this.toast(err ? `Nicht gesendet: ${err}` : `An ${f?.name ?? '?'}: ${b.textContent}`, err ? 6000 : 2600);
     }));
   }
   /** knock at a friend's open farm: once the friend says yes, the game joins with room code + ticket */

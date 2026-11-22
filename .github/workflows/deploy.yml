@@ -19,12 +19,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Altes Wellen-Spiel (vor dem Hof-Umbau) parallel unter /classic/ und /classic-jahreszeiten/.
+      # Fest gepinnte Commits, main bleibt unberuehrt. Eigener Speicher-Schluessel fuer die Figur,
+      # damit die alte Fassung die Figur des aktuellen Spiels nicht ueberschreibt.
+      - name: Build classic versions
+        run: |
+          build_classic() {
+            git worktree add --detach "../$2" "$1"
+            (cd "../$2" && sed -i "s/const KEY = 'pog.look';/const KEY = 'pog-classic.look';/" src/look.ts && npm ci && npm run build)
+            cp -r "../$2/dist" "dist/$2"
+          }
+          build_classic e195688 classic
+          build_classic 9158703 classic-jahreszeiten
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

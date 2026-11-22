@@ -266,3 +266,5 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Interaktion: Jedes Ziel hat einen Interaktionsbereich (player.zone vom Rand, Sammelkram/Unkraut player.zoneSmall, Felder plots.zone von der Mitte, Felder überlappen etwas). Nur im Bereich passiert etwas.
 - Immer das nächste Ziel, auch wenn dort gerade nichts zu tun ist; kein automatisches Wechseln. Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte.
 - Im Bereich startet die Aktion sofort (leiser Klick, Ring ploppt, Balken läuft), die Figur läuft dabei selbst an die Arbeitsstelle und kniet sich erst dort hin. Der Schritt wird erst fertig, wenn sie angekommen ist.
+- Handy (Basti, 22.11.2026 nachmittags): Das Info-Label über dem Ziel („[Gießen]“, „[Ernten]“) ist antippbar, ein Tippen = ein Arbeitsschritt (wie Aktionsknopf, Ring oder Antippen des Ziels).
+- Durchsicht durch Bäume, Dächer und Zäune: am PC 50 % größer, am Handy doppelt so groß wie vorher (camera.occlusion).

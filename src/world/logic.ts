@@ -9,7 +9,8 @@ export interface Pt { x: number; z: number }
 /** raccoon / hare spawn: position; w = weight (how often animals come from here, 1 = normal) */
 export interface Spawn extends Pt { w?: number }
 export type ObjKind = 'well' | 'basket' | 'bush' | 'tree' | 'bramble';
-export interface LogicObj extends Pt { k: ObjKind; rot?: number }
+/** big = the big apple tree with round crowns (tree only, appleTree.ts) */
+export interface LogicObj extends Pt { k: ObjKind; rot?: number; big?: boolean }
 /** a building placed in the editor (21.11.2026): centre + rotation; not placed = does not exist in this world */
 export interface LogicBld extends Pt { id: BuildingId; rot: number }
 /** buildings that can be placed freely (house and well have their own tools) */
@@ -167,7 +168,7 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   H.door = houseLocal(L.house, -.4, d + .6);
   H.basket = obj('basket') ?? houseLocal(L.house, -4.4, d + .2);
   H.bush = obj('bush') ?? houseLocal(L.house, -6, d + 2.5);
-  H.trees = L.objects.filter(o => o.k === 'tree').map(o => ({ x: o.x, z: o.z }));
+  H.trees = L.objects.filter(o => o.k === 'tree').map(o => (o.big ? { x: o.x, z: o.z, big: true } : { x: o.x, z: o.z }));
   H.plots = L.fields.map(p => ({ x: p.x, z: p.z }));
   cfg.start.plots = O.plots.slice(0, H.plots.length);
 }

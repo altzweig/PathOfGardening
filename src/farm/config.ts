@@ -102,7 +102,7 @@ export interface FarmCfg {
   /** texture concept (20.11.2026): tile sizes, blend sharpness etc. (src/view/textures.ts) */
   texturen?: TexCfg;
   hof: { clearing: { rx: number; rz: number }; gaps: number[]; gapWidth: number; door: { x: number; z: number }; basket: { x: number; z: number }; bush: { x: number; z: number };
-    buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number }[] };
+    buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number; big?: boolean }[] };
   /** world editor (welt.html): placed objects + painted ground from public/world/welt.json; null = generated as before */
   world?: World | null;
   /** night lanterns (yard tree + entrances) and the night bloom, see lanterns.ts */

@@ -27,6 +27,7 @@ import { HofWorld } from './hofWorld';
 import { occludeTree, updateOcclusion } from './occlusion';
 import { BuildingView, WINDOW_GLOW, buildBuilding, setWindowGlow } from './buildings';
 import { LANTERN_DEFAULT, Lanterns } from './lanterns';
+import { appleTreeShape, yardMid } from './appleTree';
 import { buildBed } from './beds';
 import { WildView } from './wild';
 import { LivestockView, animateLivestock, makeLivestock } from './livestock';
@@ -269,8 +270,8 @@ export class FarmView {
     // night lanterns (22.11.2026): three on the yard tree, more at the entrances (world props 'Laterne')
     this.lanterns = new Lanterns({ ...LANTERN_DEFAULT, ...cfg.laternen, baum: { ...LANTERN_DEFAULT.baum, ...cfg.laternen?.baum } });
     void this.world.ready.then(() => {
-      const P = H.plots, n = P.length || 1, mid = { x: (P.reduce((s, p) => s + p.x, 0) / n + H.door.x) / 2, z: (P.reduce((s, p) => s + p.z, 0) / n + H.door.z) / 2 };
-      if (this.world.props) this.lanterns.build(cfg.world?.props ?? [], this.world.props.root, mid);
+      const mid = yardMid(H), big = H.trees.find(t => t.big);
+      if (this.world.props) this.lanterns.build(cfg.world?.props ?? [], this.world.props.root, mid, big ? appleTreeShape(big.x, big.z, mid) : undefined);
     });
     scene.add(this.dyn);
     // buildings

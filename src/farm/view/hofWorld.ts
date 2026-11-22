@@ -16,6 +16,7 @@ import { registerCustomModels } from '../../world/custom';
 import { PropLayer, thin } from '../../world/props';
 import type { WorldPaint, Rect } from '../../world/paint';
 import { GroundWeights, layeredGround } from '../../view/terrain';
+import { appleTreeShape, buildAppleTree, yardMid } from './appleTree';
 
 export const SIZE = 170; // ground plane (m): clearing (rx 32) + forest that fills the view at the widest zoom
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -133,8 +134,11 @@ export class HofWorld {
     this.props.set(this.visibleProps());
     // single trees on the farm (Bastis brown circles; gameplay: apples to shake)
     const add = (name: string, list: Inst[], o: { shadow?: boolean; scale?: number } = {}) => instance(W, name, list, o);
-    add('CommonTree_1', this.cfg.hof.trees.filter((_, i) => i % 2 === 0).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
-    add('CommonTree_3', this.cfg.hof.trees.filter((_, i) => i % 2 === 1).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    add('CommonTree_1', this.cfg.hof.trees.filter((t, i) => i % 2 === 0 && !t.big).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    add('CommonTree_3', this.cfg.hof.trees.filter((t, i) => i % 2 === 1 && !t.big).map(t => ({ x: t.x, z: t.z, y: -.05, s: .55 * rand(.9, 1.1), col: hsl(rand(.23, .3), .6, rand(.36, .42)), shade: 1 })), { shadow: true, scale: .55 });
+    // the big apple tree in the middle of the yard (22.11.2026): wide, round crowns, the lanterns hang from it
+    const mid = yardMid(this.cfg.hof);
+    for (const t of this.cfg.hof.trees) if (t.big) W.add(buildAppleTree(appleTreeShape(t.x, t.z, mid)));
     this.grassDens = gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1;
     this.rebuildGrass();
   }

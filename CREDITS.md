@@ -51,6 +51,7 @@ Von **Kenney** – https://kenney.nl/assets/particle-pack (Particle Pack 1.1), L
 Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
 Regen/Gewitter (`rain_light.mp3`, `rain_heavy.mp3` als nahtlose 24-s-Stereo-Loops, `thunder_1–6.mp3`) sind mit `tools/build-rain.py` aus den vier Regen-Aufnahmen gemischt (Lizenzen laut Basti, Freesound-Seiten aus der Cloud nicht erreichbar).
 Gießkanne (`can_pour_*`, `can_fill_*`, `can_empty`, 21.11.2026) mit `tools/build-can.py` geschnitten; Rohdateien liegen in den Projektdateien unter `giesskanne/rohsounds/`.
+Kampf und Nachtwellen (22.11.2026: `wave_far_*`, `hare_*`, `player_hurt_*`, `player_effort_*`, `swing_*`, `hit_thwack_*`, `rac_bite_*`, `rac_hurt_*`) sind mit `tools/build-fight.py` im Code erzeugt (Sinus, Rauschen, Formantfilter, künstlicher Hall), eigenes Werk. Nur die Waschbär-Schreie in `rac_hurt_*` und `wave_far_*` sind Ausschnitte aus `sfx/animals/racoon_aggro.wav` (Bastis Sound-Sammlung, dieselbe Quelle wie die übrigen `rac_*`-Clips).
 
 | Datei im Spiel | Quelle | Autor | Lizenz |
 |---|---|---|---|

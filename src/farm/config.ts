@@ -2,6 +2,7 @@
 import YAML from 'yaml';
 import type { TexCfg } from '../view/textures';
 import { World, loadWorld } from '../world/data';
+import type { LanternCfg } from './view/lanterns';
 import { applyLogic } from '../world/logic';
 
 export type ItemId = string;
@@ -104,6 +105,9 @@ export interface FarmCfg {
     buildings: Record<BuildingId, RectCfg>; plots: { x: number; z: number }[]; trees: { x: number; z: number }[] };
   /** world editor (welt.html): placed objects + painted ground from public/world/welt.json; null = generated as before */
   world?: World | null;
+  /** night lanterns (yard tree + entrances) and the night bloom, see lanterns.ts */
+  laternen?: Partial<LanternCfg> & { baum?: Partial<LanternCfg['baum']> };
+  nachtlicht?: { bloom: [number, number]; fenster: number; hauslampe?: number };
 }
 
 export async function loadFarmCfg(o: { world?: boolean } = {}): Promise<FarmCfg> {

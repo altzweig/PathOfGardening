@@ -251,3 +251,11 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Oben links unter HP/XP: Sobald ein Feld erntereif ist, blendet von unten eine Meldung „[Frucht] erntereif“ ein.
 - Jedes weitere reife Feld schiebt sich von unten in die vorhandene Meldung und lässt sie kurz aufploppen: „2 Felder erntereif“ usw.
 - Wird geerntet, zählt die Zahl herunter; ist nichts mehr reif, blendet die Meldung aus. Gezählt werden nur Felder (keine Büsche/Bäume).
+
+## Nachtlaternen statt grellem Bloom (Basti, 22.11.2026)
+- Nachts deutlich weniger Bloom (Stärke 0,5 statt 1,15, Schwelle 0,86), Fensterlicht auf gut die Hälfte gedämpft. Die Hauswand blendet nicht mehr.
+- Eigene altmodische Laterne (Eisenrahmen, warmes Glas mit Sprossen, Pyramidendach, Ring). Nachts glüht das Glas, dazu ein weicher Schein und ein warmer Lichtfleck am Boden (gefaked, kein echtes Licht).
+- **Hofbaum:** drei Laternen je 120° um den Stamm, die erste zeigt zur Hofmitte. Jede hängt an einer Kette von einem echten Ast (aus der Baumgeometrie gesucht), leicht unterschiedliche Höhen (2,0 / 2,25 / 1,8 m) und schaukelt leicht. Der Baum ist der, der der Hofmitte (Felder + Haustür) am nächsten steht, oder `laternen.baum.punkt`. Unter dem Baum gibt es das einzige zusätzliche echte Licht.
+- **Hofeingänge:** je links und rechts eine Laterne. Steht dort ein Zaun, sitzt sie auf dem Zaunpfosten, sonst auf einer ebenen Stelle des Felsens bzw. auf dem Boden (wird beim Start automatisch gesucht). Gesetzt an den drei Zauntoren (Südwest, Mühle, Hauptweg zum Hofladen) und am Felsdurchgang im Westen. Im Welt-Editor unter „Hof → Laterne“ verschieb- und ergänzbar.
+- **Haustür:** die alte Türlampe ist jetzt dieselbe Laterne unter dem Vordach neben der Tür, ihr Licht ist schwächer (6 statt 22).
+- Werte in `balancing.yaml` unter `nachtlicht` und `laternen`.

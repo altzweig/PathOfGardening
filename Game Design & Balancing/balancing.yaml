@@ -58,6 +58,7 @@ names:
     corn: Mais
     pepper: Paprika
     tomato: Tomaten
+    fence: Zaun              # Zaunstück von der Werkbank (Taste F / Zaun-Knopf stellt es auf)
     zucchini: Zucchini
     eggplant: Auberginen
     chili: Chili
@@ -99,7 +100,8 @@ names:
 
 # ---------------------------------------------------------------------
 day:
-  length: 480              # s pro Tag (Basti 20.11.2026: 8 min)
+  length: 60               # s Tag bis zur Nacht (Basti 22.11.2026: ca. 1 min Frieden, dann 3 min Nacht mit Wellen; vorher 480)
+  work: 150                # s Erntearbeit pro Tag für Aufträge und "pro Feld und Tag": 1 min Tag + ca. die Hälfte der Nacht zwischen den Wellen
   clock: [6, 20]           # angezeigte Uhrzeit von Tagesbeginn bis Abend (nur Sonnen-Uhr im HUD)
   light: [2.6, 16.0]       # Lichtstunde (2.6 = heller Morgen .. 16 = Sonnenuntergang) am Anfang und Ende des Tages
   fade: 1.4                # s Schwarzblende am Abend / bei Ohnmacht
@@ -150,6 +152,9 @@ actions:
   straw:       { time: 2.0, label: Stroh auslegen }   # Stall: 1x am Tag, frisches Stroh = mehr Ertrag
   milk:        { time: 3.0, label: Melken }           # Kühe, Schafe, Ziegen
   eggs:        { time: 2.0, label: Eier sammeln }     # Hühner
+  chop:        { time: 1.0, label: Holz hacken }      # Hofbaum (lumber): durchgehend, kein Balken, alle lumber.every s fällt ein Holzstück
+  craft:       { time: 1.0, label: Zäune bauen }      # Werkbank: durchgehend, alle lumber.bench.every s ein Zaun (kostet lumber.bench.cost)
+  unfence:     { time: 0.6, label: Abbauen }          # aufgestellten Zaun wieder einpacken (kommt zurück ins Lager)
 
 can:                       # Gießkanne (Basti 21.11.2026: 3x füllen = voll)
   capacity: 6              # Ladungen (eine Ladung = einmal gießen), mehr Wasser geht nicht in die Kanne
@@ -234,6 +239,41 @@ harvestXp:
 # Mehrjährige Kulturen aus der Tabelle, die noch keinen Platz auf dem Hof haben (kommen später):
 #   Preiselbeeren (Uncommon, alle 2 Tage, 3 x 5), Zitronen (Rare, alle 3 Tage, 3 x 1), Stachelbeeren (Rare, alle 2 Tage, 3 x 5)
 
+lumber:                    # Holz hacken + Zäune (Basti 22.11.2026)
+  # 3 Hofbäume am Rand der Felder (Lücken im Feldraster des Welt-Editor-Hofs). Hacken wie Ernten: durchgehend, jederzeit abbrechen,
+  # das Holz purzelt heraus und wird eingesammelt (harvest.collect). Die Kerbe wird immer tiefer; nach chop s fällt der Baum,
+  # der Stamm spaltet sich und dazwischen wächst sapling s lang ein Setzling, dann steht wieder ein Baum.
+  trees:
+    - { x: 1.5, z: 8.0 }
+    - { x: 6.25, z: 5.25 }
+    - { x: -3.0, z: 10.5 }
+  radius: 0.45             # m Stamm (Kollision)
+  chop: 10                 # s hacken bis der Baum fällt
+  every: 0.25              # s pro Holzstück -> 40 Holz pro Baum
+  yield: { wood: 1 }
+  fall: 1.6                # s Umfallen
+  sapling: 60              # s Setzling, dann wieder ein Baum
+  xp: 0.15                 # XP pro Holzstück
+  bench:                   # Werkbank neben den Feldern: Zäune craften (durchgehend, jederzeit)
+    x: 0.6
+    z: 0.7
+    rot: 25
+    w: 1.9
+    d: 0.9
+    every: 1.0             # s pro Zaun
+    cost: { wood: 2 }
+    out: fence
+  fence:                   # Zaun aufstellen: Taste F (Handy: Zaun-Knopf), ein Stück vor der Figur, quer zur Blickrichtung
+    length: 1.6            # m pro Zaunstück
+    depth: 0.18
+    hp: 12                 # Leben eines Zaunstücks
+    place: 1.2             # m vor der Figur
+    snap: 0.6              # m: Enden in der Nähe rasten an ein vorhandenes Zaunende an
+    max: 80                # Zaunstücke auf dem Hof
+    detour: 10             # m Umweg: mehr (oder gar kein Weg) = Tiere greifen den Zaun an, sonst laufen sie außen herum
+    bite: { raccoon: 2, hare: 1 }   # Schaden pro Biss
+    biteEvery: 0.8         # s zwischen zwei Bissen
+
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
   zone: 1.9                # m von der Feldmitte: Interaktionsbereich (Basti 22.11.2026, größer als bei anderem, Felder 3 m auseinander -> überlappt etwas). Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte. Im Bereich startet die Aktion sofort, die Figur läuft dabei selbst an die Arbeitsstelle
@@ -256,7 +296,7 @@ storage:
   sections:
     - { id: crops, title: Feldfrüchte,    items: [wheat, carrot, potato, onion, garlic, pea, celery, cab, radish, bean, leek, strawb, lettuce, corn, pepper, tomato, zucchini, eggplant, asp, pumpkin, melon, chili, rhubarb, fennel, blue, cran, goose, lemon] }
     - { id: wild,  title: Wilde Pflanzen, items: [apple, nut, bramble, baerlauch, dandel, sorrel, mushroom, wood, stone] }
-    - { id: goods, title: Erzeugnisse,    items: [straw, green, flour, bread, juice, milk, cheese, egg, slurry, fert, soup, pan, cake, plank] }
+    - { id: goods, title: Erzeugnisse,    items: [straw, green, flour, bread, juice, milk, cheese, egg, slurry, fert, soup, pan, cake, plank, fence] }
   rarity: { cran: Uncommon, goose: Rare, lemon: Rare }   # Seltenheit von Waren ohne Eintrag in crops / harvestXp.other (sonst Common)
   perennials:              # Mehrjährige aus der Fruchttabelle ohne Platz auf dem Hof (nur Anzeige): alle every Tage reif, picks x pick
     cran:  { every: 2, picks: 3, pick: 5 }
@@ -443,19 +483,28 @@ faint:                     # 0 Leben = ohnmächtig (Basti 21.11.2026): Cutscene,
   breakFields: true        # alle Felder sind zertrampelt und müssen repariert werden
 
 night:                     # Nachtangriff nach jedem Tag (Basti 21.11.2026): statt ins Haus beginnt ein Countdown, Tiere greifen den Hof an
-  length: 120              # s Countdown der Nacht, danach geht es ins Haus (Abend-UI)
+  length: 180              # s Countdown der Nacht (Basti 22.11.2026: 3 min Kampf), danach geht es ins Haus (Abend-UI)
   dusk: 8                  # s vom Sonnenuntergang bis zur dunklen Nacht (Licht)
   warn: 5.5                # s steht die Warnung "Die Nacht bricht herein" (mit Soundeffekt)
   light: [16.0, 20.6]      # Lichtstunde bei Einbruch der Nacht / ab `dusk` (20.6 = Mondlicht)
   flee: 4                  # s vor Ende der Nacht hauen alle Tiere ab
-  waves:                   # Nacht 1: drei Wellen (at = s nach Einbruch der Nacht)
-    - { at: 6,  hare: 1, raccoon: 1 }
-    - { at: 44, hare: 1, raccoon: 2 }
-    - { at: 80, hare: 2, raccoon: 3 }
-  grow: 1                  # jede weitere Nacht pro Welle so viele Tiere mehr (abwechselnd Waschbär, Hase)
-  max:                     # höchstens so viele Tiere in einer Nacht: base + perLevel x (Level - 1), damit es mit niedrigem Level nicht zu schwer wird
-    base: 10
-    perLevel: 4
+  crops: true              # Felder wachsen nachts weiter (zwischen den Wellen ernten), Basti 22.11.2026
+  calm: 6                  # s nach Einbruch der Nacht, bevor überhaupt etwas kommt (Warnung)
+  # Pacing (Basti 22.11.2026, Skizze): 1 min Frieden (Tag), dann 3 min Kampf in 3-5 Wellen. Jede Welle schwillt an und ab
+  # und ist stärker als die vorige, dazwischen nur einzelne Tiere. Stärker mit dem Level (Koop: Durchschnittslevel aller Spieler).
+  waves:
+    count: [3, 5]          # Wellen pro Nacht: 3 auf Level 1, höchstens 5 ...
+    countEvery: 4          # ... +1 Welle alle 4 Level (Level 5: 4 Wellen, Level 9: 5)
+    first: 4               # Tiere in der 1. Welle auf Level 1
+    grow: 0.8              # jede weitere Welle + so viel x die erste (Welle 2 = x1,8, Welle 3 = x2,6, Welle 4 = x3,4 ...)
+    perLevel: 0.1          # + Anteil Tiere in jeder Welle je Level über 1 (Level 5 = x1,4, Level 9 = x1,8)
+    raccoon: 0.4           # Anteil Waschbären in einer Welle, der Rest sind Hasen
+    end: 12                # s vor Ende der Nacht ist die letzte Welle durch (dann hauen alle ab, siehe flee)
+    gap: 12                # s Ruhe zwischen zwei Wellen (nur Einzelgänger)
+    width: [1, 1.6]        # Gewicht der Wellendauer: erste Welle .. letzte (spätere Wellen dauern länger), zusammen füllen sie die Nacht
+  trickle:                 # zwischen den Wellen: einzelne Tiere
+    every: [7, 12]         # s zwischen zwei Einzelgängern (Koop: halb so lang)
+    raccoon: 0.3           # Wahrscheinlichkeit Waschbär, sonst Hase
   hare:                    # aggressiver Hase (rote Augen): frisst Felder an, haut erst ab, wenn sein Leben weg ist
     hp: 8                  # Handharke macht 4 Schaden: 2 Treffer (+ Level-Skalierung spawns.scaling)
     speed: 3.0             # m/s
@@ -478,7 +527,7 @@ coop:                      # Koop-Besuche (Basti 22.11.2026): Gäste helfen auf 
   maxPlayers: 4              # Host + bis zu 3 Gäste
   koTime: 20                 # s k.o., dann steht man am Haus wieder auf (schlimmster Fall + Cutscene nur, wenn alle gleichzeitig k.o. sind)
   hostShare: 0.25            # Anteil der Gast-XP, den der Hofbesitzer zusätzlich bekommt (Hofbonus)
-  nightCountExp: 0.5         # Tiere pro Nachtwelle x Spieler ^ Exponent (0,5 = Wurzel: 2 Spieler x1,41, 3 x1,73, 4 x2), Tier-HP bleiben gleich
+  nightFactor: 2             # Koop (Basti 22.11.2026): doppelt so viele Tiere in der Nacht (Wellen + Einzelgänger), Tier-HP bleiben gleich
   # Kurznachrichten unter Freunden (Basti 22.11.2026: nur feste Sätze, kein freier Text). Gespeichert wird nur die Nummer
   # (0-31): neue Sätze hinten anhängen, bestehende nicht umsortieren. Höchstens 32.
   messages:

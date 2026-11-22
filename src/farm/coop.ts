@@ -12,7 +12,7 @@ const pack = (o: unknown) => JSON.stringify(o, (_k, v) => typeof v === 'number' 
 let seq = 0;
 export function snapOf(sim: DaySim, ev: Ev[]): string {
   return pack({
-    q: ++seq, t: sim.t, n: sim.nightOn, r: sim.raining,
+    q: ++seq, t: sim.t, n: sim.nightOn, wv: sim.nightOn ? sim.waves : undefined, r: sim.raining,
     pl: sim.players,
     an: sim.animals.map(a => ({ ...a, route: undefined, path: undefined })),
     pe: sim.pellets, lo: sim.loot, ev,
@@ -40,7 +40,8 @@ export function applySnap(sim: DaySim, d: any, steering: boolean): Ev[] {
   // the fast connection is unordered: an older snapshot that arrives late only brings its events
   if (d.q !== undefined) { if (d.q <= lastSeq && lastSeq - d.q < 1000) return d.ev as Ev[]; lastSeq = d.q; }
   sim.t = d.t; sim.raining = d.r;
-  if (d.n && !sim.nightOn) { sim.nightOn = true; sim.waves = sim.cfg.night.waves.map(w => sim.length + w.at); }
+  if (d.n && !sim.nightOn) sim.nightOn = true;
+  if (d.wv) sim.waves = d.wv; // the host planned the night (waves follow the average level)
   if (!d.n) sim.nightOn = false;
   const ids = new Set<number>();
   for (const p of d.pl as Player[]) {
@@ -91,7 +92,7 @@ export function predict(sim: DaySim, it: Intent, dt: number) {
 }
 
 // ---------------- owner side ----------------
-const KINDS = new Set<Target['k']>(['bush', 'well', 'plot', 'bld', 'stall', 'tree', 'bramble', 'forage', 'weed']);
+const KINDS = new Set<Target['k']>(['bush', 'well', 'plot', 'bld', 'stall', 'tree', 'bramble', 'forage', 'weed', 'lumber', 'bench', 'fence']);
 const num = (v: unknown, a: number, b: number, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 function cleanTarget(t: any): Target | null {
   if (!t || typeof t !== 'object' || !KINDS.has(t.k)) return null;
@@ -108,6 +109,8 @@ export function cleanIntent(o: any): Intent {
   it.act = cleanTarget(o.act); it.hold = !!o.hold; it.holdAt = cleanTarget(o.holdAt); it.up = !!o.up; it.attack = !!o.attack;
   if (o.face !== undefined) it.face = num(o.face, -10, 10);
   if (typeof o.seed === 'string') it.seed = o.seed.slice(0, 24);
+  if (typeof o.ammo === 'string') it.ammo = o.ammo.slice(0, 24);
+  it.fence = !!o.fence;
   if (o.px !== undefined && o.pz !== undefined) { it.px = num(o.px, -500, 500); it.pz = num(o.pz, -500, 500); }
   return it;
 }

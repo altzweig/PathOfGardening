@@ -1,6 +1,6 @@
 // Persistent farm state (saved by saves.ts): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
-import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, Rarity, STALL_IDS, WeaponId, cropMain, cropPieces, cropSec, cropsOf, levelFor, slotsAt } from './config';
+import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, Rarity, STALL_IDS, WeaponId, cropMain, cropPieces, cropSec, cropsOf, levelFor, slotsAt, workSec } from './config';
 import type { ShopState } from './shop';
 import { sellDay } from './shop';
 
@@ -68,7 +68,17 @@ export interface FarmState {
   seen?: ItemId[];
   /** farm shop: sale slots (22.11.2026) */
   shop?: ShopState;
+  /** wood + fences (22.11.2026): yard trees (lumber.trees) and the fences that stand on the farm */
+  lumber: LumberState;
 }
+/** a yard tree: cut = s chopped (the notch, falls at lumber.chop), fell = s of falling left, sap = s until the sapling is a tree again;
+ *  dir = direction it falls (away from whoever cut it) */
+export interface TreeState { cut: number; fell: number; sap: number; dir: number }
+/** a fence piece: middle, angle (yaw of its long side), HP */
+export interface FenceState { id: number; x: number; z: number; a: number; hp: number }
+/** rev goes up whenever a tree stands / falls or a fence comes / goes (the obstacles of the farm follow it) */
+export interface LumberState { trees: TreeState[]; fences: FenceState[]; seq: number; rev: number }
+export function freshLumber(cfg: FarmCfg): LumberState { return { trees: (cfg.lumber?.trees ?? []).map(() => ({ cut: 0, fell: 0, sap: 0, dir: 0 })), fences: [], seq: 1, rev: 1 }; }
 export interface DayRecord { d: number; st: Record<ItemId, number>; got: Record<ItemId, number> }
 
 const KEY = 'pog-farm-v1';
@@ -82,7 +92,7 @@ export function newState(cfg: FarmCfg): FarmState {
     plots, bush: freshBush(), buildings, wild: { weeds: [], forage: [], seq: 1, init: false, v: WILD_V },
     quests: { active: [], offers: [], seq: 1 },
     weapon: 'shotgun', ammo: cfg.weapons.shotgun.ammo[0] ?? null, ammoCount: 0, phase: 'day', summary: null, levelUps: [], lvShow: [],
-    seed: cfg.seeds.start[0] ?? 'wheat', seeds: [...cfg.seeds.start], seedPicks: [], perennial: { trees: [], brambles: [] }, fieldPicks: [], fieldsGained: 0,
+    seed: cfg.seeds.start[0] ?? 'wheat', seeds: [...cfg.seeds.start], seedPicks: [], perennial: { trees: [], brambles: [] }, lumber: freshLumber(cfg), fieldPicks: [], fieldsGained: 0,
   };
   s.plots.forEach((p, i) => { if (p.open) p.plan = cfg.seeds.start[i % cfg.seeds.start.length] ?? 'wheat'; });
   rollDaily(cfg, s);
@@ -122,6 +132,8 @@ export function normalizeState(cfg: FarmCfg, s: FarmState | null | undefined): F
   s.seedPicks = (s.seedPicks ?? []).filter(o => o.length);
   if (!s.seed || !s.seeds.includes(s.seed)) s.seed = s.seeds[0];
   s.perennial ??= { trees: [], brambles: [] };
+  s.lumber ??= freshLumber(cfg);
+  { const T = cfg.lumber?.trees ?? [], L = s.lumber; while (L.trees.length < T.length) L.trees.push({ cut: 0, fell: 0, sap: 0, dir: 0 }); L.trees.length = T.length; L.fences ??= []; L.seq ??= 1; L.rev = (L.rev ?? 0) + 1; }
   for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) { s.buildings[id] ??= { built: !!cfg.buildings[id]?.built }; if (cfg.buildings[id]?.built) s.buildings[id].built = true; }
   for (const id of BUILDING_IDS) delete s.buildings[id].prod; // production runs during the day now
   s.levelUps ??= [];
@@ -250,7 +262,7 @@ export function questSources(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, out: { item: ItemId; sec: number; per: number; cap: number; fresh: boolean }[] = [];
   for (const id of s.seeds) {
     const c = cfg.crops[id]; if (!c) continue;
-    out.push({ item: cropMain(c), sec: cropSec(cfg, c), per: cropPieces(cfg, id), cap: cfg.day.length * D.load, fresh: false });
+    out.push({ item: cropMain(c), sec: cropSec(cfg, c), per: cropPieces(cfg, id), cap: workSec(cfg) * D.load, fresh: false });
   }
   return out;
 }
@@ -260,7 +272,7 @@ const pickW = <T>(list: T[], w: (x: T) => number) => { const ws = list.map(w), s
 export function rollDaily(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, L = s.level, T = cfg.quests.titles;
   const yesterday = new Set(s.quests.active.flatMap(q => Object.keys(q.need)));
-  const N = questSlots(cfg, L), budget = cfg.day.length * D.load, share = budget / N; // harvest experiment: s of harvest work
+  const N = questSlots(cfg, L), budget = workSec(cfg) * D.load, share = budget / N; // harvest experiment: s of harvest work
   // without a working well the can only holds a few fillings: every field pass needs one
   let water = Infinity, blueLeft = D.blue.max; // harvest experiment: no watering any more // one filling stays for the blueberry bush
   const src = questSources(cfg, s), maxObj = D.objectives[Math.min(D.objectives.length - 1, L - 1)] ?? 1;

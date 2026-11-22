@@ -1,16 +1,18 @@
 // One playable day on the farm: player movement, timed actions (left click, see actions in balancing.yaml), fighting
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
-import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, otherXp, rollHerbs, treeCfg, treeKind } from './config';
+import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, swell, waveWindows, otherXp, rollHerbs, treeCfg, treeKind } from './config';
 import { FarmState, addItem, breakPlot, count, gainXp, growMul, repairPlot, ripeCuts } from './state';
-import { Hof, Obstacle, obsDist } from './hof';
-import { NavGrid, navFor } from './nav';
+import { Hof, Obb, Obstacle, obsDist, toLocal, toWorld } from './hof';
+import { NavGrid, navFor, pathLen } from './nav';
 
 export type Target =
   | { k: 'bush' } | { k: 'well' } | { k: 'plot'; i: number }
   | { k: 'bld'; id: BuildingId } | { k: 'stall'; id: StallId }
   | { k: 'tree'; i: number } | { k: 'bramble'; i: number }
-  | { k: 'forage'; id: number } | { k: 'weed'; id: number };
+  | { k: 'forage'; id: number } | { k: 'weed'; id: number }
+  /** wood + fences (22.11.2026): yard tree (lumber.trees), the workbench, a fence piece */
+  | { k: 'lumber'; i: number } | { k: 'bench' } | { k: 'fence'; id: number };
 /** the Lager at the main house (H.basket): raccoons steal from it (21.11.2026: no harvest basket any more) */
 type Lager = { k: 'lager' };
 const keyOf = (t: Target) => t.k + ':' + ((t as any).i ?? (t as any).id ?? '');
@@ -42,13 +44,17 @@ export interface Intent {
   seed?: string;
   /** berry shotgun: chosen berry */
   ammo?: ItemId;
+  /** F / fence button pressed this frame: put up a fence piece in front of the farmer */
+  fence?: boolean;
   /** co-op guest: where its own farmer already is on its screen (it walks ahead locally); the owner follows within the walk speed */
   px?: number; pz?: number;
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
 /** actions done kneeling / crouching on the ground (hand rake, sowing, harvesting a plot, gathering) */
 /** harvesting (Basti 22.11.2026: "im Vorbeilaufen"): starts from reach without walking over, walking is paused meanwhile (not cancelled) */
-export const HARVEST_ACTIONS = new Set<ActionKind>(['harvestPlot', 'harvestBush', 'pickWild', 'gather', 'shake']);
+export const HARVEST_ACTIONS = new Set<ActionKind>(['harvestPlot', 'harvestBush', 'pickWild', 'gather', 'shake', 'chop', 'craft']);
+/** continuous work without a bar (harvest experiment): runs until it is done, the button is let go or the farmer walks off */
+export const CONT_ACTIONS = new Set<ActionKind>(['harvestPlot', 'chop', 'craft']);
 export const LOW_ACTIONS = new Set<ActionKind>(['weed', 'weedHof', 'sow', 'harvestPlot', 'fertilize', 'gather', 'repair']);
 export type Ev = { k: string; [key: string]: any };
 
@@ -57,6 +63,8 @@ export interface Player {
   id: number;
   /** guest: works on someone else's farm (XP go to the guest, the yield to the farm); look + name shown over the head */
   guest?: boolean; name?: string; look?: unknown;
+  /** a guest's own level (night: the waves follow the average level of all farmers) */
+  level?: number;
   /** knocked out in co-op: s until the player gets up again at the house (0 = up) */
   ko: number;
   /** XP a guest earned on this farm today (the host books his own straight into the farm state) */
@@ -103,9 +111,11 @@ export interface Animal {
   /** tutorial: walks a fixed list of points, no AI */
   path?: { x: number; z: number; speed: number }[];
   /** pathfinding (nav.ts): goal of the current route, its corner points, age; none = no way found (then straight) */
-  route?: { gx: number; gz: number; pts: { x: number; z: number }[]; t: number; none: boolean } | null;
+  route?: { gx: number; gz: number; pts: { x: number; z: number }[]; t: number; none: boolean; rev?: number } | null;
   /** co-op: ids of the players who hit it (each gets the XP when it is driven off) */
   hitBy?: number[];
+  /** fences (22.11.2026): the fence piece it attacks (the way round is too long or there is none), s to the next bite */
+  fence?: number; fenceT?: number;
 }
 export interface Pellet { pid?: number; x: number; z: number; vx: number; vz: number; life: number; dmg: number; freeze: number; ammo: ItemId;
   /** berry shotgun (Basti 22.11.2026): s before it leaves the barrel (berries slightly staggered), bleed / doom of the berry */ wait?: number; bleed?: number; doom?: number }
@@ -126,10 +136,10 @@ function segDist(ax: number, az: number, bx: number, bz: number, px: number, pz:
 const clampN = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const angTo = (ax: number, az: number, bx: number, bz: number) => Math.atan2(bx - ax, bz - az); // three.js yaw (0 = +z)
 /** goods animals take from the Lager (not straw, wood, stones ...) */
-const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert']); // goods raccoons take from the Lager
+const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert', 'fence']); // goods raccoons take from the Lager
 const EDIBLE = (id: ItemId) => !NOT_EDIBLE.has(id);
 /** which targets win when several are in reach: buildings, plots, bush first, then forage, weeds last */
-const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, stall: 0, tree: 1, bramble: 1, forage: 2, weed: 3 };
+const PRIO: Record<Target['k'], number> = { bush: 0, well: 0, plot: 0, bld: 0, stall: 0, bench: 0, tree: 1, bramble: 1, lumber: 1, forage: 2, weed: 3, fence: 4 };
 
 /** a planned animal: near = hops around a field from the morning on, night = attacker of the night (wave = its wave, 0-based) */
 export interface Spawn { at: number; type: AnimalType; gap: number; near?: boolean; night?: boolean; wave?: number }
@@ -143,6 +153,8 @@ export interface DaySnap {
   loot: { item: ItemId; x: number; z: number; fresh?: boolean; n?: number }[];
   /** night: goods of today raccoons took out of the pocket, fields broken so far */
   taken?: Record<ItemId, number>; broken?: number;
+  /** level the night was planned for (average of all farmers) */
+  nightLv?: number;
 }
 
 export class DaySim {
@@ -170,6 +182,8 @@ export class DaySim {
   finished: 'time' | 'faint' | null = null;
   /** night after the day (21.11.2026): s long, 0 = none (tutorial); nightOn from nightfall on; waves = start of every wave (s of the clock) */
   nightLen: number; nightOn = false; waves: number[] = []; broken = 0;
+  /** level the night's animals follow: average level of all farmers at nightfall (Basti 22.11.2026) */
+  nightLv = 1;
   got: Record<ItemId, number> = {}; lost: Record<ItemId, number> = {}; driven = 0; xpGained = 0;
   /** berries shot today (berry shotgun) */
   used: Record<ItemId, number> = {};
@@ -350,12 +364,22 @@ export class DaySim {
       case 'bramble': return this.hof.brambles[t.i];
       case 'forage': return this.s.wild.forage.find(f => f.id === t.id) ?? { x: 1e4, z: 1e4 };
       case 'weed': return this.s.wild.weeds.find(f => f.id === t.id) ?? { x: 1e4, z: 1e4 };
+      case 'lumber': return this.cfg.lumber.trees[t.i];
+      case 'bench': return this.cfg.lumber.bench;
+      case 'fence': return this.s.lumber.fences.find(f => f.id === t.id) ?? { x: 1e4, z: 1e4 };
     }
+  }
+  /** the obstacle of a target with a footprint (buildings, workbench, fence) */
+  private boxOf(t: Target): Obstacle | null {
+    if (t.k === 'bld' || t.k === 'stall') return this.hof.building(t.id);
+    if (t.k === 'bench') return this.hof.benchObs;
+    if (t.k === 'fence') return this.hof.fenceObs.get(t.id) ?? null;
+    return null;
   }
   /** distance from (x, z) to the edge of a target */
   targetDist(t: Target, x: number, z: number) {
-    if (t.k === 'bld' || t.k === 'stall') { const o = this.hof.building(t.id); return o ? this.hof.distTo(o, x, z) : 1e4; }
-    const p = this.targetPos(t), r = t.k === 'plot' ? this.cfg.plots.size / 2 * .85 : t.k === 'well' ? (this.cfg.hof.buildings.well.r ?? 1) : t.k === 'bush' ? this.cfg.bush.radius : t.k === 'tree' ? .5 : t.k === 'bramble' ? .6 : .15;
+    if (t.k === 'bld' || t.k === 'stall' || t.k === 'bench' || t.k === 'fence') { const o = this.boxOf(t); return o ? this.hof.distTo(o, x, z) : 1e4; }
+    const p = this.targetPos(t), r = t.k === 'plot' ? this.cfg.plots.size / 2 * .85 : t.k === 'well' ? (this.cfg.hof.buildings.well.r ?? 1) : t.k === 'bush' ? this.cfg.bush.radius : t.k === 'tree' || t.k === 'lumber' ? .5 : t.k === 'bramble' ? .6 : .15;
     return Math.max(0, dist(x, z, p.x, p.z) - r);
   }
   private act(kind: Exclude<ActionKind, 'produce'>, tool: Tool, o: Partial<ActionInfo> = {}): ActionInfo {
@@ -409,6 +433,12 @@ export class DaySim {
       case 'bramble': return this.brambles[t.i]?.n > 0 ? this.act('pickWild', 'hands') : null;
       case 'forage': return s.wild.forage.some(f => f.id === t.id) ? this.act('gather', 'hands') : null;
       case 'weed': return s.wild.weeds.some(f => f.id === t.id) ? this.act('weedHof', 'handrake') : null;
+      case 'lumber': { const T = s.lumber.trees[t.i]; return T && T.fell <= 0 && T.sap <= 0 ? this.act('chop', 'axe', { dur: 1e9, repeat: false }) : null; }
+      case 'bench': {
+        const B = this.cfg.lumber.bench, n = count(s, B.out);
+        return this.needs(B.cost) ? this.act('craft', 'hands', { dur: 1e9, repeat: false, need: B.cost, count: '' + n, item: B.out }) : this.act('craft', 'hands', { dur: 1e9, ok: false, why: 'need', need: B.cost, count: '' + n, item: B.out });
+      }
+      case 'fence': return s.lumber.fences.some(f => f.id === t.id) ? this.act('unfence', 'hands') : null;
     }
   }
   /** every target near a point (cheap for the many small things) */
@@ -421,7 +451,9 @@ export class DaySim {
     }
     this.cfg.hof.trees.forEach((_, i) => out.push({ k: 'tree', i }));
     this.hof.brambles.forEach((_, i) => out.push({ k: 'bramble', i }));
+    if (this.cfg.lumber) { this.cfg.lumber.trees.forEach((_, i) => out.push({ k: 'lumber', i })); out.push({ k: 'bench' }); }
     const r2 = (r + 1) ** 2;
+    for (const f of this.s.lumber?.fences ?? []) if ((f.x - x) ** 2 + (f.z - z) ** 2 < r2 + 1) out.push({ k: 'fence', id: f.id });
     for (const f of this.s.wild.forage) if ((f.x - x) ** 2 + (f.z - z) ** 2 < r2) out.push({ k: 'forage', id: f.id });
     for (const f of this.s.wild.weeds) if ((f.x - x) ** 2 + (f.z - z) ** 2 < r2) out.push({ k: 'weed', id: f.id });
     return out;
@@ -437,6 +469,11 @@ export class DaySim {
     const w = H.buildings.well; if (near(w, (w.r ?? 1) + .35)) return { k: 'well' };
     for (let i = 0; i < this.hof.brambles.length; i++) if (near(this.hof.brambles[i], .9)) return { k: 'bramble', i };
     for (let i = 0; i < H.trees.length; i++) if (near(H.trees[i], 1.1)) return { k: 'tree', i };
+    if (this.cfg.lumber) {
+      for (let i = 0; i < this.cfg.lumber.trees.length; i++) if (near(this.cfg.lumber.trees[i], 1.0)) return { k: 'lumber', i };
+      if (this.hof.benchObs && this.hof.distTo(this.hof.benchObs, x, z) < .3) return { k: 'bench' };
+      for (const [id, o] of this.hof.fenceObs) if (this.hof.distTo(o, x, z) < .25) return { k: 'fence', id };
+    }
     for (let i = 0; i < H.plots.length; i++) if (this.s.plots[i].open && near(H.plots[i], this.cfg.plots.size / 2 + .1)) return { k: 'plot', i };
     for (const id of Object.keys(this.cfg.buildings) as BuildingId[]) {
       const o = this.hof.building(id); if (!o || this.hof.distTo(o, x, z) > .3) continue;
@@ -472,7 +509,8 @@ export class DaySim {
   }
   inZone(t: Target, margin = 0) { const P = this.player; return this.zoneOut(t, P.x, P.z) <= margin; }
   /** distance to the middle (buildings: to the wall), decides between overlapping zones */
-  private midDist(t: Target, x: number, z: number) { if (t.k === 'bld' || t.k === 'stall') return this.targetDist(t, x, z); const p = this.targetPos(t); return dist(x, z, p.x, p.z); }
+  private midDist(t: Target, x: number, z: number) { if (t.k === 'fence') return this.targetDist(t, x, z) + 1.2; // a fence only when nothing else is near
+    if (t.k === 'bld' || t.k === 'stall' || t.k === 'bench') return this.targetDist(t, x, z); const p = this.targetPos(t); return dist(x, z, p.x, p.z); }
   /** the spot the action button / E / left click works on (Basti 22.11.2026): always the nearest one whose zone the farmer stands in,
    *  even when there is nothing to do there (no switching on by itself). Where zones overlap: the current spot if it is ready for
    *  the next step, else the other one; without a current spot the one with the nearer middle. Outside every zone: none. */
@@ -503,8 +541,9 @@ export class DaySim {
     this.updateRain(dt);
     this.updateBush(dt);
     this.updatePlots(dt);
+    this.updateLumber(dt);
     if (this.clockRuns && !this.nightOn) this.updateWild(dt);
-    const lock = (i: Intent) => this.inputLocked ? { ...i, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false } : i;
+    const lock = (i: Intent) => this.inputLocked ? { ...i, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false, fence: false } : i;
     for (const P of [...this.players]) {
       this.curP = P;
       const n0 = this.ev.length;
@@ -590,6 +629,137 @@ export class DaySim {
       }
     }
   }
+  // ---------------- wood + fences (Basti 22.11.2026) ----------------
+  /** yard trees: falling -> split trunk with a sapling -> a tree again */
+  private updateLumber(dt: number) {
+    const L = this.s.lumber, C = this.cfg.lumber; if (!L || !C) return;
+    L.trees.forEach((T, i) => {
+      const p = C.trees[i]; if (!p) return;
+      if (T.fell > 0) { T.fell -= dt; if (T.fell <= 0) { T.fell = 0; T.sap = C.sapling; L.rev++; this.ev.push({ k: 'treeDown', i, x: p.x, z: p.z, dir: T.dir }); } }
+      else if (T.sap > 0) { T.sap -= dt; if (T.sap <= 0) { T.sap = 0; T.cut = 0; L.rev++; this.ev.push({ k: 'treeUp', i, x: p.x, z: p.z }); } }
+    });
+    this.hof.syncLumber(L);
+  }
+  /** chopping: the notch gets deeper, every lumber.every s a piece of wood flies off; after lumber.chop s the tree falls */
+  private chopTick(A: NonNullable<Player['action']>, dt: number) {
+    const P = this.player, t = A.target, C = this.cfg.lumber; if (t.k !== 'lumber') return;
+    const T = this.s.lumber.trees[t.i], p = C.trees[t.i];
+    if (!T || !p || T.fell > 0 || T.sap > 0) { this.endHarvest(A); return; }
+    T.cut += dt; A.t += dt;
+    const every = Math.max(.05, C.every);
+    while (A.t >= every) {
+      A.t -= every; A.pick++;
+      this.dropWood(t.i, P);
+      P.hx = (P.hx ?? 0) + C.xp;
+      if (P.hx >= 1) { const n = Math.floor(P.hx); P.hx -= n; this.giveXp(P, n, p); }
+    }
+    if (T.cut >= C.chop) {
+      T.cut = C.chop; T.fell = C.fall; T.dir = Math.atan2(p.x - P.x, p.z - P.z); this.s.lumber.rev++; this.hof.syncLumber(this.s.lumber);
+      this.ev.push({ k: 'treeFall', i: t.i, x: p.x, z: p.z, dir: T.dir });
+      this.endHarvest(A);
+    }
+  }
+  /** one piece of wood out of the notch: towards the side of the farmer, a little to the sides */
+  private dropWood(i: number, P: Player) {
+    const C = this.cfg.lumber, p = C.trees[i], H = this.cfg.harvest, a0 = Math.atan2(P.x - p.x, P.z - p.z);
+    for (const [k, v] of Object.entries(C.yield)) for (let n = 0; n < v; n++) {
+      const an = a0 + rnd(-1.3, 1.3), sp = rnd(...H.throw), x = p.x + Math.sin(an) * (C.radius + .1), z = p.z + Math.cos(an) * (C.radius + .1);
+      this.loot.push({ id: this.nid++, item: k, x, z, y: .7, vx: Math.sin(an) * sp, vz: Math.cos(an) * sp, vy: rnd(...H.up) * .8, t: 0, fresh: true, h: true, n: 1 });
+    }
+    const T = this.s.lumber.trees[i];
+    this.ev.push({ k: 'chop', i, x: p.x, z: p.z, cut: T.cut / C.chop, fx: P.x, fz: P.z });
+  }
+  /** workbench: one fence every lumber.bench.every s as long as there is wood */
+  private craftTick(A: NonNullable<Player['action']>, dt: number) {
+    const B = this.cfg.lumber.bench, s = this.s;
+    A.t += dt;
+    while (A.t >= B.every) {
+      A.t -= B.every;
+      if (!this.needs(B.cost) || count(s, B.out) >= this.cfg.storage.capacity) { this.ev.push({ k: 'deny', why: 'need', target: A.target }); this.endHarvest(A); return; }
+      for (const [k, v] of Object.entries(B.cost)) addItem(this.cfg, s, k, -v);
+      addItem(this.cfg, s, B.out, 1); A.pick++;
+      this.ev.push({ k: 'craft', x: B.x, z: B.z, n: count(s, B.out) });
+      this.ev.push({ k: 'store', item: B.out, n: 1, x: B.x, z: B.z });
+      A.info = { ...A.info, count: '' + count(s, B.out) };
+    }
+  }
+  /** where a fence piece put up by P would stand (snapped onto a fence end nearby); ok = free there */
+  fenceSpot(P: Player = this.player): { x: number; z: number; a: number; ok: boolean } {
+    const F = this.cfg.lumber.fence, a = P.f, fx = Math.sin(P.f), fz = Math.cos(P.f);
+    let x = P.x + fx * F.place, z = P.z + fz * F.place, ang = a;
+    // snap: the nearest end of a fence close by joins the nearest end of the new piece (in a row / at a corner)
+    const ends = (cx: number, cz: number, an: number) => { const ux = Math.cos(an) * F.length / 2, uz = -Math.sin(an) * F.length / 2; return [{ x: cx + ux, z: cz + uz }, { x: cx - ux, z: cz - uz }]; };
+    let best: { dx: number; dz: number; d: number; a?: number } | null = null;
+    for (const f of this.s.lumber.fences) {
+      if ((f.x - x) ** 2 + (f.z - z) ** 2 > (F.length + F.snap) ** 2) continue;
+      // nearly in line: take over its angle, so a row stays straight
+      const da = Math.abs(((f.a - ang) % Math.PI + Math.PI * 1.5) % Math.PI - Math.PI / 2);
+      const an = da < .35 ? f.a : ang;
+      for (const e of ends(f.x, f.z, f.a)) for (const c of ends(x, z, an)) {
+        const d = Math.hypot(e.x - c.x, e.z - c.z); if (d < F.snap && (!best || d < best.d)) best = { dx: e.x - c.x, dz: e.z - c.z, d, a: an };
+      }
+    }
+    if (best) { x += best.dx; z += best.dz; ang = best.a ?? ang; }
+    return { x, z, a: ang, ok: this.fenceFree(x, z, ang) };
+  }
+  /** nothing in the way of a fence piece: no building, tree, rock, field, other fence; inside the farm */
+  private fenceFree(x: number, z: number, a: number) {
+    const F = this.cfg.lumber.fence, box = this.hof.fenceBox({ x, z, a }), H = this.cfg.hof;
+    if (this.s.lumber.fences.length >= F.max) return false;
+    const ux = Math.cos(a), uz = -Math.sin(a);
+    for (let k = -2; k <= 2; k++) {
+      const t = k / 2 * (F.length / 2 - .05), px = x + ux * t, pz = z + uz * t;
+      for (const o of this.hof.near(px, pz, .2)) {
+        if (o.id === 'fence') { if (k !== -2 && k !== 2 && obsDist(o, px, pz) < .02) return false; continue; }
+        if (obsDist(o, px, pz) < F.depth / 2 + .02) return false;
+      }
+      const c = this.hof.collide(px, pz, .01, true); if (Math.hypot(c.x - px, c.z - pz) > .05) return false; // outside the farm
+      for (let i = 0; i < H.plots.length; i++) if (this.s.plots[i]?.open && dist(px, pz, H.plots[i].x, H.plots[i].z) < this.cfg.plots.size / 2 * .8) return false;
+    }
+    void box; return true;
+  }
+  /** F: a fence piece from the storage goes up in front of the farmer */
+  private placeFence(P: Player) {
+    const s = this.s, C = this.cfg.lumber; if (!C) return;
+    const out = C.bench.out;
+    if (count(s, out) < 1) { this.ev.push({ k: 'deny', why: 'need', need: { [out]: 1 } }); return; }
+    const sp = this.fenceSpot(P);
+    if (!sp.ok) { this.ev.push({ k: 'deny', why: 'place', x: sp.x, z: sp.z, a: sp.a }); return; }
+    const L = s.lumber, f = { id: L.seq++, x: sp.x, z: sp.z, a: sp.a, hp: C.fence.hp };
+    L.fences.push(f); L.rev++; addItem(this.cfg, s, out, -1); this.hof.syncLumber(L);
+    // whoever stands where the fence goes is pushed aside
+    for (const a of this.animals) { const o = this.hof.fenceObs.get(f.id); if (o) { const q = this.hof.collide(a.x, a.z, this.cfg.animals[a.type].radius, false); a.x = q.x; a.z = q.z; } a.route = null; }
+    this.ev.push({ k: 'fencePlace', id: f.id, x: f.x, z: f.z, a: f.a, n: count(s, out) });
+  }
+  /** an animal bites a fence piece: at 0 HP it breaks */
+  private biteFence(a: Animal, fid: number) {
+    const L = this.s.lumber, i = L.fences.findIndex(f => f.id === fid); if (i < 0) { a.fence = undefined; return; }
+    const f = L.fences[i], F = this.cfg.lumber.fence;
+    f.hp -= (F.bite[a.type] ?? 1) * a.dmgMul;
+    this.ev.push({ k: 'fenceHit', id: f.id, x: f.x, z: f.z, hp: f.hp / F.hp, type: a.type });
+    if (f.hp <= 0) { L.fences.splice(i, 1); L.rev++; this.hof.syncLumber(L); a.fence = undefined; a.route = null; this.ev.push({ k: 'fenceBroken', id: f.id, x: f.x, z: f.z, a: f.a }); }
+  }
+  /** fences (22.11.2026): the way to (x, z) with fences is far longer than without them (lumber.fence.detour) or there is none:
+   *  the fence piece on the short way is attacked instead. Returns its id (null = walk round) */
+  private fenceInWay(a: Animal, x: number, z: number, withF: { x: number; z: number }[] | null): number | null {
+    const N = this.nav, F = this.cfg.lumber?.fence; if (!F || !this.s.lumber?.fences.length) return null;
+    let base: { x: number; z: number }[] | null;
+    if (N.los(a.x, a.z, x, z, true)) base = [{ x, z }];
+    else { if (this.navBudget <= 0) return null; this.navBudget--; base = N.path(a.x, a.z, x, z, 40000, true); }
+    if (!base) return null; // no way even without fences: not the fences' fault
+    if (withF && pathLen(a.x, a.z, withF) <= pathLen(a.x, a.z, base) + F.detour) return null;
+    // the first fence piece on the short way
+    let px = a.x, pz = a.z;
+    for (const q of base) {
+      const d = dist(px, pz, q.x, q.z), n = Math.max(1, Math.ceil(d / .25));
+      for (let k = 1; k <= n; k++) {
+        const sx = px + (q.x - px) * k / n, sz = pz + (q.z - pz) * k / n;
+        for (const o of this.hof.near(sx, sz, .5)) if (o.id === 'fence' && obsDist(o, sx, sz) < .45) return (o as Obb).fid ?? null;
+      }
+      px = q.x; pz = q.z;
+    }
+    return null;
+  }
   private collectT = 0;
   /** every harvest.tick s: fruits on the ground within harvest.collect of a farmer are collected, 3 alike merge into a bigger one */
   private collectTick() {
@@ -634,7 +804,7 @@ export class DaySim {
       if (p.stage === 'empty' || p.stage === 'done' || (p.stage === 'sown' && !p.crop)) { this.replant(i, p.plan); return; }
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
-        if (!p.crop || this.nightOn) return; // crops grow by day only
+        if (!p.crop || (this.nightOn && !this.cfg.night.crops)) return; // crops grow by day (and at night with night.crops)
         const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p);
         if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); p.acc = {}; this.ev.push({ k: 'plotRipe', i }); }
       }
@@ -666,6 +836,8 @@ export class DaySim {
       P.goal = null; P.crouch = false; P.rest = 0; P.after = null;
       this.attack(it);
     }
+    // --- F / fence button: a fence piece in front of the farmer
+    if (it.fence && !P.swing) this.placeFence(P);
     // --- left click / action button pressed: act now if close enough, else walk there first
     if (it.act && !P.swing && !(P.action && sameTarget(P.action.target, it.act))) {
       const a = this.actionFor(it.act);
@@ -704,7 +876,7 @@ export class DaySim {
     }
     const swinging = !!P.swing && P.swing.t < this.cfg.weapons.rake.swing;
     // harvest experiment: steering away stops the field harvest (the fruits so far lie on the ground)
-    if (P.action?.info.kind === 'harvestPlot' && steering) { this.cancelAction(); P.held = false; P.crouch = false; }
+    if (P.action && CONT_ACTIONS.has(P.action.info.kind) && steering) { this.cancelAction(); P.held = false; P.crouch = false; }
     // harvesting pauses the walk; it goes on by itself when the harvest is done or the button is let go
     if (P.action && !P.action.go && HARVEST_ACTIONS.has(P.action.info.kind)) { mx = 0; mz = 0; }
     const base = P.action?.go && !steering ? C.speed : P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
@@ -734,6 +906,8 @@ export class DaySim {
     if (P.action) {
       const A = P.action, tp = this.facePoint(A.target, A.info.kind); P.f = angTo(P.x, P.z, tp.x, tp.z);
       if (A.info.kind === 'harvestPlot') this.harvestTick(A, dt); // harvest experiment: continuous, no bar
+      else if (A.info.kind === 'chop') this.chopTick(A, dt);
+      else if (A.info.kind === 'craft') this.craftTick(A, dt);
       else { A.t += dt; if (A.go) A.t = Math.min(A.t, A.info.dur * .9); } // the bar runs from the press on, the step lands once in place
       if (P.action && A.t >= A.info.dur) {
         // Basti 22.11.2026: after every step back to the idle pose (stand up), short pause, then the next step on the same spot
@@ -813,8 +987,8 @@ export class DaySim {
   /** the point the player looks at while working (nearest point of a building, the spot of ground work) */
   facePoint(t: Target, kind?: ActionKind) {
     if (kind && this.low(t, { kind } as ActionInfo)) return this.workPoint(t, kind);
-    if (t.k === 'bld' || t.k === 'stall') {
-      const o = this.hof.building(t.id), P = this.player;
+    if (t.k === 'bld' || t.k === 'stall' || t.k === 'bench' || t.k === 'fence') {
+      const o = this.boxOf(t), P = this.player;
       if (o && o.kind === 'box') { const dx = P.x - o.x, dz = P.z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c, cx = Math.max(-o.hw, Math.min(o.hw, lx)), cz = Math.max(-o.hd, Math.min(o.hd, lz)); return { x: o.x + cx * o.c + cz * o.s, z: o.z - cx * o.s + cz * o.c }; }
     }
     return this.targetPos(t);
@@ -859,6 +1033,7 @@ export class DaySim {
         break;
       }
       case 'harvestBush': this.pickBush(); break;
+      case 'unfence': if (t.k === 'fence') { const L = s.lumber, i = L.fences.findIndex(f => f.id === t.id); if (i >= 0) { const f = L.fences[i]; L.fences.splice(i, 1); L.rev++; this.hof.syncLumber(L); addItem(cfg, s, cfg.lumber.bench.out, 1); this.ev.push({ k: 'fenceGone', id: f.id, x: f.x, z: f.z, a: f.a }); this.ev.push({ k: 'store', item: cfg.lumber.bench.out, n: 1, x: f.x, z: f.z }); } } break;
       case 'refill': this.can = Math.min(cfg.can.capacity, this.can + cfg.can.perFill); break; // 21.11.2026: +2 per filling, never above capacity
       case 'draw': addItem(cfg, s, 'water', 1); this.ev.push({ k: 'store', item: 'water', n: 1, x: tp.x, z: tp.z }); break;
       case 'gather': if (t.k === 'forage') { const w = s.wild, i = w.forage.findIndex(f => f.id === t.id); if (i >= 0) { const f = w.forage[i]; f.n = (f.n ?? 1) - 1; if (f.n <= 0) w.forage.splice(i, 1); this.store(f.k, 1, f); this.harvestXp(otherXp(cfg, f.k, cfg.wild.forage.plants?.[f.k]?.picks ?? 1), f); } } break;
@@ -1052,18 +1227,32 @@ export class DaySim {
     this.plan = this.plan.filter(p => p.night);
     for (const a of this.animals) if (!a.night && !a.gone) { a.driven = true; this.flee(a); } // no XP: they just leave
     if (warn) this.planNight(); // (a save made at night keeps its plan)
-    this.waves = this.cfg.night.waves.map(w => this.length + w.at);
+    this.waves = waveWindows(this.cfg, this.nightLv).map(w => this.length + w.from);
     if (warn) this.ev.push({ k: 'nightfall' });
   }
+  /** average level of everyone on the farm (guests bring their own level) */
+  private avgLevel() {
+    const lv = this.players.map(P => P.guest ? (P.level ?? this.s.level) : this.s.level);
+    return lv.reduce((a, b) => a + b, 0) / Math.max(1, lv.length);
+  }
+  /** the night (Basti 22.11.2026): waves that swell and ebb, each stronger than the last, single animals in between;
+   *  strength follows the average level, co-op = coop.nightFactor x the animals */
   private planNight() {
+    this.nightLv = this.avgLevel();
     const gaps = this.hof.gaps.length; if (!gaps) return;
-    // co-op: more farmers, more animals (count x players ^ coop.nightCountExp, HP stay the same)
-    const k = Math.pow(Math.max(1, this.players.length), this.cfg.coop?.nightCountExp ?? .5), more = (n: number) => n > 0 ? Math.max(1, Math.round(n * k)) : 0;
-    nightPlan(this.cfg, this.s.day, this.s.level).map(w => ({ ...w, raccoon: more(w.raccoon), hare: more(w.hare) })).forEach((w, wave) => {
-      const at = this.length + w.at, g1 = this.hof.pickGap(), g2 = this.hof.pickGap();
-      for (let i = 0; i < w.raccoon; i++) this.plan.push({ at: at + i * .8, type: 'raccoon', gap: g1, night: true, wave });
-      for (let i = 0; i < w.hare; i++) this.plan.push({ at: at + .4 + i * .7, type: 'hare', gap: g2, night: true, wave });
+    const N = this.cfg.night, mul = this.players.length > 1 ? (this.cfg.coop?.nightFactor ?? 2) : 1, L = this.length;
+    const waves = nightPlan(this.cfg, this.nightLv, mul);
+    waves.forEach((w, wave) => {
+      // the animals of a wave come through two gaps; types mixed, spread over the window like a swell
+      const g = [this.hof.pickGap(), this.hof.pickGap()], n = w.hare + w.raccoon;
+      const types = Array.from({ length: n }, (_, k) => Math.floor((k + 1) * w.raccoon / n) > Math.floor(k * w.raccoon / n) ? 'raccoon' as const : 'hare' as const);
+      types.forEach((type, k) => this.plan.push({ at: L + w.from + (w.to - w.from) * swell(k, n), type, gap: g[k % 2], night: true, wave }));
     });
+    // between the waves (not before the first): now and then a single animal (co-op: more often)
+    for (let i = 1; i < waves.length; i++) {
+      for (let t = waves[i - 1].to + rnd(...N.trickle.every) / mul; t < waves[i].from + 2; t += rnd(...N.trickle.every) / mul)
+        this.plan.push({ at: L + t, type: Math.random() < N.trickle.raccoon ? 'raccoon' : 'hare', gap: this.hof.pickGap(), night: true, wave: -1 });
+    }
     this.plan.sort((a, b) => a.at - b.at);
   }
   /** a hare picks a field to eat: fields with a crop first, near ones first (not broken ones) */
@@ -1189,9 +1378,9 @@ export class DaySim {
     while (this.plan.length && this.plan[0].at <= this.t) {
       const g = this.plan.shift()!;
       if (g.night) {
-        const N = this.cfg.night, L = this.s.level - 1, hp = N[g.type].hp * (1 + this.cfg.spawns.scaling.hp * L);
-        const w = g.wave ?? 0; if (!this.waveSeen.has(w)) { this.waveSeen.add(w); const o = this.hof.gapOut(g.gap); this.ev.push({ k: 'wave', n: w + 1, x: o.x, z: o.z }); }
-        this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0 });
+        const N = this.cfg.night, S = this.cfg.spawns.scaling, L = Math.max(0, this.nightLv - 1), hp = N[g.type].hp * (1 + S.hp * L);
+        const w = g.wave ?? 0; if (w >= 0 && !this.waveSeen.has(w)) { this.waveSeen.add(w); const o = this.hof.gapOut(g.gap); this.ev.push({ k: 'wave', n: w + 1, x: o.x, z: o.z }); }
+        this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0, speedMul: 1 + S.speed * L, dmgMul: 1 + S.damage * L });
         continue;
       }
       if (this.nightOn) continue; // day animals do not come at night
@@ -1259,14 +1448,24 @@ export class DaySim {
   }
   /** next point to steer at on the way to (x, z): straight when the line is free, else along an A* route (re-planned
    *  when the goal moves, after getting stuck or every few seconds). null = no way (straight + collision as before) */
-  private steer(a: Animal, x: number, z: number, dt: number): { x: number; z: number; end: boolean } | null {
+  private steer(a: Animal, x: number, z: number, dt: number): { x: number; z: number; end: boolean; fence?: number } | null {
     const N = this.nav; let R = a.route;
     if (R) R.t += dt;
-    const replan = !R || Math.hypot(R.gx - x, R.gz - z) > .75 || R.t > 6 || (a.stuck > .4 && R.t > .5);
+    // fences (22.11.2026): a new / broken fence makes every animal look for its way again (spread over the frames by navBudget)
+    const replan = !R || Math.hypot(R.gx - x, R.gz - z) > .75 || R.t > 6 || (a.stuck > .4 && R.t > .5) || (R.rev !== undefined && R.rev !== this.hof.rev);
     if (replan) {
-      if (N.free(x, z) && N.los(a.x, a.z, x, z)) R = a.route = { gx: x, gz: z, pts: [], t: 0, none: false };
-      else if (this.navBudget > 0) { this.navBudget--; const p = N.path(a.x, a.z, x, z); R = a.route = { gx: x, gz: z, pts: p ?? [], t: 0, none: !p }; }
+      if (N.free(x, z) && N.los(a.x, a.z, x, z)) { R = a.route = { gx: x, gz: z, pts: [], t: 0, none: false, rev: this.hof.rev }; a.fence = undefined; }
+      else if (this.navBudget > 0) {
+        this.navBudget--; const p = N.path(a.x, a.z, x, z), fid = this.fenceInWay(a, x, z, p);
+        a.fence = fid ?? undefined; R = a.route = { gx: x, gz: z, pts: p ?? [], t: 0, none: !p && fid === null, rev: this.hof.rev };
+      }
       else if (!R) return null; // too many searches this frame: keep going straight for one frame
+    }
+    if (a.fence !== undefined) {
+      const o = this.hof.fenceObs.get(a.fence);
+      if (!o) { a.fence = undefined; a.route = null; return null; }
+      const q = toLocal(o, a.x, a.z), w = toWorld(o, clampN(q.lx, -o.hw, o.hw), clampN(q.lz, -o.hd, o.hd));
+      return { x: w.x, z: w.z, end: false, fence: a.fence };
     }
     if (!R || R.none) return null;
     // corner reached (or already in sight of the next one): on to the next
@@ -1284,6 +1483,15 @@ export class DaySim {
     let tx = x, tz = z;
     if (!ghost) {
       const w = this.steer(a, x, z, dt);
+      if (w && w.fence !== undefined) { // the way round is too long: bite through the fence
+        const o = this.hof.fenceObs.get(w.fence), R = this.cfg.animals[a.type].radius;
+        if (o && obsDist(o, a.x, a.z) <= R + .2) {
+          a.f = angTo(a.x, a.z, w.x, w.z); a.stuck = 0;
+          a.fenceT = (a.fenceT ?? .35) - dt;
+          if (a.fenceT <= 0 && a.stun <= 0) { a.fenceT = this.cfg.lumber.fence.biteEvery; this.biteFence(a, w.fence); }
+          return false;
+        }
+      }
       if (w) { tx = w.x; tz = w.z; a.detour = null; if (w.end && dist(a.x, a.z, x, z) < 1.4 && a.stuck > .25) return true; } // goal inside an obstacle (bush): as close as it gets
       else if (pass) ghost = true;
     }
@@ -1436,7 +1644,7 @@ export class DaySim {
     return {
       t: this.t, player: { x: P.x, z: P.z, f: P.f, hp: P.hp }, got: c(this.got), lost: c(this.lost), driven: this.driven, xpGained: this.xpGained,
       stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
-      plan: c(this.plan), half: this.half, rain: c(this.rain), loot, taken: c(this.taken), broken: this.broken,
+      plan: c(this.plan), half: this.half, rain: c(this.rain), loot, taken: c(this.taken), broken: this.broken, nightLv: this.nightLv,
     };
   }
   restore(d: DaySnap) {
@@ -1448,7 +1656,7 @@ export class DaySim {
     if (d.brambles?.length === this.brambles.length) this.brambles = d.brambles;
     this.plan = d.plan ?? []; this.half = d.half ?? 0; this.rain = d.rain ?? null;
     for (const l of d.loot ?? []) this.loot.push({ id: this.nid++, item: l.item, x: l.x, z: l.z, y: 0, vx: 0, vz: 0, vy: 0, t: 99, fresh: l.fresh, n: l.n });
-    this.taken = d.taken ?? {}; this.broken = d.broken ?? 0;
+    this.taken = d.taken ?? {}; this.broken = d.broken ?? 0; this.nightLv = d.nightLv ?? this.s.level;
     // saved at night: the night goes on without a new warning (the animals that were on the farm are not kept, the waves still to come are)
     if (this.nightLen > 0 && this.t >= this.length) { this.startNight(false); for (let w = 0; w < this.waves.length; w++) if (this.waves[w] <= this.t) this.waveSeen.add(w); }
   }

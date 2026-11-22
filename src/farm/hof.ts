@@ -4,7 +4,7 @@ import { MODEL } from '../world/catalog';
 import type { PropRec } from '../world/data';
 import { Logic, Pt, centroid, closestOnPoly, inPoly, radial, splinePoly } from '../world/logic';
 
-export interface Obb { kind: 'box'; x: number; z: number; hw: number; hd: number; c: number; s: number; id?: string }
+export interface Obb { kind: 'box'; x: number; z: number; hw: number; hd: number; c: number; s: number; id?: string; /** fence piece (lumber.fences id) */ fid?: number }
 export interface Circ { kind: 'circle'; x: number; z: number; r: number; id?: string }
 /** convex outline in world space (rocks): pts = x0, z0, x1, z1 ... counter-clockwise or clockwise; x/z/r = bounding circle */
 export interface Poly { kind: 'poly'; x: number; z: number; r: number; pts: Float32Array; id?: string }
@@ -124,6 +124,26 @@ export class Hof {
   private bldObs = new Map<BuildingId, Obstacle>();
   /** goes up whenever the set of obstacles changes (caches of other code compare it) */
   rev = 0;
+  /** obstacles that come and go during play (yard trees, fences): the walk grid is patched there instead of baked again */
+  navPatches: { rev: number; x: number; z: number; r: number }[] = [];
+  addDyn(o: Obstacle) { this.obstacles.push(o); this.rev++; this.navPatches.push({ rev: this.rev, x: o.x, z: o.z, r: boundR(o) }); if (this.navPatches.length > 400) this.navPatches.splice(0, 200); }
+  removeDyn(o: Obstacle) { const i = this.obstacles.indexOf(o); if (i < 0) return; this.obstacles.splice(i, 1); this.rev++; this.navPatches.push({ rev: this.rev, x: o.x, z: o.z, r: boundR(o) }); if (this.navPatches.length > 400) this.navPatches.splice(0, 200); }
+  /** wood + fences (22.11.2026): the yard trees that stand, the workbench, every fence piece */
+  treeObs: Circ[] = []; benchObs: Obb | null = null; fenceObs = new Map<number, Obb>(); private lumberRev = -1;
+  /** a fence piece as an obstacle (box along its angle) */
+  fenceBox(f: { id?: number; x: number; z: number; a: number }): Obb {
+    const F = this.cfg.lumber.fence; return { kind: 'box', x: f.x, z: f.z, hw: F.length / 2, hd: F.depth / 2, c: Math.cos(f.a), s: Math.sin(f.a), id: 'fence', fid: f.id };
+  }
+  /** make the obstacles match the trees + fences of the farm state (cheap when nothing changed); true = changed */
+  syncLumber(L: { trees: { fell: number; sap: number }[]; fences: { id: number; x: number; z: number; a: number }[]; rev: number } | undefined) {
+    if (!L || !this.cfg.lumber || L.rev === this.lumberRev) return false;
+    this.lumberRev = L.rev;
+    this.treeObs.forEach((o, i) => { const up = !(L.trees[i] && (L.trees[i].fell > 0 || L.trees[i].sap > 0)), on = this.obstacles.includes(o); if (up && !on) this.addDyn(o); else if (!up && on) this.removeDyn(o); });
+    const ids = new Set(L.fences.map(f => f.id));
+    for (const [id, o] of this.fenceObs) if (!ids.has(id)) { this.removeDyn(o); this.fenceObs.delete(id); }
+    for (const f of L.fences) if (!this.fenceObs.has(f.id)) { const o = this.fenceBox(f); this.fenceObs.set(f.id, o); this.addDyn(o); }
+    return true;
+  }
   /** buildings that are only there when built (world editor logic) */
   get hideUnbuilt() { return !!this.logic; }
   /** tell the farm which buildings stand; returns true when the obstacles changed */
@@ -172,6 +192,11 @@ export class Hof {
     if (L) this.setBuilt(id => !!cfg.buildings[id]?.built);   // until the game says which ones stand: the yaml start (house, well)
     for (const t of H.trees) this.obstacles.push({ kind: 'circle', x: t.x, z: t.z, r: .45, id: 'tree' });
     this.obstacles.push({ kind: 'circle', x: H.bush.x, z: H.bush.z, r: cfg.bush.radius ?? .8, id: 'bush' });
+    if (cfg.lumber) { // wood + fences: yard trees (stand until chopped) and the workbench
+      this.treeObs = cfg.lumber.trees.map(t => ({ kind: 'circle', x: t.x, z: t.z, r: cfg.lumber.radius, id: 'lumber' }));
+      this.obstacles.push(...this.treeObs);
+      const B = cfg.lumber.bench; this.benchObs = obstacleOf({ x: B.x, z: B.z, w: B.w, d: B.d, rot: B.rot }, 'bench') as Obb; this.obstacles.push(this.benchObs);
+    }
     // objects placed in the world editor: trees, rocks, fences on the farm block the way (not in the forest ring, the animals come through there)
     // 21.11.2026: with a world from the editor everything solid blocks, also in the forest: the animals find the entrances (nav.ts)
     for (const p of cfg.world?.props ?? []) { const o = propObstacle(p); if (o && (L || this.ellipse(p.x, p.z) < .97)) this.obstacles.push(o); }

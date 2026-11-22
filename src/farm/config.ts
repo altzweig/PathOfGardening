@@ -14,9 +14,9 @@ export type StallId = 'cows' | 'sheep' | 'chickens';
 export const STALL_IDS: StallId[] = ['cows', 'sheep', 'chickens'];
 export type Livestock = 'cow' | 'sheep' | 'goat' | 'chicken';
 export type AnimalType = 'raccoon' | 'hare';
-export type ActionKind = 'repair' | 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce';
+export type ActionKind = 'repair' | 'water' | 'sow' | 'weed' | 'fertilize' | 'harvestPlot' | 'harvestBush' | 'refill' | 'draw' | 'gather' | 'weedHof' | 'pickWild' | 'shake' | 'feed' | 'straw' | 'milk' | 'eggs' | 'produce' | 'chop' | 'craft' | 'unfence';
 /** handrake = kleine einhändige Handharke (Jäten, Notwaffe), 21.11.2026 */
-export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket';
+export type Tool = 'can' | 'handrake' | 'seed' | 'hands' | 'sickle' | 'bucket' | 'axe';
 export interface ActionCfg { time: number; label: string; repeat?: boolean }
 
 /** Taler + goods */
@@ -36,6 +36,15 @@ export type Rarity = 'Common' | 'Uncommon' | 'Rare';
 export interface CropCfg { /** shown over the field (21.11.2026) */ name?: string; rarity: Rarity; grow: number; every: number; harvest?: number; sound?: string; /** old (before the experiment) */ cuts?: number; yield: Record<ItemId, number> }
 /** continuous harvest: collecting + merging of the fruits on the ground */
 export interface HarvestCfg { tick: number; collect: number; settle: number; throw: [number, number]; up: [number, number]; merge: number; mergeRadius: number; xp: number; overhead: number }
+/** wood + fences (Basti 22.11.2026): trees in the yard are chopped (continuous, wood drops like a harvest), notch -> fall ->
+ *  the trunk splits, a sapling grows between the halves; fences are made at the workbench and placed with F */
+export interface LumberCfg {
+  trees: { x: number; z: number; s?: number }[]; radius: number;
+  /** s of chopping until the tree falls, one piece of wood every `every` s */ chop: number; every: number; yield: Record<ItemId, number>;
+  fall: number; sapling: number; xp: number;
+  bench: { x: number; z: number; rot?: number; w: number; d: number; every: number; cost: Record<ItemId, number>; out: ItemId };
+  fence: { length: number; depth: number; hp: number; place: number; snap: number; max: number; detour: number; bite: Record<string, number>; biteEvery: number };
+}
 /** a section of the storage page in the house book (balancing.yaml storage.sections) */
 export interface StoreSection { id: string; title: string; items: ItemId[] }
 export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: number; workWeight: number; div: number; rarity: Record<Rarity, number>; other: Record<ItemId, { rarity: Rarity; water?: boolean }> }
@@ -53,10 +62,12 @@ export function rollHerbs(H: HerbsCfg | undefined, r: () => number = Math.random
 export interface PerennialCfg { every: number; picks: number; shake: number }
 export type TreeKind = 'apple' | 'nut';
 /** night attack after every day (Basti 21.11.2026): waves of aggressive hares (eat the fields) and raccoons (rob the player) */
-export interface NightWave { at: number; hare?: number; raccoon?: number }
+/** pacing of the night (Basti 22.11.2026): calm start, then 3-5 waves that swell and ebb, every one stronger; single animals in between */
+export interface NightWaves { count: [number, number]; countEvery: number; first: number; grow: number; perLevel: number; raccoon: number; end: number; gap: number; width: [number, number] }
 export interface NightCfg {
   length: number; dusk: number; warn: number; light: [number, number]; flee: number;
-  waves: NightWave[]; grow: number; max: { base: number; perLevel: number };
+  /** fields grow on at night (harvest between the waves) */ crops?: boolean; calm: number;
+  waves: NightWaves; trickle: { every: [number, number]; raccoon: number };
   hare: { hp: number; speed: number; biteInterval: number; plotDamage: number; xp: number };
   raccoon: { hp: number; speed: number; damage: number; biteInterval: number; steal: number; bites: number; xp: number };
   plotHp: number; brokenShow: number;
@@ -71,13 +82,15 @@ export interface DailyQuestCfg { slots: SlotCfg; load: number; cycle: number; ob
 export interface ShopCfg { slots: SlotCfg; rate: number; craft: number; demand: number; spread: number; sale: { price: number; demand: number }; premium: { price: number; demand: number }; prices: Record<ItemId, number>; base: number }
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
-  day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
+  day: { length: number; /** s of harvest work per day (orders, yield per day): day + the quiet parts of the night */ work?: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
   player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; turnWithCam?: number; hover: number; /** interaction zone m from the edge / of small things (forage, weeds) from their middle */ zone?: number; zoneSmall?: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
   harvest: HarvestCfg;
+  /** wood + fences (22.11.2026) */
+  lumber: LumberCfg;
   harvestXp: HarvestXpCfg;
   plots: { size: number; /** m from the middle: interaction zone of a field (overlaps the neighbours a little) */ zone?: number; /** field info (bar, time, name) only close by: m full / m gone / s fade */ info?: { near: number; far: number; fade: number }; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
   wild: { weeds: { start: number; max: number; every: [number, number] }; /** wild herbs: weeds, wild garlic, dandelion, sorrel in one tuft (the yard weeds) */ herbs?: HerbsCfg; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
@@ -103,7 +116,7 @@ export interface FarmCfg {
   faint: { loseHarvest: boolean; breakFields: boolean };
   night: NightCfg;
   /** co-op visits (Basti 22.11.2026): guests help on the farm, the yield goes to the farm, XP to whoever does the work */
-  coop?: { maxPlayers: number; koTime: number; hostShare: number; nightCountExp: number; messages?: string[] };
+  coop?: { maxPlayers: number; koTime: number; hostShare: number; /** co-op: so many times the animals at night (Basti 22.11.2026: 2) */ nightFactor: number; messages?: string[] };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   /** farm shop in the house book (Basti 22.11.2026) */
@@ -176,20 +189,36 @@ export const otherXp = (cfg: FarmCfg, item: ItemId, cuts: number) => {
 export const treeKind = (cfg: FarmCfg, i: number): TreeKind => { const t = cfg.wild.trees?.length ? cfg.wild.trees : ['apple' as TreeKind]; return t[i % t.length]; };
 export const treeCfg = (cfg: FarmCfg, i: number): PerennialCfg => treeKind(cfg, i) === 'nut' ? (cfg.wild.nuts ?? cfg.wild.apples) : cfg.wild.apples;
 
-/** the animals of one night: waves of night 1 from the yaml, every further night `grow` more per wave (raccoon, hare, raccoon ...),
- *  but never more than max.base + max.perLevel x (level - 1) in the whole night, so a low level never gets too hard */
-export function nightPlan(cfg: FarmCfg, night: number, level: number): { at: number; hare: number; raccoon: number }[] {
-  const N = cfg.night, extra = Math.max(0, Math.round(N.grow * (Math.max(1, night) - 1)));
-  const waves = N.waves.map(w => ({ at: w.at, hare: (w.hare ?? 0) + Math.floor(extra / 2), raccoon: (w.raccoon ?? 0) + Math.ceil(extra / 2) }));
-  const cap = Math.max(waves.length, N.max.base + N.max.perLevel * Math.max(0, level - 1));
-  let total = waves.reduce((n, w) => n + w.hare + w.raccoon, 0);
-  while (total > cap) { // take from the biggest wave (the type it has more of), every wave keeps at least one animal
-    const w = waves.reduce((a, b) => (b.hare + b.raccoon >= a.hare + a.raccoon ? b : a));
-    if (w.hare + w.raccoon <= 1) break;
-    if (w.raccoon > w.hare) w.raccoon--; else w.hare--;
-    total--;
-  }
-  return waves;
+/** s of harvest work in one day (orders, yield per field and day): day.work, else the day length */
+export const workSec = (cfg: FarmCfg) => cfg.day.work ?? cfg.day.length;
+
+/** night pacing (Basti 22.11.2026): count of waves at a level (count[0], +1 every countEvery levels, at most count[1]) */
+export const waveCount = (cfg: FarmCfg, level: number) => {
+  const W = cfg.night.waves; return Math.min(W.count[1], W.count[0] + Math.floor(Math.max(0, level - 1) / Math.max(1, W.countEvery)));
+};
+/** time windows of the waves (s after nightfall): from `calm` to length - end, `gap` s quiet between two waves (single animals),
+ *  the rest shared by weight width[0] (first wave) .. width[1] (last wave): later waves last longer */
+export function waveWindows(cfg: FarmCfg, level: number): { from: number; to: number }[] {
+  const N = cfg.night, W = N.waves, n = waveCount(cfg, level), a = N.calm, b = N.length - W.end;
+  const wt = Array.from({ length: n }, (_, i) => W.width[0] + (W.width[1] - W.width[0]) * (n > 1 ? i / (n - 1) : 0));
+  const k = Math.max(0, b - a - W.gap * (n - 1)) / wt.reduce((x, y) => x + y, 0);
+  let t = a;
+  return wt.map(w => { const r = { from: t, to: t + w * k }; t = r.to + W.gap; return r; });
+}
+/** where in a window the k-th of n animals comes: density sin^2 (swells, peaks in the middle, ebbs) - inverse of t - sin(2 pi t) / 2 pi */
+export function swell(k: number, n: number) {
+  const u = (k + .5) / n; let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (m - Math.sin(2 * Math.PI * m) / (2 * Math.PI) < u) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+/** the animals of one night: per wave first x (1 + grow x wave) x (1 + perLevel x (level - 1)) x co-op factor,
+ *  a share raccoons, the rest hares; level = average level of all farmers */
+export function nightPlan(cfg: FarmCfg, level: number, mul = 1): { from: number; to: number; hare: number; raccoon: number }[] {
+  const W = cfg.night.waves, lv = 1 + W.perLevel * Math.max(0, level - 1);
+  return waveWindows(cfg, level).map((win, i) => {
+    const n = Math.max(1, Math.round(W.first * (1 + W.grow * i) * lv * mul)), raccoon = Math.round(n * W.raccoon);
+    return { ...win, raccoon, hare: n - raccoon };
+  });
 }
 
 /** open slots at a level: none below slots.level (default 1), then start, +1 at first, first + every, ... (Basti 22.11.2026) */

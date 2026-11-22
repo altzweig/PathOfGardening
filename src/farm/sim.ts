@@ -878,7 +878,7 @@ export class DaySim {
     if (o.stun) a.stun = Math.max(a.stun, o.stun);
     if (o.freeze) a.freeze = Math.max(a.freeze, o.freeze);
     if (o.knock) { const l = dist(a.x, a.z, o.fromX, o.fromZ) || 1; const c = this.hof.collide(a.x + (a.x - o.fromX) / l * o.knock, a.z + (a.z - o.fromZ) / l * o.knock, this.cfg.animals[a.type].radius, false); a.x = c.x; a.z = c.z; }
-    this.ev.push({ k: 'hit', id: a.id, x: a.x, z: a.z, type: a.type, frozen: !!o.freeze });
+    this.ev.push({ k: 'hit', id: a.id, x: a.x, z: a.z, type: a.type, frozen: !!o.freeze, last: a.hp <= 0 && !a.driven });
     if (a.carryN > 0) this.dropCarry(a);
     if (a.state === 'script') return;
     if (a.night) { // the attackers of the night only leave when their HP are gone (Basti 21.11.2026)
@@ -1077,7 +1077,7 @@ export class DaySim {
       const g = this.plan.shift()!;
       if (g.night) {
         const N = this.cfg.night, L = this.s.level - 1, hp = N[g.type].hp * (1 + this.cfg.spawns.scaling.hp * L);
-        const w = g.wave ?? 0; if (!this.waveSeen.has(w)) { this.waveSeen.add(w); this.ev.push({ k: 'wave', n: w + 1 }); }
+        const w = g.wave ?? 0; if (!this.waveSeen.has(w)) { this.waveSeen.add(w); const o = this.hof.gapOut(g.gap); this.ev.push({ k: 'wave', n: w + 1, x: o.x, z: o.z }); }
         this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0 });
         continue;
       }
@@ -1306,7 +1306,7 @@ export class DaySim {
     if (!this.up(P)) return;
     P.hp = Math.max(0, P.hp - dmg); P.hurt = .35; P.stun = this.cfg.player.hurtStun;
     if (P.action) this.as(P, () => this.cancelAction());
-    this.ev.push({ k: 'hurt', x: P.x, z: P.z, dmg, from: from?.id, pid: P.id });
+    this.ev.push({ k: 'hurt', x: P.x, z: P.z, dmg, from: from?.id, type: from?.type, pid: P.id });
   }
   /** ripe plots carry their main yield as "yieldLeft" (animals can eat it) */
   /** save during the day: what is needed to go on from here */

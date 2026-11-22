@@ -9,8 +9,8 @@ import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio,
 import { StartMenu } from './ui/startmenu';
 import { creditsHtml } from './ui/credits';
 import { loadLook } from './look';
-import { FarmCfg, loadFarmCfg, loadSounds } from './farm/config';
-import { FarmState, checkQuests, endDay, morningWeeds, newState, nextDay } from './farm/state';
+import { FarmCfg, levelFor, loadFarmCfg, loadSounds } from './farm/config';
+import { FarmState, checkQuests, endDay, gainXp, morningWeeds, newState, nextDay } from './farm/state';
 import { SaveMeta, createSave, deleteSave, freeName, listSaves, migrateOldSave, readSave, writeSave } from './farm/saves';
 import type { DaySnap } from './farm/sim';
 import { Hof } from './farm/hof';
@@ -28,10 +28,17 @@ import { faintCutscene } from './farm/cutscene/faint';
 import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
+import { NetGuest, NetHost, Visitor, cleanCode } from './farm/net';
+import { Phase, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
+import type { Ev } from './farm/sim';
 import * as THREE from 'three';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
-const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause'];
+/** co-op guest without a farm (Basti 22.11.2026): figure + level + XP of a wanderer, kept for the next visits */
+const WANDER = 'pog-wanderer-v1';
+const wanderer = (): { level: number; xp: number } => { try { const w = JSON.parse(localStorage.getItem(WANDER) ?? ''); if (w && Number.isFinite(w.xp)) return { level: w.level ?? 1, xp: w.xp }; } catch { /* none yet */ } return { level: 1, xp: 0 }; };
+const saveWanderer = (w: { level: number; xp: number }) => { try { localStorage.setItem(WANDER, JSON.stringify(w)); } catch { /* private mode */ } };
+const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop'];
 const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const esc = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -64,6 +71,22 @@ class Game {
   /** co-op test farmers (console: __pog.bot()) */
   private bots: Bot[] = [];
   private autoT = 0;
+  // ---------------- co-op visits (22.11.2026) ----------------
+  /** this farm is open for visitors */
+  private netHost: NetHost | null = null;
+  /** this device visits someone else's farm */
+  private netGuest: NetGuest | null = null;
+  private asks: Visitor[] = [];
+  private hostEv: Ev[] = []; private snapT = 0; private stT = 0; private lastSt = '';
+  private gEv: Ev[] = []; private gSteer = 0; private gSt = '';
+  /** where the guest comes from: one of its saves (XP go into that farm) or none (wanderer profile, Basti 22.11.2026) */
+  private gFrom: string | null | undefined = undefined;
+  /** guest XP: from its farm / profile at the start, earned on this visit and not booked yet, the farmer's XP of today so far */
+  /** when the last snapshot came (the owner's tab in the background stops his farm: the guest sees an hourglass) */
+  private gLast = 0;
+  private gXp0 = 0; private gGain = 0; private gDayXp = 0; private gClaimed: Set<string> | null = null;
+  /** guests on the farm or visiting: nothing pauses (Basti 22.11.2026) */
+  get coopLive() { return !!this.netHost?.guests.length || !!this.netGuest; }
   /** cutscenes (21.11.2026): the faint scene runs on every faint */
   cut = new CutscenePlayer();
   private cdTick = -1;
@@ -98,6 +121,7 @@ class Game {
     for (let i = 0; i < 3; i++) await new Promise(r => requestAnimationFrame(r));
     await load.finish(this.cfg);
     this.only('#menu');
+    if (this.pendingVisit) this.openVisit(this.pendingVisit);
     await load.fadeOut(this.cfg);
   }
   private only(id: string | null) { for (const o of OVERLAYS) $(o).hidden = o !== id; this.menu.setActive(id === '#menu'); }
@@ -146,11 +170,28 @@ class Game {
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });
     this.house.onSound = k => sfx(k);
-    this.house.onChange = () => { this.view.syncBuildings(); this.persist(false); };
+    this.house.onChange = () => { this.view.syncBuildings(); this.persist(false); this.sendState(true); };
     this.house.onSleep = () => this.sleep();
     this.house.onClose = () => this.closeBook();
     click('#fBook', () => this.toggleBook());
+    // co-op
+    click('#visitBtn', () => this.openVisit(''));
+    click('#visitFrom', () => { const ids = [...listSaves().map(m => m.id), null]; this.gFrom = ids[(ids.indexOf(this.gFrom ?? null) + 1) % ids.length]; this.showFrom(); });
+    click('#visitBack', () => { this.netGuest?.close(); this.netGuest = null; this.only('#menu'); });
+    $('#visitForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); this.join(); });
+    $('#visitCode').addEventListener('keydown', e => e.stopPropagation());
+    $('#visitCode').addEventListener('input', () => { const i = $('#visitCode') as HTMLInputElement; i.value = cleanCode(i.value); });
+    click('#coopBtn', () => this.openCoop());
+    click('#coopBack', () => this.only('#pause'));
+    click('#coopClose', () => { this.closeFarm(); this.only('#pause'); });
+    click('#coopCopy', () => { const u = this.inviteLink(); navigator.clipboard?.writeText(u).then(() => { $('#coopCopy').textContent = 'Kopiert'; setTimeout(() => { $('#coopCopy').textContent = 'Link kopieren'; }, 1500); }).catch(() => prompt('Link', u)); });
+    $('#coopYes').innerHTML = YES_I; $('#coopNo').innerHTML = NO_I;
+    click('#coopYes', () => this.answer(true));
+    click('#coopNo', () => this.answer(false));
+    const code = new URLSearchParams(location.search).get('hof'); if (code) this.pendingVisit = cleanCode(code);
   }
+  /** an invitation link opened the game: the visit screen comes up after loading */
+  private pendingVisit = '';
   private updateOpt() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
     for (const id of ['#sndBtn', '#pSndBtn']) $(id).textContent = 'Ton: ' + (audio.on ? 'An' : 'Aus');
@@ -164,6 +205,7 @@ class Game {
   // ---------------- saves ----------------
   /** writes the current game into its save (also in the middle of a day); `show` = save icon */
   persist(show = true) {
+    if (this.netGuest) this.bookGuestXp(); // a guest keeps its XP of the visit
     if (!this.slot || this.tutorialMode || this.mode === 'menu' || this.ending) return false;
     const snap = this.mode === 'day' && this.sim ? this.sim.snapshot() : null;
     const ok = writeSave(this.slot, this.s, snap);
@@ -241,10 +283,14 @@ class Game {
   }
   private leave() {
     this.persist(false); // a day that is left halfway goes on from here next time
-    if (this.tutorialMode) { // back to the farm of the newest save behind the menu
+    this.house.closeDay();
+    const visited = !this.slot && !this.tutorialMode; // back from someone else's farm (co-op guest)
+    if (this.tutorialMode || visited) { // back to the farm of the newest save behind the menu
       const m = listSaves()[0], d = m ? readSave(this.cfg, m.id) : null;
       this.s = d?.s ?? newState(this.cfg); this.slot = null; this.tutorialMode = false;
     }
+    $('#coopLag').hidden = true;
+    this.closeFarm(); if (this.netGuest) { this.bookGuestXp(); this.netGuest.close(); this.netGuest = null; }
     this.paused = false; this.bookOpen = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
     this.house.showEvening(false);
@@ -254,6 +300,7 @@ class Game {
   /** the house book over the running day (Basti 21.11.2026): pauses the game, Esc / B / the button close it again */
   private toggleBook() {
     if (this.bookOpen) { this.closeBook(); return; }
+    if (this.netGuest && this.mode === 'evening' && !this.paused) { this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); return; }
     if (this.mode !== 'day' || !this.sim || this.ending || this.paused || this.tut || this.cut.active) return;
     this.bookOpen = true; this.paused = true;
     this.input.releaseAll(); this.input.unlock();
@@ -272,6 +319,7 @@ class Game {
     this.paused = !this.paused; this.only(this.paused ? '#pause' : null); if (this.paused) { this.updateOpt(); this.input.releaseAll(); this.input.unlock(); }
     else if (this.mode === 'day') this.input.lock(); // third person: back to the captured mouse
     $('#saveBtn').hidden = !this.slot || this.tutorialMode;
+    $('#coopBtn').hidden = !this.slot || this.tutorialMode || !!this.netGuest;
     sfx(this.paused ? 'ui.pauseIn' : 'ui.pauseOut');
   }
   startDay() {
@@ -285,6 +333,8 @@ class Game {
     const sim = this.sim; // ... and not next to another farmer (co-op)
     sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return (p.x > -60 && p.x < innerWidth + 60 && p.y > -60 && p.y < innerHeight + 60) || sim.players.some(P => P !== sim.player && Math.hypot(P.x - x, P.z - z) < 22); };
     if (!tutorial) this.bots = this.bots.map(b => new Bot(sim.addPlayer(b.P.id, { name: b.P.name, look: b.P.look }))); else this.bots = [];
+    for (const v of this.netHost?.guests ?? []) sim.addPlayer(v.id, { name: v.name, look: v.look });
+    this.hostEv = []; this.sendState(true);
     this.view.clearDynamic(); this.view.setState(s); this.view.snapCamera(this.sim.player.x, this.sim.player.z); this.view.resetLight();
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
     if (this.tut) this.tut.onDone = () => this.endOfDay('time');
@@ -338,6 +388,7 @@ class Game {
   private toEvening(fade: boolean) {
     this.mode = 'evening'; this.view.setState(this.s); this.house.s = this.s; this.view.resetLight();
     this.house.tab = 'quests'; this.house.showEvening(true); // Basti 22.11.2026: the evening opens on orders + farm shop
+    this.sendState(true);
     if (fade) setTimeout(() => this.hud.fade(false, true), 300); else this.hud.fade(false);
   }
   private async sleep() {
@@ -351,11 +402,12 @@ class Game {
   frame(dt: number) {
     tickAudio(dt); tickAmbient(dt);
     if (!this.view) return;
-    this.tick(dt);
+    if (this.netGuest) this.tickGuest(dt); else this.tick(dt);
     if (this.cut.active) this.view.cine = this.cut.update(dt);
     const sim = this.sim;
-    this.view.frame(this.paused ? 0 : dt, this.mode === 'day' ? sim : null, this.mode === 'menu' ? 'menu' : this.mode === 'day' ? 'day' : 'evening');
-    if (this.paused && sim) sim.ev.length = 0;
+    const frozen = this.paused && !this.coopLive;
+    this.view.frame(frozen ? 0 : dt, this.mode === 'day' ? sim : null, this.mode === 'menu' ? 'menu' : this.mode === 'day' ? 'day' : 'evening');
+    if ((frozen || this.netGuest) && sim) sim.ev.length = 0;
   }
   /** autosave every few minutes of real play time (not while paused or in the menu) */
   private autosave(dt: number) {
@@ -364,7 +416,7 @@ class Game {
   /** simulation + HUD of one step (also used by tests to fast-forward without rendering) */
   tick(dt: number) {
     const sim = this.sim;
-    if (this.mode !== 'day' || !sim || this.paused) return;
+    if (this.mode !== 'day' || !sim || (this.paused && !this.coopLive)) return;
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
     let it = this.input.intent(sim, this.view);
@@ -373,10 +425,12 @@ class Game {
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.tut) it = this.tut.update(dt, it);
+    if (this.paused) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false }; // co-op: the game goes on behind the menu
     for (const b of this.bots) sim.intents.set(b.P.id, b.intent(sim));
     sim.update(dt, it);
+    this.sendSnap(dt);
     for (const e of sim.ev) {
-      if (e.k === 'store') this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
+      if (e.k === 'store' && (e.pid ?? 0) === sim.localId) this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
       if (e.k === 'faint') this.endOfDay('faint');
       if (e.k === 'xp' && (e.pid ?? 0) === sim.localId) this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
@@ -391,6 +445,169 @@ class Game {
     this.hud.kb = this.input.kb || this.input.locked;
     this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
   }
+  // ---------------- co-op: the owner ----------------
+  private inviteLink() { return `${location.origin}${location.pathname}?hof=${this.netHost?.code ?? ''}`; }
+  /** pause menu "Besuch": opens the farm under a code (link to share), shows the guests */
+  private async openCoop() {
+    this.only('#coop'); this.coopList();
+    if (!this.netHost) {
+      const h = new NetHost(versionOf(this.cfg), this.cfg.coop?.maxPlayers ?? 4);
+      h.onAsk = v => { this.asks.push(v); this.showAsk(); };
+      h.onIntent = (id, i) => this.sim?.intents.set(id, cleanIntent(i));
+      h.onLeave = v => { this.sim?.removePlayer(v.id); this.asks = this.asks.filter(a => a !== v); this.showAsk(); this.coopList(); };
+      this.netHost = h;
+      $('#coopCode').textContent = '…';
+      try { $('#coopCode').textContent = await h.open(); }
+      catch { $('#coopCode').textContent = '—'; this.netHost = null; }
+    } else $('#coopCode').textContent = this.netHost.code;
+  }
+  private closeFarm() {
+    if (!this.netHost) return;
+    for (const v of this.netHost.guests) this.sim?.removePlayer(v.id);
+    this.netHost.close(); this.netHost = null; this.asks = []; this.showAsk(); this.coopList();
+  }
+  private coopList() {
+    const box = $('#coopList'), g = this.netHost?.guests ?? [];
+    box.innerHTML = g.map(v => `<div class="cg" data-id="${v.id}"><b>${esc(v.name)}</b><i class="lv">${v.level}</i><button class="sDel" aria-label="Nach Hause schicken">${NO_I}</button></div>`).join('');
+    box.querySelectorAll<HTMLElement>('.cg button').forEach(b => b.addEventListener('click', () => {
+      const v = this.netHost?.guests.find(x => x.id === +b.closest<HTMLElement>('.cg')!.dataset.id!); if (!v) return;
+      sfx('ui.click'); this.netHost!.deny(v); this.sim?.removePlayer(v.id); setTimeout(() => this.coopList(), 400);
+    }));
+    $('#coopClose').hidden = !this.netHost;
+  }
+  /** somebody knocks: name + level, the owner says yes or no */
+  private showAsk() {
+    const v = this.asks[0], box = $('#coopAsk'); box.hidden = !v;
+    if (v) { $('#coopAskName').innerHTML = `${esc(v.name)} <i class="lv">${v.level}</i>`; sfx('ui.levelup'); }
+  }
+  private answer(yes: boolean) {
+    const v = this.asks.shift(); this.showAsk(); const h = this.netHost; if (!v || !h) return;
+    if (!yes) { h.deny(v); return; }
+    if (!h.let(v)) return;
+    if (this.mode === 'day' && this.sim) this.sim.addPlayer(v.id, { name: v.name, look: v.look });
+    this.lastSt = ''; this.sendState(true); this.coopList();
+  }
+  /** fast snapshot to every guest (20/s) */
+  private sendSnap(dt: number) {
+    const h = this.netHost, sim = this.sim; if (!h?.guests.length || !sim) { this.hostEv = []; return; }
+    for (const e of sim.ev) if (e.k !== 'faint') this.hostEv.push(e);
+    if ((this.snapT += dt) >= .05) { this.snapT = 0; h.broadcast({ t: 'sn', d: snapOf(sim, this.hostEv) }); this.hostEv = []; }
+    if ((this.stT += dt) >= .25) this.sendState(false);
+  }
+  /** the whole farm to the guests: on every change of phase / in the book (now) or 4 times a second when it changed */
+  private sendState(now: boolean) {
+    const h = this.netHost; if (!h?.guests.length || this.mode === 'menu') return;
+    this.stT = 0;
+    const d = stateOf(this.mode === 'day' ? this.sim : null, this.s, this.mode === 'day' ? 'day' : 'evening');
+    if (!now && d === this.lastSt) return;
+    this.lastSt = d; h.broadcast({ t: 'st', d });
+  }
+
+  // ---------------- co-op: the guest ----------------
+  private openVisit(code: string) {
+    ($('#visitCode') as HTMLInputElement).value = code; $('#visitMsg').textContent = ''; ($('#visitGo') as HTMLButtonElement).disabled = false;
+    if (this.gFrom === undefined || (this.gFrom && !listSaves().some(m => m.id === this.gFrom))) this.gFrom = listSaves()[0]?.id ?? null;
+    this.showFrom();
+    this.only('#visit');
+    if (!this.input.isTouch) setTimeout(() => $('#visitCode').focus(), 60);
+  }
+  private join() {
+    const code = cleanCode(($('#visitCode') as HTMLInputElement).value); if (code.length < 5) return;
+    this.netGuest?.close();
+    const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
+    this.netGuest = g; go.disabled = true; msg.textContent = '…';
+    this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;
+    const level = levelFor(this.cfg, this.gXp0);
+    g.onWait = () => { msg.textContent = 'Klopf, klopf …'; };
+    g.onWelcome = () => { msg.textContent = '✓'; };
+    g.onMsg = m => {
+      if (m.t === 'st') this.guestState(JSON.parse(m.d as string), m.d as string);
+      else if (m.t === 'sn' && this.sim && this.mode === 'day') this.gLast = performance.now(), this.gEv.push(...applySnap(this.sim, JSON.parse(m.d as string), this.gSteer > 0));
+    };
+    g.onClose = why => {
+      if (this.netGuest !== g) return;
+      this.netGuest = null; const inGame = this.mode !== 'menu'; this.bookGuestXp();
+      if (inGame) this.leave();
+      this.openVisit(code);
+      msg.textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
+    };
+    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0 });
+  }
+  /** the owner's farm arrived (or changed): day on the farm, or the evening with the book (read only) */
+  private guestState(d: { ph: Phase; s: FarmState; d: any }, raw: string) {
+    // orders the owner collected while the guest is there: the guest gets the same XP (Basti 22.11.2026)
+    const claimed = new Set(d.s.quests.active.filter(q => q.claimed).map(q => q.id));
+    if (this.gClaimed) for (const q of d.s.quests.active) if (q.claimed && !this.gClaimed.has(q.id)) { this.gGain += q.reward.xp; if (this.mode === 'evening') sfx('ui.levelup'); }
+    this.gClaimed = claimed;
+    if (d.ph === 'day') {
+      if (this.mode !== 'day' || !this.sim || this.s.day !== d.s.day) {
+        this.house.closeDay(); this.house.showEvening(false); this.bookOpen = false;
+        this.s = d.s; this.slot = null; this.tutorialMode = false;
+        const sim = new DaySim(this.cfg, this.s, this.hof, {}); sim.localId = this.netGuest!.id;
+        sim.players = [sim.newPlayer(sim.localId, { guest: true, look: this.menu.look, name: this.menu.look.name })];
+        this.sim = sim; this.tut = null; applyState(sim, this.s, d); this.gDayXp = 0;
+        this.view.setLook(this.menu.look); this.house.s = this.s;
+        this.view.clearDynamic(); this.view.setState(this.s); this.view.snapCamera(this.cfg.hof.door.x, this.cfg.hof.door.z); this.view.resetLight();
+        this.only(null); this.mode = 'day'; this.ending = false; this.paused = false;
+        this.input.enabled = true; this.hud.show(true); this.hud.clear(); this.hud.fade(false);
+        this.gSt = raw; this.gLast = performance.now(); return;
+      }
+    } else if (this.mode !== 'evening') { // the owner went into the house: the guest reads along in the book
+      this.mode = 'evening'; this.sim = null; this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
+      this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.house.closeDay();
+      Object.assign(this.s, d.s); this.view.setState(this.s); this.view.resetLight();
+      this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); this.gSt = raw; this.bookGuestXp(); return;
+    }
+    if (raw === this.gSt) return; this.gSt = raw;
+    applyState(this.sim, this.s, d);
+    if (this.bookOpen) this.house.render();
+  }
+  /** a guest's frame: no simulation, the owner's farm as it comes in, the own farmer walks ahead locally */
+  private tickGuest(dt: number) {
+    const sim = this.sim, g = this.netGuest;
+    $('#coopLag').hidden = !(g && this.mode === 'day' && this.gLast && performance.now() - this.gLast > 2000);
+    if (this.mode !== 'day' || !sim || !g) return;
+    sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
+    const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
+    this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
+    let it = this.input.intent(sim, this.view);
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
+    it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
+    if (this.paused || this.bookOpen) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false };
+    const steer = Math.hypot(it.mx, it.mz) > .15; this.gSteer = steer ? .3 : Math.max(0, this.gSteer - dt);
+    sim.t += dt; smooth(sim, dt); if (steer) predict(sim, it, dt);
+    const me = sim.player; if (me.xp > this.gDayXp) { this.gGain += me.xp - this.gDayXp; this.gDayXp = me.xp; }
+    it.px = sim.player.x; it.pz = sim.player.z;
+    g.send({ t: 'in', i: it });
+    for (const e of sim.ev) {
+      const mine = (e.pid ?? -1) === sim.localId;
+      if (e.k === 'store' && mine) this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
+      if (e.k === 'xp' && mine) this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
+      if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
+      if (e.k === 'pocket' && mine) { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
+    }
+    this.hud.kb = this.input.kb || this.input.locked;
+    // the guest's own level, XP and watering can over the owner's farm
+    const own = Object.create(this.s) as FarmState, xp = this.gXp0 + this.gGain;
+    own.xp = xp; own.level = levelFor(this.cfg, xp); own.water = me.water ?? 0;
+    this.hud.update(sim, own, this.view, hover, info, this.input.lastTouch, this.mouse);
+  }
+  /** the guest's XP of this visit go into its own farm (or the wanderer profile): every evening and when it leaves */
+  private bookGuestXp() {
+    const n = this.gGain; if (n <= 0) return;
+    this.gGain = 0; this.gXp0 += n;
+    if (this.gFrom) {
+      const d = readSave(this.cfg, this.gFrom); if (!d) return;
+      gainXp(this.cfg, d.s, n); writeSave(this.gFrom, d.s, d.snap);
+    } else { const w = wanderer(); w.xp += n; w.level = levelFor(this.cfg, w.xp); saveWanderer(w); }
+  }
+  private fromXp() { if (this.gFrom) return readSave(this.cfg, this.gFrom)?.s.xp ?? 0; return wanderer().xp; }
+  private showFrom() {
+    const m = listSaves().find(x => x.id === this.gFrom);
+    $('#visitFrom').innerHTML = m ? `${ic('house')}${esc(m.name)} <i class="lv">${m.level}</i>` : `${ic('sun')}Ohne Hof <i class="lv">${levelFor(this.cfg, wanderer().xp)}</i>`;
+  }
+
   /** tests (co-op without a network): n computer farmers join the farm, bot(0) sends them home */
   bot(n = 1) {
     const sim = this.sim; if (!sim || this.tut) return 'kein Tag';

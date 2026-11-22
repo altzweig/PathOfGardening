@@ -8,6 +8,7 @@ import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 import { goodInfo } from './storePage';
+import { ActBar } from './actbar';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 /** remaining seconds as "m:ss" */
@@ -53,7 +54,10 @@ export class FarmHud {
   /** quest list open (Q / tap on the box) */
   questsOpen = true; private qKey = '';
   private nums: { el: HTMLElement; x: number; y: number; z: number; t: number }[] = [];
+  /** animated progress bar of the running action (22.11.2026) */
+  private bar: ActBar; private lastT = performance.now();
   constructor(public cfg: FarmCfg) {
+    this.bar = new ActBar(cfg, $('#fHud'));
     // seed choice (20.11.2026): what the next sowing plants; new crops come with the levels
     $('#fSeed').addEventListener('pointerdown', e => { e.stopPropagation(); this.seedPanel($('#fSeeds').hidden); });
     $('#fSeeds').addEventListener('pointerdown', e => {
@@ -62,6 +66,7 @@ export class FarmHud {
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fClock').innerHTML = CLOCK;
+    const r = document.createElement('div'); r.id = 'fRipe'; $('#fLeft').appendChild(r);
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fBook').innerHTML = ic('book'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
   }
   private cdKey = '';
@@ -124,7 +129,7 @@ export class FarmHud {
     ($('#fHpFill')).style.width = (P.hp / P.maxHp * 100).toFixed(1) + '%';
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     $('#fXpFill').style.width = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%';
-    this.clock(sim);
+    this.clock(sim); this.ripe(s);
     const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
     if (key !== this.key) {
       this.key = key;
@@ -139,6 +144,8 @@ export class FarmHud {
       $('#bAtk').innerHTML = gun && s.ammoCount > 0 ? ic(s.weapon!) : ic('rake');
     }
     this.quests(s, touch);
+    const now = performance.now(), dt = Math.min(.1, (now - this.lastT) / 1000); this.lastT = now;
+    this.bar.update(sim, s, view, sim.paused ? 0 : dt, touch);
     // tool at the cursor (PC) / on the action button (touch)
     const tool = hoverInfo ? TOOL_ICON[hoverInfo.tool] : null;
     const cur = $('#fCursor');
@@ -174,6 +181,28 @@ export class FarmHud {
       if (n.t > 1.2) { n.el.remove(); this.nums.splice(i, 1); }
     }
   }
+  /** ripe fields (Basti 22.11.2026): under HP/XP. The first ripe field fades in from below ("Weizen erntereif"), every further
+   *  one slides up from below into it with a small pop ("2 Felder erntereif"); fades out when nothing is ripe any more */
+  private ripeN = 0; private ripeT = 0;
+  private ripe(s: FarmState) {
+    const ripe = s.plots.filter(p => p.open && p.stage === 'ripe' && p.crop), n = ripe.length;
+    if (n === this.ripeN) return;
+    const box = $('#fRipe'), was = this.ripeN; this.ripeN = n;
+    const crop = ripe[0]?.crop ?? '', name = this.cfg.crops[crop]?.name ?? this.cfg.names.items[crop] ?? crop;
+    const html = n ? (n === 1 ? `${ic(crop)}<span>${name} erntereif</span>` : `<b>${n}</b><span>Felder erntereif</span>`) : '';
+    clearTimeout(this.ripeT); box.querySelectorAll('.ghost').forEach(e => e.remove());
+    if (!n) { box.classList.remove('in'); box.classList.add('out'); return; }
+    if (!was || !box.classList.contains('in')) {
+      box.innerHTML = `<div class="rt">${html}</div>`; box.classList.remove('out'); void box.offsetWidth; box.classList.add('in'); return;
+    }
+    if (n < was) { box.querySelector('.rt')!.innerHTML = html; return; }
+    // a new one comes up from below and merges into the existing toast
+    const g = document.createElement('div'); g.className = 'rt ghost'; g.innerHTML = html; box.appendChild(g);
+    this.ripeT = window.setTimeout(() => {
+      g.remove(); const t = box.querySelector('.rt') as HTMLElement; t.innerHTML = html;
+      t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
+    }, 380);
+  }
   float(x: number, z: number, html: string, cls = '') {
     const el = document.createElement('b'); el.className = cls; el.innerHTML = html; $('#fFloat').appendChild(el);
     // several at once on one spot (wild herbs: weed + herbs) stack instead of covering each other
@@ -196,5 +225,5 @@ export class FarmHud {
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }
-  clear() { this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
+  clear() { this.bar.hide(); this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
 }

@@ -240,6 +240,8 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - **Figur dreht mit der Kamera:** Steht die Figur, dreht sie sich leicht verzögert in die Blickrichtung (kritisch gedämpfte Feder, immer der kürzeste Weg, max. 12 rad/s, `player.turnWithCam`), auch bei schnellem Drehen keine Extra-Umdrehungen.
 - **Esc:** öffnet und schließt die Pause; verweigert der Browser direkt nach Esc das erneute Fangen der Maus, wird es kurz danach automatisch wiederholt.
 
+- **Ernten im Vorbeilaufen (22.11.2026):** Ernten (Feld, Busch, Brombeeren, Sammeln, Bäume schütteln) startet schon in Reichweite, ohne erst hinzulaufen. Währenddessen ist das Laufen pausiert, Bewegungseingaben brechen nicht ab; sobald die Ernte fertig ist oder die Taste losgelassen wird, läuft die Figur weiter. Andere Arbeiten (Säen, Gießen, Jäten …) bleiben wie bisher.
+
 ### Annahmen (bitte prüfen)
 - Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
 - Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.

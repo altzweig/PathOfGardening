@@ -41,6 +41,8 @@ export interface Intent {
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
 /** actions done kneeling / crouching on the ground (hand rake, sowing, harvesting a plot, gathering) */
+/** harvesting (Basti 22.11.2026: "im Vorbeilaufen"): starts from reach without walking over, walking is paused meanwhile (not cancelled) */
+export const HARVEST_ACTIONS = new Set<ActionKind>(['harvestPlot', 'harvestBush', 'pickWild', 'gather', 'shake']);
 export const LOW_ACTIONS = new Set<ActionKind>(['weed', 'weedHof', 'sow', 'harvestPlot', 'fertilize', 'gather', 'repair']);
 export type Ev = { k: string; [key: string]: any };
 
@@ -570,6 +572,8 @@ export class DaySim {
       else { const g = this.low(P.goal, a) ? this.workPoint(P.goal, a.kind) : this.targetPos(P.goal), l = dist(P.x, P.z, g.x, g.z) || 1; mx = (g.x - P.x) / l; mz = (g.z - P.z) / l; }
     }
     const swinging = !!P.swing && P.swing.t < this.cfg.weapons.rake.swing;
+    // harvesting pauses the walk; it goes on by itself when the harvest is done or the button is let go
+    if (P.action && HARVEST_ACTIONS.has(P.action.info.kind)) { mx = 0; mz = 0; }
     const base = P.crouch ? C.crouchSpeed : P.action ? C.actionSpeed : C.speed;
     const sp = swinging ? 0 : base * Math.min(1, Math.hypot(mx, mz)) * (P.stun > 0 ? 1 - P.stun / C.hurtStun * .7 : 1);
     if (sp > 0) {
@@ -656,13 +660,13 @@ export class DaySim {
   /** close enough to do it (k < 1: a bit closer, for walking over) */
   inPlace(t: Target, a: ActionInfo, k = 1) {
     const P = this.player, C = this.cfg.player;
-    if (this.low(t, a)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) <= C.kneel * k; }
+    if (this.low(t, a) && !HARVEST_ACTIONS.has(a.kind)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) <= C.kneel * k; }
     return this.targetDist(t, P.x, P.z) <= C.reach * k;
   }
   /** walked away from a running action (Basti 21.11.2026: walking is fine, too far cancels) */
   private tooFar(t: Target, a: ActionInfo) {
     const P = this.player, C = this.cfg.player;
-    if (this.low(t, a)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) > C.kneel * C.leave + .35; }
+    if (this.low(t, a) && !HARVEST_ACTIONS.has(a.kind)) { const w = this.workPoint(t, a.kind); return dist(P.x, P.z, w.x, w.z) > C.kneel * C.leave + .35; }
     return this.targetDist(t, P.x, P.z) > C.reach * C.leave;
   }
   /** the point the player looks at while working (nearest point of a building, the spot of ground work) */

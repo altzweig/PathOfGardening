@@ -72,3 +72,5 @@ Gießkanne (`can_pour_*`, `can_fill_*`, `can_empty`, 21.11.2026) mit `tools/buil
 | harvest_ding | „menu beep accept glass b“ (liecio, aus Bastis Sound-Sammlung, `sfx/ui/liecio-menu_beep_accept_glass_b-533781.mp3`, gekürzt) | liecio | laut Basti frei nutzbar |
 
 (Nicht verwendet: [Flamethrower weapon long bursts](https://freesound.org/s/395039/) von aslakhostaker.)
+
+Animierte Ladebalken (22.11.2026): alle Geräusche im Balken (Beeren-Plopp, Sichel, Ausreißen, Graben, Schneiden, Melken usw.) sind im Spiel per WebAudio selbst erzeugt (`src/audio.ts`, `bar*`), keine fremden Dateien.

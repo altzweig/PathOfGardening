@@ -427,3 +427,13 @@ body.sandbox #topbar{justify-content:flex-end}
 .btn:active{transform:translateY(2px)}
 #menu[hidden]{display:grid!important}
 #mChar::before{content:"";position:absolute;left:-30%;right:-30%;top:-12%;bottom:-10%;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 50% 50%,#05080bb3,#05080b66 55%,#05080b00 75%)}
+
+/* Classic tiles (22.11.2026): same-type bonus arrows saturated green, goods flow yellow-green, reach chip, level number */
+.fEdge .same{color:#2cff3a}
+.fEdge .flow{color:#c8f04a}
+.fEdge .reach{display:flex;gap:calc(var(--u)*4);padding:calc(var(--u)*2) calc(var(--u)*6);border-radius:999px;background:#0b1016e6;border:calc(var(--u)*1.4) solid #c8f04a;font:700 calc(var(--u)*13) var(--f-body);color:#e8ffb0}
+.fEdge .reach span{display:flex;align-items:center;gap:calc(var(--u)*1)}
+.fEdge .reach svg{width:calc(var(--u)*20);height:calc(var(--u)*20)}
+.fLv{align-items:center}
+.fLv span{font:700 calc(var(--u)*14) var(--f-body);color:#fff;text-shadow:0 0 calc(var(--u)*3) #000,0 0 calc(var(--u)*2) #000;margin-left:calc(var(--u)*2)}
+#res .chip.bag span{color:#ffe7b0}

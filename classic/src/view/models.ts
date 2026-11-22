@@ -8,9 +8,11 @@ import type { Look } from '../look';
 import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
-export const FRUIT_COL: Record<FruitType, string> = { blue: '#4a64f0', asp: '#8fe36a', cran: '#f0306a', cab: '#b8f070', lemon: '#ffe44a', chili: '#ff3a1a', nut: '#c08a4a' };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a };
-export const GROUND_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
+const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, meal: 0xff9a50,
+  well: 0x7a8a9a, mill: 0xd8c8a8, press: 0x9a5a3a, bakery: 0xd87a3a, hens: 0xe8d8a8, cow: 0xf0f0e8, dairy: 0xf6d860, kitchen: 0xe0a060 };
+export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
+export const FRUIT_COL: Record<FruitType, string> = Object.fromEntries(Object.entries(FRUIT_HEX).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])) as Record<FruitType, string>;
+export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{
   // berries: real berry shape (vertex colours = dark crown), royal blue / raspberry red, glossy instead of milky glow;
   // blueberries only glow up (gently) as the next level-up approaches, see View.berryGlow
   blue: new THREE.MeshStandardMaterial({ color: 0x3358ff, emissive: 0x2440ff, emissiveIntensity: 0, roughness: .3, vertexColors: true }),
@@ -20,9 +22,39 @@ export const GROUND_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: 1.1, roughness: .4 }),
   chili: new THREE.MeshStandardMaterial({ color: 0xe0200c, emissive: 0xff2a08, emissiveIntensity: 1.2, roughness: .3 }),
   nut: new THREE.MeshStandardMaterial({ color: 0xa8743a, emissive: 0xc07a28, emissiveIntensity: .8, roughness: .5 }), // lying nuts glow warm, so they can be found in the grass
+  // goods from the fields and buildings: glow a little, so they can be found next to the buildings
+  wheat: new THREE.MeshStandardMaterial({ color: 0xe0b85a, emissive: 0xc09030, emissiveIntensity: .7, roughness: .6, flatShading: true }),
+  flour: new THREE.MeshStandardMaterial({ color: 0xf0e8d8, emissive: 0xfff4e0, emissiveIntensity: .35, roughness: .9, flatShading: true }),
+  water: new THREE.MeshStandardMaterial({ color: 0x4aa8ff, emissive: 0x3a90ff, emissiveIntensity: .8, roughness: .15, transparent: true, opacity: .85 }),
+  milk: new THREE.MeshStandardMaterial({ color: 0xf6f6ee, emissive: 0xffffff, emissiveIntensity: .25, roughness: .3 }),
+  egg: new THREE.MeshStandardMaterial({ color: 0xf0dcbc, emissive: 0xffe8c0, emissiveIntensity: .35, roughness: .4 }),
+  juice: new THREE.MeshStandardMaterial({ color: 0xc02850, emissive: 0xe03060, emissiveIntensity: .7, roughness: .2 }),
+  bread: new THREE.MeshStandardMaterial({ color: 0xb87a38, emissive: 0xc07a28, emissiveIntensity: .45, roughness: .7, flatShading: true }),
+  cheese: new THREE.MeshStandardMaterial({ color: 0xf2c630, emissive: 0xf0b820, emissiveIntensity: .55, roughness: .5, flatShading: true }),
+  meal: new THREE.MeshStandardMaterial({ color: 0xff9040, emissive: 0xff7a20, emissiveIntensity: .8, roughness: .4 }),
 };
+const GLASS = new THREE.MeshStandardMaterial({ color: 0xdff0ff, roughness: .1, transparent: true, opacity: .45 });
+const CORK = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: .8 });
+const BOWL = new THREE.MeshStandardMaterial({ color: 0xd8c8b0, roughness: .6, flatShading: true });
+const SACK = new THREE.MeshStandardMaterial({ color: 0xd8c49a, roughness: .95, flatShading: true });
+const STRING = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: .9 });
+/** goods: little props instead of round fruit (sheaf, sack, droplet, bottle, egg, loaf, wedge, bowl) */
+function itemMesh(type: FruitType, g: THREE.Group, mat: THREE.Material) {
+  switch (type) {
+    case 'wheat': for (let i = 0; i < 5; i++) { const a = i / 5 * 7, s = part(g, GEO.capsule, mat, .022, .09, .022, Math.cos(a) * .03, .02, Math.sin(a) * .03); s.rotation.set(Math.cos(a) * .3, 0, Math.sin(a) * .3); }
+      part(g, GEO.cyl, STRING, .045, .03, .045, 0, -.03, 0); return true;
+    case 'flour': part(g, GEO.sph, SACK, .09, .1, .08, 0, 0, 0); part(g, GEO.cone, SACK, .05, .06, .05, 0, .11, 0); part(g, GEO.cyl, STRING, .04, .015, .04, 0, .085, 0); part(g, GEO.sph, mat, .05, .02, .05, 0, .14, 0); return true;
+    case 'water': part(g, GEO.sph, mat, .07, .07, .07, 0, 0, 0); part(g, GEO.cone, mat, .045, .08, .045, 0, .09, 0); return true;
+    case 'milk': case 'juice': part(g, GEO.cyl, GLASS, .05, .14, .05, 0, 0, 0); part(g, GEO.cyl, mat, .044, .11, .044, 0, -.012, 0); part(g, GEO.cyl, GLASS, .022, .05, .022, 0, .09, 0); part(g, GEO.cyl, CORK, .02, .025, .02, 0, .12, 0); return true;
+    case 'egg': for (let i = 0; i < 3; i++) { const a = i / 3 * 7; part(g, GEO.sph, mat, .045, .06, .045, Math.cos(a) * .045, 0, Math.sin(a) * .045); } return true;
+    case 'bread': { const b = part(g, GEO.capsule, mat, .07, .1, .07, 0, 0, 0); b.rotation.z = Math.PI / 2; b.scale.y = .1; for (let i = -1; i <= 1; i++) { const c = part(g, GEO.box, SACK, .012, .01, .07, i * .05, .065, 0); c.rotation.y = .5; } return true; }
+    case 'cheese': { const w = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .09, 3, 1, false, 0, Math.PI / 2.2), mat); w.castShadow = true; g.add(w); return true; }
+    case 'meal': part(g, GEO.sph, BOWL, .11, .05, .11, 0, 0, 0); part(g, GEO.sph, mat, .09, .035, .09, 0, .03, 0); part(g, GEO.sph, GROUND_MAT.egg, .03, .02, .03, .03, .06, .02); return true;
+  }
+  return false;
+}
 export const NUT_CAP = new THREE.MeshStandardMaterial({ color: 0x6a8a3a, roughness: .8, flatShading: true });
-export const BUSH_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
+export const BUSH_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{
   blue: new THREE.MeshStandardMaterial({ color: 0x2c4ae8, roughness: .32, vertexColors: true }),
   asp: new THREE.MeshStandardMaterial({ color: 0x5f8f35, roughness: .6 }),
   cran: new THREE.MeshStandardMaterial({ color: 0xc00e46, roughness: .25, vertexColors: true }),
@@ -30,6 +62,7 @@ export const BUSH_MAT: Record<FruitType, THREE.MeshStandardMaterial> = {
   lemon: new THREE.MeshStandardMaterial({ color: 0xc8b02a, roughness: .45, emissive: 0x8ac0ff, emissiveIntensity: 0 }), // emissive flickers with the harvest lightning
   chili: new THREE.MeshStandardMaterial({ color: 0xc81a0a, roughness: .3, emissive: 0xff2000, emissiveIntensity: .45 }), // chilis glow slightly red, also on the plant
   nut: new THREE.MeshStandardMaterial({ color: 0x8a5a2a, roughness: .55 }),
+  wheat: new THREE.MeshStandardMaterial({ color: 0xd8b050, roughness: .7, flatShading: true }),
 };
 export const CHILI_STEM = new THREE.MeshStandardMaterial({ color: 0x3f7a2a, roughness: .6 });
 export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: 1.1 });
@@ -57,8 +90,9 @@ function berryGeo(crown: number) {
 export const BERRY_GEO = { blue: berryGeo(.2), cran: berryGeo(.1) };
 export function fruitMesh(type: FruitType, scale: number, glow = true, proj = false) {
   const g = new THREE.Group();
-  const mat = proj ? (type === 'asp' ? PROJ_ASP : type === 'cran' ? PROJ_CRAN : PROJ_CAB) : glow ? GROUND_MAT[type] : BUSH_MAT[type];
-  if (type === 'asp') {
+  const mat = (proj ? (type === 'asp' ? PROJ_ASP : type === 'cran' ? PROJ_CRAN : PROJ_CAB) : glow ? GROUND_MAT[type] : BUSH_MAT[type]) ?? GROUND_MAT[type] ?? GROUND_MAT.wheat;
+  if (itemMesh(type, g, mat)) { /* goods */ }
+  else if (type === 'asp') {
     const st = part(g, GEO.cyl, mat, .035, .38, .035, 0, 0, 0); st.rotation.z = Math.PI / 2;
     const tp = part(g, GEO.cone, proj ? PROJ_ASP_TIP : glow ? ASP_TIP_GROUND : ASP_TIP_BUSH, .045, .1, .045, .22, 0, 0); tp.rotation.z = -Math.PI / 2;
   } else if (type === 'cab') { part(g, GEO.ico, mat, .14, .13, .14, 0, 0, 0); part(g, GEO.lo, mat, .1, .06, .12, .08, .03, 0); part(g, GEO.lo, mat, .1, .06, .12, -.08, .03, .02); }
@@ -72,7 +106,7 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
     part(g, GEO.sph, mat, .075, .07, .075, 0, 0, 0); part(g, GEO.cone, mat, .035, .05, .035, 0, .075, 0);
     part(g, GEO.lo, NUT_CAP, .07, .035, .07, 0, .045, 0, false);
   }
-  else { const r = type === 'blue' ? .085 : .07; const b = part(g, !proj && (type === 'blue' || type === 'cran') ? BERRY_GEO[type] : GEO.sph, mat, r, r, r, 0, 0, 0); b.rotation.set(rand(-.6, .6), rand(0, 7), rand(-.6, .6)); }
+  else { const r = type === 'blue' ? .085 : .07; const b = part(g, !proj && (type === 'blue' || type === 'cran') ? BERRY_GEO[type as 'blue'] : GEO.sph, mat, r, r, r, 0, 0, 0); b.rotation.set(rand(-.6, .6), rand(0, 7), rand(-.6, .6)); }
   g.scale.setScalar(scale); return g;
 }
 
@@ -105,6 +139,12 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
       part(pod, GEO.cyl, CHILI_STEM, .018, .06, .018, 0, .06, 0, false);
     }
     g.scale.setScalar(1.25);
+  } else if (type === 'wheat') { // a dense tuft of golden stalks with ears, swaying
+    for (let i = 0; i < 26; i++) {
+      const a = rand(0, 7), r = Math.sqrt(Math.random()) * .55, h = rand(.55, .8);
+      const st = part(g, GEO.cyl, mats.leaf, .012, h, .012, Math.cos(a) * r, h / 2, Math.sin(a) * r); st.rotation.set(rand(-.12, .12), 0, rand(-.12, .12));
+      fruits.push(part(g, GEO.capsule, BUSH_MAT.wheat, .03, .1, .03, Math.cos(a) * r + st.rotation.z * -h * .5, h + .06, Math.sin(a) * r + st.rotation.x * h * .5, false));
+    }
   } else if (type === 'cab') {
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * Math.PI * 2, r = .42, x = Math.cos(a) * r, z = Math.sin(a) * r;

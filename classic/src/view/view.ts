@@ -1,8 +1,9 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, ENEMIES, EnemyType, FRUITS, FruitType, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
-import { Slot, cornerAngle, hexDist, hexR, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
+import { Balancing, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { buildBuilding, type BuildingView } from './buildings';
+import { Slot, accepts, cornerAngle, hexDist, hexR, outType, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -24,7 +25,7 @@ const lavaTex = (() => {
   }
   return new THREE.CanvasTexture(cv);
 })();
-import { loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
+import { BUILD_SND_EVERY, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flame';
 import { fruitIcon, skillIcon } from '../ui/icons';
 import {
@@ -76,7 +77,9 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
-interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number }
+interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number;
+  /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
+  bld?: BuildingView; flags?: number; stock?: string; sndT?: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -139,6 +142,8 @@ export class GameView {
   private shake = 0; private dtLast = .016;
   private heat!: GroundHeat; private fire!: FireSprites;
   private bits: Bit[] = [];
+  /** goods flying into a building */
+  private flyers: { m: THREE.Object3D; fx: number; fy: number; fz: number; tx: number; tz: number; t: number; T: number }[] = [];
   hurtT = 0;
   zoom = 1;
   /** mouse wheel: + zooms out, - zooms in */
@@ -184,9 +189,11 @@ export class GameView {
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
   // ---------------- build mode ----------------
-  setPlacing(type: FruitType | null) {
-    if (this.placing === type) return;
-    this.placing = type; this.hoverSlot = -1;
+  /** true: upgrade card (+1 onto a tile of the same type), false: new tile */
+  placeStack = false;
+  setPlacing(type: FruitType | null, stack = false) {
+    if (this.placing === type && this.placeStack === stack) return;
+    this.placing = type; this.placeStack = stack; this.hoverSlot = -1;
     for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
     this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = []; this.edgeEls = [];
     if (!type || !this.cfg) return;
@@ -227,11 +234,17 @@ export class GameView {
     const o = camera.position, d = V(nx, ny, .5).unproject(camera).sub(o).normalize(); if (d.y >= 0) return -1;
     const t = -o.y / d.y;
     const i = slotAt(this.cfg, this.slots, o.x + d.x * t, o.z + d.z * t);
-    return i >= 0 && this.placing && !slotFits(this.cfg, this.slots[i], this.placing) ? -1 : i;
+    return i >= 0 && this.placing && !this.canPlaceView(i) ? -1 : i;
+  }
+  /** upgrade card: only onto a tile of the same type; new tile: free slot or another type (overbuild with confirmation) */
+  canPlaceView(i: number) {
+    if (!this.placing || !slotFits(this.cfg, this.slots[i], this.placing)) return false;
+    const f = this.fields.get(i), same = !!f && f.alive && FRUITS[f.type] === this.placing;
+    return this.placeStack ? same : !same;
   }
   private updateOverlay() {
     if (!this.placing) return;
-    const type = FRUITS.indexOf(this.placing), cost = this.cfg.fields.rarityCost;
+    const type = FRUITS.indexOf(this.placing);
     // screen scale of one hex (for the HTML labels)
     const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera);
     const px = Math.abs(pb.x - pa.x) * innerWidth / 2; // pixels per H
@@ -239,8 +252,8 @@ export class GameView {
     this.slotOverlay.children.forEach((g, i) => {
       if (!g.visible) { this.fieldInfo(i, null, false, false, px, pv); return; }
       const [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
-      const f = this.fields.get(i), same = !!f && f.alive && f.type === type, maxed = same && f!.rarity >= cost.length;
-      const col = !f ? 0xffffff : same ? (maxed ? 0x777777 : 0xffd860) : 0xff6a5a;
+      const f = this.fields.get(i), same = !!f && f.alive && f.type === type, ok = this.canPlaceView(i);
+      const col = !ok ? 0x666666 : !f ? 0xffffff : same ? 0xffd860 : 0xff6a5a;
       const hov = i === this.hoverSlot || i === this.confirmSlot;
       const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
       const ghost = hov && pv.slot === i && (!f || !f.alive);
@@ -251,96 +264,111 @@ export class GameView {
         const t = badgeTex(FRUITS[f.type], f.rarity); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
         const over = !same && hov, now = performance.now() / 1000;
         badge.scale.setScalar(hexR(this.cfg) * BADGE * (hov ? 1.1 : 1) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
-        bm.color.set(over ? 0xffb0a0 : 0xffffff); bm.opacity = hov ? 1 : .92;
+        bm.color.set(over ? 0xffb0a0 : ok ? 0xffffff : 0x9a9a9a); bm.opacity = hov ? 1 : ok ? .92 : .55;
       }
-      (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? (f && f.alive ? .38 : .16) : .07;
-      (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : .45;
+      (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? (f && f.alive ? .38 : .16) : ok ? .07 : .02;
+      (line.material as THREE.MeshBasicMaterial).color.set(col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : ok ? .45 : .12;
       this.fieldInfo(i, f && f.alive ? f : null, same, hov, px, pv);
     });
     this.edgeInfo(pv, px);
   }
 
-  /** what the build under the pointer would change: new rarity on the hovered slot, rates before/after for every field */
+  /** what the build under the pointer would change: new level on the hovered slot, rates before/after for every tile */
   private buildPreview(type: number) {
-    const F = this.cfg.fields, cost = F.rarityCost, br = this.snap?.br ?? [];
+    const br = this.snap?.br ?? [];
     const cur = new Map<number, { t: number; r: number }>();
     for (const [slot, v] of this.fields) if (v.alive) cur.set(slot, { t: v.type, r: v.rarity });
     const h = this.confirmSlot >= 0 ? this.confirmSlot : this.hoverSlot;
     const g = h >= 0 ? this.slotOverlay.children[h] : null;
     const next = new Map(cur);
     let slot = -1;
-    if (g && g.visible) {
+    if (g && g.visible && this.canPlaceView(h)) {
       slot = h; const c = cur.get(h), v = this.fields.get(h);
-      if (c && c.t === type && v) next.set(h, { t: type, r: c.r < cost.length && v.prog + 1 >= cost[c.r] ? c.r + 1 : c.r });
+      if (c && c.t === type && v) next.set(h, { t: type, r: v.prog + 1 >= tileCost(this.cfg, c.r) ? c.r + 1 : c.r });
       else next.set(h, { t: type, r: 0 });
     }
-    const nbSum = (m: Map<number, { t: number; r: number }>, i: number) => { let n = 0; for (const [o, x] of m) if (o !== i && hexDist(this.slots[i], this.slots[o]) === 1) n += x.r; return n; };
-    const rate = (m: Map<number, { t: number; r: number }>, i: number) => { const x = m.get(i); return x ? (br[x.t] ?? 0) * Math.pow(F.rarityProduction, x.r) * (1 + F.neighborBonus * nbSum(m, i)) : 0; };
-    return { slot, cur, next, bonus: (i: number) => F.neighborBonus * nbSum(cur, i), bonusNext: (i: number) => F.neighborBonus * nbSum(next, i), rateNow: (i: number) => rate(cur, i), rateNext: (i: number) => rate(next, i), nb: F.neighborBonus };
+    // neighbour bonus: own contribution + every adjacent tile of the same type
+    const bonus = (m: Map<number, { t: number; r: number }>, i: number) => {
+      const x = m.get(i); if (!x) return 0; let b = tileContrib(this.cfg, x.r);
+      for (const [o, y] of m) if (o !== i && y.t === x.t && hexDist(this.slots[i], this.slots[o]) === 1) b += tileContrib(this.cfg, y.r);
+      return b;
+    };
+    const rate = (m: Map<number, { t: number; r: number }>, i: number) => { const x = m.get(i); return x ? (br[x.t] ?? 0) * (1 + bonus(m, i)) : 0; };
+    return { slot, cur, next, bonus: (i: number) => bonus(cur, i), bonusNext: (i: number) => bonus(next, i), rateNow: (i: number) => rate(cur, i), rateNext: (i: number) => rate(next, i) };
   }
-  /** chips on the shared edges: how much the hovered field gets from each neighbour and gives to it (arrow = direction) */
+  /** arrows on the shared edges of the hovered slot: saturated green = same type (bonus), yellow-green = goods flow
+   *  (this tile feeds a building next to it, or this building takes the yield of the neighbour); plus a chip with the
+   *  buildings in whose reach the tile lies / the suppliers of a building */
   private edgeInfo(pv: ReturnType<GameView['buildPreview']>, px: number) {
     let k = 0;
+    const links: Record<string, number> = {};
     if (pv.slot >= 0) {
-      const h = pv.slot, sh = this.slots[h], me = pv.next.get(h)!, before = pv.cur.get(h);
-      const gaveBefore = before ? before.r : 0;
+      const h = pv.slot, sh = this.slots[h], me = pv.next.get(h)!, T = FRUITS[me.t], out = outType(this.cfg, T);
       const ph = V(sh.x, 0, sh.z).project(camera);
       for (const [o, x] of pv.next) {
         if (o === h || hexDist(sh, this.slots[o]) !== 1) continue;
-        const inc = x.r * pv.nb, out = (me.r - gaveBefore) * pv.nb, keep = me.r * pv.nb;
-        if (!inc && !out && !keep) continue;
+        const OT = FRUITS[x.t];
+        const same = x.t === me.t, feeds = accepts(this.cfg, OT, out), takes = accepts(this.cfg, T, outType(this.cfg, OT));
+        if (!same && !feeds && !takes) continue;
+        if (feeds) links[OT] = (links[OT] || 0) + 1;
+        if (takes) links[OT] = (links[OT] || 0) + 1;
         const so = this.slots[o], po = V(so.x, 0, so.z).project(camera);
         const ax = (ph.x + 1) / 2 * innerWidth, ay = (1 - ph.y) / 2 * innerHeight, bx = (po.x + 1) / 2 * innerWidth, by = (1 - po.y) / 2 * innerHeight;
         const ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
-        const pct = (v: number) => (v > 0 ? '+' : '−') + Math.round(Math.abs(v) * 100) + ' %';
         const arrow = (deg: number, cls: string) => `<svg class="${cls}" viewBox="0 0 20 12" style="transform:rotate(${deg.toFixed(0)}deg)"><path d="M1 6h14M11 1.5l6 4.5-6 4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        // arrows only (numbers are in the rate chips): green = neighbour feeds the hovered field, gold = hovered feeds the neighbour, red = the neighbour loses its bonus
         let html = '';
-        if (inc) html += arrow(ang + 180, 'in');
-        if (out) html += arrow(ang, out > 0 ? 'out' : 'loss');
-        else if (keep) html += arrow(ang, 'out');
-        void pct;
+        if (same) html += arrow(ang, 'same') + arrow(ang + 180, 'same');
+        if (feeds) html += arrow(ang, 'flow');
+        if (takes) html += arrow(ang + 180, 'flow');
         const el = this.edgeChip(k++); el.hidden = false; el.innerHTML = html;
         el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
         el.style.transform = `translate(${ax + (bx - ax) * EDGE_T}px,${ay + (by - ay) * EDGE_T}px) translate(-50%,-50%)`;
+      }
+      // reach chip under the hovered tile: icons of the linked neighbours with their count
+      const keys = Object.keys(links);
+      if (keys.length) {
+        const el = this.edgeChip(k++); el.hidden = false;
+        el.innerHTML = `<div class="reach">${keys.map(t => `<span>${fruitIcon(t)}${links[t] > 1 ? '×' + links[t] : ''}</span>`).join('')}</div>`;
+        el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
+        const ax = (ph.x + 1) / 2 * innerWidth, ay = (1 - ph.y) / 2 * innerHeight;
+        el.style.transform = `translate(${ax}px,${ay + px * .62}px) translate(-50%,0)`;
       }
     }
     for (; k < this.edgeEls.length; k++) if (this.edgeEls[k]) this.edgeEls[k].hidden = true;
   }
 
-  /** HTML label of one slot: level (gems in rarity colours), fruit per second, step bar to the next rarity (only for the type being built) */
+  /** HTML label of one slot: level, items per second, step bar to the next level (only for the type being built) */
   private fieldInfo(i: number, f: FieldView | null, same: boolean, hov: boolean, px: number, pv: ReturnType<GameView['buildPreview']>) {
     const el = this.infoEls[i]; if (!el) return;
     const ghost = !f && pv.slot === i; // free spot under the pointer: preview of the new field
     el.hidden = !f && !ghost; if (el.hidden) { this.infoKey[i] = ''; return; }
     el.classList.toggle('ghost', ghost);
-    const cost = this.cfg.fields.rarityCost, maxR = cost.length, r = f ? f.rarity : 0, maxed = r >= maxR, prog = f ? f.prog : 0;
+    const r = f ? f.rarity : 0, prog = f ? f.prog : 0, n = tileCost(this.cfg, r);
     const ftype = f ? FRUITS[f.type] : this.placing!;
-    const now = f ? f.rate : 0, nxt = pv.slot >= 0 ? pv.rateNext(i) : now, bonus = pv.slot >= 0 ? pv.bonusNext(i) : pv.bonus(i), bonusUp = pv.slot >= 0 && bonus !== pv.bonus(i);
+    const now = f ? f.rate : 0, nxt = pv.slot >= 0 ? pv.rateNext(i) : now, bonus = pv.slot >= 0 ? pv.bonusNext(i) : pv.bonus(i), bonusUp = pv.slot >= 0 && Math.abs(bonus - pv.bonus(i)) > 1e-6;
     const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
     const s = this.slots[i], p = V(s.x, 0, s.z).project(camera);
     el.style.transform = `translate(${(p.x + 1) / 2 * innerWidth}px,${(1 - p.y) / 2 * innerHeight}px) translate(-50%,-50%)`;
     el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
     el.classList.toggle('hov', hov);
     const changes = pv.slot >= 0 && Math.abs(nxt - now) > .0005;
-    const key = [ghost ? 'g' : '', ftype, r, prog, now, nxt.toFixed(3), bonus, bonusUp ? 1 : 0, same ? 1 : 0, hov ? 1 : 0].join('|'); if (this.infoKey[i] === key) return; this.infoKey[i] = key;
+    const key = [ghost ? 'g' : '', ftype, r, prog, now, nxt.toFixed(3), bonus.toFixed(3), bonusUp ? 1 : 0, same ? 1 : 0, hov ? 1 : 0, this.placeStack ? 1 : 0].join('|'); if (this.infoKey[i] === key) return; this.infoKey[i] = key;
     const lv = el.children[0] as HTMLElement, rate = el.querySelector('.fRate') as HTMLElement, bar = el.querySelector('.fBar') as HTMLElement;
-    // level: one gem per rarity reached, coloured like that rarity; on hover the gem that the next build completes blinks
-    const n = !maxed ? cost[r] : 0, completes = same && hov && !maxed && prog + 1 >= n;
-    let h = '';
-    for (let k = 0; k <= maxR; k++) h += `<i class="${k <= r ? 'on' : ''}${k === r + 1 && completes ? ' nx' : ''}" style="--c:${hex(RARITY_COL[k])}"></i>`;
-    lv.innerHTML = h;
+    // level: a gem in the colour of the level with its number; blinks when the next build completes the step
+    const completes = same && hov && this.placeStack && prog + 1 >= n;
+    const rc = (l: number) => hex(RARITY_COL[Math.min(l, RARITY_COL.length - 1)]);
+    lv.innerHTML = r > 0 || completes ? `<i class="on${completes ? ' nx' : ''}" style="--c:${rc(completes ? r + 1 : r)}"></i><span>${completes ? r + 1 : r}</span>` : '';
     const num = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: v < 1 ? 2 : 1 });
-    // fruit per second; while building: current -> after the build (green up, red down); neighbour bonus as hex chip
+    // items per second; while building: current -> after the build (green up, red down); neighbour bonus as hex chip
     const nbChip = bonus > 0 ? `<em class="nb${bonusUp && !ghost ? ' chg' : ''}"><svg viewBox="0 0 24 20"><path d="M6 1.5l5 2.9v5.8L6 13.1 1 10.2V4.4z M18 6.9l5 2.9v5.8l-5 2.9-5-2.9V9.8z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>+${Math.round(bonus * 100)}%</em>` : '';
     rate.classList.toggle('up', changes && nxt > now); rate.classList.toggle('down', changes && nxt < now);
-    rate.innerHTML = `${fruitIcon(ftype)}<span>${ghost ? '' : changes ? num(now) + '<b>→</b>' : ''}${num(ghost || changes ? nxt : now)}/s</span>${nbChip}`;
-    // step bar: one segment per field still needed for the next rarity, filled in the next rarity's colour
-    bar.hidden = !same || maxed;
-    if (same && !maxed) {
+    rate.innerHTML = `${fruitIcon(outType(this.cfg, ftype))}<span>${ghost ? '' : changes ? num(now) + '<b>→</b>' : ''}${num(ghost || changes ? nxt : now)}/s</span>${nbChip}`;
+    // step bar (upgrade card): one segment per tile still needed for the next level
+    bar.hidden = !same || !this.placeStack;
+    if (same && this.placeStack) {
       let b = '';
       for (let k = 0; k < n; k++) b += `<i class="${k < prog ? 'on' : ''}${hov && k === prog ? ' nx' : ''}"></i>`;
-      bar.innerHTML = b + `<b></b>`; bar.style.setProperty('--c', hex(RARITY_COL[r + 1])); bar.style.setProperty('--c0', hex(RARITY_COL[r]));
+      bar.innerHTML = b + `<b></b>`; bar.style.setProperty('--c', rc(r + 1)); bar.style.setProperty('--c0', rc(r));
     }
   }
 
@@ -368,7 +396,7 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
-    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); clearComboFx();
+    [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
     stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
@@ -406,6 +434,13 @@ export class GameView {
       let v = this.fields.get(f[0]);
       if (v && (v.type !== f[1] || (!v.alive && f[3]))) { this.removeField(f[0], v); v = undefined; } // overbuilt
       if (!v) v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]);
+      if (v.bld) { // building: no wilting, broken/working come as flags
+        v.alive = !!f[3]; v.flags = f[11] ?? 0; v.stock = f[12] ?? '';
+        if (v.rarity !== f[5]) { v.rarity = f[5]; v.g.scale.setScalar(1 + Math.min(f[5], 6) * .03); }
+        v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
+        setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[11] & 1 ? 0xd23a2e : f[2] > .5 ? 0x6fcf4a : 0xe3b964);
+        v.shake = f[4]; continue;
+      }
       if (v.alive && !f[3]) this.killField(v);
       v.alive = !!f[3];
       // 0 HP: the plant wilts (brown, squashed, no fruit) until it is raked back above 0 HP, then it grows back fresh
@@ -512,6 +547,16 @@ export class GameView {
   private makeField(slot: number, type: FruitType, p: { x: number; z: number }) {
     const H = hexR(this.cfg);
     const g = new THREE.Group(); g.position.set(p.x, 0, p.z); this.dyn.add(g);
+    if (isBuilding(type)) { // building: own model on a little pad, no bed / plants
+      const bld = buildBuilding(type, H); bld.g.rotation.y = 0; g.add(bld.g);
+      const plant = new THREE.Group(); g.add(plant);
+      const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
+      const v: FieldView = { bedMat: M(0x000000), g, plant, fruits: [], mats: { leaf: M(0x4a3a24), head: M(0x4a3a24) }, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse: [], edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats: [], bglow: [0, 0, 0, 0, 0, 0], ftype: type, lavaT: 9, lv: 0, rate: 0, bld, flags: 0, stock: '', sndT: rand(0, 1) };
+      v.bar.position.set(p.x, 2.2, p.z);
+      this.fields.set(slot, v);
+      burst(V(p.x, .4, p.z), 0xe8c88a, 30, 2.5, .2, .8);
+      return v;
+    }
     // flat bed, flush with the ground: walkable, no collider
     // soft bed: hexagon only hinted (rounded, ragged outline) and fading out into the surrounding ground
     // earth: chili = soft lava rock bed; every other bed = overlapping raked-earth decals + wet earth around the plants
@@ -562,6 +607,14 @@ export class GameView {
   /** rim = loading bar: an energy pulse runs clockwise, one edge per harvest; tilled fields glow and wiggle */
   private animField(v: FieldView, dt: number) {
     const H = hexR(this.cfg) * .935, now = performance.now() / 1000;
+    if (v.bld) {
+      const working = !!((v.flags ?? 0) & 2), broken = !!((v.flags ?? 0) & 1);
+      v.bld.anim(dt, now, working, broken, v.x, v.z);
+      v.g.rotation.z = Math.sin(now * 50) * v.shake * .05;
+      // work sound now and then while the building runs (only near the player, see buildingSound)
+      v.sndT = (v.sndT ?? 0) - dt; if (working && v.sndT <= 0) { v.sndT = BUILD_SND_EVERY[v.ftype as BuildingType] ?? 1.5; buildingSound(v.ftype as BuildingType, 'work', v.x, v.z); }
+      return;
+    }
     const target = v.edge + v.ep; // 0..6 around the rim
     if (v.pos < 0 || !this.smooth) v.pos = target;
     else { let d = target - v.pos; if (d < -3) d += 6; if (d > 3) d -= 6; v.pos += d * Math.min(1, dt * 10); if (v.pos >= 6) v.pos -= 6; if (v.pos < 0) v.pos += 6; }
@@ -617,6 +670,14 @@ export class GameView {
       this.bits.push({ m, vx: Math.cos(a) * sp, vy: rand(1.6, 3), vz: Math.sin(a) * sp, t: 0, life: rand(1, 1.6), leaf: true, spin: rand(6, 14) * (Math.random() < .5 ? -1 : 1), s0: rand(.8, 1.4), landed: false });
     }
   }
+  private updateFlyers(dt: number) {
+    for (let i = this.flyers.length - 1; i >= 0; i--) {
+      const f = this.flyers[i]; f.t += dt; const k = Math.min(1, f.t / f.T);
+      f.m.position.set(lerp(f.fx, f.tx, k), lerp(f.fy, 1.1, k) + Math.sin(k * Math.PI) * 1.2, lerp(f.fz, f.tz, k)); f.m.rotation.y += dt * 8;
+      f.m.scale.setScalar(k > .8 ? 1 - (k - .8) / .2 * .9 : 1);
+      if (k >= 1) { this.dyn.remove(f.m); this.flyers.splice(i, 1); }
+    }
+  }
   private updateBits(dt: number) {
     for (let i = this.bits.length - 1; i >= 0; i--) {
       const b = this.bits[i], m = b.m; b.t += dt; const k = b.t / b.life;
@@ -653,7 +714,7 @@ export class GameView {
   }
   private setCarry(v: EView, carry: string) {
     v.carry = carry; const c = v.P.carry; for (const ch of [...c.children]) c.remove(ch);
-    for (let i = 0; i < carry.length; i++) { const m = fruitMesh(FRUITS[+carry[i]], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
+    const cs = carry ? carry.split(',') : []; for (let i = 0; i < cs.length; i++) { const m = fruitMesh(FRUITS[+cs[i]], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
   }
 
   // ---------------- events ----------------
@@ -747,6 +808,19 @@ export class GameView {
         break;
       }
       case 'chiliGlow': { const v = this.fields.get(e.s); if (v) v.lavaT = 0; break; }
+      case 'feed': { // goods fly in an arc from the field / player into the building
+        const b = this.fields.get(e.b); if (!b) break;
+        let fx = 0, fz = 0, fy = .6;
+        if (e.s >= 0) { const sl = this.slots[e.s]; fx = sl.x; fz = sl.z; } else { const pv = this.players.get(e.p); if (!pv) break; fx = pv.x; fz = pv.z; fy = 1; }
+        const m = fruitMesh(FRUITS[e.t], .9); this.dyn.add(m); m.position.set(fx, fy, fz);
+        this.flyers.push({ m, fx, fy, fz, tx: b.x, tz: b.z, t: 0, T: .45 + Math.random() * .15 });
+        break;
+      }
+      case 'bwork': { const v = this.fields.get(e.s); if (v) { v.sndT = 0; } break; }
+      case 'bdone': { const v = this.fields.get(e.s); if (v) { buildingSound(v.ftype, 'done', v.x, v.z); burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
+      case 'broken': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'break', v.x, v.z); burst(V(v.x, .8, v.z), 0x7a6048, 40, 3, .25, 1, { g: 5 }); } break; }
+      case 'repair': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repair', v.x, v.z); burst(V(v.x, .9, v.z), 0xc8a070, 6, 1.5, .08, .4, { g: 6 }); } break; }
+      case 'repaired': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repaired', v.x, v.z); burst(V(v.x, 1, v.z), 0x9aff7a, 30, 2.2, .14, .7); } break; }
       case 'rarity': { const sl = this.slots[e.s]; if (sl) { burst(V(sl.x, .3, sl.z), RARITY_COL[e.r] ?? 0xffffff, 60, 3.5, .25, 1.1); decal(sl.x, sl.z, RARITY_COL[e.r] ?? 0xffffff, .3, .7, { ring: true, add: true, grow: hexR(this.cfg) * 1.2, op: .9 }); } break; }
       case 'merge': burst(V(e.x, .3, e.z), FRUIT_HEX[FRUITS[e.t]], 18, 2, .18, .6); sfx('collect.merge', e.x, e.z); break;
       case 'collect': {
@@ -798,7 +872,7 @@ export class GameView {
     const night = 1 - dayNow().day;
     if (Math.random() < dt * 5 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
     else if (Math.random() < dt * 2.5 * (1 - night)) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(Math.cos(a) * r, rand(.4, 2), Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); } // pollen drifting in the sun
-    this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt);
+    this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt); this.updateFlyers(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);

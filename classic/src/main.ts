@@ -300,13 +300,14 @@ class Game {
     const pr = s.me[this.me];
     // build mode: card chosen, now pick a spot in the top-down view
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
-    this.view.setPlacing(placing);
+    const stack = !!placing && pr?.pm === 1;
+    this.view.setPlacing(placing, stack);
     if (!placing) this.touchSel = -1;
     show('#placeBar', !!placing);
     if (!placing && this.view.confirmSlot >= 0) { this.view.confirmSlot = -1; show('#placeConfirm', false); }
     if (placing) {
       show('#levelup', false);
-      if (this.placeShown !== placing) { this.placeShown = placing; $('#placeBar').innerHTML = `<div class="pic">${pic('field_' + placing)}</div>`; }
+      if (this.placeShown !== placing + stack) { this.placeShown = placing + stack; $('#placeBar').innerHTML = `<div class="pic">${pic((stack ? 'up_' : 'field_') + placing)}</div>`; }
       return;
     }
     this.placeShown = null;

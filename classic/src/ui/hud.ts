@@ -1,4 +1,4 @@
-import { COMBOS, FRUITS, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { COMBOS, FRUITS, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -84,13 +84,15 @@ export class Hud {
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
-    const have = s.fi.map(f => FRUITS[f[1]]).filter(t => t !== 'blue');
+    // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
+    const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'blue' && t !== 'wheat' && !isBuilding(t as any));
+    (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
-      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
+      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip${(SKILLS as string[]).includes(t) ? '' : ' bag'}">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
       for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
     }
-    document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const i = SKILLS.indexOf(el.dataset.r as any); const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : pr.am[i]); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
+    document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const i = SKILLS.indexOf(el.dataset.r as any); const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : i >= 0 ? pr.am[i] : pr.iv?.[FRUITS.indexOf(el.dataset.r as any)] ?? 0); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
     const fx = (ps.po ? `<div class="chip">${mini('poison')}<span>${ps.po}</span></div>` : '') + (ps.st ? `<div class="chip">${mini('stun')}</div>` : '');
     this.set('#statusfx', 'fx', fx, true);
     const mates = s.pl.filter(p => p.id !== me).map(p => `<span class="mate" style="background:${PLAYER_CSS[p.c % 4]};opacity:${p.al ? 1 : .3}"></span>`).join('');

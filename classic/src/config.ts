@@ -2,11 +2,22 @@ import YAML from 'yaml';
 
 export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
 export type Weapon = 'rake' | SkillId;
-export type FruitType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut';
+/** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
+export type CropType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
+export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'cow' | 'dairy' | 'kitchen';
+export type ProductType = 'flour' | 'water' | 'milk' | 'egg' | 'juice' | 'bread' | 'cheese' | 'meal';
+export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
-export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut'];
+export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'cow', 'dairy', 'kitchen'];
+export const PRODUCTS: ProductType[] = ['flour', 'water', 'milk', 'egg', 'juice', 'bread', 'cheese', 'meal'];
+export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
+export const isBuilding = (t: FruitType | null | undefined): t is BuildingType => !!t && (BUILDINGS as string[]).includes(t);
+/** one building: source (interval: makes one item every x s by itself) or processor (needs/needsAny -> makes, time s) */
+export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; buffer?: number; hp?: number }
+/** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
+export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
 export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
@@ -41,7 +52,7 @@ export interface EnemyCfg {
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
-  names: { skills: Record<Weapon, string>; plants: Record<FruitType, string>; fields: Record<FruitType, string>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
+  names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number };
@@ -50,7 +61,11 @@ export interface Balancing {
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>;
+  plants: Partial<Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
+  buildings: Record<BuildingType, BuildingCfg>;
+  items: Partial<Record<FruitType, ItemCfg>>;
+  /** tile levels: same-type neighbour bonus, upgrade cost/bonus, interaction (feeding/repair) */
+  tiles: { bonusBase: number; upgradeFirst: number; upgradeStep: number; upgradeStepGrowth: number; costFirst: number; costGrowth: number; hpPerLevel: number; rings: number; feedPerStroke: number; workPerStroke: number; repairPerStroke: number; buildingHp: number };
   rake: { damage: number; range: number; diameter: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
   skills: {
     readySeconds: number;

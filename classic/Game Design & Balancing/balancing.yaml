@@ -26,6 +26,7 @@ names:
     lemon: Zitronenbäumchen
     chili: Chilipflanze
     nut: Nussbaum
+    wheat: Getreide
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     asp: Spargelfeld
@@ -34,6 +35,25 @@ names:
     lemon: Zitronenbäumchen
     chili: Chilifeld
     nut: Nussbaum
+    wheat: Getreidefeld
+    well: Brunnen
+    mill: Mühle
+    press: Saftpresse
+    bakery: Bäckerei
+    hens: Hühnergehege
+    cow: Kuh am Pfahl
+    dairy: Käserei
+    kitchen: Küche
+  items:             # Waren (Name im Inventar)
+    wheat: Weizen
+    flour: Mehl
+    water: Wasser
+    milk: Milch
+    egg: Eier
+    juice: Saft
+    bread: Brot
+    cheese: Käse
+    meal: Mahlzeit
   combos:           # Kombiwaffen (Bastis Namen)
     jam: Jam-Bow
     cole: Coleateral Bomb
@@ -119,8 +139,8 @@ xp:
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
-  fieldSize: 3             # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster
-  fieldSlots: 20           # max. Anzahl Feldplätze (die innersten Hex-Plätze um die Mitte)
+  fieldSize: 2.8           # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster (22.11.2026: 3 -> 2,8, damit 4 Ringe in den Garten passen)
+  fieldSlots: 20           # nur ohne tiles.rings: max. Anzahl Feldplätze
   startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (das erste liegt in der Gartenmitte)
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
@@ -149,6 +169,52 @@ fields:
   rarityHp: 2                  # max. HP x2 je Seltenheitsstufe (Feld wird beim Aufstieg voll geheilt)
   neighborBonus: 0.10          # +10 % Produktion für jedes angrenzende Feld je Seltenheitsstufe des Nachbarn (additiv)
 
+# ---------------------------------------------------------------------
+#  Kacheln (22.11.2026, Classic): Startfeld in der Mitte + 4 Ringe = 61 Plätze.
+#  Jede Kachel ist ein Feld (Pflanze) oder ein Gebäude. Gebäude verarbeiten den Ertrag der direkt
+#  angrenzenden Kacheln automatisch; was keiner abnimmt, liegt am Gebäude zum Abholen (Tiere klauen es).
+# ---------------------------------------------------------------------
+tiles:
+  rings: 4                 # Ringe um das Startfeld (1 + 6 + 12 + 18 + 24 = 61 Plätze)
+  # Nachbarbonus: jede Kachel gibt sich selbst und jeder angrenzenden Kachel GLEICHEN Typs bonusBase + ihren Stufenbonus.
+  # Beispiel: 3 Getreidefelder im Dreieck = je 3 x 2 % = 6 %. Ist eins auf Stufe 1, bekommen alle 2 + 2 + 7 = 11 %.
+  # Andere Kombinationen geben keinen Bonus.
+  bonusBase: 0.02
+  upgradeFirst: 0.05       # Stufe 1: +5 %
+  upgradeStep: 0.03        # Stufe 2: +3 Punkte (= 8 %), danach je Stufe 1 Punkt mehr: 12, 17, 23, 30 ... (unendlich)
+  upgradeStepGrowth: 0.01
+  costFirst: 1             # Kacheln, die für die nächste Stufe draufgebaut werden müssen: 1, 2, 3, 4 ... (insgesamt 2, 4, 7, 11 ...)
+  costGrowth: 1
+  hpPerLevel: 0.5          # +50 % max. Leben je Stufe (Feld wird beim Aufstieg voll geheilt)
+  buildingHp: 150          # Leben eines Gebäudes; bei 0 steht es still, bis es mit der Harke ganz repariert ist
+  repairPerStroke: 0.12    # Harkenzug auf ein beschädigtes Gebäude repariert 12 % seiner Leben (voller Treffer)
+  feedPerStroke: 2         # Harkenzug auf ein Gebäude legt bis zu 2 passende Waren aus dem Inventar ein ...
+  workPerStroke: 1.5       # ... und treibt die Arbeit um 1,5 s voran (x Bonus), wie Harken auf Feldern
+
+# Gebäude: interval = Quelle (macht alle x s eine Ware von selbst), sonst Verarbeitung: needs (alles) oder needsAny (count beliebige davon) -> makes in time s.
+# buffer: so viele Ladungen Zutaten nimmt das Gebäude auf Vorrat. minLevel: ab dieser Spielerstufe als neue Kachel im Angebot.
+buildings:
+  well:    { minLevel: 2, interval: 4, makes: water }                                   # Brunnen: Wasser
+  cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
+  mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
+  hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg }                    # Hühnergehege: 2 Weizen (Futter) -> Eier
+  press:   { minLevel: 4, needsAny: [blue, cran, lemon], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren/Zitronen -> Saft
+  bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
+  dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
+  kitchen: { minLevel: 8, needsAny: [egg, milk, juice, bread, cheese], count: 3, time: 6, makes: meal }  # Küche: 3 beliebige Waren -> Mahlzeit
+
+# Waren beim Einsammeln: xp (x xp.gain) und heal (Leben) sofort, die Ware landet außerdem im Inventar (zum Einlegen in Gebäude).
+items:
+  wheat:  { xp: 1 }
+  flour:  { xp: 1 }
+  water:  { xp: 0 }
+  milk:   { xp: 3, heal: 4 }
+  egg:    { xp: 4 }
+  juice:  { xp: 6, heal: 4 }
+  bread:  { xp: 12, heal: 8 }
+  cheese: { xp: 15 }
+  meal:   { xp: 45, heal: 25 }
+
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
   tierValue: [1, 5, 25]     # Wert Stufe 1/2/3
@@ -164,6 +230,7 @@ plants:
   cab:  { interval: 15, unlockAt: 0 }
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
+  wheat: { interval: 3, amount: 1, minLevel: 2 }   # Getreidefeld (22.11.2026): 1 Weizen alle 3 s, ab Level 2
   nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true }
   # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
@@ -357,7 +424,7 @@ enemies:
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: true
-    steals: [blue]
+    steals: [blue, wheat, flour, water, milk, egg, juice, bread, cheese, meal]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
     fleeSpeed: 6.2
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
@@ -366,7 +433,7 @@ enemies:
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue]   # ... sonst alle anderen
+    steals: [cran, chili, asp, cab, lemon, blue, juice, bread, cheese, meal]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]

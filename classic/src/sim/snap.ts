@@ -29,6 +29,8 @@ export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   sl: number[]; // learned weapons in learn order (SKILLS index)
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
+  pm: 0 | 1; // place mode: 0 new tile, 1 upgrade (+1 onto a tile of the same type)
+  iv: number[]; // bag per FRUITS index (wheat and products)
   nu: number; // collected nuts
   cb: number[]; // per weapon (SKILLS order): combo it became (COMBOS index), -1 none
 }
@@ -46,7 +48,8 @@ export type MSnap = [number, number, number, number, number, number];
 // pool: [id, x, z, radius, lifeFrac]
 export type PuSnap = [number, number, number, number, number, number]; // + burning (Kimchi)
 /** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
-export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number];
+/** + flags (1 broken, 2 working), input stock of a building "typeIndex:n,..." */
+export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, string];
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768 } as const;
 

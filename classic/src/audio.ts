@@ -4,6 +4,8 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 let AC: AudioContext | null = null, master: GainNode, noiseBuf: AudioBuffer;
 export const audio = { on: true };
 const last: Record<string, number> = {};
+/** volume multiplier for the next tone()/noise() calls (positional building sounds) */
+let busVol = 1;
 
 export function initAudio() {
   if (AC) { AC.resume(); return; }
@@ -26,7 +28,7 @@ function tone({ type = 'sine', f = 440, f2 = null, t = .12, vol = .2, at = .004,
   const A = AC!, n = A.currentTime + when;
   const o = A.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, n);
   if (f2) o.frequency.exponentialRampToValueAtTime(f2, n + t);
-  const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(vol, n + at); g.gain.exponentialRampToValueAtTime(.0001, n + t);
+  const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(Math.max(.0002, vol * busVol), n + at); g.gain.exponentialRampToValueAtTime(.0001, n + t);
   let lastNode: AudioNode = o;
   if (vib) { const l = A.createOscillator(); l.frequency.value = vibF; const lg = A.createGain(); lg.gain.value = vib; l.connect(lg); lg.connect(o.frequency); l.start(n); l.stop(n + t + .05); }
   if (filt) { const bq = A.createBiquadFilter(); bq.type = filt.type; bq.frequency.value = filt.f; bq.Q.value = filt.q || 1; lastNode.connect(bq); lastNode = bq; }
@@ -38,7 +40,7 @@ function noise({ t = .2, vol = .2, type = 'lowpass', f = 1200, f2 = null, q = .8
   const s = A.createBufferSource(); s.buffer = noiseBuf; s.playbackRate.value = rand(.8, 1.2);
   const bq = A.createBiquadFilter(); bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f, n);
   if (f2) bq.frequency.exponentialRampToValueAtTime(f2, n + t);
-  const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(vol, n + at); g.gain.exponentialRampToValueAtTime(.0001, n + t);
+  const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(Math.max(.0002, vol * busVol), n + at); g.gain.exponentialRampToValueAtTime(.0001, n + t);
   s.connect(bq); bq.connect(g); g.connect(master); s.start(n, rand(0, .5)); s.stop(n + t + .05);
 }
 // Shepard pop: octave partials under a bell curve -> seemingly endlessly rising pickup sound
@@ -256,3 +258,55 @@ export function tickAmbient(dt: number) {
   const a = Math.random() * Math.PI * 2; sfx('calls.' + key, lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });
+
+// ---------------- buildings (Classic, 22.11.2026): synthesized, positional ----------------
+/** seconds between two work sounds while a building runs */
+export const BUILD_SND_EVERY: Record<string, number> = { mill: .9, press: 1.0, bakery: 1.3, well: 1.4, cow: 7, hens: 1.6, dairy: .85, kitchen: 1.2 };
+const clicks = (n: number, span: number, f: number, vol: number, q = 4, when = 0) => { for (let i = 0; i < n; i++) noise({ t: .03, vol: vol * rand(.7, 1), type: 'bandpass', f: f * rand(.85, 1.15), q, when: when + i * span / n + rand(0, span / n * .3), at: .002 }); };
+const BSND: Record<string, Record<string, () => void>> = {
+  mill: { // rattling wooden gear, millstones grinding, flour trickling
+    work() { noise({ t: 1.0, vol: .16, type: 'lowpass', f: 220, f2: 160, at: .15 }); tone({ type: 'sawtooth', f: 52, t: .95, vol: .03, at: .2, filt: { type: 'lowpass', f: 180 } }); clicks(7, .85, 1500, .07, 5); noise({ t: .9, vol: .025, type: 'highpass', f: 5200, at: .25 }); },
+    done() { noise({ t: .6, vol: .05, type: 'bandpass', f: 4500, f2: 2500, q: .8, at: .05 }); },
+  },
+  press: { // ratcheting screw, then fruit squashed (wet squish + drip)
+    work() { for (let i = 0; i < 4; i++) { tone({ type: 'square', f: 760 + i * 30, t: .025, vol: .035, when: i * .09, filt: { type: 'bandpass', f: 1400, q: 3 } }); noise({ t: .02, vol: .07, type: 'bandpass', f: 2200, q: 5, when: i * .09, at: .002 }); }
+      noise({ t: .35, vol: .14, type: 'lowpass', f: 900, f2: 180, when: .42, at: .02 }); tone({ f: 200, f2: 80, t: .25, vol: .08, when: .45 }); },
+    done() { for (let i = 0; i < 3; i++) tone({ f: rand(700, 1100), f2: rand(300, 500), t: .07, vol: .05, when: i * .12 }); },
+  },
+  bakery: { // oven crackle and the low roar of the fire
+    work() { noise({ t: 1.2, vol: .06, type: 'lowpass', f: 380, at: .3 }); clicks(9, 1.1, 3500, .045, 2); },
+    done() { tone({ type: 'triangle', f: 1320, t: .9, vol: .07, at: .003 }); tone({ type: 'sine', f: 1980, t: .6, vol: .03, when: .01 }); },
+  },
+  well: { // chain over the roller, then the bucket splashes
+    work() { clicks(10, .9, 3200, .05, 6); tone({ type: 'triangle', f: 210, f2: 190, t: .5, vol: .025, when: .2 }); },
+    done() { noise({ t: .4, vol: .14, type: 'lowpass', f: 1600, f2: 250, at: .005 }); tone({ f: 420, f2: 160, t: .12, vol: .06 }); },
+  },
+  cow: { // a lazy moo now and then, milk squirts when a bottle is full
+    work() { if (Math.random() < .7) tone({ type: 'sawtooth', f: 150, f2: 118, t: 1.1, vol: .07, at: .12, vib: 4, vibF: 5, filt: { type: 'lowpass', f: 700, q: 2 } }); },
+    done() { for (let i = 0; i < 2; i++) noise({ t: .12, vol: .07, type: 'bandpass', f: 2600, f2: 1800, q: 2, when: i * .18 }); },
+  },
+  hens: { // clucking
+    work() { const n = 1 + Math.floor(rand(0, 3)); for (let i = 0; i < n; i++) tone({ type: 'triangle', f: rand(650, 900), f2: rand(450, 600), t: .09, vol: .045, when: i * rand(.12, .2), vib: 60, vibF: 30 }); },
+    done() { tone({ f: 520, f2: 300, t: .06, vol: .07 }); for (let i = 0; i < 4; i++) tone({ type: 'triangle', f: 900 - i * 60, f2: 700, t: .08, vol: .05, when: .12 + i * .1, vib: 80, vibF: 35 }); },
+  },
+  dairy: { // butter churn: dull wooden thumps and sloshing
+    work() { tone({ f: 120, f2: 70, t: .14, vol: .09 }); noise({ t: .3, vol: .07, type: 'lowpass', f: 600, f2: 250, when: .05, at: .05 }); },
+    done() { tone({ f: 180, f2: 120, t: .2, vol: .08 }); tone({ type: 'triangle', f: 990, t: .5, vol: .04, when: .1 }); },
+  },
+  kitchen: { // sizzling pan, a ladle clinking on the pot
+    work() { noise({ t: 1.1, vol: .045, type: 'highpass', f: 5500, at: .2 }); if (Math.random() < .6) tone({ type: 'triangle', f: rand(1700, 2300), t: .25, vol: .035, when: rand(.2, .8) }); },
+    done() { [784, 988, 1175].forEach((f, i) => tone({ type: 'triangle', f, t: .45, vol: .06, when: i * .09 })); },
+  },
+  any: {
+    break() { noise({ t: .7, vol: .22, type: 'lowpass', f: 1100, f2: 90, at: .004 }); clicks(6, .4, 1800, .12, 2); tone({ f: 95, f2: 40, t: .4, vol: .2 }); },
+    repair() { tone({ f: 340, f2: 160, t: .07, vol: .1 }); noise({ t: .04, vol: .12, type: 'bandpass', f: 2600, q: 3, at: .002 }); },
+    repaired() { [523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f, t: .3, vol: .06, when: i * .07 })); },
+  },
+};
+/** building sound at a world position, quieter with distance from the listener (player) */
+export function buildingSound(type: string, ph: string, x: number, z: number) {
+  if (!AC || !audio.on) return;
+  const d = Math.hypot(x - lx, z - lz), v = Math.pow(Math.max(0, 1 - d / 14), 1.5); if (v < .04) return;
+  const f = BSND[type]?.[ph] ?? BSND.any[ph]; if (!f || !can('b.' + type + ph + Math.round(x * 3) + ',' + Math.round(z * 3), .2)) return;
+  busVol = v; try { f(); } finally { busVol = 1; }
+}

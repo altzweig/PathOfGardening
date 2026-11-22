@@ -65,6 +65,8 @@ export interface Player {
   rest: number; after: { target: Target; info: ActionInfo; pick: number } | null;
   /** the running work was started with the button held: letting go stops it */
   held?: boolean;
+  /** the spot worked last (Basti 22.11.2026): stays the preferred target as long as there is something to do there */
+  last?: Target | null;
   /** turning speed while following the camera (rad/s) */
   fv?: number;
   swing: { t: number; dir: number; hit: boolean } | null;
@@ -431,6 +433,9 @@ export class DaySim {
   /** front = third person (21.11.2026): what lies in front of the farmer wins over what is behind */
   nearestTarget(range: number, front = false): Target | null {
     const P = this.player; let best: Target | null = null, score = 1e9;
+    // the spot just worked on wins as long as something can be done there (sown -> water it, not the neighbour field)
+    if (P.last?.k === 'plot' && (this.s.plots[P.last.i]?.t ?? 0) > 0 && this.targetDist(P.last, P.x, P.z) <= range) return P.last; // sprouting / clearing: ready again in a moment
+    if (P.last) { const a = this.actionFor(P.last); if (a && a.ok && this.targetDist(P.last, P.x, P.z) <= range && !(this.players.length > 1 && this.busy(P.last))) return P.last; }
     for (const t of this.targetsNear(P.x, P.z, range)) {
       const a = this.actionFor(t); if (!a) continue;
       const d = this.targetDist(t, P.x, P.z); if (d > range) continue;
@@ -614,6 +619,9 @@ export class DaySim {
       if (!this.tooFar(A.target, next)) { P.goal = A.target; return; } // the next weed of the plot lies elsewhere: shuffle over (in the crouch) and go on
     }
     if (it.hold && this.holdNext(it, A.target, !steering)) return;
+    // field still clearing after the harvest / sprouting after sowing: wait for it and go on (Basti 22.11.2026: harvest -> sow -> water in one go)
+    const pl = A.target.k === 'plot' ? this.s.plots[A.target.i] : null;
+    if (it.hold && pl && pl.t > 0) { P.after = A; P.rest = pl.t + .02; return; }
     this.ev.push({ k: 'actEnd', kind: A.info.kind, target: A.target });
   }
   /** button held: the next possible action on the SAME spot (Basti 22.11.2026: never on to another field). Within reach only;
@@ -623,7 +631,9 @@ export class DaySim {
     for (const t of [last]) {
       if (!t) continue;
       const a = this.actionFor(t);
-      if (!a || !a.ok || this.targetDist(t, P.x, P.z) > reach || (this.players.length > 1 && this.busy(t))) continue;
+      if (!a || this.targetDist(t, P.x, P.z) > reach || (this.players.length > 1 && this.busy(t))) continue;
+      // next step not possible (e.g. sown, but the can is empty): the same feedback as a manual try (Basti 22.11.2026)
+      if (!a.ok) { this.ev.push({ k: 'deny', why: a.why, target: t }); continue; }
       if (this.inPlace(t, a)) { this.startAction(t, a); return true; }
       if (walk) { P.goal = t; return true; }
     }
@@ -668,7 +678,7 @@ export class DaySim {
     const P = this.player; P.goal = null;
     if (a.kind === 'water' && this.can <= 0) return;
     P.crouch = LOW_ACTIONS.has(a.kind); // down on one knee for ground work, up again for everything else
-    P.action = { target: t, info: a, t: 0, pick: 0 };
+    P.action = { target: t, info: a, t: 0, pick: 0 }; P.last = t;
     this.ev.push({ k: 'act', kind: a.kind, tool: a.tool, target: t });
   }
   cancelAction() { const P = this.player; P.rest = 0; P.after = null; if (P.action) this.ev.push({ k: 'actCancel', kind: P.action.info.kind }); P.action = null; }

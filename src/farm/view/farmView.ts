@@ -233,7 +233,7 @@ export class FarmView {
   camYaw = 0; camPitch = .55;
   /** camera (Basti 22.11.2026): 'tp' third person camDist m behind the farmer, 'fp' first person, 'td' top down;
    *  fpK / tdK = smoothed blend towards first person / top down, push = wheel pushed against a detent */
-  camMode: 'fp' | 'tp' | 'td' = 'tp'; camDist = 3; private fpK = 0; private tdK = 0; private push = 0; private pushT = 0;
+  camMode: 'tp' | 'td' = 'tp'; camDist = 3; tdH = 10; private fpK = 0; private tdK = 0; private push = 0; private pushT = 0;
   private camPos = new THREE.Vector3(); private camLook = new THREE.Vector3(); private camInit = false;
   private arrow: THREE.Group; arrowAt: { x: number; z: number; y?: number } | null = null;
   private bubble: { s: THREE.Sprite; id: number; text: string } | null = null;
@@ -944,7 +944,7 @@ export class FarmView {
     const oPos = V(this.camX + off.x + sx, off.y, this.camZ + off.z + sz), oLook = V(this.camX + sx + Math.sin(yaw) * lo, 0, this.camZ + sz + Math.cos(yaw) * lo);
     // --- play camera (Basti 22.11.2026): third person 3..8 m, wheel against the detent at 3 m = first person, beyond 8 m = top down
     const Zc = this.zoomCfg(), e = 1 - Math.exp(-dt * 7);
-    this.fpK = lerp(this.fpK, this.camMode === 'fp' && mode === 'day' && !k ? 1 : 0, e);
+    this.fpK = 0; // first person removed again (Basti 22.11.2026: clunky)
     this.tdK = lerp(this.tdK, this.camMode === 'td' && mode === 'day' && !k ? 1 : 0, e);
     if ((this.pushT -= dt) <= 0) this.push = lerp(this.push, 0, 1 - Math.exp(-dt * 6));
     const cy = Math.sin(this.camYaw), cz = Math.cos(this.camYaw), fwd = V(-cy, 0, -cz);
@@ -956,7 +956,7 @@ export class FarmView {
     const tpLook = head.clone().addScaledVector(fwd, .3);
     const down = clamp(this.camPitch - .45, -.7, 1.2), eye = V(this.camX - cy * .05, 1.58, this.camZ - cz * .05);
     const fpLook = eye.clone().add(V(-cy * Math.cos(down), -Math.sin(down), -cz * Math.cos(down)));
-    const tdPos = V(this.camX + cy * .02, Zc.top, this.camZ + cz * .02), tdLook = V(this.camX, 0, this.camZ);
+    const tdPos = V(this.camX + cy * .02, clamp(this.tdH, Zc.top, Zc.topMax), this.camZ + cz * .02), tdLook = V(this.camX, 0, this.camZ);
     const pos = tpPos.lerp(eye, this.fpK).lerp(tdPos, this.tdK), look = tpLook.lerp(fpLook, this.fpK).lerp(tdLook, this.tdK);
     // overview (evening / tutorial shot) wins while it is on
     const ov = mode === 'evening' ? 1 : k; pos.lerp(oPos, ov); look.lerp(oLook, ov);
@@ -1026,16 +1026,19 @@ export class FarmView {
     const C = this.cfg.camera; this.camYaw -= dx * C.rotate;
     this.camPitch = clamp(this.camPitch + dy * C.rotate, C.pitch[0], C.pitch[1]);
   }
-  private zoomCfg() { return { near: 3, far: 8, top: 10, push: 300, back: 100, ...(this.cfg.camera.zoom ?? {}) }; }
+  private zoomCfg() { return { near: 3, far: 10, top: 10, topMax: 15, push: 300, back: 100, ...(this.cfg.camera.zoom ?? {}) } as { near: number; far: number; top: number; topMax: number; push: number; back: number }; }
   /** wheel / pinch (dy > 0 = out). Third person between near and far; pressing on against the detent at near = first person,
    *  beyond far = top down. Back to third person needs less pushing (back < push). */
   zoomBy(dy: number) {
     const Z = this.zoomCfg(); this.pushT = .45;
     const against = (lim: number) => { this.push += dy; return Math.abs(this.push) >= lim; };
-    if (this.camMode === 'fp') { if (dy > 0 && against(Z.back)) { this.camMode = 'tp'; this.camDist = Z.near; this.push = 0; } else if (dy < 0) this.push = 0; return; }
-    if (this.camMode === 'td') { if (dy < 0 && against(Z.back)) { this.camMode = 'tp'; this.camDist = Z.far; this.push = 0; } else if (dy > 0) this.push = 0; return; }
-    if (dy < 0 && this.camDist <= Z.near + 1e-3) { if (this.push > 0) this.push = 0; if (against(Z.push)) { this.camMode = 'fp'; this.push = 0; } return; }
-    if (dy > 0 && this.camDist >= Z.far - 1e-3) { if (this.push < 0) this.push = 0; if (against(Z.push)) { this.camMode = 'td'; this.push = 0; } return; }
+    // top down (22.11.2026): zooms on between top and topMax m; at top, pushing on inwards goes back to third person (less resistance)
+    if (this.camMode === 'td') {
+      if (dy > 0 || this.tdH > Z.top + 1e-3) { this.push = 0; this.tdH = clamp(this.tdH * Math.pow(1.0015, dy), Z.top, Z.topMax); return; }
+      if (against(Z.back)) { this.camMode = 'tp'; this.camDist = Z.far; this.push = 0; }
+      return;
+    }
+    if (dy > 0 && this.camDist >= Z.far - 1e-3) { if (this.push < 0) this.push = 0; if (against(Z.push)) { this.camMode = 'td'; this.tdH = Z.top; this.push = 0; } return; }
     this.push = 0; this.camDist = clamp(this.camDist * Math.pow(1.0015, dy), Z.near, Z.far);
   }
   /** facing of the camera (for the farmer turning with it) */

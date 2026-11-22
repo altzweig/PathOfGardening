@@ -78,7 +78,7 @@ export interface FarmCfg {
   grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
   camera: { rotate: number; /** PC mouse turn factor (x rotate per px) */ mouse?: number; pitch: [number, number];
-    /** 22.11.2026: third person near..far m, top = top-down height, push / back = wheel units against a detent (into / out of fp/td) */ zoom?: { near: number; far: number; top: number; push: number; back: number } };
+    /** 22.11.2026: third person near..far m, top = top-down height, push / back = wheel units against a detent (into / out of fp/td) */ zoom?: { near: number; far: number; top: number; topMax?: number; push: number; back: number } };
   storage: { capacity: number; sections?: StoreSection[]; rarity?: Record<ItemId, Rarity>; perennials?: Record<ItemId, { every: number; picks: number; pick: number }>; history?: number };
   saves: { autosave: number; nameMax: number };
   start: { money: number; items: Record<ItemId, number>; plots: string[] };

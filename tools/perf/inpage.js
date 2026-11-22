@@ -115,3 +115,28 @@ window.__objCount = function () {
   s.traverse(o => { all++; if (!vis(o)) hidden++; if (o.matrixAutoUpdate) auto++; });
   return { all, hidden, auto };
 };
+
+// ground shader experiments (plan 22.11.2026): variant = 'base' | 'noNoise' | 'oneSample' | 'maxLayers2' | 'noLight'
+window.__groundVar = function (variant) {
+  const w = window.__pog?.view?.world; const m = w.__mat ?? w.ground.material; w.__mat = m; w.ground.material = m;
+  m.__orig ??= m.onBeforeCompile;
+  const o = m.__orig;
+  m.onBeforeCompile = (sh, r) => {
+    o(sh, r);
+    if (variant === 'noNoise') sh.fragmentShader = sh.fragmentShader.replace(/float tFbm\(vec2 p\)\{[^}]*\}/, 'float tFbm(vec2 p){ return .5; }');
+    if (variant === 'oneSample') sh.fragmentShader = sh.fragmentShader.replace(/, cb = textureGrad\(C, [^;]*;/, ', cb = ca;').replace(/, nb = textureGrad\(N, [^;]*;/, ', nb = na;');
+    if (variant === 'maxLayers2') sh.fragmentShader = sh.fragmentShader.replace('if (q > .003) layerS', 'if (q > .25) layerS');
+    if (variant === 'loop6' || variant === 'combo') sh.fragmentShader = sh.fragmentShader.split('i < 16; i++').join('i < 6; i++');
+    if (variant === 'combo') sh.fragmentShader = sh.fragmentShader.replace(/float tFbm\(vec2 p\)\{[^}]*\}/, 'float tFbm(vec2 p){ return tNoise(p); }').replace(/, cb = textureGrad\(C, [^;]*;/, ', cb = ca;').replace(/, nb = textureGrad\(N, [^;]*;/, ', nb = na;');
+    if (variant === 'noLight') sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_begin>', '').replace('#include <lights_fragment_maps>', '').replace('#include <lights_fragment_end>', 'reflectedLight.directDiffuse = diffuseColor.rgb;');
+  };
+  const k = m.customProgramCacheKey; m.__k ??= k; m.customProgramCacheKey = () => m.__k() + variant;
+  m.needsUpdate = true;
+  return true;
+};
+window.__layerStats = function () {
+  const w = window.__pog.view.world, G = w.weights; if (!G) return null;
+  const T = G.tex.map(t => t.image.data), n = T[0].length / 4; const hist = new Array(17).fill(0); let sum = 0;
+  for (let i = 0; i < n; i++) { let c = 0; for (const d of T) for (let k = 0; k < 4; k++) if (d[i * 4 + k] > 1) c++; hist[c]++; sum += c; }
+  return { texels: n, size: T.length ? Math.sqrt(n) : 0, mean: sum / n, hist, slots: [...G.slots] };
+};

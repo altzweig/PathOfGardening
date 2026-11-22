@@ -18,6 +18,7 @@ export function pcControls() {
   ${label(190, 280, 'Laufen')}
   ${key(60, 318, 90, 60, 'Esc', 24)}${label(170, 358, 'Pause', 'start')}
   ${key(300, 318, 60, 60, 'B')}${icon(ic('book'), 372, 322, 52)}${label(432, 358, 'Buch', 'start')}
+  ${key(300, 393, 80, 60, 'Tab', 24)}${icon(ic('seed'), 392, 397, 52)}${label(452, 433, 'Saatgut', 'start')}
   ${key(60, 393, 90, 60, 'E')}${label(170, 433, 'Arbeiten', 'start')}
   ${key(60, 468, 210, 60, 'Leertaste', 24)}${label(290, 508, 'Kämpfen', 'start')}
   <g transform="translate(560 90)">
@@ -46,17 +47,22 @@ export function mobileControls() {
   <circle cx="200" cy="330" r="74" fill="#0b1016aa" stroke="${GOLD}" stroke-opacity=".5" stroke-width="3"/>
   <circle cx="232" cy="306" r="32" fill="${GOLD}"/>
   ${label(250, 150, 'Laufen', 'middle', 34)}
-  <g transform="translate(860 410)"><circle r="66" fill="#1d252d" stroke="${GOLD}" stroke-width="5"/>${icon(ic('hands'), -40, -40, 80)}</g>
-  ${label(860, 312, 'Arbeiten', 'middle', 28)}${label(860, 500, 'halten: weiter', 'middle', 20, TXT)}
-  ${tools(740, 232, 34)}
-  <g transform="translate(700 440)"><circle r="50" fill="#1d252d" stroke="#ff8a70" stroke-width="5"/>${icon(ic('rake'), -32, -32, 64)}</g>
-  ${label(700, 370, 'Kämpfen', 'middle', 28)}
-  <g transform="translate(560 300)"><circle r="30" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="7 6"/><circle r="9" fill="${TXT}"/></g>
-  ${label(560, 360, 'Tippen', 'middle', 24, TXT)}
-  <g transform="translate(560 150)" fill="none" stroke="${TXT}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="830" y="150" width="60" height="330" rx="30" fill="#0b1016" stroke="#3a4550" stroke-width="3"/>
+  <g transform="translate(860 190)"><circle r="30" fill="#161d24" stroke="#ff8a70" stroke-width="4"/>${icon(ic('rake'), -20, -20, 40)}</g>
+  <g transform="translate(860 440)"><circle r="30" fill="#161d24" stroke="${GOLD}" stroke-width="4"/>${icon(ic('hands'), -20, -20, 40)}</g>
+  <g transform="translate(860 315)"><circle r="58" fill="#1d252d" stroke="${GOLD}" stroke-width="5"/>${icon(ic('hands'), -34, -34, 68)}</g>
+  <path d="M910 290 V215 M898 228 L910 214 L922 228" stroke="#ff8a70" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M910 340 V415 M898 402 L910 416 L922 402" stroke="${GOLD}" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  ${label(800, 200, 'Kämpfen', 'end', 28)}${label(800, 450, 'Arbeiten', 'end', 28)}${label(800, 480, 'halten: weiter', 'end', 20, TXT)}
+  ${tools(500, 452, 28)}
+  <g transform="translate(690 355)"><rect x="-80" y="-28" width="160" height="56" rx="28" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(ic('wheat'), -72, -20, 40)}${label(18, 10, 'Weizen', 'middle', 24, TXT)}</g>
+  ${label(690, 312, 'Saatgut', 'middle', 26)}${label(690, 402, 'tippen: weiter · halten: Liste', 'middle', 18, TXT)}
+  <g transform="translate(480 200)"><circle r="30" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="7 6"/><circle r="9" fill="${TXT}"/></g>
+  ${label(480, 260, 'Tippen', 'middle', 24, TXT)}
+  <g transform="translate(640 160)" fill="none" stroke="${TXT}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="-24" cy="24" r="15" fill="${TXT}" fill-opacity=".25"/><circle cx="24" cy="-24" r="15" fill="${TXT}" fill-opacity=".25"/>
     <path d="M-44 44 L-64 64 M-64 46 V64 H-46"/><path d="M44 -44 L64 -64 M46 -64 H64 V-46"/></g>
-  ${label(560, 245, 'Zoom', 'middle', 24, TXT)}
+  ${label(640, 255, 'Zoom', 'middle', 24, TXT)}
   <g transform="translate(872 104)"><rect x="-30" y="-30" width="60" height="60" rx="14" fill="#161d24" stroke="${GOLD}" stroke-width="3"/>${icon(ic('book'), -24, -24, 48)}</g>
   ${label(800, 114, 'Buch', 'end', 28)}
 </svg>`;

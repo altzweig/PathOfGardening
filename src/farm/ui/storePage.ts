@@ -86,7 +86,7 @@ function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
   const D = cfg.day.length, rows: string[] = [], bonus: string[] = [], id = g.id, made: string[] = [], used: string[] = [];
   const cycle = cfg.quests?.daily?.cycle ?? 10;
   if (g.kind === 'crop') {
-    const C = cfg.crops[id], fields = s.plots.filter(p => p.open && p.kind === id).length;
+    const C = cfg.crops[id], fields = s.plots.filter(p => p.open && p.crop === id).length;
     const perPass = C.cuts * (C.yield[id] ?? 0), perDay = D / (cycle + C.grow) * perPass;
     rows.push(fact('Wachstum', dur(C.grow, cfg)), fact('Ernten', `${C.cuts} ×`), fact('pro Ernte', goods(C.yield)),
       fact('pro Feld und Tag', `≈ ${n0(perDay)}`), fact('Felder', `${fields}`), fact('XP pro Ernte', `${cropXp(cfg, id)}`));

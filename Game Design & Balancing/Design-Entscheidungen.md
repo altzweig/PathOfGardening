@@ -160,7 +160,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 ## Ernte-XP, Felder pro Level und Hofladen (Basti, 21.11.2026)
 - Jeder Erntevorgang gibt XP: Seltenheit × (Wachstum + 10 + 2 × Arbeitszeit) / 3, verteilt auf die Vorgänge (Werte in `harvestXp`). Busch, Bäume, Sträucher und wilde Pflanzen zählen mit pauschal 10 s Feldzeit.
 - Tempo: grob alle 2-3 Tage ein Level, Level 2 schon an Tag 1. Ca. 90 % der XP aus Ernten, 10 % aus Aufträgen. Spielzeit grob 2/5 Feldarbeit, 2/5 Kämpfen, 1/5 abends Management.
-- Start: Weizen-, Kohl- und Zwiebelfeld plus Blaubeerbusch, Brunnen heil. Jedes Feld hat eine feste Frucht, Säen wählt nichts mehr aus.
+- Start: Weizen-, Kohl- und Zwiebelfeld plus Blaubeerbusch, Brunnen heil. (Seit 22.11.2026: Saatgut Weizen, Kohl, Zwiebel, Felder ohne feste Frucht, siehe „Freie Saatgutwahl“.)
 - Felder sind nicht kaufbar. Jedes Level-up gibt 1 Feld, das abends automatisch auf dem nächsten freien Feldplatz angelegt wird. Erstes Level-up: Wahl aus 3 zufälligen Commons, die man noch nicht hat; danach 1 zufälliges Common (auch schon vorhandene). Uncommon/Rare kommen später über Finden/Kaufen.
 - Hofladen ab Level 2, kostet nur Gefallen: nach Tag 1 noch nicht, nach Tag 2 sicher bezahlbar (Preis knapp über dem Maximum von Tag 1, simuliert).
 - Tiere: am Anfang 1-2 Hasen nahe den Feldern. Erste Annäherung: Flucht 15 m. Zweite: 1 Minute ganz weg. Sie stehlen nichts. Waschbären vorerst nicht (später per Level). Tiere schauen immer in Laufrichtung.
@@ -269,3 +269,14 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Handy (Basti, 22.11.2026 nachmittags): Das Info-Label über dem Ziel („[Gießen]“, „[Ernten]“) ist antippbar, ein Tippen = ein Arbeitsschritt (wie Aktionsknopf, Ring oder Antippen des Ziels).
 - Durchsicht durch Bäume, Dächer und Zäune: am PC 50 % größer, am Handy doppelt so groß wie vorher (camera.occlusion).
 - Steuerungs-Empfindlichkeit (Basti, 22.11.2026): Regler unter dem Steuerungsbild in den Optionen. PC: Maus. Handy: Joystick (wie weit der Daumen für volles Tempo muss), Zoom (Pinch), Kamera (wie schnell sie hinter die Figur schwenkt). 0,25× bis 3×, Mitte = 1× rastet ein, pro Gerät lokal gespeichert.
+
+## Freie Saatgutwahl (Basti, 22.11.2026, ersetzt „feste Frucht pro Feld“)
+- Felder haben keine feste Frucht mehr. Jedes Level-up schaltet ein Feld allgemein frei (öffnet sich sofort auf dem nächsten freien Platz). Gesät wird das **aktive Saatgut**.
+- Start: Saatgut Weizen, Kohl, Zwiebel (`seeds.start`), 3 offene Felder (`start.plots`). Saatgut ist unendlich, kein limitierender Faktor.
+- Neues Saatgut: jedes Level-up legt abends im Buch „Neues Saatgut“ auf: Wahl aus `seeds.offer` (3) Sorten, die man noch nicht hat. Erst alle Commons, dann Uncommons, dann Rares (Fruchttabelle). Mehrere offene Wahlen bieten nie dieselbe Sorte doppelt an.
+- Aktives Saatgut wechseln: **PC** Tab (Shift+Tab zurück), Anzeige unten rechts mit Taste, Icon und Name. **Handy** Saatgut-Knopf neben dem Arbeitsknopf mit Icon und Name: Tippen = nächstes Saatgut, Gedrückthalten = Liste aller Sorten; Antippen einer Sorte wählt sie und schließt, Tippen daneben schließt ohne Änderung.
+- Im Koop hat jeder Spieler sein eigenes aktives Saatgut (aus dem Saatgut des Hofs).
+- **Handy: ein Knopf für Arbeiten und Kämpfen** (Test): Antippen/Halten = Arbeiten (wie vorher), nach unten ziehen = Arbeiten, nach oben ziehen = Kämpfen (solange oben gehalten). Oben ein rotes Waffensymbol, unten das Werkzeug.
+- Aufträge nehmen alle Waren des vorhandenen Saatguts (nicht mehr nur die Früchte der Felder); der Tagesumfang bleibt über die Feldzahl begrenzt.
+- **Wildauftrag** ab Level 2 (`quests.daily.wild`): mit 50 % Chance ist einer der Tagesaufträge ein Kräuterauftrag (1–2 Sorten aus Bärlauch, Löwenzahn, Sauerampfer, je 2–3 Stück) aus den Wildkräuter-Büscheln. Belohnung nach `sec` Arbeit pro Kraut wie bei den anderen Aufträgen.
+- Alte Spielstände: die Früchte der bisherigen Felder werden zu Saatgut, noch nicht platzierte Level-up-Felder öffnen sich und bringen je eine Saatgut-Wahl.

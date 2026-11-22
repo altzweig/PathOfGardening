@@ -31,7 +31,7 @@ import { faintCutscene } from './farm/cutscene/faint';
 import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
-import { NetGuest, NetHost, Visitor, cleanCode, peek } from './farm/net';
+import { NetGuest, NetHost, Peeked, Visitor, cleanCode, peek } from './farm/net';
 import { Online, VisitAsk } from './online/online';
 import { Phase, resetSnapSeq, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
 import type { Ev } from './farm/sim';
@@ -179,6 +179,11 @@ class Game {
     this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
     this.input.mouseSens = this.cfg.camera.mouse ?? .55;
     this.input.onZoom = dy => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(dy); };
+    // seeds (Basti 22.11.2026): Tab / the seed button switch the active seed, holding the button opens the list
+    this.input.onSeed = d => { if (this.mode === 'day' && !this.paused && !this.bookOpen) this.hud.nextSeed(d); };
+    this.input.onSeedMenu = () => { if (this.mode === 'day' && !this.paused && !this.bookOpen) this.hud.seedMenu(true); };
+    this.hud.onSeed = k => { if (!this.netGuest) this.s.seed = k; };
+    this.hud.onSound = k => sfx(k);
     addEventListener('wheel', e => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(e.deltaY); }, { passive: true });
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });
@@ -368,6 +373,7 @@ class Game {
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
     if (this.tut) this.tut.onDone = () => this.endOfDay('time');
     this.mode = 'day'; this.ending = false; this.paused = false;
+    this.hud.seeds = [...s.seeds]; this.hud.seed = s.seed;
     this.input.enabled = true; this.hud.show(true); this.hud.clear(); this.hud.fade(false);
   }
   private async endOfDay(reason: 'time' | 'faint') {
@@ -448,6 +454,7 @@ class Game {
   tick(dt: number) {
     const sim = this.sim;
     if (this.mode !== 'day' || !sim || (this.paused && !this.coopLive)) return;
+    sim.player.seed = this.hud.activeSeed();
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
@@ -458,6 +465,7 @@ class Game {
     if (this.tut) it = this.tut.update(dt, it);
     if (this.paused) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false }; // co-op: the game goes on behind the menu
     for (const b of this.bots) sim.intents.set(b.P.id, b.intent(sim));
+    it.seed = this.hud.activeSeed();
     sim.update(dt, it);
     this.sendSnap(dt);
     for (const e of sim.ev) {
@@ -514,7 +522,12 @@ class Game {
   private showAsk() {
     const v = this.asks[0], box = $('#coopAsk'); box.hidden = !v;
     if (v) { $('#coopAskName').innerHTML = `${esc(v.name)} <i class="lv">${v.level}</i>`; sfx('ui.levelup'); }
+    // somebody waits at the gate: knock again every 8 s and show it in the tab title, so the owner notices it
+    clearInterval(this.askBeat);
+    if (v) { this.askBeat = window.setInterval(() => sfx('ui.levelup'), 8000); if (!document.title.startsWith('🔔')) document.title = '🔔 ' + document.title; }
+    else document.title = document.title.replace(/^🔔 /, '');
   }
+  private askBeat = 0;
   /** a guest is in: on the farm right away during the day */
   private admit(v: Visitor) {
     if (this.mode === 'day' && this.sim) this.sim.addPlayer(v.id, { name: v.name, look: v.look });
@@ -559,16 +572,17 @@ class Game {
   /** a join row (main menu "Besuchen", pause menu): typing the code asks the farm whose it is, the button then says "Welt von …" */
   private wireJoin(form: HTMLElement) {
     const inp = form.querySelector('input')!, go = form.querySelector<HTMLButtonElement>('.jGo')!, small = go.querySelector('small')!;
-    let ask: ReturnType<typeof peek> | null = null, name = '';
+    // ready: the farm answered, its open connection is used for joining
+    let ask: ReturnType<typeof peek> | null = null, ready: ReturnType<typeof peek> | null = null, name = '';
     inp.addEventListener('keydown', e => e.stopPropagation());
     inp.addEventListener('input', () => {
-      inp.value = cleanCode(inp.value); ask?.cancel(); ask = null; name = ''; go.disabled = true; small.textContent = '';
+      inp.value = cleanCode(inp.value); ask?.cancel(); ready?.cancel(); ask = null; ready = null; name = ''; go.disabled = true; small.textContent = '';
       const code = inp.value; if (code.length < 5) return;
       if (this.netHost && code === this.netHost.code) { small.textContent = 'Dein Hof'; return; }
       small.textContent = '…'; const a = peek(code, versionOf(this.cfg)); ask = a;
       void a.done.then(r => {
         if (ask !== a) return; ask = null;
-        if (typeof r === 'object') { name = r.name; small.textContent = 'Welt von ' + r.name; go.disabled = false; }
+        if (typeof r === 'object') { name = r.name; small.textContent = 'Welt von ' + r.name; go.disabled = false; ready = a; }
         else if (r === 'lost') go.disabled = false; // no answer in time: joining may still work (the farm says then)
         else small.textContent = { notfound: 'Kein Hof', version: 'Andere Version', full: 'Hof voll' }[r];
       });
@@ -576,13 +590,14 @@ class Game {
     form.addEventListener('submit', e => {
       e.preventDefault(); if (go.disabled || inp.value.length < 5) return;
       initAudio(); sfx('ui.confirm'); const code = inp.value; inp.value = ''; go.disabled = true; small.textContent = '';
-      this.goJoin(code, name);
+      const pre = ready?.take() ?? null; ready?.cancel(); ready = null;
+      this.goJoin(code, name, undefined, pre);
     });
   }
   /** join a farm: from my own farm first the question whether to save, then my world closes and the connecting screen comes */
-  private pendingJoin: { code: string; name: string; ticket?: string } | null = null;
-  private goJoin(code: string, name: string, ticket?: string) {
-    this.pendingJoin = { code, name, ticket };
+  private pendingJoin: { code: string; name: string; ticket?: string; pre?: Peeked | null } | null = null;
+  private goJoin(code: string, name: string, ticket?: string, pre?: Peeked | null) {
+    this.pendingJoin = { code, name, ticket, pre };
     if (this.mode !== 'menu' && this.slot && !this.tutorialMode && !this.netGuest) { this.only('#joinSave'); return; }
     this.joinGo(true);
   }
@@ -593,16 +608,16 @@ class Game {
     else if (this.gFrom === undefined || (this.gFrom && !listSaves().some(m => m.id === this.gFrom))) this.gFrom = listSaves()[0]?.id ?? null;
     $('#joinName').textContent = j.name || j.code; $('#joinMsg').textContent = '';
     this.only('#joining');
-    this.join(j.code, j.ticket);
+    this.join(j.code, j.ticket, j.pre, j.name);
   }
-  private join(code: string, ticket?: string) {
+  private join(code: string, ticket?: string, pre?: Peeked | null, host = '') {
     this.netGuest?.close(); resetSnapSeq();
     const g = new NetGuest(), msg = $('#joinMsg');
     this.netGuest = g;
     this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;
     const level = levelFor(this.cfg, this.gXp0);
-    g.onWait = () => { msg.textContent = 'Klopf, klopf …'; };
-    g.onWelcome = () => { msg.textContent = '✓'; };
+    // what is going on while the screen loads: connecting, the owner has to let me in (✓ on his side), loading the farm
+    g.onStep = st => { msg.textContent = st === 'connect' ? 'Verbinde …' : st === 'wait' ? `Klopf, klopf … ${host || 'Der Hof'} muss dich reinlassen` : 'Lade Hof …'; };
     g.onMsg = m => {
       if (m.t === 'st') this.guestState(JSON.parse(m.d as string), m.d as string);
       else if (m.t === 'sn' && this.sim && this.mode === 'day') this.gLast = performance.now(), this.gEv.push(...applySnap(this.sim, JSON.parse(m.d as string), this.gSteer > 0));
@@ -612,9 +627,9 @@ class Game {
       this.netGuest = null; const inGame = this.mode !== 'menu'; this.bookGuestXp();
       if (inGame) this.leave();
       this.openVisit('');
-      $('#visitMsg').textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
+      $('#visitMsg').textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.', timeout: 'Keine Antwort vom Hof.' }[why];
     };
-    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0, ticket });
+    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0, ticket }, pre);
   }
   /** the owner's farm arrived (or changed): day on the farm, or the evening with the book (read only) */
   private guestState(d: { ph: Phase; s: FarmState; d: any }, raw: string) {
@@ -651,6 +666,7 @@ class Game {
     $('#coopLag').hidden = !(g && this.mode === 'day' && this.gLast && performance.now() - this.gLast > 2000);
     if (this.mode !== 'day' || !sim || !g) return;
     sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
+    this.hud.seeds = sim.s.seeds ?? this.hud.seeds; sim.player.seed = this.hud.activeSeed();
     const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
     this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
@@ -661,7 +677,7 @@ class Game {
     const steer = Math.hypot(it.mx, it.mz) > .15; this.gSteer = steer ? .3 : Math.max(0, this.gSteer - dt);
     sim.t += dt; smooth(sim, dt); if (steer) predict(sim, it, dt);
     const me = sim.player; if (me.xp > this.gDayXp) { this.gGain += me.xp - this.gDayXp; this.gDayXp = me.xp; }
-    it.px = sim.player.x; it.pz = sim.player.z;
+    it.px = sim.player.x; it.pz = sim.player.z; it.seed = this.hud.activeSeed();
     g.send({ t: 'in', i: it });
     for (const e of sim.ev) {
       const mine = (e.pid ?? -1) === sim.localId;

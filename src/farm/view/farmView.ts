@@ -820,30 +820,35 @@ export class FarmView {
       case 'shake': for (let i = 0; i < 10; i++) this.leafAt(e.x + rand(-1, 1), rand(1.8, 2.6), e.z + rand(-1, 1), .3); play('rustle'); sfx('plants.produce.nut', e.x, e.z); sfx('harvest.ok', e.x, e.z); break;
       case 'fed': { const b = this.hof.building(e.id); if (b) { burst(V(b.x, .4, b.z), e.id === 'chickens' ? 0xe0b850 : 0x6a9a3a, 16, 1.6, .1, .6, { g: 5 }); if (e.id === 'sheep') sfx('sheep.wave', b.x, b.z); } play('throw'); break; }
       case 'hungry': if (this.s.buildings.sheep?.built) { const b = this.hof.building('sheep'); if (b) sfx('sheep.wave', b.x, b.z); } break;
-      case 'swing': sfx('player.slash', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
-      case 'rakeHit': if (e.n) { punchStar(e.x, e.z, 1); play('punches', e.n); this.shake = Math.max(this.shake, .25); } break;
+      case 'swing': sfx('player.slash', e.x, e.z); sfx('player.effort', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
+      case 'rakeHit': if (e.n) { punchStar(e.x, e.z, 1); this.shake = Math.max(this.shake, .25); } break;
       case 'shot': { const pv = mine ? this.player : this.others.get(P.id); if (pv) pv.recoil = .18; play('shot'); const dx = Math.sin(e.dir), dz = Math.cos(e.dir); burst(V(e.x + dx * .9, .8, e.z + dz * .9), itemHex(e.ammo), 10, 3, .1, .25); this.shake = Math.max(this.shake, .15); break; }
       case 'pelletHit': burst(V(e.x, .6, e.z), itemHex(e.ammo), 6, 1.5, .1, .35); play('hit'); break;
-      case 'hit': punchStar(e.x, e.z, .7); if (e.frozen) burst(V(e.x, .5, e.z), 0xbfe4ff, 10, 1.5, .12, .5); break;
+      case 'hit': punchStar(e.x, e.z, .7); sfx('fight.impact', e.x, e.z); sfx(`${e.type}.${e.last ? 'die' : 'hurt'}`, e.x, e.z); // sounds.yaml fight / raccoon / hare (22.11.2026)
+        if (e.frozen) burst(V(e.x, .5, e.z), 0xbfe4ff, 10, 1.5, .12, .5); break;
       case 'driven': this.floatXp?.(e.x, e.z, e.xp); break;
-      case 'flee': sfx(e.type === 'hare' ? 'squirrel.flee' : 'raccoon.flee', e.x, e.z); if (e.carry && e.type === 'raccoon') sfx('raccoon.laugh', e.x, e.z); break;
+      case 'flee': sfx(e.type === 'hare' ? 'hare.flee' : 'raccoon.flee', e.x, e.z); if (e.carry && e.type === 'raccoon') sfx('raccoon.laugh', e.x, e.z); break;
       case 'steal': sfx('raccoon.steal', e.x, e.z); break;
       case 'eat': sfx(e.from === 'bush' ? 'plants.eaten.blue' : 'plants.eaten.straw', e.x, e.z); break;
-      case 'spawn': if (e.type === 'raccoon') sfx('raccoon.wave', e.x, e.z); else sfx('squirrel.wave', e.x, e.z); break;
+      case 'spawn': sfx(e.type === 'raccoon' ? 'raccoon.wave' : 'hare.wave', e.x, e.z); break;
       case 'drop': burst(V(e.x, .5, e.z), 0xffffff, 8, 1.5, .1, .4); break;
       case 'pickup': sfx('collect.xp', e.x, e.z); break;
-      case 'hurt': if (mine) { this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); } else sfx('player.hurt', e.x, e.z); break;
+      case 'hurt': {
+        if (e.type) { sfx(e.type + '.attack', e.x, e.z); sfx(e.type + '.bite', e.x, e.z); } // the animal snaps at the farmer
+        if (mine) { this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); } else sfx('player.hurt', e.x, e.z);
+        break;
+      }
       case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); sfx('plants.ripe'); break; }
       // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
       case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
       case 'deny': if (!mine) break; if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
       // night (21.11.2026)
-      case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); break; }
+      case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); sfx('hare.attack', e.x, e.z); break; }
       case 'plotBroken': { burst(V(e.x, .3, e.z), 0x6a4a30, 26, 2, .12, .7, { g: 6 }); burst(V(e.x, .4, e.z), 0x5e8e2c, 18, 1.8, .1, .7, { g: 5 }); sfx('night.broken', e.x, e.z); this.shake = Math.max(this.shake, .12); break; }
       case 'repaired': { burst(V(e.x, .25, e.z), 0x8a6a40, 20, 1.6, .1, .6, { g: 6 }); sfx('night.repaired', e.x, e.z); sfx('harvest.done', e.x, e.z); break; }
       case 'pocket': { sfx('night.pocket', e.x, e.z); for (const [k, n] of Object.entries(e.items as Record<string, number>)) burst(V(e.x, .9, e.z), itemHex(k), Math.min(10, 2 + n), 2.2, .1, .6, { g: 7 }); break; }
-      case 'wave': sfx('night.wave'); break;
+      case 'wave': sfx('night.wave', e.x, e.z); break; // from the forest gap the wave comes through, far off (sounds.yaml far: true)
       case 'nightfall': sfx('night.fall'); break;
     }
   }

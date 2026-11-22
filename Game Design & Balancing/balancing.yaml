@@ -590,6 +590,7 @@ camera:                    # Kamera (Basti 21.11.2026: Third Person): PC Maus be
   rotate: 0.006            # rad pro Pixel (PC-Maus x mouse)
   mouse: 0.55              # PC: x rotate pro Pixel Mausbewegung
   follow: 2.4              # Handy (Basti 22.11.2026): Kamera schaut immer in Laufrichtung, schwenkt mit dieser Geschwindigkeit (1/s) hinter die Figur (auch Top-Down dreht mit); kein Drehen per Wischen mehr, Zwei-Finger-Pinch = Zoom
+  occlusion: { inner: 1.2, outer: 2.8, pc: 1.5, mobile: 2 }   # Durchsicht durch Bäume/Dächer/Zäune: Radius in m auf Höhe der Figur (innen ganz weg, außen unberührt), x pc / x mobile (Basti 22.11.2026: PC 50 % größer, Handy doppelt so groß)
   pitch: [0.1, 1.3]        # Neigung (rad über dem Boden), Start 0.55; tief = fast hinter der Figur (First Person: hoch/runter schauen)
   zoom: { near: 3, far: 10, top: 10, topMax: 15, push: 300, back: 100 }   # Basti 22.11.2026: Third Person 3-10 m (Start 3); über 10 m gegen den Widerstand = Top-Down, dort weiter rauszoomen 10-15 m Höhe; push/back = Mausrad-Einheiten gegen den Widerstand (raus / wieder rein, 1 Rasterschritt ~ 100). First Person gibt es nicht mehr.
 

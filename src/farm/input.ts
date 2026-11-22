@@ -116,7 +116,7 @@ export class FarmInput {
     addEventListener('pointerup', up); addEventListener('pointercancel', up);
     // second finger of a pinch on a HUD panel (not on a button): still a pinch
     addEventListener('pointerdown', e => {
-      if (!this.enabled || e.pointerType === 'mouse' || e.target === c || (e.target as Element | null)?.closest?.('button')) return;
+      if (!this.enabled || e.pointerType === 'mouse' || e.target === c || (e.target as Element | null)?.closest?.('button,#fLabel')) return;
       this.tp.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (!this.pinchStart(e)) this.tp.delete(e.pointerId);
     }, true);
     addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') return; if (e.button === 2) this.rmb = false; if (e.button === 0) this.lmb = false; if (e.button === 1) this.mmb = null; });
@@ -128,6 +128,8 @@ export class FarmInput {
       b.addEventListener('pointerup', u); b.addEventListener('pointercancel', u); b.addEventListener('pointerleave', u);
     };
     btn('#bAct', () => { this.actBtn = true; this.actHeld = true; }, () => { this.actHeld = false; });
+    // phone (Basti 22.11.2026): the label over the spot ("[Gießen]") can be tapped too, one step per tap
+    btn('#fLabel', () => { this.actBtn = true; }, () => {});
     btn('#bAtk', () => { this.atkHeld = true; }, () => { this.atkHeld = false; });
     this.setTouch(touch);
   }

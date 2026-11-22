@@ -935,7 +935,8 @@ export class FarmView {
     this.world.props?.updateLod(camera.position.x, camera.position.z); // far versions of the forest (performance plan 2.3)
     // free line of sight to the farmer: what stands in between fades out (world props, buildings)
     if ((this.occT -= dt) <= 0) { this.occT = 1; occludeTree(this.world.nature, this.bush.g, ...[...this.buildings.values()].map(b => b.root)); }
-    const PP = sim?.player; updateOcclusion(camera.position, PP?.x ?? 0, PP?.z ?? 0, day && !!PP && !this.cine, dt);
+    const PP = sim?.player; const OC = this.cfg.camera.occlusion, ok = OC ? (this.follow ? OC.mobile : OC.pc) ?? 1 : 1; // Basti 22.11.2026: PC 1.5x, phone 2x the old spot
+    updateOcclusion(camera.position, PP?.x ?? 0, PP?.z ?? 0, day && !!PP && !this.cine, dt, OC ? [OC.inner * ok, OC.outer * ok] : undefined);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = this.hurtT * .7;
     gradePass.uniforms.uLow.value = sim && day && !this.cine ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;

@@ -61,7 +61,8 @@ export function occludeTree(...roots: (THREE.Object3D | null | undefined)[]) {
   });
 }
 /** per frame: camera, player (chest height) and whether it is on at all */
-export function updateOcclusion(cam: THREE.Vector3, px: number, pz: number, on: boolean, dt: number) {
+export function updateOcclusion(cam: THREE.Vector3, px: number, pz: number, on: boolean, dt: number, r?: [number, number]) {
+  if (r) occU.uOccR.value.set(r[0], r[1]);
   occU.uOccCam.value.copy(cam); occU.uOccPly.value.set(px, 1, pz);
   const u = occU.uOccOn; u.value += ((on ? 1 : 0) - u.value) * (1 - Math.exp(-dt * 6));
 }

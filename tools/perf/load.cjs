@@ -1,0 +1,30 @@
+const { chromium } = require('playwright');
+const DEV = { pc: { viewport: { width: 1920, height: 1080 } }, handy: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true } };
+(async () => {
+  const [dev, net] = process.argv.slice(2);
+  const b = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await b.newContext(DEV[dev]); const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p);
+  await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+  if (net === '4g') await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 60, downloadThroughput: 9e6 / 8, uploadThroughput: 3e6 / 8 });
+  if (dev === 'handy') await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  const reqs = new Map();
+  cdp.on('Network.responseReceived', e => { const r = reqs.get(e.requestId) || {}; r.url = e.response.url; r.type = e.type; reqs.set(e.requestId, r); });
+  cdp.on('Network.loadingFinished', e => { const r = reqs.get(e.requestId) || {}; r.bytes = e.encodedDataLength; r.end = e.timestamp; reqs.set(e.requestId, r); });
+  const t0 = Date.now();
+  await p.goto('http://localhost:4173/', { timeout: 600000 });
+  const tDom = Date.now() - t0;
+  await p.waitForFunction(() => window.__pog && window.__pog.view, null, { timeout: 600000, polling: 100 });
+  const tGame = Date.now() - t0;
+  await p.waitForFunction(() => document.querySelector('#load')?.classList.contains('out'), null, { timeout: 600000, polling: 100 });
+  const tMenu = Date.now() - t0;
+  const snap = () => { const by = {}; let tot = 0, n = 0; for (const r of reqs.values()) { if (!r.url || !r.bytes) continue; const ext = (r.url.split('?')[0].match(/\.([a-z0-9]+)$/) || [, 'other'])[1]; by[ext] = (by[ext] || 0) + r.bytes; tot += r.bytes; n++; } return { n, totMB: +(tot / 1048576).toFixed(2), by: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, +(v / 1048576).toFixed(2)]).sort((a, b) => b[1] - a[1])) }; };
+  const boot = snap();
+  const big = [...reqs.values()].filter(r => r.bytes).sort((a, b) => b.bytes - a.bytes).slice(0, 12).map(r => [(r.bytes / 1024).toFixed(0) + 'K', r.url.replace(/^.*4173\//, '')]);
+  // first click: audio
+  const t1 = Date.now();
+  await p.evaluate(() => { document.querySelector('#newBtn').click(); });
+  await p.waitForTimeout(net === '4g' ? 20000 : 6000);
+  const after = snap();
+  console.log(JSON.stringify({ dev, net, tDom, tGame, tMenu, boot, afterClick: after, big }, null, 1));
+  await b.close();
+})();

@@ -66,6 +66,7 @@ export class FarmHud {
     });
     $('#fQuests').addEventListener('pointerdown', e => { e.stopPropagation(); this.toggleQuests(); });
     $('#fClock').innerHTML = CLOCK;
+    const r = document.createElement('div'); r.id = 'fRipe'; $('#fLeft').appendChild(r);
     $('#fHpIc').innerHTML = ic('heart'); $('#fCoinIc').innerHTML = ic('coin'); $('#fBook').innerHTML = ic('book'); $('#fPause').innerHTML = '<svg viewBox="0 0 40 40"><rect x="11" y="9" width="6" height="22" rx="2" fill="currentColor"/><rect x="23" y="9" width="6" height="22" rx="2" fill="currentColor"/></svg>';
   }
   private cdKey = '';
@@ -128,7 +129,7 @@ export class FarmHud {
     ($('#fHpFill')).style.width = (P.hp / P.maxHp * 100).toFixed(1) + '%';
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     $('#fXpFill').style.width = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%';
-    this.clock(sim);
+    this.clock(sim); this.ripe(s);
     const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, s.seed].join('|');
     if (key !== this.key) {
       this.key = key;
@@ -179,6 +180,28 @@ export class FarmHud {
       n.el.style.transform = `translate(${p.x}px,${p.y}px) translate(-50%,-50%)`; n.el.style.opacity = '' + Math.min(n.t / .15, Math.max(0, 1 - Math.max(0, n.t - .75) / .45));
       if (n.t > 1.2) { n.el.remove(); this.nums.splice(i, 1); }
     }
+  }
+  /** ripe fields (Basti 22.11.2026): under HP/XP. The first ripe field fades in from below ("Weizen erntereif"), every further
+   *  one slides up from below into it with a small pop ("2 Felder erntereif"); fades out when nothing is ripe any more */
+  private ripeN = 0; private ripeT = 0;
+  private ripe(s: FarmState) {
+    const ripe = s.plots.filter(p => p.open && p.stage === 'ripe' && p.crop), n = ripe.length;
+    if (n === this.ripeN) return;
+    const box = $('#fRipe'), was = this.ripeN; this.ripeN = n;
+    const crop = ripe[0]?.crop ?? '', name = this.cfg.crops[crop]?.name ?? this.cfg.names.items[crop] ?? crop;
+    const html = n ? (n === 1 ? `${ic(crop)}<span>${name} erntereif</span>` : `<b>${n}</b><span>Felder erntereif</span>`) : '';
+    clearTimeout(this.ripeT); box.querySelectorAll('.ghost').forEach(e => e.remove());
+    if (!n) { box.classList.remove('in'); box.classList.add('out'); return; }
+    if (!was || !box.classList.contains('in')) {
+      box.innerHTML = `<div class="rt">${html}</div>`; box.classList.remove('out'); void box.offsetWidth; box.classList.add('in'); return;
+    }
+    if (n < was) { box.querySelector('.rt')!.innerHTML = html; return; }
+    // a new one comes up from below and merges into the existing toast
+    const g = document.createElement('div'); g.className = 'rt ghost'; g.innerHTML = html; box.appendChild(g);
+    this.ripeT = window.setTimeout(() => {
+      g.remove(); const t = box.querySelector('.rt') as HTMLElement; t.innerHTML = html;
+      t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
+    }, 380);
   }
   float(x: number, z: number, html: string, cls = '') {
     const el = document.createElement('b'); el.className = cls; el.innerHTML = html; $('#fFloat').appendChild(el);

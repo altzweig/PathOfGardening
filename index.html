@@ -108,6 +108,7 @@
         <button class="mi" id="newBtn">Neues Spiel</button>
         <button class="mi" id="loadBtn">Laden</button>
         <button class="mi" id="tutBtn">Tutorial</button>
+        <button class="mi" id="visitBtn">Besuchen</button>
         <button class="mi" id="optBtn">Optionen</button>
       </nav>
       <div class="err" id="menuErr" hidden></div>
@@ -124,6 +125,31 @@
       </div>
     </form>
   </div>
+
+  <div class="ov" id="visit" hidden>
+    <h2>Besuchen</h2>
+    <form id="visitForm" class="col" autocomplete="off">
+      <input id="visitCode" class="sName coopCode" maxlength="5" spellcheck="false" autocapitalize="characters" aria-label="Code" placeholder="ABCDE">
+      <div class="coopMsg" id="visitMsg"></div>
+      <div class="row">
+        <button class="btn" id="visitGo" type="submit">Beitreten</button>
+        <button class="btn sec" id="visitBack" type="button">Zurück</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="ov" id="coop" hidden>
+    <h2>Besuch</h2>
+    <div class="col">
+      <div class="sName coopCode" id="coopCode">…</div>
+      <button class="btn sec" id="coopCopy">Link kopieren</button>
+      <div id="coopList"></div>
+      <button class="btn sec" id="coopClose">Hof schließen</button>
+      <button class="btn" id="coopBack">Zurück</button>
+    </div>
+  </div>
+
+  <div id="coopAsk" hidden><b id="coopAskName"></b><button class="sDel no" id="coopNo" aria-label="Ablehnen"></button><button class="sDel yes" id="coopYes" aria-label="Annehmen"></button></div>
 
   <div class="ov" id="saves" hidden>
     <h2>Laden</h2>
@@ -159,6 +185,7 @@
     <div class="col">
       <button class="btn" id="resumeBtn">Weiter</button>
       <button class="btn sec" id="saveBtn">Speichern</button>
+      <button class="btn sec" id="coopBtn">Besuch</button>
       <button class="btn sec" id="pCtrlBtn">Steuerung</button>
       <button class="btn sec" id="pQualBtn">Grafik</button>
       <button class="btn sec" id="pSndBtn">Ton</button>

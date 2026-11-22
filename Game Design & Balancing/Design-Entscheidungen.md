@@ -240,7 +240,14 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - **Figur dreht mit der Kamera:** Steht die Figur, dreht sie sich leicht verzögert in die Blickrichtung (kritisch gedämpfte Feder, immer der kürzeste Weg, max. 12 rad/s, `player.turnWithCam`), auch bei schnellem Drehen keine Extra-Umdrehungen.
 - **Esc:** öffnet und schließt die Pause; verweigert der Browser direkt nach Esc das erneute Fangen der Maus, wird es kurz danach automatisch wiederholt.
 
+- **Ernten im Vorbeilaufen (22.11.2026):** Ernten (Feld, Busch, Brombeeren, Sammeln, Bäume schütteln) startet schon in Reichweite, ohne erst hinzulaufen. Währenddessen ist das Laufen pausiert, Bewegungseingaben brechen nicht ab; sobald die Ernte fertig ist oder die Taste losgelassen wird, läuft die Figur weiter. Andere Arbeiten (Säen, Gießen, Jäten …) bleiben wie bisher.
+
 ### Annahmen (bitte prüfen)
 - Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
 - Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.
 - Name, Balken und „Z“ erscheinen nur in der Nähe, auch bei Bäumen und Brombeeren.
+
+## Erntereif-Meldung (Basti, 22.11.2026)
+- Oben links unter HP/XP: Sobald ein Feld erntereif ist, blendet von unten eine Meldung „[Frucht] erntereif“ ein.
+- Jedes weitere reife Feld schiebt sich von unten in die vorhandene Meldung und lässt sie kurz aufploppen: „2 Felder erntereif“ usw.
+- Wird geerntet, zählt die Zahl herunter; ist nichts mehr reif, blendet die Meldung aus. Gezählt werden nur Felder (keine Büsche/Bäume).

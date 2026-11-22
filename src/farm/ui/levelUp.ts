@@ -2,7 +2,7 @@
 // field, order / sale slots, wild orders) and the choice of the new seed. By day it comes at once (the game pauses), at night
 // it would disturb the fight: the XP bar lights up and a note under it can be opened any time; otherwise it comes after the night.
 import type { FarmCfg } from '../config';
-import { BUILDING_IDS, cropXp, slotsAt } from '../config';
+import { BUILDING_IDS, cropXpTotal, slotsAt } from '../config';
 import type { FarmState } from '../state';
 import { takeSeed } from '../state';
 import { ic } from './ficons';
@@ -55,7 +55,7 @@ export class LevelUpUi {
       <div class="luUn">${un.map((u, i) => `<div class="luU" style="--i:${i}">${ic(u.icon)}<b>${u.name}</b>${u.n ? `<em>+${u.n}</em>` : ''}</div>`).join('')}</div>
       ${pick?.length ? `<div class="luSeedH">${ic('seed')}<b>Neues Saatgut</b></div>
       <div class="luSeeds">${pick.map((k, i) => `<button class="luSeed" style="--i:${i}" data-seed="${k}">${ic(k)}<b>${name(k)}</b>
-        <span class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cropXp(C, k) * (C.crops[k]?.cuts ?? 3)}</b></span></span></button>`).join('')}</div>`
+        <span class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cropXpTotal(C, k)}</b></span></span></button>`).join('')}</div>`
       : `<button class="luGo" data-go="1">${ic('check')}<span>Weiter</span></button>`}
     </div></div>`;
     this.root.hidden = false; this.root.classList.remove('in'); void this.root.offsetWidth; this.root.classList.add('in');

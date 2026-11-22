@@ -91,7 +91,7 @@ export class ActBar {
   update(sim: DaySim, s: FarmState, view: FarmView, dt: number, touch: boolean) {
     const P = sim.player, A = P.action, rest = !A && P.rest > 0 && P.after ? P.after : null;
     const cur = A ?? rest;
-    if (cur && !sim.inputLocked) {
+    if (cur && !sim.inputLocked && cur.info.kind !== 'harvestPlot') { // harvest experiment: the field harvest has no bar
       const kind = cur.info.kind, key = kind + '|' + tkey(cur.target);
       if (!this.ses || this.ses.key !== key) {
         const v = this.variant(kind, cur.target, s, sim), rem = this.remaining(kind, cur.target, s, sim);

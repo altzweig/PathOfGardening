@@ -31,7 +31,11 @@ export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radiu
   eatInterval?: number; plotBites?: number }
 /** a field crop (annual): level = sowable from, grow = s after watering, cuts = harvest passes, yield = per pass */
 export type Rarity = 'Common' | 'Uncommon' | 'Rare';
-export interface CropCfg { /** shown over the field (21.11.2026) */ name?: string; rarity: Rarity; grow: number; cuts: number; yield: Record<ItemId, number> }
+/** harvest experiment (Basti 22.11.2026): grow = s until ripe (by itself), then harvest s (default grow) of continuous harvesting,
+ *  one fruit every `every` s; yield = per fruit (fractions add up); sound = sound group (sounds.yaml harvest.pop.*) */
+export interface CropCfg { /** shown over the field (21.11.2026) */ name?: string; rarity: Rarity; grow: number; every: number; harvest?: number; sound?: string; /** old (before the experiment) */ cuts?: number; yield: Record<ItemId, number> }
+/** continuous harvest: collecting + merging of the fruits on the ground */
+export interface HarvestCfg { tick: number; collect: number; settle: number; throw: [number, number]; up: [number, number]; merge: number; mergeRadius: number; xp: number; overhead: number }
 /** a section of the storage page in the house book (balancing.yaml storage.sections) */
 export interface StoreSection { id: string; title: string; items: ItemId[] }
 export interface HarvestXpCfg { pause: number; sow: number; water: number; cut: number; workWeight: number; div: number; rarity: Record<Rarity, number>; other: Record<ItemId, { rarity: Rarity; water?: boolean }> }
@@ -73,6 +77,7 @@ export interface FarmCfg {
   can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
   crops: Record<string, CropCfg>;
+  harvest: HarvestCfg;
   harvestXp: HarvestXpCfg;
   plots: { size: number; /** m from the middle: interaction zone of a field (overlaps the neighbours a little) */ zone?: number; /** field info (bar, time, name) only close by: m full / m gone / s fade */ info?: { near: number; far: number; fade: number }; sprout: number; clear: number; fertBonus: number; weeds: { max: number; morning: number[]; slow: number[] }; };
   wild: { weeds: { start: number; max: number; every: [number, number] }; /** wild herbs: weeds, wild garlic, dandelion, sorrel in one tuft (the yard weeds) */ herbs?: HerbsCfg; forage: { start: number; max: number; every: [number, number]; band: [number, number]; items: Record<ItemId, number>; plants?: Record<ItemId, { spawn: number; picks: number }>; where?: Record<ItemId, ('edge' | 'wet' | 'grass')[]> };
@@ -148,10 +153,18 @@ export const cropsOf = (cfg: FarmCfg, r: Rarity = 'Common') => Object.keys(cfg.c
 function passXp(X: HarvestXpCfg, rarity: Rarity, field: number, work: number, cuts: number) {
   return Math.max(1, Math.round((X.rarity[rarity] ?? 1) * (field + X.workWeight * work) / X.div / Math.max(1, cuts)));
 }
+/** harvest experiment: s of continuous harvesting of a ripe crop, fruits it gives, XP per fruit (fraction) and per whole harvest */
+export const cropHarvestTime = (C: CropCfg) => C.harvest ?? C.grow;
+export const cropPieces = (cfg: FarmCfg, id: string) => { const C = cfg.crops[id]; return C ? Math.max(1, Math.round(cropHarvestTime(C) / Math.max(.05, C.every))) : 0; };
 export const cropXp = (cfg: FarmCfg, id: string) => {
-  const X = cfg.harvestXp, C = cfg.crops[id]; if (!C || !X) return 0;
-  return passXp(X, C.rarity, C.grow + X.pause, X.sow + X.water + C.cuts * X.cut, C.cuts);
+  const C = cfg.crops[id]; if (!C) return 0;
+  return (cfg.harvest?.xp ?? 1) * (cfg.harvestXp?.rarity[C.rarity] ?? 1) * C.every;
 };
+export const cropXpTotal = (cfg: FarmCfg, id: string) => Math.round(cropXp(cfg, id) * cropPieces(cfg, id));
+/** main good of a crop (the biggest yield per fruit) */
+export const cropMain = (C: CropCfg): ItemId => Object.entries(C.yield).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'wheat';
+/** harvest work s per piece of the main good (orders, prices): every x (1 + overhead) */
+export const cropSec = (cfg: FarmCfg, C: CropCfg) => C.every * (1 + (cfg.harvest?.overhead ?? .5)) / Math.max(.01, C.yield[cropMain(C)] ?? 1);
 /** harvests without a field (bush, trees, brambles, wild plants): field time = pause only */
 export const otherXp = (cfg: FarmCfg, item: ItemId, cuts: number) => {
   const X = cfg.harvestXp, O = X?.other[item]; if (!O) return 0;

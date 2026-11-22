@@ -38,6 +38,8 @@ export interface Intent {
   /** PC third person (22.11.2026): where the camera looks; a standing farmer turns that way with a little delay */
   face?: number;
   attack: boolean;                  // right click / attack button held
+  /** active seed (Basti 22.11.2026): sown on an empty field */
+  seed?: string;
   /** co-op guest: where its own farmer already is on its screen (it walks ahead locally); the owner follows within the walk speed */
   px?: number; pz?: number;
 }
@@ -75,6 +77,8 @@ export interface Player {
   /** turning speed while following the camera (rad/s) */
   fv?: number;
   swing: { t: number; dir: number; hit: boolean } | null;
+  /** active seed of this farmer (22.11.2026, from the intent; the owner's is s.seed) */
+  seed?: string;
   shotT: number; cd: number; hurt: number; stun: number;
 }
 export type AnimalState = 'enter' | 'go' | 'steal' | 'eat' | 'attack' | 'flee' | 'wander' | 'run' | 'script';
@@ -531,8 +535,11 @@ export class DaySim {
     }
     void dt;
   }
-  /** the crop a field grows (21.11.2026: every field has a fixed fruit) */
-  seedCrop(i: number) { const k = this.s.plots[i]?.kind; return k && this.cfg.crops[k] ? k : 'wheat'; }
+  /** the seed sown on a field (22.11.2026: the active seed of the farmer working there, any field grows any seed) */
+  seedCrop(_i?: number) {
+    const s = this.s, k = this.player.seed ?? s.seed;
+    return s.seeds.includes(k) && this.cfg.crops[k] ? k : s.seeds.find(x => this.cfg.crops[x]) ?? 'wheat';
+  }
   /** XP for every harvest pass (Basti 21.11.2026) */
   private harvestXp(xp: number, at: { x: number; z: number }) {
     this.giveXp(this.player, xp, at);
@@ -567,6 +574,7 @@ export class DaySim {
 
   private updatePlayer(dt: number, it: Intent) {
     const P = this.player, C = this.cfg.player;
+    if (it.seed && this.s.seeds.includes(it.seed)) P.seed = it.seed;
     P.cd = Math.max(0, P.cd - dt); P.hurt = Math.max(0, P.hurt - dt); P.stun = Math.max(0, P.stun - dt);
     // --- fighting (right click): never together with an action, the player stands up for the swing
     if (it.attack && !P.swing && P.cd <= 0) {

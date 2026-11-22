@@ -4,7 +4,7 @@
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, cropXp } from '../config';
 import type { FarmState } from '../state';
-import { build, buildStatus, claimQuest, placeField, count, unclaimed, markSeen } from '../state';
+import { build, buildStatus, claimQuest, takeSeed, count, unclaimed, markSeen } from '../state';
 import type { SaleMode } from '../shop';
 import { shopState } from '../shop';
 import { ARCH_PAGE, ShopUi, archivePage, archiveRows, questsRight, shopLeft } from './shopPage';
@@ -125,13 +125,13 @@ export class HouseUi {
     $('#hSleep').innerHTML = `<span class="nd">${ic('sun')}<b>Nächster Tag</b><small>Tag ${s.day + 1}</small></span><i class="bar"></i>`;
     $('#hClose').innerHTML = `${ic('book')}<span>Zuklappen</span>`;
     const book = $('#hBook'), rw = $('#hRewards');
-    // the crop choice of a new field from a level-up lies on the open book first (orders are collected on the shop page)
-    const F = this.day ? null : s.fieldPicks[0];
+    // the new seed of a level-up lies on the open book first (orders are collected on the shop page)
+    const F = this.day ? null : s.seedPicks[0];
     book.classList.toggle('modal', !!F);
     rw.hidden = !F;
     if (F) {
-      // new field from a level-up (Basti 21.11.2026): pick its crop, it is placed on the farm by itself
-      rw.innerHTML = `<div class="fpick">${ic('plot')}<b>${C.names.buildings.plot}</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-field="${k}">${ic(k)}<b>${this.name(k)}</b>
+      // new seed from a level-up (Basti 22.11.2026): pick one, from then on it can be sown on every field (the new field opened by itself)
+      rw.innerHTML = `<div class="fpick">${ic('seed')}<b>Neues Saatgut</b></div><div class="tiles">${F.map((k, i) => `<button class="tile pick" style="animation-delay:${i * .12}s" data-seed="${k}">${ic(k)}<b>${this.name(k)}</b>
         <div class="rew"><span class="gd">${ic('sun')}<b>${C.crops[k]?.grow ?? ''} s</b></span><span class="gd xp">${ic('xp')}<b>${cfgXp(C, k)}</b></span></div></button>`).join('')}</div>`;
     }
     $('#hTabs').innerHTML = TABS.map(([t, i, n, col], k) => `<button class="bm${t === this.tab ? ' on' : ''}${k >= 2 ? ' right' : ''}" style="--c:${col};--x:${[3, 20.5, 53, 70.5][k]}%;--d:${[1, 3, 2, 4][k]}" data-tab="${t}">${ic(i)}<span>${n}</span>${this.badge(t)}</button>`).join('');
@@ -159,7 +159,7 @@ export class HouseUi {
     let h = `<h2>${ic('star')}</h2>`;
     for (let L = s.level + 1; L <= max; L++) {
       const un = (U[L] ?? []).filter(id => (BUILDING_IDS as string[]).includes(id));
-      h += `<div class="unl"><span class="lv">${ic('star')}<b>${L}</b></span><span>${un.map(id => `<span title="${this.name(id)}">${ic(id)}</span>`).join('')}${ic('plot')}<i>+1</i></span></div>`;
+      h += `<div class="unl"><span class="lv">${ic('star')}<b>${L}</b></span><span>${un.map(id => `<span title="${this.name(id)}">${ic(id)}</span>`).join('')}${ic('plot')}<i>+1</i>${ic('seed')}<i>+1</i></span></div>`;
     }
     return h;
   }
@@ -383,7 +383,7 @@ export class HouseUi {
       this.onChange(); this.pagesOnly();
       const fav = $('#qFav'), to = fav?.getBoundingClientRect();
       if (r && to) this.coins(r, to, q.reward.money);
-      if (this.s.levelUps.length > lv || this.s.fieldPicks.length) this.render(); // a level-up: the crop choice of the new field
+      if (this.s.levelUps.length > lv || this.s.seedPicks.length) this.render(); // a level-up: the choice of the new seed
       const nc = $('#hBodyR').querySelector(`[data-q="${q.id}"]`); nc?.classList.add('pop');
     }, k * 260));
   }
@@ -437,7 +437,7 @@ export class HouseUi {
     if (d.gmode) { this.gmode = d.gmode as GraphMode; this.onSound('ui.click'); $('#hBodyR').innerHTML = storeRight(C, s, markSeen(s), this.sel, this.gmode); return; }
     if (this.shopClick(t, d)) return;
     if (d.build) { if (build(C, s, d.build as BuildingId)) this.onSound('ui.levelup'); }
-    else if (d.field) { if (placeField(C, s, 0, d.field)) this.onSound('ui.levelup'); }
+    else if (d.seed) { if (takeSeed(C, s, 0, d.seed)) this.onSound('ui.levelup'); }
     // the stock line of today follows what happens in the evening
     const h = s.hist?.[s.hist.length - 1]; if (h && h.d === s.day) { h.st = { ...s.items }; delete h.st.water; }
     this.onChange(); this.render();

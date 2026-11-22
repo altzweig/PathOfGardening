@@ -135,6 +135,8 @@ export class FarmHud {
         ${Object.entries(q.need).map(([k, v]) => `<div class="qo${(p[k] ?? 0) >= v ? ' ok' : ''}">- <i>${p[k] ?? 0}/${v}</i>${ic(k)}${name(k)}</div>`).join('')}</div>`; };
     $('#fQuests').innerHTML = list.length ? head + (this.questsOpen ? list.map(one).join('') : '') : '';
   }
+  /** berries in the storage (ammo of the shotgun) */
+  ammoN = (_k: string) => 0;
   show(on: boolean) { $('#fHud').hidden = !on; if (!on) this.seedMenu(false); }
   // ---------------- seeds (Basti 22.11.2026) ----------------
   /** active seed of this farmer and the seeds of the farm (endless) */
@@ -147,13 +149,14 @@ export class FarmHud {
   pickSeed(k: string) {
     if (!this.seeds.includes(k)) return;
     const was = this.seed; this.seed = k; this.key = '';
-    if (was !== k) { this.onSeed(k); this.onSound('ui.click'); for (const id of ['#bSeed', '#fSeedPc']) { const el = $(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
+    if (was !== k) { this.onSeed(k); this.onSound('ui.click'); const d = this.dir; for (const id of ['#bSeed', '#fSeedPc']) { const el = $(id); el.classList.remove('pop', 'sl', 'sr'); void el.offsetWidth; el.classList.add('pop', d < 0 ? 'sr' : 'sl'); } }
   }
-  nextSeed(dir = 1) { if (this.seedOpen) this.seedMenu(false); this.pickSeed(cycleSeed(this.seeds, this.activeSeed(), dir)); }
+  private dir = 1;
+  nextSeed(dir = 1) { if (this.seedOpen) this.seedMenu(false); this.dir = dir; this.pickSeed(cycleSeed(this.seeds, this.activeSeed(), dir)); }
   get seedOpen() { return !$('#fSeeds').hidden; }
   seedMenu(on: boolean) {
     const p = $('#fSeeds'), bg = $('#fSeedsBg'); p.hidden = !on || !this.seeds.length; if (bg) bg.hidden = p.hidden; if (p.hidden) return;
-    const cur = this.activeSeed(), name = (c: string) => this.cfg.crops[c]?.name ?? this.cfg.names.items[c] ?? c;
+    const cur = this.activeSeed(), name = (c: string) => `${this.cfg.names.items[c] ?? c} <b>${this.ammoN(c)}</b>`;
     p.style.gridTemplateColumns = `repeat(${Math.min(this.seeds.length, innerHeight < 520 ? 4 : 3)},auto)`;
     p.innerHTML = this.seeds.map(c => `<button data-c="${c}" class="${c === cur ? 'on' : ''}">${ic(c)}<span>${name(c)}</span></button>`).join('');
     this.onSound('ui.page');
@@ -167,16 +170,20 @@ export class FarmHud {
     const nx = nextLevelXp(this.cfg, s.level), px = this.cfg.levels.xp[s.level - 1] ?? 0;
     const xpW = (nx ? Math.min(1, (s.xp - px) / (nx - px)) * 100 : 100).toFixed(1) + '%'; if (xpW !== this.xpW) { this.xpW = xpW; $('#fXpFill').style.width = xpW; }
     this.clock(sim); this.ripe(s);
-    if (sim.s.seeds !== this.seeds && sim.s.seeds.join() !== this.seeds.join()) this.seeds = [...sim.s.seeds];
+    // Basti 22.11.2026: Tab / the button beside the action button switch the berry of the shotgun (not the seed any more)
+    const am = this.cfg.weapons.shotgun?.ammo ?? []; if (am.join() !== this.seeds.join()) this.seeds = [...am];
     const seed = this.activeSeed();
-    const key = [s.level, s.day, s.money, s.water, s.weapon, s.ammo, s.ammoCount, touch, seed, this.seeds.length].join('|');
+    const key = [s.level, s.day, s.money, s.water, s.weapon, touch, seed, this.seeds.length, ...this.seeds.map(k => s.items[k] ?? 0)].join('|');
     if (key !== this.key) {
       this.key = key;
       $('#fLvlN').textContent = '' + s.level;
       $('#fDay').textContent = '' + s.day;
-      const sn = this.cfg.crops[seed]?.name ?? this.cfg.names.items[seed] ?? seed;
-      $('#bSeed').innerHTML = `${ic(seed)}<span>${sn}</span>`;
-      const pc = $('#fSeedPc'); pc.hidden = touch; pc.innerHTML = `<kbd>Tab</kbd>${ic(seed)}<span>${sn}</span>`;
+      const sn = this.cfg.names.items[seed] ?? seed, n = (k: string) => s.items[k] ?? 0;
+      $('#bSeed').innerHTML = `${ic(seed)}<b class="an${n(seed) ? '' : ' no'}">${n(seed)}</b>`;
+      // ammo carousel (Basti 22.11.2026): the previous and the next berry half transparent beside the active one
+      const L = this.seeds, i = Math.max(0, L.indexOf(seed)), at = (d: number) => L[((i + d) % L.length + L.length) % L.length];
+      const pc = $('#fSeedPc'); pc.hidden = touch;
+      pc.innerHTML = `<kbd>Tab</kbd><span class="car">${L.length > 2 ? `<i class="pv">${ic(at(-1))}</i>` : ''}<i class="cu${n(seed) ? '' : ' no'}">${ic(seed)}<b>${n(seed)}</b></i>${L.length > 1 ? `<i class="nx">${ic(at(1))}</i>` : ''}</span><span>${sn}</span>`;
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
       $('#fWater').innerHTML = w; $('#fWater').style.display = this.cfg.harvest ? 'none' : ''; // harvest experiment: no watering can

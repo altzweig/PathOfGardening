@@ -59,11 +59,25 @@ function glowEyes(av: AView, a: Animal, now: number, dt: number) {
   if (a.type === 'raccoon' && Math.random() < dt * 2.2) { const p = av.eyes.getWorldPosition(V()); PART.spawn(V(p.x + rand(-.05, .05), p.y + .02, p.z + rand(-.05, .05)), V(0, .25, 0), 0x9fd4ff, .05, .35, { s1: 0, a: 1 }); }
 }
 
-const ITEM_HEX: Record<string, number> = { blue: 0x4a64f0, wheat: 0xe0b850, straw: 0xe8d488, nut: 0xc08a4a, garlic: 0xf0ead8, flour: 0xf4f0e6, bread: 0xb8782e, juice: 0x6a3cc0, milk: 0xf8f8f0, cheese: 0xf0c850, egg: 0xf4e8d0, plank: 0xa87a48, apple: 0xd8382a, bramble: 0x2a1030, green: 0x6a9a3a, mushroom: 0xa0522d, baerlauch: 0x3f8a2a, sorrel: 0x8a9a2a, wood: 0x7a5432, stone: 0x9a948a };
+const ITEM_HEX: Record<string, number> = { blue: 0x4a64f0, wheat: 0xe0b850, straw: 0xe8d488, nut: 0xc08a4a, garlic: 0xf0ead8, flour: 0xf4f0e6, bread: 0xb8782e, juice: 0x6a3cc0, milk: 0xf8f8f0, cheese: 0xf0c850, egg: 0xf4e8d0, plank: 0xa87a48, apple: 0xd8382a, bramble: 0x3a1440, strawb: 0xe0303a, green: 0x6a9a3a, mushroom: 0xa0522d, baerlauch: 0x3f8a2a, sorrel: 0x8a9a2a, wood: 0x7a5432, stone: 0x9a948a };
 export const itemHex = (id: ItemId) => ITEM_HEX[id] ?? 0xcccccc;
+/** berry shotgun (Basti 22.11.2026): juice colour of a berry (splash at the barrel, burst) */
+const JUICE: Record<string, number> = { blue: 0x4a2a9a, strawb: 0xd0182e, bramble: 0x5a1050 };
+const juiceHex = (id: ItemId) => JUICE[id] ?? itemHex(id);
 const itemMats = new Map<string, THREE.MeshStandardMaterial>();
 function itemMat(id: ItemId) { let m = itemMats.get(id); if (!m) { m = new THREE.MeshStandardMaterial({ color: itemHex(id), roughness: .55, emissive: itemHex(id), emissiveIntensity: .15 }); itemMats.set(id, m); } return m; }
 /** small world model of a good (loot, carry pile) */
+/** doom (Basti 22.11.2026): dark purple part at the front (left) of an animal's life bar; HP down into it = driven off at once */
+function doomBar(bar: THREE.Group, frac: number) {
+  let d = bar.userData.doom as THREE.Mesh | undefined;
+  if (!d) {
+    if (frac <= 0) return;
+    d = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: 0x3a0a52, depthTest: false, depthWrite: false, toneMapped: false, transparent: true }));
+    d.renderOrder = 1000; d.position.z = .003; bar.add(d); bar.userData.doom = d;
+  }
+  const w = bar.userData.w as number, h = (bar.userData.fg as THREE.Mesh).scale.y, f = Math.min(1, Math.max(0, frac));
+  d.visible = f > 0; d.scale.set(Math.max(.0001, w * f), h * 1.15, 1); d.position.x = -w / 2 + w * f / 2;
+}
 /** harvest experiment: size of a fruit on the ground by how many merged into it (1, 3, 9, 27 ...) */
 const lootScale = (n: number) => 1.5 * Math.pow(1.45, Math.log(Math.max(1, n)) / Math.log(3));
 const cropMainId = (cfg: FarmCfg, crop: string) => { const y = cfg.crops[crop]?.yield ?? {}; return Object.entries(y).sort((a, b) => b[1] - a[1])[0]?.[0] ?? crop; };
@@ -686,7 +700,7 @@ export class FarmView {
       v.frozen = lerp(v.frozen, a.freeze > 0 ? 1 : 0, 1 - Math.exp(-dt * 8));
       v.v.mat.emissive.setRGB(.15 * v.frozen + (a.flash > 0 ? .5 : 0), .35 * v.frozen + (a.flash > 0 ? .5 : 0), .7 * v.frozen + (a.flash > 0 ? .5 : 0));
       const showBar = a.hp < a.maxHp && a.state !== 'script' && !a.driven;
-      v.bar.visible = showBar; if (showBar) { v.bar.position.set(a.x, (a.type === 'hare' ? .8 : 1) , a.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, a.hp / a.maxHp); }
+      v.bar.visible = showBar || !!a.doom; if (v.bar.visible) { v.bar.position.set(a.x, (a.type === 'hare' ? .8 : 1) , a.z); v.bar.quaternion.copy(camera.quaternion); setBar(v.bar, a.hp / a.maxHp); doomBar(v.bar, (a.doom ?? 0) / a.maxHp); }
       if (a.night) glowEyes(v.v, a, now, dt);
       if (a.freeze > 0 && Math.random() < dt * 8) PART.spawn(V(a.x + rand(-.3, .3), rand(.2, .6), a.z + rand(-.3, .3)), V(0, .3, 0), 0xbfe4ff, .08, .6);
     }
@@ -707,7 +721,7 @@ export class FarmView {
   private animShots(sim: DaySim | null, dt: number) {
     const list = sim?.pellets ?? [];
     while (this.pelletPool.length < list.length) { const m = new THREE.Mesh(GEO.sph, PROJ_BLUE); m.scale.setScalar(.07); this.dyn.add(m); this.pelletPool.push(m); }
-    this.pelletPool.forEach((m, i) => { const p = list[i]; m.visible = !!p; if (p) { m.position.set(p.x, .75, p.z); m.material = p.ammo === 'blue' ? PROJ_BLUE : itemMat(p.ammo); if (Math.random() < .5) PART.spawn(m.position, V(0, .1, 0), itemHex(p.ammo), .1, .2); } });
+    this.pelletPool.forEach((m, i) => { const p = list[i]; m.visible = !!p && !(p.wait && p.wait > 0); if (m.visible && p) { m.position.set(p.x, .75, p.z); m.material = p.ammo === 'blue' ? PROJ_BLUE : itemMat(p.ammo); if (Math.random() < .5) PART.spawn(m.position, V(0, .1, 0), itemHex(p.ammo), .1, .2); } });
     const live = new Set<number>();
     for (const l of sim?.loot ?? []) {
       live.add(l.id); let m = this.lootViews.get(l.id);
@@ -846,8 +860,21 @@ export class FarmView {
       case 'hungry': if (this.s.buildings.sheep?.built) { const b = this.hof.building('sheep'); if (b) sfx('sheep.wave', b.x, b.z); } break;
       case 'swing': sfx('player.slash', e.x, e.z); sfx('player.effort', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
       case 'rakeHit': if (e.n) { punchStar(e.x, e.z, 1); this.shake = Math.max(this.shake, .25); } break;
-      case 'shot': { const pv = mine ? this.player : this.others.get(P.id); if (pv) pv.recoil = .18; play('shot'); const dx = Math.sin(e.dir), dz = Math.cos(e.dir); burst(V(e.x + dx * .9, .8, e.z + dz * .9), itemHex(e.ammo), 10, 3, .1, .25); this.shake = Math.max(this.shake, .15); break; }
-      case 'pelletHit': burst(V(e.x, .6, e.z), itemHex(e.ammo), 6, 1.5, .1, .35); play('hit'); break;
+      case 'shot': {
+        const pv = mine ? this.player : this.others.get(P.id); if (pv) pv.recoil = .18; play('shot');
+        // berry shotgun (Basti 22.11.2026): juice sprays out of the barrel in the shot direction, a few berry bits with it
+        const dx = Math.sin(e.dir), dz = Math.cos(e.dir), mz = V(e.x + dx * .9, .8, e.z + dz * .9), jc = juiceHex(e.ammo);
+        for (let i = 0; i < 26; i++) { const a = e.dir + rand(-.35, .35), sp = rand(2, 7); PART.spawn(mz, V(Math.sin(a) * sp, rand(.2, 1.6), Math.cos(a) * sp), jc, rand(.05, .12), rand(.25, .55), { g: 9, drag: 2 }); }
+        burst(mz, itemHex(e.ammo), 6, 2, .08, .3); burst(mz, 0xffffff, 4, 1.2, .1, .15);
+        sfx('fight.juice', mz.x, mz.z);
+        this.shake = Math.max(this.shake, .15); break;
+      }
+      case 'pelletHit': { // the berry bursts: juice splat + splash (on a hit or at the end of its 20 m)
+        const jc = juiceHex(e.ammo); burst(V(e.x, .6, e.z), jc, e.end ? 12 : 9, 2, .1, .45, { g: 8 }); burst(V(e.x, .6, e.z), itemHex(e.ammo), 4, 1.2, .08, .3);
+        decal(e.x, e.z, jc, .45, 4, { op: .55 }); sfx('fight.splat', e.x, e.z); if (!e.end) play('hit'); break;
+      }
+      case 'bleed': PART.spawn(V(e.x + rand(-.15, .15), .45, e.z + rand(-.15, .15)), V(rand(-.3, .3), .2, rand(-.3, .3)), 0xb01020, .07, .5, { g: 8 }); break;
+      case 'doom': burst(V(e.x, .5, e.z), 0x3a0a4a, 30, 2.2, .14, .8, { g: -1 }); burst(V(e.x, .5, e.z), 0xb060ff, 12, 1.5, .08, .5); sfx('fight.doom', e.x, e.z); break;
       case 'hit': punchStar(e.x, e.z, .7); sfx('fight.impact', e.x, e.z); sfx(`${e.type}.${e.last ? 'die' : 'hurt'}`, e.x, e.z); // sounds.yaml fight / raccoon / hare (22.11.2026)
         if (e.frozen) burst(V(e.x, .5, e.z), 0xbfe4ff, 10, 1.5, .12, .5); break;
       case 'driven': this.floatXp?.(e.x, e.z, e.xp); break;

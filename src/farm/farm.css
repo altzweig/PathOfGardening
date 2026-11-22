@@ -312,3 +312,16 @@ body[data-input=touch] #fBtns{display:flex}
 
 .frMine .dot{flex:none;width:12px;height:12px;border-radius:50%;background:#4a535c}
 .frMine .dot.on{background:#7ad08a;box-shadow:0 0 8px #7ad08a}
+
+/* ammo carousel (Basti 22.11.2026): Tab switches the berry of the shotgun, the previous / next one half transparent beside it */
+#fSeedPc .car{display:flex;align-items:center;gap:2px}
+#fSeedPc .car i{display:grid;place-items:center;position:relative;font-style:normal}
+#fSeedPc .car .pv,#fSeedPc .car .nx{opacity:.38;transform:scale(.72)}
+#fSeedPc .car .cu svg{width:36px;height:36px}
+#fSeedPc .car b,#bSeed b.an{position:absolute;right:-6px;bottom:-4px;min-width:18px;padding:0 3px;border-radius:9px;background:#1a2027;border:1px solid var(--gold-dim);color:var(--parch);font:700 11px var(--f-body);text-align:center}
+#bSeed{position:relative}#bSeed b.an{right:2px;bottom:2px;font-size:12px}
+#fSeedPc .no,#bSeed b.an.no{filter:grayscale(1);opacity:.55}
+#fSeedPc.sl .car{animation:carL .22s ease-out}#fSeedPc.sr .car{animation:carR .22s ease-out}
+@keyframes carL{from{transform:translateX(22px)}to{transform:none}}
+@keyframes carR{from{transform:translateX(-22px)}to{transform:none}}
+#fSeeds button b{margin-left:auto;color:var(--gold);font-size:14px}

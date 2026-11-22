@@ -340,10 +340,10 @@ saves:                     # Spielstände: lokal im Browser (localStorage), mehr
 
 start:                     # neuer Spielstand
   money: 0                 # Gefallen
-  items: {}
+  items: { blue: 20, bramble: 10 }   # (22.11.2026) ein paar Beeren für die Schrotflinte zum Start
   plots: 3                 # offene Felder zu Beginn (Basti 22.11.2026: Felder haben keine feste Frucht mehr), dazu der Blaubeerbusch
 
-seeds:                     # Saatgut (Basti 22.11.2026): unendlich, auf jedem Feld wird das aktive Saatgut gesät (PC Tab, Handy Saatgut-Knopf)
+seeds:                     # Saatgut (Basti 22.11.2026): unendlich. Seit dem Aussaatplan (22.11.2026) hat jedes Feld eine feste Frucht, abends im Haus-Buch geplant (Tab schaltet jetzt die Munition)
   start: [wheat, cab, onion]   # Saatgut zu Beginn
   offer: 3                 # nach jedem Level-up: so viele neue Sorten zur Wahl (erst alle Commons, dann Uncommons, dann Rares)
 
@@ -358,17 +358,18 @@ weapons:
     swing: 0.2             # s Schwung (Treffer in der Mitte)
     knockback: 0.5         # m
     stun: 0.4              # s (Speed linear von 0 auf normal)
-  shotgun:
+  shotgun:                 # BEEREN-SCHROTFLINTE (Basti 22.11.2026): von Anfang an dabei, schießt die gewählte Beere direkt aus dem Lager (Tab / Munitionsknopf)
     available: true
     level: 1
-    ammo: [blue, wheat, nut, garlic]     # Beeren, Körner, Nüsse, Knoblauch
-    ammoPerShot: 1
-    cooldown: 0.7
-    pellets: 6
-    cone: 26               # Grad Streuung
-    range: 7               # m
-    speed: 20              # m/s Schrot
-    damage: 2              # je Schrotkugel (x Munitionsfaktor)
+    ammo: [blue, strawb, bramble]   # Blaubeeren (frieren ein), Erdbeeren (bluten), Brombeeren (Doom)
+    ammoPerShot: 1         # Beeren aus dem Lager pro Schuss (ein Schuss = 3 Beeren-Kugeln)
+    cooldown: 0.6
+    pellets: 3             # 3 Beeren nah beieinander ...
+    cone: 10               # ... ca. 10 Grad Streuung ...
+    stagger: 0.04          # ... leicht versetzt (s Abstand zwischen den Beeren)
+    range: 20              # m, dann platzen sie
+    speed: 26              # m/s
+    damage: 2              # je Beere (x Munitionsfaktor)
   crossbow:                # vorbereitet, noch gesperrt
     available: false
     level: 4
@@ -386,11 +387,14 @@ weapons:
     level: 8
     ammo: [cab, pumpkin, melon]
 
-ammo:                      # Wirkung je Munition: damage = Faktor auf den Waffenschaden, freeze = s eingefroren (Blaubeeren)
-  blue: { damage: 1, freeze: 2.5 }
+ammo:                      # Wirkung je Beere: damage = Faktor auf den Waffenschaden, freeze = s eingefroren, bleed = blutet (siehe bleed), doom = HP auf den Doom-Balken pro Treffer
+  blue:    { damage: 1, freeze: 2.5 }      # Blaubeeren: frieren ein
+  strawb:  { damage: 0.8, bleed: 1 }       # Erdbeeren: Gegner blutet
+  bramble: { damage: 0.6, doom: 1.5 }      # Brombeeren: Doom. Dunkellila Balken vorne in der Lebensleiste, fällt das Leben auf diesen Bereich, ist der Gegner sofort vertrieben
   wheat: { damage: 0.6 }
   nut: { damage: 1.4 }
   garlic: { damage: 1.1 }
+bleed: { dps: 1, time: 4 }   # Bluten (Erdbeeren): Leben pro s, so viele s nach dem letzten Treffer
 
 # ---------------------------------------------------------------------
 # Tiere: wenige, kleine Schübe. Sie werden nicht getötet, sondern vertrieben (0 Leben = Flucht in den Wald, XP).

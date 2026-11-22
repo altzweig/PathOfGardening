@@ -25,7 +25,7 @@ export interface Recipe { in: Record<ItemId, number>; out: Record<ItemId, number
 export interface BuildingCfg { built?: boolean; broken?: boolean; level?: number; cost?: Cost; needs?: BuildingId; recipes?: Recipe[]; action?: { label: string; time: number } }
 export interface StallCfg { animals: Livestock[]; feed: ItemId; feedCost: number; maxFed: number; collect: 'milk' | 'eggs'; yield: Record<ItemId, number> }
 export interface RectCfg { x: number; z: number; w?: number; d?: number; r?: number; rot?: number; fence?: boolean }
-export interface GunCfg { available: boolean; level: number; ammo: ItemId[]; ammoPerShot?: number; cooldown?: number; pellets?: number; cone?: number; range?: number; speed?: number; damage?: number }
+export interface GunCfg { available: boolean; level: number; ammo: ItemId[]; ammoPerShot?: number; cooldown?: number; pellets?: number; cone?: number; range?: number; speed?: number; damage?: number; /** s between the berries of one shot */ stagger?: number }
 export interface AnimalCfg { hp: number; speed: number; fleeSpeed: number; radius: number; scare: number; xp: number; run?: number; away?: number;
   stealInterval?: number; carryMax?: number; shy?: number; aggro?: number; damage?: number; biteInterval?: number; biteRange?: number;
   eatInterval?: number; plotBites?: number }
@@ -94,7 +94,9 @@ export interface FarmCfg {
   /** seeds (Basti 22.11.2026): endless, start = the seeds of a new farm, offer = new seeds to choose from after a level-up */
   seeds: { start: string[]; offer: number };
   weapons: { rake: { damage: number; range: number; arc: number; cooldown: number; swing: number; knockback: number; stun: number } } & Record<Exclude<WeaponId, 'rake'>, GunCfg>;
-  ammo: Record<ItemId, { damage: number; freeze?: number }>;
+  ammo: Record<ItemId, { damage: number; freeze?: number; /** strawberries: bleeding (see bleed) */ bleed?: number; /** brambles: HP added to the doom bar per hit */ doom?: number }>;
+  /** bleeding from a strawberry shot: HP per s, s long */
+  bleed?: { dps: number; time: number };
   animals: Record<AnimalType, AnimalCfg>;
   spawns: { wanderers: [number, number]; wanderTypes: Partial<Record<AnimalType, number>>; raid: { from: number; to: number; raccoons: number; perLevel: number }; scaling: { hp: number; damage: number; speed: number } };
   /** 0 HP: the worst case of the night (Basti 21.11.2026): the harvest of the day is gone, every field is broken */

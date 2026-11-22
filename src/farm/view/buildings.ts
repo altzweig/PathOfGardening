@@ -62,9 +62,11 @@ const GLOW = {
 };
 const PLANE = new THREE.PlaneGeometry(1, 1);
 /** windows glow at dusk; k = darkness 0..1 */
+export const WINDOW_GLOW = { k: 1 };
 export function setWindowGlow(k: number) {
-  mat('window').emissiveIntensity = k * 2.4;
-  GLOW.halo.opacity = k * .55; GLOW.pool.opacity = k * .5; GLOW.shaft.opacity = k * .16;
+  const f = WINDOW_GLOW.k; // balancing.yaml nachtlicht.fenster (22.11.2026: windows less glaring)
+  mat('window').emissiveIntensity = k * 2.4 * f;
+  GLOW.halo.opacity = k * .55 * f; GLOW.pool.opacity = k * .5 * f; GLOW.shaft.opacity = k * .16 * f;
   const on = k > .02; GLOW.halo.visible = GLOW.pool.visible = GLOW.shaft.visible = on;
 }
 /** world points of every lit window (cutscene: the lights of the house) */
@@ -141,7 +143,7 @@ function house(g: THREE.Group, w: number, d: number) {
   const lx = -w * .34; box(g, mat('timber'), 2.1, 2.3, .1, lx, 1.15, d / 2 + .04);
   for (const sx of [-1, 1]) { const dg = new THREE.Group(); dg.position.set(lx + sx * .48, 1.1, d / 2 + .1); g.add(dg); box(dg, mat('woodRed'), .94, 2.1, .08, 0, 0, 0); const b = box(dg, mat('frame'), 1.2, .1, .04, 0, 0, .05); b.rotation.z = sx * .95; }
   windowAt(g, 0, 1.7, -d / 2 - .04, .7, .8, Math.PI);
-  return { lamp: new THREE.Vector3(w * .14, 2.45, d / 2 + .25) };
+  return { lamp: new THREE.Vector3(w * .14 + .62, 2.29, d / 2 + .74) }; // hook of the door lantern under the porch roof (lanterns.ts)
 }
 function shed(g: THREE.Group, w: number, d: number, o: { wall?: string; roof?: string; h?: number; pitch?: number; door?: number; windows?: boolean } = {}) {
   const H = o.h ?? 2.3;

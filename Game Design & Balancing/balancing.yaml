@@ -295,6 +295,22 @@ texturen:                  # Texturkonzept (20.11.2026): FreeStylized, KTX2. Kac
     kachel: { holz: 2, holzSchuppen: 1.6, dach: 2.2, stein: 1.8 }
     normalstaerke: 1
 
+nachtlicht:                # Nacht ohne grellen Bloom (Basti 22.11.2026): Laternen beleuchten den Hof statt Leuchten aus jedem Fenster
+  bloom: [0.5, 0.86]       # Bloom nachts: Stärke, Schwelle (vorher 1.15 / 0.72; tagsüber bleibt 0.5 / 0.9)
+  fenster: 0.55            # Fensterlicht nachts (Glas, Schein, Lichtkegel), 1 = wie vorher
+  hauslampe: 6             # echtes Licht der Laterne an der Haustür (vorher 22, blendete die Hauswand)
+laternen:                  # altmodische Laternen: 3 am Hofbaum, weitere an den Hofeingängen (im Welt-Editor als "Laterne" unter Hof platzierbar)
+  baum:
+    anzahl: 3              # je 120° um den Stamm, die erste zeigt zur Hofmitte
+    radius: [0.9, 2.6]     # m vom Stamm, in dem ein Ast zum Einhängen gesucht wird
+    hoehen: [2.0, 2.25, 1.8]   # m Unterkante jeder Laterne über dem Boden (leicht unterschiedlich)
+    drehung: 0             # Grad, dreht alle drei um den Stamm
+    punkt: null            # [x, z] wenn ein anderer Baum gemeint ist (sonst der Baum, der der Hofmitte am nächsten steht)
+  glas: 2.2                # Leuchtkraft des Glases
+  halo: [1.1, 0.45]        # weicher Schein um die Laterne: Größe m, Stärke
+  boden: [2.2, 0.32]       # warmer Lichtfleck am Boden: Radius m, Stärke
+  licht: [9, 9]            # das eine echte Licht unter dem Hofbaum: Stärke, Reichweite m (die Eingangslaternen leuchten nur gefaked)
+  pendeln: 0.05            # rad, leichtes Schaukeln der hängenden Laternen
 stalls:                    # Füttern am Stall (Linksklick), nicht einzelne Tiere. Morgens (1. Tageshälfte) und abends (2.) je einmal Ertrag.
   strawBonus: 0.3          # frisches Stroh (1x am Tag): 30 % mehr Ertrag
   strawCost: 1             # Stroh pro Auslegen

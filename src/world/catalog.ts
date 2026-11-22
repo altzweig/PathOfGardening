@@ -69,6 +69,8 @@ for (const i of [1, 2, 3]) add('RockPath_Round_Small_' + i, 'Trittstein ' + i, '
 add('Zaun', 'Zaun', 'Hof', { s: 1, vary: [1, 1], shadow: true, wall: [1, .08], tint: null, shade: [.85, 1.05] });
 add('Zaun_Pfosten', 'Pfosten', 'Hof', { s: 1, vary: [.9, 1.1], shadow: true, solid: .1, tint: null, shade: [.85, 1.05] });
 add('Heuballen', 'Heuballen', 'Hof', { s: .75, vary: [.9, 1.1], shadow: true, solid: .6, tint: null, shade: [.9, 1.05] });
+// lantern: stands on a fence post / flat rock / the ground under it by itself (lanterns.ts), lights up at night
+add('Laterne', 'Laterne', 'Hof', { s: 1, vary: [1, 1], shadow: true, tint: null, shade: [1, 1] });
 add('Holzstapel', 'Holzstapel', 'Hof', { s: 1, vary: [.9, 1.1], shadow: true, wall: [.8, .4], tint: null, shade: [.85, 1.05] });
 
 export const MODELS = D;

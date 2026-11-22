@@ -33,6 +33,8 @@ let cur = -1, curLen = 24, curDayH = 16;
 const forced = (() => { const v = new URLSearchParams(location.search).get('h'); return v === null ? null : +v; })(); // ?h=20 shows that hour (for screenshots)
 const sunPos = new THREE.Vector3();
 /** target: hour from the snapshot; smoothed here so wave ends never jump */
+/** bloom at night + the real light of the house door lamp (balancing.yaml nachtlicht); the VFX lab keeps the old values */
+export const NIGHT_BLOOM = { strength: 1.15, threshold: .72, houseLamp: 22 };
 export function updateDayNight(dt: number, target: number, len = 24, dayH = 16) {
   if (forced !== null && !Number.isNaN(forced)) target = forced;
   curLen = len || 24; curDayH = len ? dayH : 16;
@@ -67,11 +69,11 @@ function apply(S: DayState) {
   envU.uFogCol.value.copy(sky); envU.uFogNear.value = fog.near; envU.uFogFar.value = fog.far;
   envU.uDay.value = day;
   renderer.toneMappingExposure = 1.05 * night + 1.22 * day;
-  // bloom: strong glow in the dark, gentle in daylight (otherwise sunlit surfaces would bloom)
-  bloom.strength = 1.15 * night + .5 * day; bloom.threshold = .72 * night + .9 * day;
+  // bloom: gentle in daylight (otherwise sunlit surfaces would bloom); at night NIGHT_BLOOM (22.11.2026: much softer, the lanterns light the yard)
+  bloom.strength = NIGHT_BLOOM.strength * night + .5 * day; bloom.threshold = NIGHT_BLOOM.threshold * night + .9 * day;
   // man-made lights only matter in the dark
   const dark = Math.max(night, warm * .4);
-  lantern.intensity = 22 * dark; torch.intensity = 3.5 * dark; gardenLight.intensity = 80 * night;
+  lantern.intensity = NIGHT_BLOOM.houseLamp * dark; torch.intensity = 3.5 * dark; gardenLight.intensity = 80 * night;
   setTorchLevel(dark); setEyeNight(night);
   // drifting fog: thick and blue at night, morning mist at sunrise, thin haze by day
   const dawn = h > curLen - 2 || h < 1.5 ? warm : 0;

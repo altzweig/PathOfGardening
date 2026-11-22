@@ -7,7 +7,7 @@ import {
   GEO, PART, V, burst, camera, clamp, composer, decal, gardenLight, gradePass, hemi, lantern, lerp, lerpAngle, makeBar, moon, punchStar,
   rand, renderer, scene, setBar, slashSmear, torch, updateFx, windU,
 } from '../../view/core';
-import { updateDayNight, dayNow, resetDayNight } from '../../view/daynight';
+import { NIGHT_BLOOM, updateDayNight, dayNow, resetDayNight } from '../../view/daynight';
 import { updateSeasons } from '../../view/seasons';
 import { setTexCfg } from '../../view/textures';
 import { BUSH_MAT, buildPlant, fruitMesh, PROJ_BLUE } from '../../view/models';
@@ -25,7 +25,8 @@ import type { Hof } from '../hof';
 import type { Animal, DaySim, Ev, Player, Target } from '../sim';
 import { HofWorld } from './hofWorld';
 import { occludeTree, updateOcclusion } from './occlusion';
-import { BuildingView, buildBuilding, setWindowGlow } from './buildings';
+import { BuildingView, WINDOW_GLOW, buildBuilding, setWindowGlow } from './buildings';
+import { LANTERN_DEFAULT, Lanterns } from './lanterns';
 import { buildBed } from './beds';
 import { WildView } from './wild';
 import { LivestockView, animateLivestock, makeLivestock } from './livestock';
@@ -215,6 +216,8 @@ const SHADOW_RAYS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0,
 
 export class FarmView {
   world: HofWorld;
+  /** night lanterns on the yard tree and at the entrances */
+  lanterns: Lanterns;
   buildings = new Map<BuildingId, BuildingView>();
   plots: PlotView[] = [];
   bush: { g: THREE.Group; fruits: THREE.Mesh[]; bar: THREE.Group; name: NameTag; a: number; leaf: THREE.MeshStandardMaterial; unripe: THREE.MeshStandardMaterial; drop: THREE.Sprite; shake: number; sy: number[] };
@@ -260,6 +263,13 @@ export class FarmView {
     };
     setTexCfg(cfg.texturen);
     this.world = new HofWorld(cfg, hof, free);
+    if (cfg.nachtlicht) { NIGHT_BLOOM.strength = cfg.nachtlicht.bloom[0]; NIGHT_BLOOM.threshold = cfg.nachtlicht.bloom[1]; NIGHT_BLOOM.houseLamp = cfg.nachtlicht.hauslampe ?? 22; WINDOW_GLOW.k = cfg.nachtlicht.fenster; }
+    // night lanterns (22.11.2026): three on the yard tree, more at the entrances (world props 'Laterne')
+    this.lanterns = new Lanterns({ ...LANTERN_DEFAULT, ...cfg.laternen, baum: { ...LANTERN_DEFAULT.baum, ...cfg.laternen?.baum } });
+    void this.world.ready.then(() => {
+      const P = H.plots, n = P.length || 1, mid = { x: (P.reduce((s, p) => s + p.x, 0) / n + H.door.x) / 2, z: (P.reduce((s, p) => s + p.z, 0) / n + H.door.z) / 2 };
+      if (this.world.props) this.lanterns.build(cfg.world?.props ?? [], this.world.props.root, mid);
+    });
     scene.add(this.dyn);
     // buildings
     for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) {
@@ -267,7 +277,7 @@ export class FarmView {
       const v = buildBuilding(id, r, cfg.buildings[id]?.level ?? 0); scene.add(v.root); this.buildings.set(id, v);
     }
     const house = this.buildings.get('house');
-    if (house?.lamp) { house.root.updateMatrixWorld(true); const p = house.root.localToWorld(house.lamp.clone()); lantern.position.copy(p); lantern.distance = 10; }
+    if (house?.lamp) { house.root.updateMatrixWorld(true); lantern.position.copy(this.lanterns.hangFrom(house.built, house.lamp)); lantern.distance = 10; }
     // plots
     H.plots.forEach((p, i) => this.plots.push(this.makePlot(p.x, p.z, i)));
     // bush
@@ -907,7 +917,7 @@ export class FarmView {
     const hour = this.hour ?? (mode === 'menu' ? 10.5 : mode === 'evening' ? 16.45 : nightH ?? lerp(L[0], L[1], sim ? sim.k : 0));
     updateDayNight(dt, hour, 24, 16);
     updateSeasons(dt, 7, !!sim?.raining && day);
-    const dn = dayNow().day; setWindowGlow(1 - dn); setArsenalLight(dn);
+    const dn = dayNow().day; setWindowGlow(1 - dn); setArsenalLight(dn); this.lanterns.update(dt, 1 - dn);
     gardenLight.intensity = 0;
     if (Math.random() < dt * 2.5 * dn) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(this.camX + Math.cos(a) * r, rand(.4, 2), this.camZ + Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); }
     PART.update(dt); updateFx(dt);

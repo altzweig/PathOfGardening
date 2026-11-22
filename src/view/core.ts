@@ -4,6 +4,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { SoftLookPass } from './softLook';
 
 export const rand = (a: number, b: number) => a + Math.random() * (b - a);
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -66,10 +68,10 @@ export const torch = new THREE.PointLight(0xffc27a, 3.5, 7.5, 1.6); scene.add(to
 export const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
 
 export type Quality = 'hoch' | 'mittel' | 'niedrig';
-const QUAL: Record<Quality, { pr: number; shadow: number; bloom: boolean }> = {
-  hoch: { pr: Math.min(devicePixelRatio, 2), shadow: 2048, bloom: true },
-  mittel: { pr: Math.min(devicePixelRatio, 1.5), shadow: 1024, bloom: true },
-  niedrig: { pr: 1, shadow: 0, bloom: false },
+const QUAL: Record<Quality, { pr: number; shadow: number; bloom: boolean; aa: 'msaa' | 'fxaa' | null }> = {
+  hoch: { pr: Math.min(devicePixelRatio, 2), shadow: 2048, bloom: true, aa: 'msaa' },
+  mittel: { pr: Math.min(devicePixelRatio, 1.5), shadow: 1024, bloom: true, aa: 'fxaa' },
+  niedrig: { pr: 1, shadow: 0, bloom: false, aa: null },
 };
 export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: true };
 
@@ -94,24 +96,14 @@ composer.addPass(bloom);
 export const fxTop = new THREE.Scene();
 const boltU = { uRes: { value: new THREE.Vector2(1, 1) } };
 const topPass = new RenderPass(fxTop, camera); topPass.clear = false;
-export const gradePass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uHurt: { value: 0 }, uLow: { value: 0 }, uDay: envU.uDay },
-  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uHurt; uniform float uLow; uniform float uDay; varying vec2 vUv;
-    void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 d=vUv-.5; d.x*=1.2; float r=length(d);
-      float l=dot(c.rgb,vec3(.299,.587,.114));
-      vec3 night=mix(c.rgb*vec3(.8,.95,1.15), c.rgb*vec3(1.06,1.,.9), smoothstep(.05,.6,l));
-      night=mix(vec3(l)*vec3(.82,.95,1.2), night, .78);                 // night: cooler, a little desaturated = gloomier
-      vec3 day=mix(c.rgb*vec3(.96,1.,1.04), c.rgb*vec3(1.04,1.01,.95), smoothstep(.1,.7,l)); // day: warm lights, slightly cool shade
-      c.rgb=mix(night, day, uDay);
-      c.rgb=mix(c.rgb, vec3(.6,.02,.02), uHurt*smoothstep(.25,.75,r));
-      float vig=mix(smoothstep(.85,.18,r), mix(1.,smoothstep(1.,.25,r),.6), uDay); c.rgb*=vig;
-      c.rgb+=vec3(.42,.0,.03)*uLow*smoothstep(.42,.8,r); // low-HP: soft red glow on the screen edges, centre stays clear
-      gl_FragColor=c; }`,
-});
 composer.addPass(topPass);
-composer.addPass(gradePass);
 composer.addPass(new OutputPass());
+/** colour grade + soft look (glow, night lift, split toning, tilt-shift in menu/cutscenes) in one pass after tone mapping (softLook.ts) */
+export const gradePass = new SoftLookPass(envU.uDay);
+composer.addPass(gradePass);
+/** edge smoothing (look analysis 22.11.2026): Hoch = MSAA 4x in the scene buffer, Mittel = FXAA at the end, Niedrig = none */
+const fxaa = new ShaderPass(FXAAShader);
+composer.addPass(fxaa);
 
 export let pxScale = 500;
 /** viewport size, cached on resize (performance plan 1.2): reading innerWidth/innerHeight in the frame forces a layout after HUD style writes */
@@ -125,13 +117,18 @@ export function resize() {
   camera.aspect = w / h; camera.updateProjectionMatrix();
   pxScale = h * renderer.getPixelRatio() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
   renderer.getDrawingBufferSize(boltU.uRes.value);
+  fxaa.uniforms.resolution.value.set(1 / boltU.uRes.value.x, 1 / boltU.uRes.value.y);
   onResize.forEach(f => f());
 }
 addEventListener('resize', resize);
 export function applyQuality() {
   const q = QUAL[gfx.quality];
   renderer.setPixelRatio(q.pr); composer.setPixelRatio(q.pr);
-  bloom.enabled = q.bloom; cleanPass.enabled = q.bloom;
+  bloom.enabled = q.bloom; cleanPass.enabled = q.bloom; gradePass.blur = q.bloom;
+  // MSAA: 4 samples in the composer's two buffers (the scene is drawn into the first one; WebGL2 resolves it)
+  const n = q.aa === 'msaa' && renderer.capabilities.isWebGL2 ? 4 : 0;
+  for (const t of [composer.renderTarget1, composer.renderTarget2]) if (t.samples !== n) { t.samples = n; t.dispose(); }
+  fxaa.enabled = q.aa === 'fxaa';
   moon.castShadow = q.shadow > 0;
   if (q.shadow) { moon.shadow.mapSize.set(q.shadow, q.shadow); if (moon.shadow.map) { moon.shadow.map.dispose(); (moon.shadow as any).map = null; } }
   resize();

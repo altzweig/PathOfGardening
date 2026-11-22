@@ -986,6 +986,8 @@ export class FarmView {
     updateOcclusion(camera.position, PP?.x ?? 0, PP?.z ?? 0, day && !!PP && !this.cine, dt, OC ? [OC.inner * ok, OC.outer * ok] : undefined);
     this.hurtT = Math.max(0, this.hurtT - dt);
     gradePass.uniforms.uHurt.value = this.hurtT * .7;
+    // depth blur of the soft look only in the menu and in cutscenes (look analysis 22.11.2026), eased in and out
+    const tilt = gradePass.uniforms.uTilt; tilt.value = lerp(tilt.value, mode === 'menu' || this.cine ? 1 : 0, 1 - Math.exp(-dt * 2));
     gradePass.uniforms.uLow.value = sim && day && !this.cine ? clamp(1 - sim.player.hp / sim.player.maxHp - .6, 0, .4) : 0;
     if (this.render3d) composer.render();
   }

@@ -3,6 +3,7 @@
 // nobody walks or mows (behind the well, behind buildings, along closed fences, at the forest edge, low under fruit trees).
 // Also provides the hooks the day-night module drives (fog look, torch level, eyes: not used on the farm by day).
 import * as THREE from 'three';
+import { blobMesh } from '../../view/blobShadow';
 import { gfx, rand, scene } from '../../view/core';
 import { groundMaterial } from '../../view/textures';
 import { SplatMap } from './splat';
@@ -139,6 +140,7 @@ export class HofWorld {
     // the big apple tree in the middle of the yard (22.11.2026): wide, round crowns, the lanterns hang from it
     const mid = yardMid(this.cfg.hof);
     for (const t of this.cfg.hof.trees) if (t.big) W.add(buildAppleTree(appleTreeShape(t.x, t.z, mid)));
+    const tb = blobMesh(this.cfg.hof.trees.map(t => ({ x: t.x, z: t.z, r: t.big ? 2.4 : 1.2 }))); if (tb) W.add(tb); // soft contact shadows under the farm trees
     this.grassDens = gfx.quality === 'niedrig' ? .3 : gfx.quality === 'mittel' ? .55 : 1;
     this.rebuildGrass();
   }

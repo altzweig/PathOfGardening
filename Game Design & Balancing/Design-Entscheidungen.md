@@ -308,3 +308,12 @@ Experiment, gilt ab jetzt und ersetzt Säen, Gießen, Jäten am Feld und die Lad
 - **Tab schaltet die Munition**, nicht mehr das Saatgut. Tab halten + Mausrad = schnell vor und zurück. Unten rechts ein Karussell: aktive Beere mit Anzahl im Lager, davor und danach die vorige/nächste halbtransparent. Handy: der Knopf neben dem Aktionsknopf (Tippen = nächste, Halten = Liste mit Anzahl).
 - **Feste Pflanzen pro Feld.** Tagsüber lässt sich nichts tauschen. Abends/nachts im Haus-Buch auf der Seite **Aussaatplan**: links der Hof als abstrakte Karte (Felder, Haus), Feld antippen, rechts Saatgut wählen. Die neue Frucht wächst ab dem nächsten Morgen (bis dahin zeigt ein kleines Symbol die alte Frucht). Tagsüber (Buch mit B) nur ansehen. Neue Felder starten mit dem ersten Saatgut.
 - Neuer Hof startet mit ein paar Beeren (`start.items`).
+
+## Weicherer Look + Escape (Basti, 22.11.2026)
+- Ergebnis der Look-Analyse (Dokument „Schönerer Look – Postprocessing-Analyse“), so umgesetzt wie empfohlen.
+- Ein Durchgang nach dem Tonemapping (`src/view/softLook.ts`) ersetzt die alte Farbkorrektur: Farbstimmung Tag/Nacht, Vignette, Treffer-/Wenig-HP-Rot wie vorher, dazu Glow um helle Stellen (Orton, nachts stärker), aufgehellte Nacht, kühle Schatten/warme Lichter, leichte Weichzeichnung. Die Unschärfe läuft in Viertelauflösung.
+- Tiefenunschärfe (oben/unten unscharf) nur im Menü und in Zwischensequenzen, beim Spielen aus.
+- Kantenglättung je Grafikstufe: Hoch = MSAA 4×, Mittel (Handy-Standard) = FXAA, Niedrig = keine und auch kein Glow.
+- Himmel mit Verlauf (Horizont = Nebelfarbe, darüber tieferes Blau, warmer Schein um die Sonne), Sonnenlicht tagsüber wärmer.
+- Weiche Kontaktschatten (dunkle runde Flecken) unter Bäumen, Büschen, Pflanzen, Pilzen, Felsen und Hof-Objekten statt teurer Umgebungsverdeckung.
+- Escape schließt immer das Oberste: Untermenüs gehen zurück wie ihr Zurück-Knopf (Optionen, Steuerung, Credits, Spielstände, Neues Spiel, Freunde, Besuchen, Koop), die Beerenauswahl schließt, das Buch schließt, das Pausenmenü geht zu, im Spiel öffnet es die Pause.

@@ -179,7 +179,7 @@ class Game {
     addEventListener('keydown', e => { if (e.code === 'KeyQ' && !e.repeat && this.mode === 'day' && !this.paused) { this.hud.toggleQuests(); sfx('ui.click'); } });
     click('#resumeBtn', () => this.togglePause());
     click('#leaveBtn', () => this.leave());
-    this.input.onPause = () => { if (this.mode !== 'menu') this.togglePause(); };
+    this.input.onPause = () => this.escape();
     this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
     this.input.mouseSens = this.cfg.camera.mouse ?? .55;
     this.input.onZoom = dy => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(dy); };
@@ -360,6 +360,16 @@ class Game {
     this.bookOpen = false; this.paused = false;
     this.house.closeDay();
     if (this.mode === 'day') this.input.lock();
+  }
+  /** Esc (Basti 22.11.2026): closes what is on top. A sub-page goes back like its back button (options, controls, credits,
+   *  saves, new game, friends, visit, co-op), the berry list closes, the book closes, the pause menu resumes, in play it pauses. */
+  private escape() {
+    const BACK: Record<string, string> = { '#newGame': '#newNo', '#saves': '#savesBack', '#options': '#optBack', '#credits': '#credBack', '#controls': '#ctrlBack',
+      '#visit': '#visitBack', '#friends': '#frBack', '#coop': '#coopBack', '#joinSave': '#jsBack' };
+    const open = OVERLAYS.find(o => !$(o).hidden), back = open && BACK[open];
+    if (back) { ($(back) as HTMLButtonElement).click(); return; }
+    if (this.hud.seedOpen) { this.hud.seedMenu(false); return; }
+    if (this.mode !== 'menu') this.togglePause();
   }
   private togglePause() {
     if (this.lv.open) return; // the level-up screen closes with its own button / the seed choice

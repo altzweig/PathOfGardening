@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Inst, hasModel, instance } from '../view/nature';
 import { MODEL } from './catalog';
 import type { PropRec } from './data';
+import { Blob, blobMesh } from '../view/blobShadow';
 
 const col = new Map<string, THREE.Color>();
 const color = (c: string) => { let v = col.get(c); if (!v) col.set(c, v = new THREE.Color(c)); return v; };
@@ -25,7 +26,9 @@ export class PropLayer {
   /** key = model@tile */
   private groups = new Map<string, { m: string; recs: PropRec[]; meshes: THREE.InstancedMesh[]; far: THREE.InstancedMesh[]; cx: number; cz: number; lod: number }>();
   private dirty = new Set<string>();
-  constructor(parent: THREE.Object3D) { this.root.name = 'props'; this.root.matrixAutoUpdate = false; parent.add(this.root); }
+  /** soft contact shadows under the props, one mesh per tile (blobShadow.ts) */
+  private blobRoot = new THREE.Group(); private blobR = new Map<string, number>();
+  constructor(parent: THREE.Object3D) { this.root.name = 'props'; this.root.matrixAutoUpdate = false; parent.add(this.root); this.blobRoot.name = 'blobs'; parent.add(this.blobRoot); }
   set(list: PropRec[]) {
     this.list = list;
     for (const g of this.groups.values()) this.dirty.add(g.m);
@@ -50,6 +53,29 @@ export class PropLayer {
       this.groups.set(k, { m, recs, meshes, far, cx: (ti + .5) * PROP_TILE, cz: (tj + .5) * PROP_TILE, lod: 0 });
     }
     this.dirty.clear();
+    this.rebuildBlobs();
+  }
+  /** footprint radius of a model at scale 1 (trees: around the trunk only) */
+  private footprint(m: string, meshes: THREE.InstancedMesh[]) {
+    let r = this.blobR.get(m); if (r !== undefined) return r;
+    const d = MODEL.get(m);
+    if (!d || d.cat === 'Gras' || d.cat === 'Blumen' || d.wall || m === 'Laterne' || /Pebble|RockPath/.test(m)) r = 0;
+    else if (d.cat === 'Bäume') r = (d.solid ?? .6) * 2.1;
+    else {
+      const b = new THREE.Box3(); for (const im of meshes) { im.geometry.computeBoundingBox(); b.union(im.geometry.boundingBox!); }
+      r = b.isEmpty() ? 0 : Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * .5 * 1.2;
+    }
+    this.blobR.set(m, r); return r;
+  }
+  private rebuildBlobs() {
+    for (const c of [...this.blobRoot.children]) { this.blobRoot.remove(c); (c as THREE.InstancedMesh).dispose(); }
+    const by = new Map<string, Blob[]>();
+    for (const g of this.groups.values()) {
+      const r0 = this.footprint(g.m, g.meshes); if (!r0) continue;
+      const k = tileOf(g.recs[0]); let l = by.get(k); if (!l) by.set(k, l = []);
+      for (const p of g.recs) l.push({ x: p.x, z: p.z, r: r0 * p.s });
+    }
+    for (const l of by.values()) { const im = blobMesh(l); if (im) this.blobRoot.add(im); }
   }
   /** leaf crowns cast shadows only in tiles near the player (performance plan 2.5: leaf shadows were 17 % of the GPU time);
    *  trunks, rocks and bushes keep theirs. r = distance from the point to the nearest edge of a tile */

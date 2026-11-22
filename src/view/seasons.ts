@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { PART, V, camera, envU, hemi, moon, rand, scene } from './core';
 import { setRain } from '../audio';
+import { skyZenith } from './daynight';
 
 /** look per month (index 0 = January): snow cover, autumn colour, spring blossom, summer warmth */
 const LOOK: { snow: number; aut: number; spr: number; sum: number }[] = [
@@ -36,7 +37,7 @@ export function updateSeasons(dt: number, month: number, raining: boolean, enabl
   tint.setRGB(1, 1, 1).lerp(cool, cur.snow * .8).lerp(warm, cur.sum * .6).lerp(grey, cur.rain * .45);
   moon.color.multiply(tint); moon.intensity *= 1 - cur.rain * .35 - cur.snow * .1;
   hemi.intensity *= 1 + cur.snow * .25 - cur.rain * .1;
-  (scene.background as THREE.Color).lerp(grey, cur.rain * .5);
+  (scene.background as THREE.Color).lerp(grey, cur.rain * .5); skyZenith.lerp(grey, cur.rain * .6);
   setRain(enabled && raining);
   // camera target on the ground: weather around what you see
   camera.getWorldDirection(dir); const t = dir.y < -.05 ? -camera.position.y / dir.y : 10;

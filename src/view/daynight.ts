@@ -15,9 +15,30 @@ const P = {
   sky:    { n: C(0x060910), w: C(0x8a6a74), d: C(0x9fc2c9) },
   hemiS:  { n: C(0x6f92e0), w: C(0xffc3a0), d: C(0xc4dcff) },
   hemiG:  { n: C(0x140f08), w: C(0x3a2a1a), d: C(0x4d4028) },
-  light:  { n: C(0x8fb2ff), w: C(0xffa868), d: C(0xffeccb) },
+  light:  { n: C(0x8fb2ff), w: C(0xffa868), d: C(0xffe6c0) }, // 22.11.2026: warmer sun by day (was 0xffeccb)
   fog:    { n: C(0x8aa0c8), w: C(0xf0c8b8), d: C(0xdcefee) },
+  zenith: { n: C(0x020409), w: C(0x6b6f9c), d: C(0x5c93c9) },
 };
+// sky with a gradient (look analysis 22.11.2026): a half dome around the camera, horizon = the sky/fog colour (scene.background),
+// deeper blue overhead, a soft warm glow around the sun. Drawn first, behind everything (no depth test), no fog.
+/** colour overhead (rain greys it in seasons.ts like the background) */
+export const skyZenith = new THREE.Color();
+const skyU = { uHor: { value: scene.background as THREE.Color }, uZen: { value: skyZenith }, uSun: envU.uSun, uGlow: { value: new THREE.Color() } };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI * .56), new THREE.ShaderMaterial({
+  uniforms: skyU, depthTest: false, depthWrite: false, side: THREE.BackSide, fog: false,
+  vertexShader: `varying vec3 vDir; void main(){ vDir=position; vec4 p=projectionMatrix*vec4(mat3(viewMatrix)*position,1.); gl_Position=p.xyww; }`,
+  fragmentShader: `uniform vec3 uHor; uniform vec3 uZen; uniform vec3 uSun; uniform vec3 uGlow; varying vec3 vDir;
+    void main(){ vec3 d=normalize(vDir); float t=smoothstep(.0,.55,d.y);
+      vec3 c=mix(uHor,uZen,t*t*(3.-2.*t));
+      float s=max(dot(d,normalize(uSun)),0.); c+=uGlow*(pow(s,6.)*.6+pow(s,48.)*.8)*(1.-t*.6);
+      gl_FragColor=vec4(c,1.);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+}));
+sky.frustumCulled = false; sky.renderOrder = -1e9; sky.name = 'sky';
+sky.onBeforeRender = () => { sky.position.copy(camera.position); sky.updateMatrixWorld(); };
+scene.add(sky);
 const tmp = new THREE.Color(), cL = new THREE.Color(), cS = new THREE.Color(), cG = new THREE.Color(), cSky = new THREE.Color(), cF = new THREE.Color();
 function pick(o: { n: THREE.Color; w: THREE.Color; d: THREE.Color }, day: number, warm: number, out = tmp) {
   return out.copy(o.n).lerp(o.d, day).lerp(o.w, warm * (.45 + .3 * day));
@@ -65,6 +86,8 @@ function apply(S: DayState) {
   // sky + haze
   const sky = pick(P.sky, day, warm, cSky);
   (scene.background as THREE.Color).copy(sky);
+  pick(P.zenith, day, warm, skyZenith);
+  skyU.uGlow.value.copy(pick(P.light, day, warm, cG)).multiplyScalar(day * (.35 + warm * .9) * (useSun ? 1 : 0));
   // light distance fog only: starts behind the player (relative to the camera distance, so zooming out does not fog the view)
   // and only softens the far forest; never a uniform veil over the garden
   const fog = scene.fog as THREE.Fog, cd = camera.position.distanceTo(_fc.set(fogFocus.x, 0, fogFocus.z)); // distance camera <-> what it looks at (performance plan 1.5)

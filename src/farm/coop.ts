@@ -9,9 +9,10 @@ import { DaySim, Ev, Intent, Player, Target, emptyIntent } from './sim';
 /** numbers with 3 decimals: keeps the messages small */
 const pack = (o: unknown) => JSON.stringify(o, (_k, v) => typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1000) / 1000 : v);
 
+let seq = 0;
 export function snapOf(sim: DaySim, ev: Ev[]): string {
   return pack({
-    t: sim.t, n: sim.nightOn, r: sim.raining,
+    q: ++seq, t: sim.t, n: sim.nightOn, r: sim.raining,
     pl: sim.players,
     an: sim.animals.map(a => ({ ...a, route: undefined, path: undefined })),
     pe: sim.pellets, lo: sim.loot, ev,
@@ -32,7 +33,12 @@ export function applyState(sim: DaySim | null, s: FarmState, d: { s: FarmState; 
   if (sim && d.d) Object.assign(sim, { got: d.d.got, lost: d.d.lost, stalls: d.d.stalls, apples: d.d.apples, brambles: d.d.brambles, rain: d.d.rain, broken: d.d.broken, driven: d.d.driven });
 }
 /** a fast snapshot: farmers + animals glide to their new spots, the own farmer keeps its own position while it walks */
+let lastSeq = 0;
+/** a new visit: snapshots count from the start again */
+export function resetSnapSeq() { lastSeq = 0; }
 export function applySnap(sim: DaySim, d: any, steering: boolean): Ev[] {
+  // the fast connection is unordered: an older snapshot that arrives late only brings its events
+  if (d.q !== undefined) { if (d.q <= lastSeq && lastSeq - d.q < 1000) return d.ev as Ev[]; lastSeq = d.q; }
   sim.t = d.t; sim.raining = d.r;
   if (d.n && !sim.nightOn) { sim.nightOn = true; sim.waves = sim.cfg.night.waves.map(w => sim.length + w.at); }
   if (!d.n) sim.nightOn = false;

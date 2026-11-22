@@ -53,7 +53,10 @@ export function mobileControls() {
   ${label(700, 370, 'Kämpfen', 'middle', 28)}
   <g transform="translate(560 300)"><circle r="30" fill="none" stroke="#fff2c0" stroke-width="4" stroke-dasharray="7 6"/><circle r="9" fill="${TXT}"/></g>
   ${label(560, 360, 'Tippen', 'middle', 24, TXT)}
-  ${turn(560, 150, 90)}${label(560, 210, 'Wischen: Kamera drehen', 'middle', 24, TXT)}
+  <g transform="translate(560 150)" fill="none" stroke="${TXT}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="-24" cy="24" r="15" fill="${TXT}" fill-opacity=".25"/><circle cx="24" cy="-24" r="15" fill="${TXT}" fill-opacity=".25"/>
+    <path d="M-44 44 L-64 64 M-64 46 V64 H-46"/><path d="M44 -44 L64 -64 M46 -64 H64 V-46"/></g>
+  ${label(560, 245, 'Zoom', 'middle', 24, TXT)}
   <g transform="translate(872 104)"><rect x="-30" y="-30" width="60" height="60" rx="14" fill="#161d24" stroke="${GOLD}" stroke-width="3"/>${icon(ic('book'), -24, -24, 48)}</g>
   ${label(800, 114, 'Buch', 'end', 28)}
 </svg>`;

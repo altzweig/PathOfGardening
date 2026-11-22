@@ -1,7 +1,8 @@
-// Farm props built in code for the world editor: fence segment (2 m, like the pens), post, round hay bale, log pile.
+// Farm props built in code for the world editor: fence segment (2 m, like the pens), post, round hay bale, log pile, lantern.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hasModel, registerModel } from '../view/nature';
+import { lanternParts } from '../farm/view/lanterns';
 
 const wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: .85, flatShading: true });
 const darkWood = new THREE.MeshStandardMaterial({ color: 0x6a4a2e, roughness: .9, flatShading: true });
@@ -42,5 +43,7 @@ export function registerCustomModels() {
     logs.push(log(.12, 1.5, 0, y, z));
     for (const sx of [-1, 1]) { const e = new THREE.CylinderGeometry(.1, .1, .02, 7); e.rotateZ(Math.PI / 2); e.translate(sx * .755, y, z); ends.push(e.toNonIndexed()); }
   } });
+  // old-fashioned lantern (22.11.2026): stands at the entrances of the farm, glows at night (farm/view/lanterns.ts)
+  registerModel('Laterne', lanternParts());
   registerModel('Holzstapel', [{ geo: merge(logs), mat: 'custom', vc: false, m: darkWood }, { geo: merge(ends), mat: 'custom', vc: false, m: cut }]);
 }

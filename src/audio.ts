@@ -141,7 +141,7 @@ export const SND: Record<string, (arg?: any) => void> = {
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
 
 // ---------------- sample-based sounds (Game Design & Balancing/sounds.yaml) ----------------
-interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean; lp?: number }
+interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean; lp?: number; far?: boolean }
 const riseStep = new Map<string, { n: number; t: number }>();
 let SC: any = null;
 const bufs = new Map<string, AudioBuffer>();
@@ -267,6 +267,7 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1): (() => voi
     const D = SC.distance || { full: 5, silent: 26 }, d = Math.hypot(x - lx, z - lz);
     att = d <= D.full ? 1 : d >= D.silent ? 0 : 1 - (d - D.full) / (D.silent - D.full); att *= att;
     pan = Math.max(-1, Math.min(1, (x - lx) / 12)) * .75;
+    if (e.far) { att = 1; pan = d > .1 ? (x - lx) / d * .6 : 0; } // far-off call (wave from the forest): full volume, only the direction
     if (att <= .01) return;
   }
   if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) f(); }

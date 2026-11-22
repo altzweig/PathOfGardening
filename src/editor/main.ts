@@ -155,6 +155,7 @@ class Editor {
     applyLogic(this.cfg, this.logic); this.hof = new Hof(this.cfg);
     this.vcfg = { ...this.cfg, hof: { ...this.cfg.hof, buildings: {} as FarmCfg['hof']['buildings'], plots: [], trees: [], bush: { x: 1e4, z: 1e4 } }, world: { ...this.cfg.world, logic: { ...this.logic, objects: [] } } };
     this.view = new FarmView(this.vcfg, new Hof(this.vcfg), newState(this.vcfg));
+    this.view.lanterns.root.visible = false; // the editor shows the placed lanterns as plain props
     this.view.world.hof = this.hof;
     this.view.hour = 8; (this.view as unknown as { actBar: THREE.Object3D }).actBar.visible = false;
     await this.view.world.ready;

@@ -31,7 +31,7 @@ import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
 import { NetGuest, NetHost, Visitor, cleanCode } from './farm/net';
-import { Phase, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
+import { Phase, resetSnapSeq, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
 import type { Ev } from './farm/sim';
 import * as THREE from 'three';
 
@@ -422,10 +422,10 @@ class Game {
     const sim = this.sim;
     if (this.mode !== 'day' || !sim || (this.paused && !this.coopLive)) return;
     const hover = this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
-    this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
+    this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
     // camera turning; the stick / WASD walk relative to the view
-    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy); this.view.follow = this.input.lastTouch;
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.tut) it = this.tut.update(dt, it);
@@ -495,7 +495,7 @@ class Game {
   private sendSnap(dt: number) {
     const h = this.netHost, sim = this.sim; if (!h?.guests.length || !sim) { this.hostEv = []; return; }
     for (const e of sim.ev) if (e.k !== 'faint') this.hostEv.push(e);
-    if ((this.snapT += dt) >= .05) { this.snapT = 0; h.broadcast({ t: 'sn', d: snapOf(sim, this.hostEv) }); this.hostEv = []; }
+    if ((this.snapT += dt) >= .05) { this.snapT = 0; h.broadcastFast({ t: 'sn', d: snapOf(sim, this.hostEv) }); this.hostEv = []; }
     if ((this.stT += dt) >= .25) this.sendState(false);
   }
   /** the whole farm to the guests: on every change of phase / in the book (now) or 4 times a second when it changed */
@@ -517,7 +517,7 @@ class Game {
   }
   private join() {
     const code = cleanCode(($('#visitCode') as HTMLInputElement).value); if (code.length < 5) return;
-    this.netGuest?.close();
+    this.netGuest?.close(); resetSnapSeq();
     const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
     this.netGuest = g; go.disabled = true; msg.textContent = '…';
     this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;
@@ -573,9 +573,9 @@ class Game {
     if (this.mode !== 'day' || !sim || !g) return;
     sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
     const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;
-    this.view.hover = hover; this.view.hoverOk = info?.ok ?? true;
+    this.view.hover = info ? hover : null; this.view.hoverOk = info?.ok ?? true; // nearest spot with nothing to do: no glow
     let it = this.input.intent(sim, this.view);
-    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy);
+    const r = this.input.takeRotate(); if (r.dx || r.dy) this.view.rotateBy(r.dx, r.dy); this.view.follow = this.input.lastTouch;
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.paused || this.bookOpen) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false };

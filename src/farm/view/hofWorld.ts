@@ -141,7 +141,8 @@ export class HofWorld {
   /** props shown: thinned for lower quality, without the ones under a standing building (world editor) */
   private visibleProps() {
     const hof = this.hof, dens = gfx.quality === 'niedrig' ? .5 : gfx.quality === 'mittel' ? .75 : 1;
-    const list = hof.hideUnbuilt ? this.propList.filter(p => !hof.underBuilding(p.x, p.z, .1)) : this.propList;
+    // lanterns are built by lanterns.ts (they sit on fence posts / rocks and glow at night); the editor shows them as plain props
+    const list = (hof.hideUnbuilt ? this.propList.filter(p => !hof.underBuilding(p.x, p.z, .1)) : this.propList).filter(p => p.m !== 'Laterne');
     return thin(list, dens, p => hof.ellipse(p.x, p.z) < (hof.logic ? 1.05 : .97));
   }
   /** a building went up (or a save with other buildings was loaded): props + grass under it go */

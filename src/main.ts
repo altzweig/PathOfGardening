@@ -700,8 +700,8 @@ class Game {
     o.onChange = () => { $('#friendDot').hidden = !o.asks.length && !o.unread.size; if (!$('#friends').hidden) this.friendList(); };
     o.onVisit = a => { if (!this.netHost) { void o.answerVisit(a.id, false, ''); return; } this.asks.push(a); this.showAsk(); };
     o.onMessage = (_from, name, n) => { sfx('ui.levelup'); this.toast(`${name}: ${this.msgText(n)}`, 4000); };
-    try { await o.profile(this.menu.look.name || 'Gast', this.bestLevel()); await o.goOnline(); }
-    catch (e) { console.warn('online', e); }
+    try { await o.profile(this.menu.look.name || 'Gast', this.bestLevel()); } catch (e) { console.warn('online profile', e); }
+    try { await o.goOnline(); } catch (e) { console.warn('online presence', e); }
   }
   /** where "Zurück" in the friends list goes (main menu or pause menu) */
   private frBack = '#menu';
@@ -718,6 +718,7 @@ class Game {
     void o.profile(this.menu.look.name || 'Gast', this.bestLevel()).then(() => { $('#frMine').textContent = o.me.code; })
       .catch((e: Error) => { $('#frMine').textContent = '—'; $('#frMsg').textContent = e.message || 'Keine Verbindung'; });
     void o.refresh();
+    if (!o.live) void o.goOnline().catch(() => {}).finally(() => this.friendList());
   }
   private clearFound() { this.found = null; $('#frFound').hidden = true; }
   /** a full code typed: show whose it is, then add (✓) or not (✗) */
@@ -739,6 +740,7 @@ class Game {
   private friendList() {
     const o = this.online; if (!o) return;
     const box = $('#frList'), msgs = this.cfg.coop?.messages ?? [];
+    $('#frMeDot').className = 'dot' + (o.live ? ' on' : ''); if (!o.live && o.liveErr && !$('#frMsg').textContent) $('#frMsg').textContent = 'Offline: ' + o.liveErr;
     const status = (f: (typeof o.friends)[number]) => f.pending ? 'Angefragt' : f.open ? 'Hof offen' : f.online ? 'Online' : 'Offline';
     const last = (id: string) => { const m = o.inbox.get(id); return m ? `<small class="${o.unread.has(id) ? 'new' : ''}">„${esc(this.msgText(m.msg))}“</small>` : ''; };
     box.innerHTML = o.asks.map(a => `<div class="fr ask" data-ask="${a.id}"><div class="nm"><b>${esc(a.name)}</b><small>Anfrage</small></div><i class="lv">${a.level}</i><button class="sDel no" aria-label="Ablehnen">${NO_I}</button><button class="sDel yes" aria-label="Annehmen">${YES_I}</button></div>`).join('')

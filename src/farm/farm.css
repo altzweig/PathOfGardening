@@ -290,3 +290,6 @@ body[data-input=touch] #fBtns{display:flex}
 #frList .frMsgs button{font:600 15px var(--f-body);color:var(--parch);background:#18222b;border:1px solid var(--gold-dim);border-radius:16px;padding:6px 12px;cursor:pointer}
 #frList .frMsgs button:hover{border-color:var(--gold)}
 @keyframes frIn{from{opacity:0;transform:translateY(-6px)}}
+
+.frMine .dot{flex:none;width:12px;height:12px;border-radius:50%;background:#4a535c}
+.frMine .dot.on{background:#7ad08a;box-shadow:0 0 8px #7ad08a}

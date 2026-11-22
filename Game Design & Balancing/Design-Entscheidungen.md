@@ -214,7 +214,7 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 
 ## Arbeitsrhythmus, Feldanzeige, Third-Person-Steuerung (Basti, 21.11.2026)
 - **Pause zwischen Arbeitsschritten:** Nach jedem fertigen Schritt (Jäten, Kanne füllen, Sammeln, Ernten …) gibt es immer 0,5 s Pause (`player.actionGap`), erst dann startet automatisch der nächste Schritt. Man bleibt dabei in der Hocke.
-- **Weiter zum nächsten Feld:** Wird die Aktion gehalten und am Feld gibt es nichts mehr zu tun, steht die Figur auf und geht von selbst zum nächsten Feld mit Arbeit (höchstens `player.nextField` = 5 m entfernt).
+- **Nur am selben Feld (geändert 22.11.2026):** Gehalten folgt nur die nächste Aktion am selben Feld/Ziel. Zwischen den Schritten steht die Figur auf (Idle-Pose), wartet 0,5 s und macht dann weiter. Ist am Feld nichts mehr zu tun, bleibt sie stehen; kein automatischer Wechsel zum nächsten Feld mehr.
 - **Feldanzeige nur in der Nähe:** Wachstumsbalken, Restzeit und darüber der Name der Pflanze (`crops.<id>.name`, z. B. „Weizen“, „Kartoffel“) werden nur eingeblendet, wenn man nah dran ist (`plots.info`: bis 2,6 m voll, ab 3,6 m weg, weich überblendet). Gilt auch für den Blaubeerbusch.
 - **Erntebereit:** Ein reifes Feld zeigt in der Nähe den Namen, einen goldenen Balken (= verbleibende Erntevorgänge) und ein Häkchen.
 - **Schlafen (aufsteigende „Z“):** Felder, deren Restwachstum länger ist als der Rest des Tages, wachsen über Nacht fertig und sind am nächsten Morgen erntereif; statt der Restzeit steigen kleine „Z“ auf. Ebenso beim leer gepflückten Blaubeerbusch, bei leer geschüttelten Obst-/Nussbäumen und leeren Brombeeren (nur in der Nähe). Ein gegossener, noch wachsender Blaubeerbusch ist am nächsten Morgen reif.

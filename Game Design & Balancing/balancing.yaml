@@ -116,8 +116,7 @@ player:
   leave: 1.25              # x reach (am Boden x kneel + 0,35 m): entfernt man sich während einer Aktion weiter, bricht sie ab
   actionSpeed: 2.2         # m/s Laufen während einer Aktion im Stehen (Gießen, Füttern ...)
   crouchSpeed: 1.15        # m/s Watscheln in der Hocke (Aktionsknopf gehalten nach Jäten, Säen, Ernten am Boden)
-  actionGap: 0.5           # s Pause zwischen zwei automatischen Arbeitsschritten (Wiederholung oder Aktionsknopf gehalten), erst dann geht es weiter (Basti 21.11.2026)
-  nextField: 5            # m: Aktion weiter gehalten und am Feld gibt es nichts mehr zu tun -> man geht von selbst zum nächsten Feld mit Arbeit in dieser Entfernung
+  actionGap: 0.5           # s Pause zwischen zwei automatischen Arbeitsschritten: Figur steht auf (Idle), dann nächster Schritt am SELBEN Feld/Ziel (Basti 22.11.2026: kein Weiterlaufen zum nächsten Feld)
   turnWithCam: 7           # PC: steht die Figur, dreht sie sich mit der Kamera mit (kritisch gedämpfte Feder, kürzester Weg, max. 12 rad/s; höher = straffer, 7 = leicht verzögert)
   hover: 2.6               # m: Handy-Aktionsknopf nimmt das nächste Ziel in dieser Entfernung
   pickupRadius: 0.9        # m: fallengelassene Beute wird eingesammelt

@@ -59,7 +59,9 @@ export interface NightCfg {
 }
 /** slots: open orders per day (Basti 22.11.2026): from `level` (default 1) `start` slots, +1 at level `first` and every `every` levels after it, at most max */
 export interface SlotCfg { level?: number; start: number; first: number; every: number; max: number }
-export interface DailyQuestCfg { slots: SlotCfg; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; daysPerLevel: number; xpShare?: number; money: number; moneyLevel: number; minMoney: number }
+/** from level on, chance per day that one order asks for wild herbs: kinds [min, max] different herbs, n [min, max] of each, sec = work s per herb */
+export interface WildQuestCfg { level: number; chance: number; kinds: [number, number]; n: [number, number]; sec: number; titles: string[] }
+export interface DailyQuestCfg { slots: SlotCfg; load: number; cycle: number; objectives: number[]; blue: { max: number; min: number; sec: number }; /** wild order (22.11.2026): herbs from the herb tufts */ wild?: WildQuestCfg; daysPerLevel: number; xpShare?: number; money: number; moneyLevel: number; minMoney: number }
 
 /** farm shop: sale slots, price per piece = field seconds x rate (products: ingredients x craft, others: prices), demand per slot and day */
 export interface ShopCfg { slots: SlotCfg; rate: number; craft: number; demand: number; spread: number; sale: { price: number; demand: number }; premium: { price: number; demand: number }; prices: Record<ItemId, number>; base: number }
@@ -82,7 +84,10 @@ export interface FarmCfg {
     /** 22.11.2026: third person near..far m, top = top-down height, push / back = wheel units against a detent (into / out of fp/td) */ zoom?: { near: number; far: number; top: number; topMax?: number; push: number; back: number } };
   storage: { capacity: number; sections?: StoreSection[]; rarity?: Record<ItemId, Rarity>; perennials?: Record<ItemId, { every: number; picks: number; pick: number }>; history?: number };
   saves: { autosave: number; nameMax: number };
-  start: { money: number; items: Record<ItemId, number>; plots: string[] };
+  /** open fields of a new farm (22.11.2026: fields have no fixed crop any more) */
+  start: { money: number; items: Record<ItemId, number>; plots: number };
+  /** seeds (Basti 22.11.2026): endless, start = the seeds of a new farm, offer = new seeds to choose from after a level-up */
+  seeds: { start: string[]; offer: number };
   weapons: { rake: { damage: number; range: number; arc: number; cooldown: number; swing: number; knockback: number; stun: number } } & Record<Exclude<WeaponId, 'rake'>, GunCfg>;
   ammo: Record<ItemId, { damage: number; freeze?: number }>;
   animals: Record<AnimalType, AnimalCfg>;

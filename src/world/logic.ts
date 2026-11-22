@@ -145,7 +145,7 @@ export function houseLocal(h: { x: number; z: number; rot: number }, lx: number,
 // ---------------- into the game config ----------------
 /** the farm layout of the game from a logic: replaces cfg.hof (buildings, plots, door, basket, bush, trees) and keeps
  *  only the buildings that have a place (main house, well if placed) */
-type Orig = { b: FarmCfg['hof']['buildings']; ids: BuildingId[]; unlocks: FarmCfg['levels']['unlocks']; plots: string[] };
+type Orig = { b: FarmCfg['hof']['buildings']; ids: BuildingId[]; unlocks: FarmCfg['levels']['unlocks']; plots: number };
 const ORIG = new WeakMap<FarmCfg, Orig>();
 export function applyLogic(cfg: FarmCfg, L: Logic) {
   // the editor applies its logic again after every change: always start from the yaml values
@@ -170,7 +170,7 @@ export function applyLogic(cfg: FarmCfg, L: Logic) {
   H.bush = obj('bush') ?? houseLocal(L.house, -6, d + 2.5);
   H.trees = L.objects.filter(o => o.k === 'tree').map(o => (o.big ? { x: o.x, z: o.z, big: true } : { x: o.x, z: o.z }));
   H.plots = L.fields.map(p => ({ x: p.x, z: p.z }));
-  cfg.start.plots = O.plots.slice(0, H.plots.length);
+  cfg.start.plots = Math.min(O.plots, H.plots.length);
 }
 
 /** the old automatic spot of the Hofladen: beside the house as in balancing.yaml, 2.5 m more room to the house wall */

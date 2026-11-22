@@ -3,8 +3,9 @@
 // view (W = where the camera looks), left button / E = action on the nearest spot in front (held = one after the other),
 // right button / Space (hold) = fight (aims at the nearest animal), wheel = zoom, Esc = pause. The middle button is free.
 // Keyboard only (Basti 21.11.2026): E = action on the nearest spot (held = keeps going), Space (hold) = fight at the nearest animal.
-// Touch: left thumb anywhere = move stick, "Aktion" button = action on the nearest spot (held = keeps going), "Angriff" button (hold) = fight
-// with automatic aim; tapping a spot in the world (inside its zone) also starts its action. Basti 22.11.2026: the camera always looks
+// Touch: left thumb anywhere = move stick, one button for both (22.11.2026): touch = action on the nearest spot (held = keeps going),
+// pulled up = fight with automatic aim (held); the seed button beside it: tap = next seed, hold = list. PC: Tab = next seed.
+// tapping a spot in the world (inside its zone) also starts its action. Basti 22.11.2026: the camera always looks
 // where the farmer walks (no turning by hand any more), two fingers anywhere = pinch zoom (also into / out of top down).
 import type { DaySim, Intent, Target } from './sim';
 import { emptyIntent } from './sim';
@@ -28,6 +29,13 @@ export class FarmInput {
   /** every touch on the canvas: where it is now */
   private tp = new Map<number, { x: number; y: number }>();
   onZoom: (dy: number) => void = () => {};
+  /** next (1) / previous (-1) seed: Tab / Shift+Tab, tap on the seed button (Basti 22.11.2026) */
+  onSeed: (dir: number) => void = () => {};
+  /** seed button held: the list of seeds */
+  onSeedMenu: () => void = () => {};
+  /** state of the work / fight button (phone) */
+  private dual: '' | 'act' | 'atk' = '';
+  private dualReset = () => {};
   /** any click / key (tutorial "continue") */
   onAny: () => void = () => {};
   private keys = new Set<string>();
@@ -55,6 +63,7 @@ export class FarmInput {
       if (e.code === 'Space') e.preventDefault(); // no button click / page scroll
       if (this.enabled && e.code === 'KeyE') { this.eDown = true; this.eHeld = true; this.kb = true; this.setTouch(false); }
       if (this.enabled && e.code === 'Space') { this.spaceHeld = true; this.kb = true; this.setTouch(false); }
+      if (e.code === 'Tab' && this.enabled) { e.preventDefault(); this.onSeed(e.shiftKey ? -1 : 1); }
       this.keys.add(e.code); if (this.enabled) this.onAny();
     });
     addEventListener('keyup', e => { this.keys.delete(e.code); if (e.code === 'KeyE') this.eHeld = false; if (e.code === 'Space') this.spaceHeld = false; });
@@ -128,10 +137,38 @@ export class FarmInput {
       const u = () => { b.classList.remove('down'); upF(); };
       b.addEventListener('pointerup', u); b.addEventListener('pointercancel', u); b.addEventListener('pointerleave', u);
     };
-    btn('#bAct', () => { this.actBtn = true; this.actHeld = true; }, () => { this.actHeld = false; });
+    // phone (Basti 22.11.2026): ONE button for work and fight. Touching it works at once (like the old action button, held = keeps going);
+    // pulled up = fight (held), back to the middle or down = work again
+    const dual = $('#bDual'), knob = $('#bAct'), PULL = 26, MAXY = 56;
+    let dId = -1, dY = 0;
+    const dualSet = (mode: '' | 'act' | 'atk', y = 0) => {
+      dual.classList.toggle('act', mode === 'act'); dual.classList.toggle('atk', mode === 'atk');
+      knob.style.transform = mode ? `translateY(${y.toFixed(0)}px) scale(.94)` : '';
+      this.actHeld = mode === 'act'; this.atkHeld = mode === 'atk'; this.dual = mode;
+    };
+    knob.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); if (dId >= 0) return;
+      dId = e.pointerId; dY = e.clientY; try { knob.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
+      this.setTouch(true); this.actBtn = true; dualSet('act'); this.onAny();
+    });
+    knob.addEventListener('pointermove', e => {
+      if (e.pointerId !== dId) return;
+      const y = Math.max(-MAXY, Math.min(MAXY, e.clientY - dY));
+      dualSet(y < -PULL ? 'atk' : 'act', y);
+    });
+    const dualUp = (e: PointerEvent) => { if (e.pointerId !== dId) return; dId = -1; dualSet(''); };
+    knob.addEventListener('pointerup', dualUp); knob.addEventListener('pointercancel', dualUp);
+    this.dualReset = () => { dId = -1; dualSet(''); };
     // phone (Basti 22.11.2026): the label over the spot ("[Gießen]") can be tapped too, one step per tap
     btn('#fLabel', () => { this.actBtn = true; }, () => {});
-    btn('#bAtk', () => { this.atkHeld = true; }, () => { this.atkHeld = false; });
+    // seed button beside it: tap = next seed, held = the list of seeds
+    const sb = $('#bSeed'); let sT = 0, sLong = false, sId = -1;
+    sb.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); this.setTouch(true); sb.classList.add('down'); sId = e.pointerId; sLong = false;
+      clearTimeout(sT); sT = window.setTimeout(() => { if (sId < 0) return; sLong = true; sb.classList.remove('down'); this.onSeedMenu(); }, 420);
+    });
+    const sUp = (e: PointerEvent) => { if (e.pointerId !== sId) return; sId = -1; clearTimeout(sT); sb.classList.remove('down'); if (!sLong && e.type === 'pointerup') this.onSeed(1); };
+    sb.addEventListener('pointerup', sUp); sb.addEventListener('pointercancel', sUp);
     this.setTouch(touch);
   }
   /** a second finger: pinch with the free finger, or with a stick finger that has only just touched down and not moved yet */
@@ -158,7 +195,7 @@ export class FarmInput {
   }
   /** camera turn since the last call (px) */
   takeRotate() { const r = this.rot; this.rot = { dx: 0, dy: 0 }; return r; }
-  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.pinch = null; this.tp.clear(); this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
+  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.dualReset(); this.pinch = null; this.tp.clear(); this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
 
   /** the spot an action goes to (Basti 22.11.2026): the nearest one whose zone the farmer stands in (sim.focusTarget); PC without
    *  captured mouse: the spot under the mouse when the farmer stands in its zone */

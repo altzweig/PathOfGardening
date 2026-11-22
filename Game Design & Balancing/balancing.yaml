@@ -168,8 +168,8 @@ bush:                      # Blaubeerbusch (mehrjährig, jeden Tag): gießen -> 
 #   Säen 2 s (kostenlos) -> 1 s sieht man die Pflanze sprießen -> Gießen 2 s -> grow s wachsen -> cuts x Ernten (je 1,33 s)
 #   -> 1 s abräumen, dann ist das Feld wieder bereit. Also etwa 10 s + grow pro Durchgang.
 # name = Anzeige über dem Feld (nur in der Nähe), level = ab diesem Level säbar, rarity = Seltenheit (Common/Uncommon/Rare), yield = pro Erntevorgang.
-crops:                     # Feldfrüchte aus Bastis Fruchttabelle (Stand 21.11.2026). Jedes Feld hat eine feste Frucht.
-  # Vorerst gibt es nur Commons (Startfelder + Level-up-Felder); Uncommon/Rare muss man später finden oder kaufen.
+crops:                     # Feldfrüchte aus Bastis Fruchttabelle (Stand 21.11.2026). Seit 22.11.2026 wächst auf jedem Feld das gesäte Saatgut.
+  # Neues Saatgut gibt es per Level-up (seeds.offer): erst die Commons, danach Uncommons, dann Rares.
   wheat:    { name: Weizen, rarity: Common,   grow: 60,  cuts: 3, yield: { wheat: 5, straw: 1 } }
   carrot:   { name: Karotte, rarity: Common,   grow: 80,  cuts: 3, yield: { carrot: 1 } }
   potato:   { name: Kartoffel, rarity: Common,   grow: 100, cuts: 3, yield: { potato: 3 } }
@@ -326,7 +326,11 @@ saves:                     # Spielstände: lokal im Browser (localStorage), mehr
 start:                     # neuer Spielstand
   money: 0                 # Gefallen
   items: {}
-  plots: [wheat, cab, onion]   # Startfelder mit fester Frucht (Basti 21.11.2026), dazu der Blaubeerbusch
+  plots: 3                 # offene Felder zu Beginn (Basti 22.11.2026: Felder haben keine feste Frucht mehr), dazu der Blaubeerbusch
+
+seeds:                     # Saatgut (Basti 22.11.2026): unendlich, auf jedem Feld wird das aktive Saatgut gesät (PC Tab, Handy Saatgut-Knopf)
+  start: [wheat, cab, onion]   # Saatgut zu Beginn
+  offer: 3                 # nach jedem Level-up: so viele neue Sorten zur Wahl (erst alle Commons, dann Uncommons, dann Rares)
 
 # ---------------------------------------------------------------------
 # Kampf (Rechtsklick). Morgens wählt man genau eine Waffe und eine Munition.
@@ -474,7 +478,7 @@ levels:
   # Basti 21.11.2026: grob alle 2-3 Tage ein Level, Level 2 schon an Tag 1. Ernte-XP pro Tag wachsen mit den Feldern
   # (je Feld realistisch ca. 125 XP/Tag, Level L hat L+2 Felder), daher Abstand ca. 2,5 Tage x 125 x (L+2).
   xp: [0, 250, 1500, 3050, 4950, 7100, 9600, 12400, 15500, 19000]   # XP ab Level 1, 2, 3, ...
-  unlocks:                 # was ein Level freischaltet (Gebäude-Ids; dazu gibt jedes Level-up 1 Feld)
+  unlocks:                 # was ein Level freischaltet (Gebäude-Ids; dazu gibt jedes Level-up 1 Feld + neues Saatgut zur Wahl)
     3: [mill, juicer]
     4: [bakery]
     5: [carpentry, workshop]
@@ -488,6 +492,13 @@ quests:                    # Tagesaufträge (Basti 21.11.2026): morgens automati
     cycle: 10              # s Arbeit pro Feld-Durchgang ohne Wachstum (Säen, Keimen, Gießen, Ernten, Räumen)
     objectives: [1, 1, 2, 2, 2, 3]   # höchstens so viele Ziele pro Auftrag auf Level 1, 2, 3, ...
     blue: { max: 10, min: 5, sec: 8 }  # Blaubeeren (Busch gibt 15, der Waschbär klaut bis zu 4): höchstens so viele pro Tag, kleinstes Ziel, zählen wie s Feldarbeit pro Beere
+    wild:                  # Wildauftrag (Basti 22.11.2026): Kräuter aus den Wildkräuter-Büscheln jäten
+      level: 2             # ab diesem Level
+      chance: 0.5          # Chance pro Tag, dass einer der Aufträge ein Wildauftrag ist
+      kinds: [1, 2]        # so viele verschiedene Kräuter
+      n: [2, 3]            # Stück je Kraut (ein Büschel gibt im Schnitt ca. 0,27 je Kraut)
+      sec: 22              # s Arbeit pro Kraut (Suchen + Jäten), daraus Belohnung wie bei den anderen Aufträgen
+      titles: ["Kräuter für die Apotheke", "Wildkräuter für die Suppe", "Die Kräuterfrau bittet", "Salat von der Wiese", "Kräuter für das Gasthaus"]
     daysPerLevel: 2.5      # Tage pro Level ...
     xpShare: 0.1           # ... davon kommt dieser Anteil der XP aus Aufträgen (der Rest aus Ernten)
     money: 0.12            # Taler pro Feld-Sekunde Arbeit ...

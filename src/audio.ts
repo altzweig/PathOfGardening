@@ -166,6 +166,61 @@ function loadSamples() {
   return loading;
 }
 const SYNTH_EXTRA: Record<string, () => void> = {
+  // ---- animated progress bars (ui/barScenes.ts, 22.11.2026): small self-made sounds in time with the animation ----
+  /** berry hops into the basket: short round plop, random pitch */
+  barPlop() { const f = rand(520, 820); tone({ f, f2: f * .42, t: .07, vol: .085, at: .002 }); noise({ t: .02, vol: .02, type: 'bandpass', f: 2400, q: 2 }); },
+  /** sickle through the wheat: airy swish + dry rustle of the stalks */
+  barSwish() { noise({ t: .2, vol: .09, type: 'bandpass', f: 900, f2: 4200, q: 1.4, at: .03 }); noise({ t: .16, vol: .05, type: 'highpass', f: 3500, when: .06, at: .01 }); for (let i = 0; i < 5; i++) noise({ t: .03, vol: .025, type: 'bandpass', f: rand(2500, 5000), q: 3, when: .05 + i * .025 }); },
+  /** tugging at a plant: low creak of roots */
+  barTug() { noise({ t: .1, vol: .05, type: 'bandpass', f: rand(300, 450), q: 3, at: .02 }); tone({ type: 'triangle', f: rand(110, 140), f2: 90, t: .09, vol: .03 }); },
+  /** the plant comes out of the soil: soft rip + earthy thump */
+  barPull() { noise({ t: .14, vol: .09, type: 'bandpass', f: 1400, f2: 500, q: 1, at: .005 }); tone({ f: 150, f2: 70, t: .12, vol: .1 }); noise({ t: .2, vol: .03, type: 'lowpass', f: 700, when: .06 }); },
+  /** twisting a mushroom off */
+  barTwist() { noise({ t: .08, vol: .05, type: 'bandpass', f: 2200, q: 2 }); tone({ f: 340, f2: 200, t: .06, vol: .05, when: .04 }); },
+  /** the fork goes into the soil */
+  barDig() { noise({ t: .16, vol: .1, type: 'lowpass', f: 900, f2: 200, at: .005 }); tone({ f: 120, f2: 60, t: .14, vol: .09 }); for (let i = 0; i < 4; i++) noise({ t: .02, vol: .03, type: 'bandpass', f: rand(1500, 3000), q: 3, when: .04 + i * .03 }); },
+  /** a potato pops out */
+  barPop() { const f = rand(240, 330); tone({ f, f2: f * .5, t: .09, vol: .08 }); noise({ t: .05, vol: .03, type: 'lowpass', f: 800 }); },
+  /** knife through a stem */
+  barCut() { noise({ t: .07, vol: .08, type: 'highpass', f: 2800, at: .003 }); tone({ type: 'triangle', f: 1800, f2: 1300, t: .05, vol: .025 }); noise({ t: .06, vol: .04, type: 'bandpass', f: 900, q: 2, when: .03 }); },
+  /** fruit plucked off the plant */
+  barPluck() { const f = rand(380, 520); tone({ f, f2: f * .6, t: .06, vol: .06 }); noise({ t: .04, vol: .03, type: 'bandpass', f: 1800, q: 2 }); },
+  /** snip of a knife / shears */
+  barSnip() { noise({ t: .035, vol: .07, type: 'highpass', f: 4000 }); noise({ t: .03, vol: .05, type: 'highpass', f: 5000, when: .05 }); },
+  /** fruit lands in the crate */
+  barThunk() { tone({ f: rand(170, 220), f2: 90, t: .07, vol: .06 }); noise({ t: .04, vol: .03, type: 'lowpass', f: 1200 }); },
+  /** corn ear snapped off */
+  barSnap() { noise({ t: .05, vol: .12, type: 'bandpass', f: 1600, q: 1.5, at: .002 }); tone({ type: 'triangle', f: 520, f2: 260, t: .05, vol: .05 }); noise({ t: .12, vol: .04, type: 'bandpass', f: 3000, q: 1, when: .03 }); },
+  /** heavy fruit / apple on the grass */
+  barThud() { tone({ f: rand(90, 120), f2: 50, t: .14, vol: .14 }); noise({ t: .08, vol: .05, type: 'lowpass', f: 500 }); },
+  /** egg into the basket */
+  barEgg() { tone({ type: 'triangle', f: rand(900, 1100), f2: 700, t: .05, vol: .04 }); noise({ t: .05, vol: .03, type: 'lowpass', f: 1200 }); },
+  /** stick onto the bundle */
+  barWood() { tone({ type: 'triangle', f: rand(300, 420), f2: 200, t: .08, vol: .06 }); noise({ t: .05, vol: .05, type: 'bandpass', f: 1200, q: 3 }); },
+  /** stone into the sack */
+  barStone() { noise({ t: .05, vol: .08, type: 'bandpass', f: rand(2200, 3200), q: 4 }); tone({ f: 260, f2: 160, t: .05, vol: .04 }); },
+  /** leaves of the shaken crown */
+  barRustle() { for (let i = 0; i < 4; i++) noise({ t: .08, vol: .035, type: 'bandpass', f: rand(2500, 5000), q: 1.4, when: i * .05 }); },
+  barLeaf() { noise({ t: .06, vol: .02, type: 'bandpass', f: rand(3000, 5000), q: 2 }); },
+  /** hand rake scratching + the tuft coming out */
+  barScratch() { for (let i = 0; i < 3; i++) noise({ t: .05, vol: .05, type: 'bandpass', f: rand(1800, 2600), q: 2, when: i * .05 }); noise({ t: .12, vol: .05, type: 'lowpass', f: 800, when: .12 }); },
+  /** seed falls into the furrow */
+  barSeed() { noise({ t: .02, vol: .025, type: 'bandpass', f: rand(4000, 6000), q: 4 }); },
+  /** rake combing the soil */
+  barScrape() { noise({ t: .2, vol: .045, type: 'bandpass', f: rand(1400, 2000), f2: 900, q: 1.2, at: .04 }); },
+  /** compost / grain scattered */
+  barScatter() { for (let i = 0; i < 5; i++) noise({ t: .03, vol: .025, type: 'bandpass', f: rand(2000, 4000), q: 2, when: i * .03 }); },
+  barGrain() { for (let i = 0; i < 6; i++) noise({ t: .025, vol: .03, type: 'bandpass', f: rand(3000, 6000), q: 3, when: i * .025 }); },
+  /** milk squirt into the pail */
+  barSquirt() { noise({ t: .14, vol: .05, type: 'bandpass', f: 2800, f2: 1400, q: 1.6, at: .01 }); },
+  /** millstone grinding */
+  barGrind() { noise({ t: .5, vol: .05, type: 'lowpass', f: 300, f2: 220, at: .1 }); },
+  /** fruit squashed in the press */
+  barSquish() { noise({ t: .2, vol: .05, type: 'lowpass', f: 600, f2: 200, at: .03 }); tone({ f: 160, f2: 90, t: .12, vol: .04 }); },
+  /** oven fire */
+  barCrackle() { for (let i = 0; i < 4; i++) noise({ t: .015, vol: .04, type: 'highpass', f: 3000, when: rand(0, .5) }); },
+  /** stew bubbling */
+  barBubble() { const f = rand(200, 320); tone({ f, f2: f * 1.8, t: .06, vol: .04 }); },
   playerDie() { tone({ type: 'triangle', f: 440, f2: 110, t: .7, vol: .14 }); tone({ type: 'sine', f: 220, f2: 55, t: .9, vol: .18, when: .1 }); noise({ t: .5, vol: .08, f: 900, f2: 120, when: .05 }); },
   /** flamethrower: breathy roar (low noise swell + hiss) */
   flame() { noise({ t: .22, vol: .1, type: 'lowpass', f: 700, f2: 380, at: .05 }); noise({ t: .14, vol: .035, type: 'bandpass', f: 2600, f2: 1800, q: .7, at: .03 }); },

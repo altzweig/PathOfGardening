@@ -638,7 +638,7 @@ export class FarmView {
     animateArms(R0, dt, wk, [t0, t1]);
     // action progress bar over the head (lower while kneeling)
     if (!local) return;
-    const showBar = !!act;
+    const showBar = false; // 22.11.2026: the animated bar of the HUD (ui/actbar.ts) replaces the plain one
     this.actBar.visible = showBar; if (showBar) { this.actBar.position.set(px, 2.05 - v.low * .55, pz); this.actBar.quaternion.copy(camera.quaternion); setBar(this.actBar, act!.t / act!.info.dur); }
   }
 

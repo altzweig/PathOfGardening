@@ -98,3 +98,14 @@ Bastis Wunsch: Man lädt jemanden auf seinen Hof ein. Der Gast kommt mit eigener
 | 11 | Pause im Koop | Keine Pause, Buch und Esc laufen weiter |
 | 12 | Hosten am Handy | Erlaubt, mit Warnsymbol, wenn der Host-Tab im Hintergrund war |
 | 13 | Abend | Host entscheidet allein, wann geschlafen wird. Gäste sehen das Buch live mit |
+
+## Umsetzung (22.11.2026)
+
+Basti hat alle Empfehlungen angenommen. Umgesetzt in vier Etappen (PR #33, #38, #39, Etappe 4):
+
+- **Simulation:** `DaySim.players[]`, Werte in `balancing.yaml` unter `coop:`. Test ohne Netz: Konsole `__pog.bot(2)`.
+- **Netz:** `src/farm/net.ts` (PeerJS), `src/farm/coop.ts` (Snapshots 20/s, Hofzustand bei Änderung bis 4/s, Gast läuft lokal vor). Host: Pausemenü → *Besuch* (Code, Link kopieren, Gäste nach Hause schicken, Hof schließen), Anklopfen mit ✓/✗. Gast: Hauptmenü → *Besuchen* oder Link `?hof=CODE`.
+- **Gast:** wählt, von welchem Hof er kommt (oder *Ohne Hof* = Wanderer-Profil `pog-wanderer-v1`). HUD zeigt eigenes Level/XP/Gießkanne. XP werden abends, beim Verlassen und beim Schließen des Tabs in den eigenen Stand gebucht; abgeholte Aufträge des Hosts geben jedem anwesenden Gast dieselben XP. Abends liest der Gast im Buch mit (nur lesen).
+- **Host im Hintergrund:** Kommen 2 s keine Daten, zeigt der Gast eine Sanduhr.
+- **Tests:** `?peer=127.0.0.1:9000` nutzt einen lokalen PeerJS-Server (der öffentliche ist aus der Cloud gesperrt). Gemessen: im Schnitt ca. 3 KB pro Nachricht.
+- **Noch offen:** TURN-Server, falls Verbindungen in manchen Netzen scheitern; Wiederbeitritt nach Abbruch (derzeit: neu anklopfen).

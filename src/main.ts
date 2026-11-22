@@ -82,6 +82,8 @@ class Game {
   /** where the guest comes from: one of its saves (XP go into that farm) or none (wanderer profile, Basti 22.11.2026) */
   private gFrom: string | null | undefined = undefined;
   /** guest XP: from its farm / profile at the start, earned on this visit and not booked yet, the farmer's XP of today so far */
+  /** when the last snapshot came (the owner's tab in the background stops his farm: the guest sees an hourglass) */
+  private gLast = 0;
   private gXp0 = 0; private gGain = 0; private gDayXp = 0; private gClaimed: Set<string> | null = null;
   /** guests on the farm or visiting: nothing pauses (Basti 22.11.2026) */
   get coopLive() { return !!this.netHost?.guests.length || !!this.netGuest; }
@@ -287,6 +289,7 @@ class Game {
       const m = listSaves()[0], d = m ? readSave(this.cfg, m.id) : null;
       this.s = d?.s ?? newState(this.cfg); this.slot = null; this.tutorialMode = false;
     }
+    $('#coopLag').hidden = true;
     this.closeFarm(); if (this.netGuest) { this.bookGuestXp(); this.netGuest.close(); this.netGuest = null; }
     this.paused = false; this.bookOpen = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
@@ -519,7 +522,7 @@ class Game {
     g.onWelcome = () => { msg.textContent = '✓'; };
     g.onMsg = m => {
       if (m.t === 'st') this.guestState(JSON.parse(m.d as string), m.d as string);
-      else if (m.t === 'sn' && this.sim && this.mode === 'day') this.gEv.push(...applySnap(this.sim, JSON.parse(m.d as string), this.gSteer > 0));
+      else if (m.t === 'sn' && this.sim && this.mode === 'day') this.gLast = performance.now(), this.gEv.push(...applySnap(this.sim, JSON.parse(m.d as string), this.gSteer > 0));
     };
     g.onClose = why => {
       if (this.netGuest !== g) return;
@@ -547,7 +550,7 @@ class Game {
         this.view.clearDynamic(); this.view.setState(this.s); this.view.snapCamera(this.cfg.hof.door.x, this.cfg.hof.door.z); this.view.resetLight();
         this.only(null); this.mode = 'day'; this.ending = false; this.paused = false;
         this.input.enabled = true; this.hud.show(true); this.hud.clear(); this.hud.fade(false);
-        this.gSt = raw; return;
+        this.gSt = raw; this.gLast = performance.now(); return;
       }
     } else if (this.mode !== 'evening') { // the owner went into the house: the guest reads along in the book
       this.mode = 'evening'; this.sim = null; this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
@@ -562,6 +565,7 @@ class Game {
   /** a guest's frame: no simulation, the owner's farm as it comes in, the own farmer walks ahead locally */
   private tickGuest(dt: number) {
     const sim = this.sim, g = this.netGuest;
+    $('#coopLag').hidden = !(g && this.mode === 'day' && this.gLast && performance.now() - this.gLast > 2000);
     if (this.mode !== 'day' || !sim || !g) return;
     sim.ev.length = 0; sim.ev.push(...this.gEv); this.gEv = [];
     const hover = this.paused || this.bookOpen ? null : this.input.hover(sim, this.view), info = hover ? sim.actionFor(hover) : null;

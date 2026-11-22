@@ -226,3 +226,10 @@ body[data-input=touch] #fBtns{display:flex}
 #coopAsk .sDel,#coopList .sDel{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #3a4550;background:#0b1016;color:var(--parch);display:grid;place-items:center;cursor:pointer}
 #coopAsk .sDel svg,#coopList .sDel svg{width:20px;height:20px}
 #coopAsk .sDel.yes{background:#3f8a4a;color:#fff;border-color:#7ad08a}
+#coopLag{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:60;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#0b1016ee;border:1px solid var(--gold);color:var(--gold);animation:coopSpin 1.6s ease-in-out infinite}
+#coopLag svg{width:26px;height:26px}
+@keyframes coopSpin{50%{transform:translateX(-50%) rotate(180deg)}}
+#visitFrom{display:flex;align-items:center;justify-content:center;gap:8px}
+#visitFrom svg{width:26px;height:26px;flex:none}
+#coopAsk{max-width:calc(100vw - 32px);font-size:16px}
+#coopAsk b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}

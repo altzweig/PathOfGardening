@@ -259,3 +259,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - **Hofeingänge:** je links und rechts eine Laterne. Steht dort ein Zaun, sitzt sie auf dem Zaunpfosten, sonst auf einer ebenen Stelle des Felsens bzw. auf dem Boden (wird beim Start automatisch gesucht). Gesetzt an den drei Zauntoren (Südwest, Mühle, Hauptweg zum Hofladen) und am Felsdurchgang im Westen. Im Welt-Editor unter „Hof → Laterne“ verschieb- und ergänzbar.
 - **Haustür:** die alte Türlampe ist jetzt dieselbe Laterne unter dem Vordach neben der Tür, ihr Licht ist schwächer (6 statt 22).
 - Werte in `balancing.yaml` unter `nachtlicht` und `laternen`.
+
+## Handy-Kamera und Interaktionsbereiche (Basti, 22.11.2026)
+- Handy: Die Kamera schaut immer in Laufrichtung und schwenkt beim Laufen hinter die Figur (camera.follow), auch im Top-Down. Kein Drehen per Wischen mehr. Läuft man auf die Kamera zu, dreht sie sich nicht um.
+- Handy: Zwei Finger = Pinch-Zoom (Third Person 3–10 m, weiter raus = Top-Down 10–15 m), überall auf dem Bildschirm, auch wenn ein Finger auf einem HUD-Feld landet.
+- Interaktion: Jedes Ziel hat einen Interaktionsbereich (player.zone vom Rand, Sammelkram/Unkraut player.zoneSmall, Felder plots.zone von der Mitte, Felder überlappen etwas). Nur im Bereich passiert etwas.
+- Immer das nächste Ziel, auch wenn dort gerade nichts zu tun ist; kein automatisches Wechseln. Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte.
+- Im Bereich startet die Aktion sofort (leiser Klick, Ring ploppt, Balken läuft), die Figur läuft dabei selbst an die Arbeitsstelle und kniet sich erst dort hin. Der Schritt wird erst fertig, wenn sie angekommen ist.

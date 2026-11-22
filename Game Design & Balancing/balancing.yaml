@@ -118,7 +118,9 @@ player:
   crouchSpeed: 1.15        # m/s Watscheln in der Hocke (Aktionsknopf gehalten nach Jäten, Säen, Ernten am Boden)
   actionGap: 0.5           # s Pause zwischen zwei automatischen Arbeitsschritten: Figur steht auf (Idle), dann nächster Schritt am SELBEN Feld/Ziel (Basti 22.11.2026: kein Weiterlaufen zum nächsten Feld)
   turnWithCam: 7           # PC: steht die Figur, dreht sie sich mit der Kamera mit (kritisch gedämpfte Feder, kürzester Weg, max. 12 rad/s; höher = straffer, 7 = leicht verzögert)
-  hover: 2.6               # m: Handy-Aktionsknopf nimmt das nächste Ziel in dieser Entfernung
+  hover: 2.6               # m: nur noch für den Bot (läuft zu weiter entfernten Zielen)
+  zone: 1.7                # m vom Rand: Interaktionsbereich von Busch, Brunnen, Gebäuden, Bäumen (Basti 22.11.2026). Nur hier drin passiert etwas; immer das nächste Ziel, auch wenn dort gerade nichts zu tun ist, kein automatisches Wechseln
+  zoneSmall: 1.0           # m von der Mitte: Interaktionsbereich von Sammelkram und Unkraut im Hof
   pickupRadius: 0.9        # m: fallengelassene Beute wird eingesammelt
   magnetRadius: 3          # m: ab hier rollt Beute zum Spieler
   magnetSpeed: 7           # m/s
@@ -219,6 +221,7 @@ harvestXp:
 
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
+  zone: 1.9                # m von der Feldmitte: Interaktionsbereich (Basti 22.11.2026, größer als bei anderem, Felder 3 m auseinander -> überlappt etwas). Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte. Im Bereich startet die Aktion sofort, die Figur läuft dabei selbst an die Arbeitsstelle
   # Basti 21.11.2026: Wachstumsbalken, Restzeit und Name der Pflanze nur, wenn man nah dran ist (auch am Blaubeerbusch)
   info: { near: 2.6, far: 3.6, fade: 0.25 }   # m voll sichtbar / m ausgeblendet, s weiches Ein-/Ausblenden
   # Unkraut (Basti 21.11.2026): wächst NUR morgens, nie zwischendurch. Jeden Morgen kommen pro Feld 0/1/2 dazu
@@ -571,8 +574,9 @@ buildings:                 # level = ab diesem Level baubar, cost = Taler + Ware
     recipes: [{ in: { green: 3, slurry: 1 }, out: { fert: 2 } }]
 
 camera:                    # Kamera (Basti 21.11.2026: Third Person): PC Maus bewegen dreht (Maus gefangen, Esc = Pause), Handy Wischen rechts
-  rotate: 0.006            # rad pro Pixel (Handy-Wischen)
+  rotate: 0.006            # rad pro Pixel (PC-Maus x mouse)
   mouse: 0.55              # PC: x rotate pro Pixel Mausbewegung
+  follow: 2.4              # Handy (Basti 22.11.2026): Kamera schaut immer in Laufrichtung, schwenkt mit dieser Geschwindigkeit (1/s) hinter die Figur (auch Top-Down dreht mit); kein Drehen per Wischen mehr, Zwei-Finger-Pinch = Zoom
   pitch: [0.1, 1.3]        # Neigung (rad über dem Boden), Start 0.55; tief = fast hinter der Figur (First Person: hoch/runter schauen)
   zoom: { near: 3, far: 10, top: 10, topMax: 15, push: 300, back: 100 }   # Basti 22.11.2026: Third Person 3-10 m (Start 3); über 10 m gegen den Widerstand = Top-Down, dort weiter rauszoomen 10-15 m Höhe; push/back = Mausrad-Einheiten gegen den Widerstand (raus / wieder rein, 1 Rasterschritt ~ 100). First Person gibt es nicht mehr.
 

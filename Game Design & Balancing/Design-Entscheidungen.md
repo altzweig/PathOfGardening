@@ -325,3 +325,12 @@ Experiment, gilt ab jetzt und ersetzt Säen, Gießen, Jäten am Feld und die Lad
 - **Zaun aufstellen: Taste F** (Handy: runder Zaun-Knopf über dem Munitions-Knopf, nur sichtbar wenn man Zäune hat). Ein Zaunstück (`fence.length` 1,6 m) kommt `fence.place` m vor die Figur, quer zur Blickrichtung. Liegt ein Zaunende in der Nähe (`fence.snap`), rastet das neue Stück daran an (gerade Reihe oder Ecke). Nicht auf Feldern, Gebäuden, Bäumen, außerhalb des Hofs. Nach dem Aufstellen/Bauen zeigt ein grüner (frei) oder roter (blockiert) Umriss kurz, wo das nächste Stück hinkommt. Aufgestellte Zäune kann man mit der Aktion wieder **abbauen** (zurück ins Lager).
 - **Tiere und Zäune:** Zäune sind Hindernisse in der Wegfindung. Ist der Weg um die Zäune höchstens `fence.detour` m (10 m) länger als ohne Zäune, laufen die Tiere außen herum. Sonst (oder wenn es gar keinen Weg gibt, z. B. Feld rundum eingezäunt) greifen sie das Zaunstück auf dem kurzen Weg an: Biss alle `fence.biteEvery` s, Schaden `fence.bite` je Tierart, bei 0 Leben (`fence.hp`) bricht es. Angeknabberte Zäune werden dunkler.
 - Koop: Zäune und Bäume gehören zum Hof-Zustand und sind für alle gleich; Gäste können hacken, bauen und aufstellen (Zäune aus dem Hof-Lager).
+
+## Weicherer Look + Escape (Basti, 22.11.2026)
+- Ergebnis der Look-Analyse (Dokument „Schönerer Look – Postprocessing-Analyse“), so umgesetzt wie empfohlen.
+- Ein Durchgang nach dem Tonemapping (`src/view/softLook.ts`) ersetzt die alte Farbkorrektur: Farbstimmung Tag/Nacht, Vignette, Treffer-/Wenig-HP-Rot wie vorher, dazu Glow um helle Stellen (Orton, nachts stärker), aufgehellte Nacht, kühle Schatten/warme Lichter, leichte Weichzeichnung. Die Unschärfe läuft in Viertelauflösung.
+- Tiefenunschärfe (oben/unten unscharf) nur im Menü und in Zwischensequenzen, beim Spielen aus.
+- Kantenglättung je Grafikstufe: Hoch = MSAA 4×, Mittel (Handy-Standard) = FXAA, Niedrig = keine und auch kein Glow.
+- Himmel mit Verlauf (Horizont = Nebelfarbe, darüber tieferes Blau, warmer Schein um die Sonne), Sonnenlicht tagsüber wärmer.
+- Weiche Kontaktschatten (dunkle runde Flecken) unter Bäumen, Büschen, Pflanzen, Pilzen, Felsen und Hof-Objekten statt teurer Umgebungsverdeckung.
+- Escape schließt immer das Oberste: Untermenüs gehen zurück wie ihr Zurück-Knopf (Optionen, Steuerung, Credits, Spielstände, Neues Spiel, Freunde, Besuchen, Koop), die Beerenauswahl schließt, das Buch schließt, das Pausenmenü geht zu, im Spiel öffnet es die Pause.

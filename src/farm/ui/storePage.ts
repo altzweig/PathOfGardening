@@ -2,7 +2,7 @@
 // plants, products), nearly invisible grid, rarity glow, amount + green "+yield of the day"; goods never owned are greyed
 // out with a lock. Right page: graph (stock / yield per day) and the data of the selected good.
 import type { FarmCfg, ItemId, Rarity } from '../config';
-import { BUILDING_IDS, STALL_IDS, cropHarvestTime, cropPieces, cropXpTotal, otherXp } from '../config';
+import { BUILDING_IDS, STALL_IDS, cropHarvestTime, cropPieces, cropXpTotal, otherXp, workSec } from '../config';
 import type { FarmState } from '../state';
 import { count } from '../state';
 import { ic } from './ficons';
@@ -88,7 +88,7 @@ function facts(cfg: FarmCfg, s: FarmState, g: GoodInfo) {
   if (g.kind === 'crop') {
     const C = cfg.crops[id], fields = s.plots.filter(p => p.open && p.crop === id).length;
     // harvest experiment (22.11.2026): grows by itself, then continuous harvest, one fruit every `every` s
-    const pieces = cropPieces(cfg, id), per = pieces * (C.yield[id] ?? 0), perDay = D / ((C.grow + cropHarvestTime(C)) * (1 + (cfg.harvest?.overhead ?? 0))) * per; void cycle;
+    const pieces = cropPieces(cfg, id), per = pieces * (C.yield[id] ?? 0), perDay = workSec(cfg) / ((C.grow + cropHarvestTime(C)) * (1 + (cfg.harvest?.overhead ?? 0))) * per; void cycle;
     rows.push(fact('Wachstum', dur(C.grow, cfg)), fact('Ernten', dur(cropHarvestTime(C), cfg)), fact('pro Ernte', goods({ [id]: per })),
       fact('pro Feld und Tag', `≈ ${n0(perDay)}`), fact('Felder', `${fields}`), fact('XP pro Ernte', `${cropXpTotal(cfg, id)}`));
     const silo = s.buildings.silo?.built;

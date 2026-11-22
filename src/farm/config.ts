@@ -116,6 +116,12 @@ export async function loadFarmCfg(o: { world?: boolean } = {}): Promise<FarmCfg>
   const cfg = YAML.parse(await res.text()) as FarmCfg;
   if (o.world === false) return cfg;
   cfg.world = await loadWorld();
+  // performance plan 2.1: objects that are never seen in play (tools/perf/hidden.cjs) are left out; the world editor shows all
+  if (cfg.world?.props) try {
+    const r = await fetch('./world/hidden.json'), h = r.ok ? await r.json() as { props?: { m: string; x: number; z: number }[] } : null;
+    const hid = h?.props ?? [];
+    if (hid.length) cfg.world.props = cfg.world.props.filter(p => !hid.some(q => q.m === p.m && Math.abs(q.x - p.x) < .006 && Math.abs(q.z - p.z) < .006));
+  } catch { /* no list: show everything */ }
   // a world from the editor with its own logic replaces the farm layout (hof:) of the yaml
   if (cfg.world?.logic) applyLogic(cfg, cfg.world.logic);
   return cfg;

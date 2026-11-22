@@ -3,7 +3,9 @@
 // The old wave survival game lives in archiv/garden-defence-v1/.
 import './style.css';
 import './farm/farm.css';
-import { applyQuality, gfx, isTouch } from './view/core';
+import { applyQuality, gfx, isTouch, VP } from './view/core';
+import { propOpts } from './world/props';
+propOpts.lod = true; // far versions of the forest (performance plan 2.3)
 import { updateTexQuality } from './view/textures';
 import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio, stopAllLoops } from './audio';
 import { StartMenu } from './ui/startmenu';
@@ -347,7 +349,7 @@ class Game {
     this.sim = new DaySim(this.cfg, s, this.hof, { tutorial }); this.sim.initRipe();
     // weeds + forage only grow where nobody is looking
     const sim = this.sim; // ... and not next to another farmer (co-op)
-    sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return (p.x > -60 && p.x < innerWidth + 60 && p.y > -60 && p.y < innerHeight + 60) || sim.players.some(P => P !== sim.player && Math.hypot(P.x - x, P.z - z) < 22); };
+    sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return (p.x > -60 && p.x < VP.w + 60 && p.y > -60 && p.y < VP.h + 60) || sim.players.some(P => P !== sim.player && Math.hypot(P.x - x, P.z - z) < 22); };
     if (!tutorial) this.bots = this.bots.map(b => new Bot(sim.addPlayer(b.P.id, { name: b.P.name, look: b.P.look }))); else this.bots = [];
     for (const v of this.netHost?.guests ?? []) sim.addPlayer(v.id, { name: v.name, look: v.look });
     this.hostEv = []; this.sendState(true);
@@ -422,6 +424,8 @@ class Game {
     if (this.cut.active) this.view.cine = this.cut.update(dt);
     const sim = this.sim;
     const frozen = this.paused && !this.coopLive;
+    // performance plan 1.1: under the book (evening room / day book) the world is not drawn; the canvas keeps its last frame
+    this.view.render3d = !this.house.covering;
     this.view.frame(frozen ? 0 : dt, this.mode === 'day' ? sim : null, this.mode === 'menu' ? 'menu' : this.mode === 'day' ? 'day' : 'evening');
     if ((frozen || this.netGuest) && sim) sim.ev.length = 0;
   }

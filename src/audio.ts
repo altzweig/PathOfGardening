@@ -161,7 +161,13 @@ function loadSamples() {
   const walk = (o: any) => { if (!o || typeof o !== 'object') return; if (Array.isArray(o.files)) o.files.forEach((f: string) => names.add(f)); if (typeof o.file === 'string') names.add(o.file); for (const k in o) walk(o[k]); };
   walk(SC);
   loading = Promise.all([...names].map(async n => {
-    try { const r = await fetch('./audio/' + (n.includes('.') ? n : n + '.wav')); bufs.set(n, await AC!.decodeAudioData(await r.arrayBuffer())); } catch { /* missing clip: stay silent */ }
+    // performance plan 1.7: clips are MP3 (a tenth of the WAV size); a bare name tries .mp3 first, then .wav (freshly cut clips)
+    for (const f of n.includes('.') ? [n] : [n + '.mp3', n + '.wav']) {
+      try {
+        const r = await fetch('./audio/' + f); if (!r.ok || (r.headers.get('content-type') ?? '').includes('html')) continue;
+        bufs.set(n, await AC!.decodeAudioData(await r.arrayBuffer())); return;
+      } catch { /* try the next one; missing clip: stay silent */ }
+    }
   })).then(() => { if (ambWanted) startAmbient(); });
   return loading;
 }
@@ -315,9 +321,9 @@ function startAmbient() {
   if (!AC || ambOn || !SC?.ambient) return;
   for (const k in SC.ambient) { // loops: at = day | night | (always)
     const e = SC.ambient[k]; if (!e?.file || !bufs.has(e.file)) continue;
-    const src = AC.createBufferSource(); src.buffer = bufs.get(e.file)!; src.loop = true;
+    const src = AC.createBufferSource(); src.buffer = bufs.get(e.file)!; src.loop = true; const [la, lz2] = loopBounds(src.buffer); src.loopStart = la; src.loopEnd = lz2; // MP3: skip the encoder's silent edges
     const g = AC.createGain(), vol = (e.vol ?? .2) * (SC.master ?? 1); g.gain.value = vol * ambShare(e.at);
-    src.connect(g); g.connect(master); src.start(0, Math.random() * src.buffer.duration); ambNodes.push(src); ambGains.push({ g, vol, at: e.at || '' });
+    src.connect(g); g.connect(master); src.start(0, la + Math.random() * (lz2 - la)); ambNodes.push(src); ambGains.push({ g, vol, at: e.at || '' });
   }
   ambOn = ambNodes.length > 0;
 }

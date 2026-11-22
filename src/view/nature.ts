@@ -166,7 +166,7 @@ export const hasModel = (name: string) => models.has(name);
 /** the parts of a model (geometry at scale 1 + material name), e.g. to find the branches of a tree */
 export const modelParts = (name: string) => models.get(name) ?? [];
 /** all loaded model names (pack + custom) */
-export const modelNames = () => [...models.keys()];
+export const modelNames = () => [...models.keys()].filter(n => !n.includes('__lod')); // far versions (tools/build-lod.mjs) are no models of their own
 /** add a custom model (built in code, e.g. fence) so it can be instanced like the pack models */
 export function registerModel(name: string, parts: Part[]) { models.set(name, parts); }
 /** bounding box of a model at scale 1 */

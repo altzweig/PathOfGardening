@@ -15,9 +15,33 @@ export const windU = { value: 0 };
 export const envU = { uSnow: { value: 0 }, uAutumn: { value: 0 }, uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uFogCol: { value: new THREE.Color(0) }, uFogNear: { value: 20 }, uFogFar: { value: 60 } };
 export const isTouch =matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 
+// ---------------- hidden subtrees (performance plan 1.4) ----------------
+// three.js updates the world matrices of every object each frame, hidden ones too (night animals in the pool, building sites,
+// plot parts, ...). The per-frame update skips hidden subtrees and marks them, so they are brought up to date the moment they
+// show again. An explicit updateMatrixWorld(true) still reaches everything.
+if (!location.search.includes('umw=0')) { // ?umw=0 = three.js default (measuring)
+  let inUpd = false, hard = false;
+  THREE.Object3D.prototype.updateMatrixWorld = function (this: THREE.Object3D, force?: boolean) {
+    const top = !inUpd; if (top) { inUpd = true; hard = force === true; }
+    try {
+      if (this.matrixAutoUpdate) this.updateMatrix();
+      if (this.matrixWorldNeedsUpdate || force) {
+        if (this.parent === null) this.matrixWorld.copy(this.matrix); else this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix);
+        this.matrixWorldNeedsUpdate = false; force = true;
+      }
+      const ch = this.children;
+      for (let i = 0, l = ch.length; i < l; i++) {
+        const c = ch[i];
+        if (!c.visible && !hard) { c.matrixWorldNeedsUpdate = true; continue; }
+        if (c.matrixWorldAutoUpdate === true || force === true) c.updateMatrixWorld(force);
+      }
+    } finally { if (top) { inUpd = false; hard = false; } }
+  };
+}
+
 // ---------------- renderer ----------------
 export const canvas = document.getElementById('c') as HTMLCanvasElement;
-export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+export const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }); // the composer renders into its own targets: MSAA on the canvas would only cost memory
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -90,10 +114,13 @@ composer.addPass(gradePass);
 composer.addPass(new OutputPass());
 
 export let pxScale = 500;
+/** viewport size, cached on resize (performance plan 1.2): reading innerWidth/innerHeight in the frame forces a layout after HUD style writes */
+export const VP = { w: innerWidth, h: innerHeight, portrait: innerHeight > innerWidth };
 const onResize: (() => void)[] = [];
 export function addResize(f: () => void) { onResize.push(f); }
 export function resize() {
   const w = innerWidth, h = innerHeight;
+  VP.w = w; VP.h = h; VP.portrait = h > w;
   renderer.setSize(w, h, false); composer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   pxScale = h * renderer.getPixelRatio() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));

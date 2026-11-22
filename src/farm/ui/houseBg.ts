@@ -35,7 +35,7 @@ export class HouseBg {
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
       const dt = Math.min(.1, (now - this.last) / 1000);
-      if (dt < 1 / 32) return; // ~30 fps is plenty behind a blur
+      if (dt < 1 / 20) return; // ~20 fps is plenty behind a blur (performance plan 1.1)
       this.last = now; this.t += dt; this.draw(dt);
     };
     this.draw(0);

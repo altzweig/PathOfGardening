@@ -102,6 +102,8 @@ export class HouseUi {
     }).join('');
   }
 
+  /** the book covers the screen (evening room or the day book over the paused farm): the 3D world need not be drawn */
+  get covering() { return !$('#fHouse').hidden; }
   // ---------------- evening ----------------
   showEvening(on: boolean) {
     this.day = false; this.live = null; this.arch = false; $('#fHouse').classList.remove('dayBook');

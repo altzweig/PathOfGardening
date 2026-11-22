@@ -272,7 +272,7 @@ body[data-input=touch] #fBtns{display:flex}
 .join .jGo:disabled{background:#222b33;color:#8a949c;box-shadow:0 3px 0 #0a0d10;cursor:default}
 /* save before joining, connecting screen */
 #joining{justify-content:flex-end;background:#07090b}
-#joinImg{position:absolute;inset:0;background:#0d1410 url(./loading/farm.jpg) center/cover no-repeat;opacity:.55}
+#joinImg{position:absolute;inset:0;background:#0d1410 var(--loadImg,none) center/cover no-repeat;opacity:.55}
 #joining::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,#07090b00 35%,#07090bcc 75%,#07090b);pointer-events:none}
 #joinBox{position:relative;z-index:1;width:min(520px,86vw);padding:0 0 calc(env(safe-area-inset-bottom,0px) + 7vh);text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
 #joinBox small{color:#c9b17c;font-size:16px}

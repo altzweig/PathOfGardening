@@ -208,6 +208,10 @@ ui:
   pauseIn:     { synth: pauseIn }                                               # Spiel wird langsamer bis zur Pause (Level-up, Menü)
   pauseOut:    { synth: pauseOut }
   page:        { synth: page }                                                  # Umblättern im Haus-Buch                                              # Spiel läuft wieder an
+  coins:       { synth: coins }                                                 # Auftrag im Haus-Buch abgeholt (Münzen fliegen)
+  drop:        { synth: drop }                                                  # Ware landet im Verkaufs-Slot des Hofladens
+  sale:        { synth: sale }                                                  # Sale-Preis gewählt
+  premium:     { synth: premium }                                               # Premium-Preis gewählt
 
 collect:
   xp:    { files: [bb_collect_1, bb_collect_2, bb_collect_3, bb_collect_4], vol: 0.16, pitch: [0.95, 1.04], rising: true, lp: 2200 }    # Blaubeeren einsammeln (aus blueberry.mp3: dumpf, kurz, leicht tiefer)

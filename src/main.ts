@@ -29,6 +29,7 @@ import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
 import { Bot } from './farm/bot';
 import { NetGuest, NetHost, Visitor, cleanCode } from './farm/net';
+import { Online, VisitAsk } from './online/online';
 import { Phase, resetSnapSeq, applySnap, applyState, cleanIntent, predict, smooth, snapOf, stateOf, versionOf } from './farm/coop';
 import type { Ev } from './farm/sim';
 import * as THREE from 'three';
@@ -38,12 +39,14 @@ const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const WANDER = 'pog-wanderer-v1';
 const wanderer = (): { level: number; xp: number } => { try { const w = JSON.parse(localStorage.getItem(WANDER) ?? ''); if (w && Number.isFinite(w.xp)) return { level: w.level ?? 1, xp: w.xp }; } catch { /* none yet */ } return { level: 1, xp: 0 }; };
 const saveWanderer = (w: { level: number; xp: number }) => { try { localStorage.setItem(WANDER, JSON.stringify(w)); } catch { /* private mode */ } };
-const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop'];
+const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop', '#friends'];
 const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const esc = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const SAVE_I = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 28c-6-3-10-8-10-15 4 0 8 1 10 4 2-3 6-4 10-4 0 7-4 12-10 15z" fill="currentColor" fill-opacity=".25"/><path d="M16 28V12M16 12c0-4 2-7 5-9"/></svg>';
 const TRASH_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 3h4M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
+const PLUS_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const GO_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6 8 6v9h-5v-5h-6v5H4z"/></svg>';
 const YES_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
 const NO_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 const MENU_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>';
@@ -76,7 +79,12 @@ class Game {
   private netHost: NetHost | null = null;
   /** this device visits someone else's farm */
   private netGuest: NetGuest | null = null;
-  private asks: Visitor[] = [];
+  /** who knocks: over the farm code (Visitor) or from the friends list (VisitAsk) */
+  private asks: (Visitor | VisitAsk)[] = [];
+  /** friends over Supabase (null = not configured): src/online/online.ts */
+  private online: Online | null = null;
+  /** a running knock at a friend's farm */
+  private knock: { cancel: () => void } | null = null;
   private hostEv: Ev[] = []; private snapT = 0; private stT = 0; private lastSt = '';
   private gEv: Ev[] = []; private gSteer = 0; private gSt = '';
   /** where the guest comes from: one of its saves (XP go into that farm) or none (wanderer profile, Basti 22.11.2026) */
@@ -122,6 +130,7 @@ class Game {
     await load.finish(this.cfg);
     this.only('#menu');
     if (this.pendingVisit) this.openVisit(this.pendingVisit);
+    void this.startOnline();
     await load.fadeOut(this.cfg);
   }
   private only(id: string | null) { for (const o of OVERLAYS) $(o).hidden = o !== id; this.menu.setActive(id === '#menu'); }
@@ -177,7 +186,14 @@ class Game {
     // co-op
     click('#visitBtn', () => this.openVisit(''));
     click('#visitFrom', () => { const ids = [...listSaves().map(m => m.id), null]; this.gFrom = ids[(ids.indexOf(this.gFrom ?? null) + 1) % ids.length]; this.showFrom(); });
-    click('#visitBack', () => { this.netGuest?.close(); this.netGuest = null; this.only('#menu'); });
+    click('#visitBack', () => { this.knock?.cancel(); this.knock = null; this.netGuest?.close(); this.netGuest = null; this.only(this.online ? '#friends' : '#menu'); if (this.online) this.friendList(); });
+    click('#friendBtn', () => this.openFriends());
+    click('#frBack', () => this.only('#menu'));
+    click('#frMine', () => { const c = this.online?.me.code; if (!c) return; navigator.clipboard?.writeText(c).then(() => { $('#frMsg').textContent = 'Kopiert'; setTimeout(() => { $('#frMsg').textContent = ''; }, 1500); }).catch(() => prompt('Code', c)); });
+    $('#frAdd').innerHTML = PLUS_I;
+    $('#frForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); void this.addFriend(); });
+    $('#frCode').addEventListener('keydown', e => e.stopPropagation());
+    $('#frCode').addEventListener('input', () => { const i = $('#frCode') as HTMLInputElement; i.value = i.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
     $('#visitForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); this.join(); });
     $('#visitCode').addEventListener('keydown', e => e.stopPropagation());
     $('#visitCode').addEventListener('input', () => { const i = $('#visitCode') as HTMLInputElement; i.value = cleanCode(i.value); });
@@ -457,14 +473,17 @@ class Game {
       h.onLeave = v => { this.sim?.removePlayer(v.id); this.asks = this.asks.filter(a => a !== v); this.showAsk(); this.coopList(); };
       this.netHost = h;
       $('#coopCode').textContent = '…';
-      try { $('#coopCode').textContent = await h.open(); }
+      h.onTicket = v => { if (h.let(v)) this.admit(v); };
+      try { $('#coopCode').textContent = await h.open(); void this.online?.setOpen(true); }
       catch { $('#coopCode').textContent = '—'; this.netHost = null; }
     } else $('#coopCode').textContent = this.netHost.code;
   }
   private closeFarm() {
     if (!this.netHost) return;
     for (const v of this.netHost.guests) this.sim?.removePlayer(v.id);
-    this.netHost.close(); this.netHost = null; this.asks = []; this.showAsk(); this.coopList();
+    this.netHost.close(); this.netHost = null;
+    for (const a of this.asks) if (!('conn' in a)) void this.online?.answerVisit(a.id, false, '');
+    this.asks = []; this.showAsk(); this.coopList(); void this.online?.setOpen(false);
   }
   private coopList() {
     const box = $('#coopList'), g = this.netHost?.guests ?? [];
@@ -480,12 +499,21 @@ class Game {
     const v = this.asks[0], box = $('#coopAsk'); box.hidden = !v;
     if (v) { $('#coopAskName').innerHTML = `${esc(v.name)} <i class="lv">${v.level}</i>`; sfx('ui.levelup'); }
   }
-  private answer(yes: boolean) {
-    const v = this.asks.shift(); this.showAsk(); const h = this.netHost; if (!v || !h) return;
-    if (!yes) { h.deny(v); return; }
-    if (!h.let(v)) return;
+  /** a guest is in: on the farm right away during the day */
+  private admit(v: Visitor) {
     if (this.mode === 'day' && this.sim) this.sim.addPlayer(v.id, { name: v.name, look: v.look });
     this.lastSt = ''; this.sendState(true); this.coopList();
+  }
+  private answer(yes: boolean) {
+    const v = this.asks.shift(); this.showAsk(); const h = this.netHost; if (!v) return;
+    if (!('conn' in v)) { // a friend from the friends list: yes = room code + ticket, it then comes in without a second question
+      const room = yes && h ? h.code : '';
+      void this.online?.answerVisit(v.id, !!room, room, t => h!.tickets.add(t));
+      return;
+    }
+    if (!h) return;
+    if (!yes) { h.deny(v); return; }
+    if (h.let(v)) this.admit(v);
   }
   /** fast snapshot to every guest (20/s) */
   private sendSnap(dt: number) {
@@ -511,7 +539,7 @@ class Game {
     this.only('#visit');
     if (!this.input.isTouch) setTimeout(() => $('#visitCode').focus(), 60);
   }
-  private join() {
+  private join(ticket?: string) {
     const code = cleanCode(($('#visitCode') as HTMLInputElement).value); if (code.length < 5) return;
     this.netGuest?.close(); resetSnapSeq();
     const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
@@ -531,7 +559,7 @@ class Game {
       this.openVisit(code);
       msg.textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
     };
-    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0 });
+    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0, ticket });
   }
   /** the owner's farm arrived (or changed): day on the farm, or the evening with the book (read only) */
   private guestState(d: { ph: Phase; s: FarmState; d: any }, raw: string) {
@@ -606,6 +634,53 @@ class Game {
   private showFrom() {
     const m = listSaves().find(x => x.id === this.gFrom);
     $('#visitFrom').innerHTML = m ? `${ic('house')}${esc(m.name)} <i class="lv">${m.level}</i>` : `${ic('sun')}Ohne Hof <i class="lv">${levelFor(this.cfg, wanderer().xp)}</i>`;
+  }
+
+  // ---------------- friends (Supabase, Basti 22.11.2026) ----------------
+  /** best level of this device: the friends see it next to the name */
+  private bestLevel() { return Math.max(levelFor(this.cfg, wanderer().xp), ...listSaves().map(m => m.level)); }
+  private async startOnline() {
+    const o = await Online.start(); if (!o) return;
+    this.online = o; $('#friendBtn').hidden = false;
+    o.onChange = () => { $('#friendDot').hidden = !o.asks.length; if (!$('#friends').hidden) this.friendList(); };
+    o.onVisit = a => { if (!this.netHost) { void o.answerVisit(a.id, false, ''); return; } this.asks.push(a); this.showAsk(); };
+    try { await o.profile(this.menu.look.name || 'Gast', this.bestLevel()); await o.goOnline(); }
+    catch (e) { console.warn('online', e); }
+  }
+  private openFriends() {
+    const o = this.online; if (!o) return;
+    $('#frMine').textContent = o.me.code || '…'; $('#frMsg').textContent = ''; ($('#frCode') as HTMLInputElement).value = '';
+    this.only('#friends'); this.friendList();
+    void o.profile(this.menu.look.name || 'Gast', this.bestLevel()).then(() => { $('#frMine').textContent = o.me.code; }).catch(() => {});
+    void o.refresh();
+  }
+  private async addFriend() {
+    const o = this.online, i = $('#frCode') as HTMLInputElement; if (!o || i.value.length < 6) return;
+    const r = await o.addFriend(i.value); i.value = '';
+    $('#frMsg').textContent = { notfound: 'Kein Spieler mit diesem Code.', self: 'Das ist dein eigener Code.', accepted: '✓', sent: 'Anfrage gesendet.', error: 'Verbindung verloren.' }[r];
+  }
+  private friendList() {
+    const o = this.online; if (!o) return;
+    const box = $('#frList');
+    box.innerHTML = o.asks.map(a => `<div class="fr ask" data-ask="${a.id}"><b>${esc(a.name)}</b><i class="lv">${a.level}</i><button class="sDel no" aria-label="Ablehnen">${NO_I}</button><button class="sDel yes" aria-label="Annehmen">${YES_I}</button></div>`).join('')
+      + o.friends.map(f => `<div class="fr" data-id="${f.id}"><span class="dot${f.open ? ' open' : f.online ? ' on' : ''}"></span><b>${esc(f.name)}</b><i class="lv">${f.level}</i>${f.open ? `<button class="sDel yes go" aria-label="Besuchen">${GO_I}</button>` : ''}<button class="sDel del" aria-label="Entfernen">${NO_I}</button></div>`).join('');
+    box.querySelectorAll<HTMLElement>('.fr.ask').forEach(r => r.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); void o.answerFriend(r.dataset.ask!, b.classList.contains('yes')); })));
+    box.querySelectorAll<HTMLElement>('.fr[data-id]').forEach(r => {
+      const id = r.dataset.id!;
+      r.querySelector('.go')?.addEventListener('click', () => { sfx('ui.confirm'); this.visitFriend(id); });
+      const del = r.querySelector<HTMLElement>('.del')!;
+      // two taps remove a friend (no browser dialog)
+      del.addEventListener('click', () => { sfx('ui.click'); if (del.classList.contains('sure')) void o.removeFriend(id); else { del.classList.add('sure'); del.style.borderColor = '#d05a4a'; setTimeout(() => { del.classList.remove('sure'); del.style.borderColor = ''; }, 2500); } });
+    });
+  }
+  /** knock at a friend's open farm: once the friend says yes, the game joins with room code + ticket */
+  private visitFriend(id: string) {
+    const o = this.online; if (!o) return;
+    this.openVisit(''); const msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
+    go.disabled = true; msg.textContent = 'Klopf, klopf …';
+    this.knock?.cancel(); const k = o.visit(id); this.knock = k;
+    k.done.then(({ room, ticket }) => { if (this.knock !== k) return; this.knock = null; ($('#visitCode') as HTMLInputElement).value = room; go.disabled = false; this.join(ticket); })
+      .catch((e: Error) => { if (this.knock !== k) return; this.knock = null; go.disabled = false; msg.textContent = { deny: 'Nicht reingelassen.', timeout: 'Keine Antwort.', notfriend: 'Nicht reingelassen.', lost: 'Verbindung verloren.' }[e.message] ?? ''; });
   }
 
   /** tests (co-op without a network): n computer farmers join the farm, bot(0) sends them home */

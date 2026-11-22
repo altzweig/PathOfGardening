@@ -108,6 +108,7 @@
         <button class="mi" id="newBtn">Neues Spiel</button>
         <button class="mi" id="loadBtn">Laden</button>
         <button class="mi" id="tutBtn">Tutorial</button>
+        <button class="mi" id="friendBtn" hidden>Freunde<i id="friendDot" hidden></i></button>
         <button class="mi" id="visitBtn">Besuchen</button>
         <button class="mi" id="optBtn">Optionen</button>
       </nav>
@@ -137,6 +138,20 @@
         <button class="btn sec" id="visitBack" type="button">Zurück</button>
       </div>
     </form>
+  </div>
+
+  <div class="ov" id="friends" hidden>
+    <h2>Freunde</h2>
+    <div class="col">
+      <button class="btn sec coopCode" id="frMine" type="button" aria-label="Mein Freundescode"></button>
+      <form id="frForm" class="row" autocomplete="off">
+        <input id="frCode" class="sName coopCode" maxlength="6" spellcheck="false" autocapitalize="characters" aria-label="Freundescode" placeholder="ABC234">
+        <button class="sDel yes" id="frAdd" type="submit" aria-label="Hinzufügen"></button>
+      </form>
+      <div class="coopMsg" id="frMsg"></div>
+      <div id="frList"></div>
+      <button class="btn sec" id="frBack" type="button">Zurück</button>
+    </div>
   </div>
 
   <div class="ov" id="coop" hidden>

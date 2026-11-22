@@ -233,3 +233,21 @@ body[data-input=touch] #fBtns{display:flex}
 #visitFrom svg{width:26px;height:26px;flex:none}
 #coopAsk{max-width:calc(100vw - 32px);font-size:16px}
 #coopAsk b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* friends (Supabase, 22.11.2026) */
+#friendBtn{position:relative}
+#friendDot{position:absolute;top:8px;right:10px;width:10px;height:10px;border-radius:50%;background:#e0b44c;box-shadow:0 0 8px #e0b44c}
+#frForm{gap:10px;align-items:center;justify-content:center}
+#frForm .sName{width:200px;margin:0}
+#frForm .sDel,#frList .sDel{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #3a4550;background:#0b1016;color:var(--parch);display:grid;place-items:center;cursor:pointer}
+#frForm .sDel svg,#frList .sDel svg{width:20px;height:20px}
+#frForm .sDel.yes,#frList .sDel.yes{background:#3f8a4a;color:#fff;border-color:#7ad08a}
+#frList{display:flex;flex-direction:column;gap:8px;width:min(420px,calc(100vw - 32px));max-height:46vh;overflow:auto}
+#frList .fr{display:flex;align-items:center;gap:10px;background:#0b1016cc;border:1px solid var(--gold-dim);border-radius:10px;padding:6px 6px 6px 12px;color:var(--parch)}
+#frList .fr.ask{border-color:var(--gold)}
+#frList .fr b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#frList .fr i{font-style:normal;opacity:.8}
+#frList .dot{flex:none;width:10px;height:10px;border-radius:50%;background:#4a535c}
+#frList .dot.on{background:#7ad08a}
+#frList .dot.open{background:#e0b44c;box-shadow:0 0 6px #e0b44c}
+#frList .fr .sDel.go svg{width:22px;height:22px}

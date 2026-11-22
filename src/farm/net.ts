@@ -17,13 +17,16 @@ function iceServers(): RTCIceServer[] {
   if (url) list.push({ urls: url.split(',').map(u => u.trim()), username: env.VITE_TURN_USER, credential: env.VITE_TURN_PASS });
   return list;
 }
+/** largest piece of a farm state in one message */
+const PART = 12000;
 /** messages a guest may send per second (it sends its input every frame); more is dropped */
 const RATE = 120;
 
 function peerOpts(): PeerOptions {
   const o: PeerOptions = { debug: 0, config: { iceServers: iceServers() } };
   const p = new URLSearchParams(location.search).get('peer');
-  if (p) { const [host, port] = p.split(':'); Object.assign(o, { host, port: +(port || 9000), path: '/', secure: false }); }
+  // local test broker: no STUN either (the test machine cannot reach it, waiting for it costs half a minute per connection)
+  if (p) { const [host, port] = p.split(':'); Object.assign(o, { host, port: +(port || 9000), path: '/', secure: false, config: { iceServers: [] } }); }
   return o;
 }
 
@@ -35,7 +38,7 @@ export type ToHost =
 export type ToGuest =
   | { t: 'wait' } | { t: 'welcome'; id: number; key: string } | { t: 'no'; why: 'full' | 'deny' | 'version' | 'gone' }
   | { t: 'info'; name: string; v: string; n: number; max: number }
-  | { t: 'st'; [k: string]: unknown } | { t: 'sn'; [k: string]: unknown } | { t: 'bye' };
+  | { t: 'st'; [k: string]: unknown } | { t: 'stp'; i: number; n: number; p: string } | { t: 'sn'; [k: string]: unknown } | { t: 'bye' };
 
 export interface Visitor {
   id: number; conn: DataConnection; name: string; look: unknown; level: number; xp: number; ok: boolean;
@@ -89,7 +92,9 @@ export class NetHost {
     c.on('data', (d: any) => {
       const m = d as ToHost; if (!m || typeof m !== 'object') return;
       if (v) { const s = Math.floor(performance.now() / 1000); if (s !== v.sec) { v.sec = s; v.n = 0; } if (++v.n > RATE) return; }
-      if (m.t === 'peek' && !v) { c.send({ t: 'info', name: this.name, v: this.version, n: this.visitors.length, max: this.max }); setTimeout(() => c.close(), 300); return; }
+      // someone typed the code: name + room left. The connection stays open, the hello can follow on it (faster join);
+      // without a hello within 2 minutes it is closed
+      if (m.t === 'peek' && !v) { c.send({ t: 'info', name: this.name, v: this.version, n: this.visitors.length, max: this.max }); setTimeout(() => { if (!v) c.close(); }, 120000); return; }
       if (m.t === 'hello' && !v) {
         if (m.v !== this.version) { c.send({ t: 'no', why: 'version' }); setTimeout(() => c.close(), 300); return; }
         if (this.visitors.length + 1 >= this.max) { c.send({ t: 'no', why: 'full' }); setTimeout(() => c.close(), 300); return; }
@@ -108,7 +113,16 @@ export class NetHost {
   let(v: Visitor) { if (!this.visitors.includes(v)) return false; v.ok = true; v.conn.send({ t: 'welcome', id: v.id, key: v.key }); return true; }
   /** the owner said no (or sends a guest home) */
   deny(v: Visitor) { try { v.conn.send({ t: 'no', why: v.ok ? 'gone' : 'deny' }); } catch { /* closed */ } setTimeout(() => v.conn.close(), 300); }
-  send(v: Visitor, m: ToGuest) { if (v.conn.open) v.conn.send(m); }
+  send(v: Visitor, m: ToGuest) {
+    if (!v.conn.open) return;
+    // the whole farm can be bigger than what every browser takes in one message (Safari / Firefox ~16-64 KB): in parts
+    if (m.t === 'st' && typeof m.d === 'string' && m.d.length > PART) {
+      const d = m.d, n = Math.ceil(d.length / PART);
+      for (let i = 0; i < n; i++) v.conn.send({ t: 'stp', i, n, p: d.slice(i * PART, (i + 1) * PART) });
+      return;
+    }
+    v.conn.send(m);
+  }
   broadcast(m: ToGuest) { for (const v of this.guests) this.send(v, m); }
   /** snapshots: over the fast connection when there is one */
   broadcastFast(m: ToGuest) { for (const v of this.guests) { if (v.fast?.open) v.fast.send(m); else this.send(v, m); } }
@@ -120,10 +134,13 @@ export class NetHost {
 }
 
 /** who is behind a code, before joining: name of the owner, or why it would not work */
-export function peek(code: string, version: string, timeout = 30000): { done: Promise<{ name: string } | 'notfound' | 'version' | 'full' | 'lost'>; cancel: () => void } {
-  let peer: Peer | null = null, timer = 0, fin: (r: any) => void = () => {};
-  const done = new Promise<{ name: string } | 'notfound' | 'version' | 'full' | 'lost'>(ok => {
-    fin = r => { clearTimeout(timer); const p = peer; peer = null; setTimeout(() => { try { p?.destroy(); } catch { /* ignore */ } }, 100); ok(r); fin = () => {}; };
+export type Peeked = { name: string; peer: Peer; conn: DataConnection };
+/** who is behind a code, before joining: name of the owner (+ the open connection, the join goes on over it), or why it would not work */
+export function peek(code: string, version: string, timeout = 30000): { done: Promise<Peeked | 'notfound' | 'version' | 'full' | 'lost'>; cancel: () => void; take: () => Peeked | null } {
+  let peer: Peer | null = null, timer = 0, got: Peeked | null = null, fin: (r: any) => void = () => {};
+  const drop = () => { const p = peer; peer = null; setTimeout(() => { try { p?.destroy(); } catch { /* ignore */ } }, 100); };
+  const done = new Promise<Peeked | 'notfound' | 'version' | 'full' | 'lost'>(ok => {
+    fin = r => { clearTimeout(timer); if (typeof r === 'object') got = r; else drop(); ok(r); fin = () => {}; };
     timer = window.setTimeout(() => fin('lost'), timeout);
     peer = new Peer(peerOpts());
     peer.on('error', (err: any) => { console.warn('peek', err?.type); fin(err?.type === 'peer-unavailable' ? 'notfound' : 'lost'); });
@@ -132,12 +149,17 @@ export function peek(code: string, version: string, timeout = 30000): { done: Pr
       c.on('open', () => c.send({ t: 'peek' }));
       c.on('data', (d: any) => {
         if (!d || d.t !== 'info') return;
-        fin(d.v !== version ? 'version' : d.n + 1 >= d.max ? 'full' : { name: String(d.name ?? '').replace(/[<>]/g, '').slice(0, 28) || '?' });
+        fin(d.v !== version ? 'version' : d.n + 1 >= d.max ? 'full' : { name: String(d.name ?? '').replace(/[<>]/g, '').slice(0, 28) || '?', peer: peer!, conn: c });
       });
       c.on('error', (e: any) => { console.warn('peek conn', e?.type ?? e); fin('lost'); });
     });
   });
-  return { done, cancel: () => fin('lost') };
+  return {
+    done,
+    cancel: () => { fin('lost'); if (got) { got = null; drop(); } },
+    /** hand the open connection to the join (null when it closed meanwhile) */
+    take: () => { const g = got; got = null; return g && g.conn.open && !g.peer.destroyed ? g : null; },
+  };
 }
 
 /** a guest: knocks at the farm under a code and plays there once the owner lets it in */
@@ -149,23 +171,32 @@ export class NetGuest {
   onWait: () => void = () => {};
   onWelcome: (id: number) => void = () => {};
   onMsg: (m: ToGuest) => void = () => {};
-  onClose: (why: 'full' | 'deny' | 'version' | 'gone' | 'lost' | 'notfound' | 'bye') => void = () => {};
+  onClose: (why: 'full' | 'deny' | 'version' | 'gone' | 'lost' | 'notfound' | 'bye' | 'timeout') => void = () => {};
   private closed = false;
-  join(code: string, hello: Omit<Extract<ToHost, { t: 'hello' }>, 't'>) {
-    const peer = new Peer(peerOpts()); this.peer = peer;
-    const fail = (r: Parameters<NetGuest['onClose']>[0]) => { if (this.closed) return; this.closed = true; this.onClose(r); setTimeout(() => { try { peer.destroy(); } catch { /* ignore */ } }, 100); };
+  /** connection steps for the loading screen */
+  onStep: (s: 'connect' | 'wait' | 'load') => void = () => {};
+  join(code: string, hello: Omit<Extract<ToHost, { t: 'hello' }>, 't'>, pre?: Peeked | null) {
+    const peer = pre?.peer ?? new Peer(peerOpts()); this.peer = peer;
+    let timer = 0, parts: string[] = [];
+    const fail = (r: Parameters<NetGuest['onClose']>[0]) => { clearTimeout(timer); if (this.closed) return; this.closed = true; this.onClose(r); setTimeout(() => { try { peer.destroy(); } catch { /* ignore */ } }, 100); };
+    // no answer from the farm: give up with a message instead of loading forever (connecting 30 s, the owner deciding 90 s)
+    const limit = (sec: number, why: 'lost' | 'timeout' = 'lost') => { clearTimeout(timer); timer = window.setTimeout(() => fail(why), sec * 1000); };
+    this.onStep('connect'); limit(new URLSearchParams(location.search).get('peer') ? 300 : 45); // local tests: slow machine
     peer.on('error', (err: any) => fail(err?.type === 'peer-unavailable' ? 'notfound' : 'lost'));
-    peer.on('open', () => {
-      const c = peer.connect(PREFIX + cleanCode(code), { reliable: true, serialization: 'json' });
+    const attach = (c: DataConnection) => {
       this.conn = c;
-      c.on('open', () => c.send({ t: 'hello', ...hello }));
       c.on('data', (d: any) => {
         const m = d as ToGuest; if (!m || typeof m !== 'object') return;
-        if (m.t === 'wait') this.onWait();
+        if (m.t === 'wait') { this.onStep('wait'); limit(90, 'timeout'); this.onWait(); }
         else if (m.t === 'welcome') {
+          clearTimeout(timer); this.onStep('load');
           this.id = m.id; this.onWelcome(m.id);
           const f = peer.connect(PREFIX + cleanCode(code), { reliable: false, serialization: 'json', metadata: { fast: m.key } });
           this.fast = f; f.on('data', (d: any) => { if (d && typeof d === 'object') this.onMsg(d as ToGuest); });
+        }
+        else if (m.t === 'stp') { // a farm state in parts: put it together again
+          if (m.i === 0) parts = []; parts[m.i] = m.p;
+          if (m.i === m.n - 1 && parts.length === m.n && parts.every(x => typeof x === 'string')) { const d = parts.join(''); parts = []; this.onMsg({ t: 'st', d }); }
         }
         else if (m.t === 'no') fail(m.why);
         else if (m.t === 'bye') fail('bye');
@@ -173,6 +204,11 @@ export class NetGuest {
       });
       c.on('close', () => fail('lost'));
       c.on('error', () => fail('lost'));
+    };
+    if (pre) { attach(pre.conn); pre.conn.send({ t: 'hello', ...hello }); return; }
+    peer.on('open', () => {
+      const c = peer.connect(PREFIX + cleanCode(code), { reliable: true, serialization: 'json' });
+      attach(c); c.on('open', () => c.send({ t: 'hello', ...hello }));
     });
   }
   send(m: ToHost) { if (this.conn && this.conn.open) this.conn.send(m); }

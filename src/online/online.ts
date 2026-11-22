@@ -144,7 +144,7 @@ export class Online {
   /** the friends list was looked at: no more unread marks */
   markRead() { this.unread.clear(); try { localStorage.setItem(this.seenKey(), String(Date.now())); } catch { /* ignore */ } this.onChange(); }
   async send(to: string, msg: number) {
-    const { error } = await this.db.from('messages').insert({ from_id: this.me.id, to_id: to, msg }); return !error;
+    const { error } = await this.db.from('messages').insert({ from_id: this.me.id, to_id: to, msg }); return error ? error.message : '';
   }
 
   private track() { return this.presence?.track({ id: this.me.id, name: this.me.name, level: this.me.level, open: this.open }); }

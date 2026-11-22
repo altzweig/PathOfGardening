@@ -8,6 +8,7 @@ import type { ActionInfo, DaySim, Target } from '../sim';
 import type { FarmView } from '../view/farmView';
 import { ic } from './ficons';
 import { goodInfo } from './storePage';
+import { ActBar } from './actbar';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 /** remaining seconds as "m:ss" */
@@ -53,7 +54,10 @@ export class FarmHud {
   /** quest list open (Q / tap on the box) */
   questsOpen = true; private qKey = '';
   private nums: { el: HTMLElement; x: number; y: number; z: number; t: number }[] = [];
+  /** animated progress bar of the running action (22.11.2026) */
+  private bar: ActBar; private lastT = performance.now();
   constructor(public cfg: FarmCfg) {
+    this.bar = new ActBar(cfg, $('#fHud'));
     // seed choice (20.11.2026): what the next sowing plants; new crops come with the levels
     $('#fSeed').addEventListener('pointerdown', e => { e.stopPropagation(); this.seedPanel($('#fSeeds').hidden); });
     $('#fSeeds').addEventListener('pointerdown', e => {
@@ -140,6 +144,8 @@ export class FarmHud {
       $('#bAtk').innerHTML = gun && s.ammoCount > 0 ? ic(s.weapon!) : ic('rake');
     }
     this.quests(s, touch);
+    const now = performance.now(), dt = Math.min(.1, (now - this.lastT) / 1000); this.lastT = now;
+    this.bar.update(sim, s, view, sim.paused ? 0 : dt, touch);
     // tool at the cursor (PC) / on the action button (touch)
     const tool = hoverInfo ? TOOL_ICON[hoverInfo.tool] : null;
     const cur = $('#fCursor');
@@ -219,5 +225,5 @@ export class FarmHud {
   }
   fade(on: boolean, slow = false) { const f = $('#fFade'); f.style.transitionDuration = slow ? '1.4s' : '.5s'; f.classList.toggle('on', on); }
   letterbox(on: boolean) { $('#fBars').classList.toggle('on', on); }
-  clear() { this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
+  clear() { this.bar.hide(); this.warn(false); $('#fLabel').hidden = true; for (const n of this.nums) n.el.remove(); this.nums.length = 0; this.hint(null); this.fightCard(false); this.letterbox(false); }
 }

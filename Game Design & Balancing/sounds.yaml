@@ -232,3 +232,35 @@ weapons:
 boss:
   spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben
   boom: { files: [collect_big], vol: 0.35, pitch: [0.45, 0.6], gap: 0.05, synth: boomS }   # Blaubeer-Bombe explodiert
+
+# Animierte Ladebalken (22.11.2026): kleine, im Code erzeugte Geräusche passend zur Animation im Balken (selbst erzeugt, keine Dateien).
+# Ereignisname = Moment der Animation (Beere hüpft in den Korb, Sichel schwingt, Pflanze kommt aus der Erde ...).
+bar:
+  plop: { synth: barPlop }
+  swish: { synth: barSwish }
+  tug: { synth: barTug }
+  pull: { synth: barPull }
+  twist: { synth: barTwist }
+  dig: { synth: barDig }
+  pop: { synth: barPop }
+  cut: { synth: barCut }
+  pluck: { synth: barPluck }
+  snip: { synth: barSnip }
+  thunk: { synth: barThunk }
+  snap: { synth: barSnap }
+  thud: { synth: barThud }
+  egg: { synth: barEgg }
+  wood: { synth: barWood }
+  stone: { synth: barStone }
+  rustle: { synth: barRustle }
+  leaf: { synth: barLeaf }
+  scratch: { synth: barScratch }
+  seed: { synth: barSeed }
+  scrape: { synth: barScrape }
+  scatter: { synth: barScatter }
+  grain: { synth: barGrain }
+  squirt: { synth: barSquirt }
+  grind: { synth: barGrind }
+  squish: { synth: barSquish }
+  crackle: { synth: barCrackle }
+  bubble: { synth: barBubble }

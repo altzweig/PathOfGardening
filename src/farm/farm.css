@@ -211,6 +211,8 @@ body[data-input=touch] #fBtns{display:flex}
 #hRewards .tile.pick{cursor:pointer;font:inherit;color:inherit;border-color:var(--gold);box-shadow:0 0 18px #e8c06a33;transition:transform .12s}
 #hRewards .tile.pick:hover,#hRewards .tile.pick:focus-visible{transform:translateY(-3px) scale(1.03);box-shadow:0 0 26px #e8c06a66}
 
+/* animated progress bar of the running action (ui/actbar.ts, 22.11.2026) */
+#fActBar{position:absolute;left:0;top:0;pointer-events:none;filter:drop-shadow(0 3px 6px #0008);transition:opacity .08s linear;will-change:transform}
 /* co-op visits (22.11.2026): code of the farm, guest list, the knock at the door */
 .coopCode{font-size:34px;letter-spacing:.3em;text-transform:uppercase;min-width:220px}
 .coopMsg{min-height:1.4em;text-align:center;color:var(--parch);opacity:.85}

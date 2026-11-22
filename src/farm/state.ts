@@ -1,6 +1,6 @@
 // Persistent farm state (saved by saves.ts): goods, money, XP, plots, bush, buildings, quests, loadout.
 // Everything that survives from one day to the next lives here; the running day is in sim.ts.
-import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, Rarity, STALL_IDS, WeaponId, cropMain, cropPieces, cropSec, cropsOf, levelFor, slotsAt } from './config';
+import { BUILDING_IDS, BuildingId, Cost, FarmCfg, ItemId, Rarity, STALL_IDS, WeaponId, cropMain, cropPieces, cropSec, cropsOf, levelFor, slotsAt, workSec } from './config';
 import type { ShopState } from './shop';
 import { sellDay } from './shop';
 
@@ -262,7 +262,7 @@ export function questSources(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, out: { item: ItemId; sec: number; per: number; cap: number; fresh: boolean }[] = [];
   for (const id of s.seeds) {
     const c = cfg.crops[id]; if (!c) continue;
-    out.push({ item: cropMain(c), sec: cropSec(cfg, c), per: cropPieces(cfg, id), cap: cfg.day.length * D.load, fresh: false });
+    out.push({ item: cropMain(c), sec: cropSec(cfg, c), per: cropPieces(cfg, id), cap: workSec(cfg) * D.load, fresh: false });
   }
   return out;
 }
@@ -272,7 +272,7 @@ const pickW = <T>(list: T[], w: (x: T) => number) => { const ws = list.map(w), s
 export function rollDaily(cfg: FarmCfg, s: FarmState) {
   const D = cfg.quests.daily, L = s.level, T = cfg.quests.titles;
   const yesterday = new Set(s.quests.active.flatMap(q => Object.keys(q.need)));
-  const N = questSlots(cfg, L), budget = cfg.day.length * D.load, share = budget / N; // harvest experiment: s of harvest work
+  const N = questSlots(cfg, L), budget = workSec(cfg) * D.load, share = budget / N; // harvest experiment: s of harvest work
   // without a working well the can only holds a few fillings: every field pass needs one
   let water = Infinity, blueLeft = D.blue.max; // harvest experiment: no watering any more // one filling stays for the blueberry bush
   const src = questSources(cfg, s), maxObj = D.objectives[Math.min(D.objectives.length - 1, L - 1)] ?? 1;

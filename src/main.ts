@@ -384,7 +384,7 @@ class Game {
     const sim = this.sim; // ... and not next to another farmer (co-op)
     sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return (p.x > -60 && p.x < VP.w + 60 && p.y > -60 && p.y < VP.h + 60) || sim.players.some(P => P !== sim.player && Math.hypot(P.x - x, P.z - z) < 22); };
     if (!tutorial) this.bots = this.bots.map(b => new Bot(sim.addPlayer(b.P.id, { name: b.P.name, look: b.P.look }))); else this.bots = [];
-    for (const v of this.netHost?.guests ?? []) sim.addPlayer(v.id, { name: v.name, look: v.look });
+    for (const v of this.netHost?.guests ?? []) sim.addPlayer(v.id, { name: v.name, look: v.look, level: v.level });
     this.hostEv = []; this.sendState(true);
     this.view.clearDynamic(); this.view.setState(s); this.view.snapCamera(this.sim.player.x, this.sim.player.z); this.view.resetLight();
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
@@ -572,7 +572,7 @@ class Game {
   private askBeat = 0;
   /** a guest is in: on the farm right away during the day */
   private admit(v: Visitor) {
-    if (this.mode === 'day' && this.sim) this.sim.addPlayer(v.id, { name: v.name, look: v.look });
+    if (this.mode === 'day' && this.sim) this.sim.addPlayer(v.id, { name: v.name, look: v.look, level: v.level });
     this.lastSt = ''; this.sendState(true); this.coopList();
   }
   private answer(yes: boolean) {

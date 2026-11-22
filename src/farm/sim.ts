@@ -1,7 +1,7 @@
 // One playable day on the farm: player movement, timed actions (left click, see actions in balancing.yaml), fighting
 // (right click), animals (raccoon, hare), stalls with livestock, weeds + forage that grow back out of sight, loot, rain,
 // clock. Works on the persistent FarmState; the view only reads.
-import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, otherXp, rollHerbs, treeCfg, treeKind } from './config';
+import { ActionKind, AnimalType, BuildingId, FarmCfg, ItemId, STALL_IDS, StallId, Tool, cropXp, nightPlan, swell, waveWindows, otherXp, rollHerbs, treeCfg, treeKind } from './config';
 import { FarmState, addItem, breakPlot, count, gainXp, growMul, repairPlot, ripeCuts } from './state';
 import { Hof, Obb, Obstacle, obsDist, toLocal, toWorld } from './hof';
 import { NavGrid, navFor, pathLen } from './nav';
@@ -63,6 +63,8 @@ export interface Player {
   id: number;
   /** guest: works on someone else's farm (XP go to the guest, the yield to the farm); look + name shown over the head */
   guest?: boolean; name?: string; look?: unknown;
+  /** a guest's own level (night: the waves follow the average level of all farmers) */
+  level?: number;
   /** knocked out in co-op: s until the player gets up again at the house (0 = up) */
   ko: number;
   /** XP a guest earned on this farm today (the host books his own straight into the farm state) */
@@ -151,6 +153,8 @@ export interface DaySnap {
   loot: { item: ItemId; x: number; z: number; fresh?: boolean; n?: number }[];
   /** night: goods of today raccoons took out of the pocket, fields broken so far */
   taken?: Record<ItemId, number>; broken?: number;
+  /** level the night was planned for (average of all farmers) */
+  nightLv?: number;
 }
 
 export class DaySim {
@@ -178,6 +182,8 @@ export class DaySim {
   finished: 'time' | 'faint' | null = null;
   /** night after the day (21.11.2026): s long, 0 = none (tutorial); nightOn from nightfall on; waves = start of every wave (s of the clock) */
   nightLen: number; nightOn = false; waves: number[] = []; broken = 0;
+  /** level the night's animals follow: average level of all farmers at nightfall (Basti 22.11.2026) */
+  nightLv = 1;
   got: Record<ItemId, number> = {}; lost: Record<ItemId, number> = {}; driven = 0; xpGained = 0;
   /** berries shot today (berry shotgun) */
   used: Record<ItemId, number> = {};
@@ -798,7 +804,7 @@ export class DaySim {
       if (p.stage === 'empty' || p.stage === 'done' || (p.stage === 'sown' && !p.crop)) { this.replant(i, p.plan); return; }
       if (p.stage === 'sown') {
         if (p.t > 0) { p.t = Math.max(0, p.t - dt); return; }
-        if (!p.crop || this.nightOn) return; // crops grow by day only
+        if (!p.crop || (this.nightOn && !this.cfg.night.crops)) return; // crops grow by day (and at night with night.crops)
         const C = this.cfg.crops[p.crop]; p.grow += dt * growMul(this.cfg, p);
         if (C && p.grow >= C.grow) { p.stage = 'ripe'; p.bites = 0; p.yieldLeft = ripeCuts(this.cfg, p); p.acc = {}; this.ev.push({ k: 'plotRipe', i }); }
       }
@@ -1221,18 +1227,32 @@ export class DaySim {
     this.plan = this.plan.filter(p => p.night);
     for (const a of this.animals) if (!a.night && !a.gone) { a.driven = true; this.flee(a); } // no XP: they just leave
     if (warn) this.planNight(); // (a save made at night keeps its plan)
-    this.waves = this.cfg.night.waves.map(w => this.length + w.at);
+    this.waves = waveWindows(this.cfg, this.nightLv).map(w => this.length + w.from);
     if (warn) this.ev.push({ k: 'nightfall' });
   }
+  /** average level of everyone on the farm (guests bring their own level) */
+  private avgLevel() {
+    const lv = this.players.map(P => P.guest ? (P.level ?? this.s.level) : this.s.level);
+    return lv.reduce((a, b) => a + b, 0) / Math.max(1, lv.length);
+  }
+  /** the night (Basti 22.11.2026): waves that swell and ebb, each stronger than the last, single animals in between;
+   *  strength follows the average level, co-op = coop.nightFactor x the animals */
   private planNight() {
+    this.nightLv = this.avgLevel();
     const gaps = this.hof.gaps.length; if (!gaps) return;
-    // co-op: more farmers, more animals (count x players ^ coop.nightCountExp, HP stay the same)
-    const k = Math.pow(Math.max(1, this.players.length), this.cfg.coop?.nightCountExp ?? .5), more = (n: number) => n > 0 ? Math.max(1, Math.round(n * k)) : 0;
-    nightPlan(this.cfg, this.s.day, this.s.level).map(w => ({ ...w, raccoon: more(w.raccoon), hare: more(w.hare) })).forEach((w, wave) => {
-      const at = this.length + w.at, g1 = this.hof.pickGap(), g2 = this.hof.pickGap();
-      for (let i = 0; i < w.raccoon; i++) this.plan.push({ at: at + i * .8, type: 'raccoon', gap: g1, night: true, wave });
-      for (let i = 0; i < w.hare; i++) this.plan.push({ at: at + .4 + i * .7, type: 'hare', gap: g2, night: true, wave });
+    const N = this.cfg.night, mul = this.players.length > 1 ? (this.cfg.coop?.nightFactor ?? 2) : 1, L = this.length;
+    const waves = nightPlan(this.cfg, this.nightLv, mul);
+    waves.forEach((w, wave) => {
+      // the animals of a wave come through two gaps; types mixed, spread over the window like a swell
+      const g = [this.hof.pickGap(), this.hof.pickGap()], n = w.hare + w.raccoon;
+      const types = Array.from({ length: n }, (_, k) => Math.floor((k + 1) * w.raccoon / n) > Math.floor(k * w.raccoon / n) ? 'raccoon' as const : 'hare' as const);
+      types.forEach((type, k) => this.plan.push({ at: L + w.from + (w.to - w.from) * swell(k, n), type, gap: g[k % 2], night: true, wave }));
     });
+    // between the waves (not before the first): now and then a single animal (co-op: more often)
+    for (let i = 1; i < waves.length; i++) {
+      for (let t = waves[i - 1].to + rnd(...N.trickle.every) / mul; t < waves[i].from + 2; t += rnd(...N.trickle.every) / mul)
+        this.plan.push({ at: L + t, type: Math.random() < N.trickle.raccoon ? 'raccoon' : 'hare', gap: this.hof.pickGap(), night: true, wave: -1 });
+    }
     this.plan.sort((a, b) => a.at - b.at);
   }
   /** a hare picks a field to eat: fields with a crop first, near ones first (not broken ones) */
@@ -1358,9 +1378,9 @@ export class DaySim {
     while (this.plan.length && this.plan[0].at <= this.t) {
       const g = this.plan.shift()!;
       if (g.night) {
-        const N = this.cfg.night, L = this.s.level - 1, hp = N[g.type].hp * (1 + this.cfg.spawns.scaling.hp * L);
-        const w = g.wave ?? 0; if (!this.waveSeen.has(w)) { this.waveSeen.add(w); const o = this.hof.gapOut(g.gap); this.ev.push({ k: 'wave', n: w + 1, x: o.x, z: o.z }); }
-        this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0 });
+        const N = this.cfg.night, S = this.cfg.spawns.scaling, L = Math.max(0, this.nightLv - 1), hp = N[g.type].hp * (1 + S.hp * L);
+        const w = g.wave ?? 0; if (w >= 0 && !this.waveSeen.has(w)) { this.waveSeen.add(w); const o = this.hof.gapOut(g.gap); this.ev.push({ k: 'wave', n: w + 1, x: o.x, z: o.z }); }
+        this.spawn(g.type, g.gap, { night: true, shy: false, hp, maxHp: hp, hits: 0, speedMul: 1 + S.speed * L, dmgMul: 1 + S.damage * L });
         continue;
       }
       if (this.nightOn) continue; // day animals do not come at night
@@ -1624,7 +1644,7 @@ export class DaySim {
     return {
       t: this.t, player: { x: P.x, z: P.z, f: P.f, hp: P.hp }, got: c(this.got), lost: c(this.lost), driven: this.driven, xpGained: this.xpGained,
       stalls: c(this.stalls), apples: [...this.apples], brambles: c(this.brambles),
-      plan: c(this.plan), half: this.half, rain: c(this.rain), loot, taken: c(this.taken), broken: this.broken,
+      plan: c(this.plan), half: this.half, rain: c(this.rain), loot, taken: c(this.taken), broken: this.broken, nightLv: this.nightLv,
     };
   }
   restore(d: DaySnap) {
@@ -1636,7 +1656,7 @@ export class DaySim {
     if (d.brambles?.length === this.brambles.length) this.brambles = d.brambles;
     this.plan = d.plan ?? []; this.half = d.half ?? 0; this.rain = d.rain ?? null;
     for (const l of d.loot ?? []) this.loot.push({ id: this.nid++, item: l.item, x: l.x, z: l.z, y: 0, vx: 0, vz: 0, vy: 0, t: 99, fresh: l.fresh, n: l.n });
-    this.taken = d.taken ?? {}; this.broken = d.broken ?? 0;
+    this.taken = d.taken ?? {}; this.broken = d.broken ?? 0; this.nightLv = d.nightLv ?? this.s.level;
     // saved at night: the night goes on without a new warning (the animals that were on the farm are not kept, the waves still to come are)
     if (this.nightLen > 0 && this.t >= this.length) { this.startNight(false); for (let w = 0; w < this.waves.length; w++) if (this.waves[w] <= this.t) this.waveSeen.add(w); }
   }

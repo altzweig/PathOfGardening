@@ -12,7 +12,7 @@ const pack = (o: unknown) => JSON.stringify(o, (_k, v) => typeof v === 'number' 
 let seq = 0;
 export function snapOf(sim: DaySim, ev: Ev[]): string {
   return pack({
-    q: ++seq, t: sim.t, n: sim.nightOn, r: sim.raining,
+    q: ++seq, t: sim.t, n: sim.nightOn, wv: sim.nightOn ? sim.waves : undefined, r: sim.raining,
     pl: sim.players,
     an: sim.animals.map(a => ({ ...a, route: undefined, path: undefined })),
     pe: sim.pellets, lo: sim.loot, ev,
@@ -40,7 +40,8 @@ export function applySnap(sim: DaySim, d: any, steering: boolean): Ev[] {
   // the fast connection is unordered: an older snapshot that arrives late only brings its events
   if (d.q !== undefined) { if (d.q <= lastSeq && lastSeq - d.q < 1000) return d.ev as Ev[]; lastSeq = d.q; }
   sim.t = d.t; sim.raining = d.r;
-  if (d.n && !sim.nightOn) { sim.nightOn = true; sim.waves = sim.cfg.night.waves.map(w => sim.length + w.at); }
+  if (d.n && !sim.nightOn) sim.nightOn = true;
+  if (d.wv) sim.waves = d.wv; // the host planned the night (waves follow the average level)
   if (!d.n) sim.nightOn = false;
   const ids = new Set<number>();
   for (const p of d.pl as Player[]) {

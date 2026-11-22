@@ -527,10 +527,12 @@ export class FarmView {
     for (const P of sim?.players ?? []) {
       if (P === sim!.player) continue;
       live.add(P.id);
-      const look = cleanLook(P.look ?? {}), key = JSON.stringify(look);
+      // compare the look as it came (cleanLook fills a missing name / animal with random values: cleaning it every frame
+      // gave a new key each frame and the farmer was rebuilt in a different outfit, Basti 22.11.2026)
+      const key = JSON.stringify(P.look ?? {});
       let v = this.others.get(P.id);
       if (v && v.lookKey !== key) { this.dropPlayer(v); v = undefined; }
-      if (!v) { v = this.buildPlayer(look); v.tag = nameTag(); v.rot = P.f; this.others.set(P.id, v); }
+      if (!v) { v = this.buildPlayer(cleanLook(P.look ?? {})); v.lookKey = key; v.tag = nameTag(); v.rot = P.f; this.others.set(P.id, v); }
       this.animPlayer(v, P, sim, dt, false);
       const T = v.tag!, show = !this.cine && !!P.name;
       T.s.visible = show; if (show) { drawName(T, P.name!); T.s.position.set(P.x, 2.05 - v.low * .55 - (v.ko ?? 0) * 1.3, P.z); T.s.scale.set(NAME_W * .7, NAME_H * .7, 1); }

@@ -5,7 +5,7 @@ Seit 19.11.2026 ist das Spiel ein **Hof-Spiel mit Tagesablauf** (Basti, Gameloop
 
 ## Grundsätze
 - **Keine Erklärtexte im Spiel.** Mechaniken werden nicht erklärt, Spieler entdecken selbst. Ausnahmen: der **Tutorial-Tag** (eigener Modus im Hauptmenü), Texte in `tutorial.texts`, und die **Tipps im Ladebildschirm** (`loading.tips`).
-- **Ladebildschirm** beim Start: Vorschaubild der Farm (`public/loading/farm.jpg`), Ladebalken, darunter alle `loading.tipEvery` s ein neuer zufälliger Tipp. Bleibt mindestens `loading.minTime` s stehen, damit man den ersten Tipp lesen kann.
+- **Ladebildschirm** beim Start: eins von 5 Hof-Renders per Zufall (`public/loading/hof1..5_quer.jpg` für PC/quer, `_hoch.jpg` für Handy hochkant; 3× Tag in Morgendunst/Mittag/Abendgold, 2× Nacht mit Laternen; nie zweimal dasselbe hintereinander; Render-Skript `tools/loading-shots/`), Ladebalken, darunter alle `loading.tipEvery` s ein neuer zufälliger Tipp. Bleibt mindestens `loading.minTime` s stehen, damit man den ersten Tipp lesen kann.
 - **Charakter-Editor:** Würfeln dreht die Figur einmal ganz herum, sie landet immer mit Blick nach vorne.
 - **Steuerung** steht nur auf der Seite *Optionen → Steuerung* (bzw. *Pause → Steuerung*): visuell, getrennt für PC und Mobil.
 - Im Abend-Bildschirm nur Icons, Zahlen und Namen, keine Sätze.

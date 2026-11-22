@@ -6,3 +6,4 @@ dist/
 .tools-out/
 .preview/
 tools/perf/out/
+tools/loading-shots/out/

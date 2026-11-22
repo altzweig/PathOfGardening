@@ -11,7 +11,7 @@
     /* loading screen: inline so it shows before the game script and styles are loaded */
     #load{position:fixed;inset:0;z-index:100;background:#07090b;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;transition:opacity .6s ease;font-family:'Alegreya Sans',system-ui,sans-serif}
     #load.out{opacity:0;pointer-events:none}
-    #loadImg{position:absolute;inset:0;background:#0d1410 url(./loading/farm.jpg) center/cover no-repeat;animation:loadZoom 30s ease-out both}
+    #loadImg{position:absolute;inset:0;background:#0d1410 var(--loadImg,none) center/cover no-repeat;animation:loadZoom 30s ease-out both}
     #load::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,#07090b00 40%,#07090bcc 78%,#07090b 100%),radial-gradient(ellipse at center,#0000 55%,#0008 100%);pointer-events:none}
     #loadBox{position:relative;z-index:1;width:min(560px,86vw);padding:0 0 calc(env(safe-area-inset-bottom,0px) + 7vh);text-align:center}
     #loadTitle{font-family:Cinzel,serif;font-weight:700;color:#f3dfae;font-size:clamp(26px,5vw,44px);letter-spacing:.04em;text-shadow:0 2px 14px #000c;margin-bottom:16px}
@@ -29,6 +29,10 @@
 <body>
 <div id="load">
   <div id="loadImg"></div>
+  <script>/* loading picture: one of 5 farm renders by chance (never the same twice in a row), upright version on phones held upright */
+    (function(){var n=5,last=-1,i;try{last=+localStorage.getItem('pog.loadImg')}catch(e){}
+      do{i=1+Math.floor(Math.random()*n)}while(i===last&&n>1);try{localStorage.setItem('pog.loadImg',i)}catch(e){}
+      document.documentElement.style.setProperty('--loadImg','url('+new URL('./loading/hof'+i+'_'+(innerHeight>innerWidth?'hoch':'quer')+'.jpg',location.href).href+')');})();</script>
   <div id="loadBox">
     <div id="loadTitle">Path<span>Of</span>Gardening</div>
     <div id="loadBar"><div id="loadFill"></div></div>

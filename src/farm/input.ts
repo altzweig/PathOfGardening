@@ -9,6 +9,7 @@
 import type { DaySim, Intent, Target } from './sim';
 import { emptyIntent } from './sim';
 import type { FarmView } from './view/farmView';
+import { SENS } from './sens';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 
@@ -72,7 +73,7 @@ export class FarmInput {
     // on the window: a touch keeps sending to the element it started on (a pinch finger may land on the HUD)
     addEventListener('pointermove', e => {
       if (e.pointerType === 'mouse') {
-        if (this.locked) { const k = this.mouseSens; this.rot.dx += e.movementX * k; this.rot.dy += e.movementY * k; this.setTouch(false); return; }
+        if (this.locked) { const k = this.mouseSens * SENS.mouse; this.rot.dx += e.movementX * k; this.rot.dy += e.movementY * k; this.setTouch(false); return; }
         if (Math.hypot(e.clientX - this.mouse.x, e.clientY - this.mouse.y) > 6) this.kb = false;
         this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.on = true; this.setTouch(false);
       } else {
@@ -81,7 +82,7 @@ export class FarmInput {
         if (P && (e.pointerId === P.a || e.pointerId === P.b)) {
           // two fingers: spreading = closer, pinching = further out (on into top down)
           const a = this.tp.get(P.a), b = this.tp.get(P.b);
-          if (a && b) { const d = Math.hypot(a.x - b.x, a.y - b.y); this.onZoom((P.d - d) * 4); P.d = d; }
+          if (a && b) { const d = Math.hypot(a.x - b.x, a.y - b.y); this.onZoom((P.d - d) * 4 * SENS.zoom); P.d = d; }
         } else if (e.pointerId === this.drag.id) { const d = this.drag; if (!d.moved && Math.hypot(e.clientX - d.ox, e.clientY - d.oy) > 12) d.moved = true; }
         else this.moveStick(e);
       }
@@ -176,7 +177,7 @@ export class FarmInput {
     const k = this.keys;
     let mx = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     let mz = (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0);
-    if (this.stick.id >= 0) { const dx = this.stick.x - this.stick.ox, dy = this.stick.y - this.stick.oy, l = Math.hypot(dx, dy); if (l > 8) { const m = Math.min(1, l / 50); mx = dx / l * m; mz = dy / l * m; } }
+    if (this.stick.id >= 0) { const dx = this.stick.x - this.stick.ox, dy = this.stick.y - this.stick.oy, l = Math.hypot(dx, dy), R = 50 / SENS.stick; if (l > 8) { const m = Math.min(1, (l - 8) / Math.max(4, R - 8)); mx = dx / l * m; mz = dy / l * m; } }
     const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
     it.mx = mx; it.mz = mz;
     if (this.lastTouch) {

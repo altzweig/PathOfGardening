@@ -33,6 +33,8 @@ import { buildBed } from './beds';
 import { WildView } from './wild';
 import { LivestockView, animateLivestock, makeLivestock } from './livestock';
 import { toLocal } from '../hof';
+import { LumberView, fenceGeo } from './lumber';
+import { count } from '../state';
 import type { CineFrame } from '../cutscene/cutscene';
 
 // ---------------- night eyes (21.11.2026): hares red, raccoons sparkling blue ----------------
@@ -81,10 +83,18 @@ function doomBar(bar: THREE.Group, frac: number) {
 /** harvest experiment: size of a fruit on the ground by how many merged into it (1, 3, 9, 27 ...) */
 const lootScale = (n: number) => 1.5 * Math.pow(1.45, Math.log(Math.max(1, n)) / Math.log(3));
 const cropMainId = (cfg: FarmCfg, crop: string) => { const y = cfg.crops[crop]?.yield ?? {}; return Object.entries(y).sort((a, b) => b[1] - a[1])[0]?.[0] ?? crop; };
+/** wood (22.11.2026): a short split log, fresh wood on the cut ends */
+const LOG_GEO = (() => { const g = new THREE.CylinderGeometry(.03, .033, .11, 6).toNonIndexed(), P = g.getAttribute('position'), c = new Float32Array(P.count * 3), b = new THREE.Color(0x6b4a32), f = new THREE.Color(0xe0c08a);
+  for (let i = 0; i < P.count; i++) { const k = Math.abs(P.getY(i)) > .054 && Math.hypot(P.getX(i), P.getZ(i)) < .03 ? f : b; c[i * 3] = k.r; c[i * 3 + 1] = k.g; c[i * 3 + 2] = k.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; })();
+const LOG_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .85, flatShading: true, vertexColors: true });
+const FENCE_ITEM = fenceGeo(1.2);
 function itemMesh(id: ItemId, s = 1): THREE.Object3D {
   if (id === 'blue') return fruitMesh('blue', .9 * s);
   const g = new THREE.Group();
   if (id === 'wheat' || id === 'straw') { const m = new THREE.Mesh(GEO.capsule, itemMat(id)); m.scale.set(.035 * s, .05 * s, .035 * s); m.rotation.z = Math.PI / 2; g.add(m); }
+  else if (id === 'wood') { const m = new THREE.Mesh(LOG_GEO, LOG_MAT); m.scale.setScalar(s); m.rotation.set(Math.PI / 2, Math.random() * 3, 0); m.position.y = .03 * s; g.add(m); }
+  else if (id === 'fence') { const m = new THREE.Mesh(FENCE_ITEM, LOG_MAT); m.scale.setScalar(.22 * s); g.add(m); }
   else { const m = new THREE.Mesh(GEO.sph, itemMat(id)); m.scale.setScalar(.075 * s); g.add(m); }
   return g;
 }
@@ -223,6 +233,8 @@ const zzzSprite = () => canvasSprite(128, 96, g => {
 // ---------------- player ----------------
 interface PlayerView {
   rig: Rig; g: THREE.Group; body: THREE.Group; hr: THREE.Group; can: ReturnType<typeof wateringCan>; canG: THREE.Group; bag: THREE.Group; sick: THREE.Group;
+  /** axe (chopping the yard trees, 22.11.2026) */
+  axe: THREE.Group;
   gun: ReturnType<typeof cranGun>; rot: number; walk: number; stepN: number; twist: number; recoil: number; lookKey: string; actT: number;
   /** 0 standing .. 1 down (crouch / kneel), kneel 0 crouch (waddle) .. 1 on one knee; strike = last hand rake hit into the soil (dust) */
   low: number; kneel: number; strike: number; lean: number;
@@ -237,6 +249,9 @@ const SHADOW_RAYS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0,
 
 export class FarmView {
   world: HofWorld;
+  lumber: LumberView;
+  /** s the fence preview stays in front of the farmer (after crafting / putting one up) */
+  private fenceShow = 0;
   /** night lanterns on the yard tree and at the entrances */
   lanterns: Lanterns;
   buildings = new Map<BuildingId, BuildingView>();
@@ -292,6 +307,8 @@ export class FarmView {
       if (this.world.props) this.lanterns.build(cfg.world?.props ?? [], this.world.props.root, mid, big ? appleTreeShape(big.x, big.z, mid) : undefined);
     });
     scene.add(this.dyn);
+    // wood + fences (22.11.2026): yard trees, workbench, fence pieces
+    this.lumber = new LumberView(cfg); scene.add(this.lumber.g);
     // buildings
     for (const id of ['house', ...BUILDING_IDS] as BuildingId[]) {
       const r = H.buildings[id]; if (!r) continue;
@@ -527,10 +544,11 @@ export class FarmView {
     const hr = handRake(); body.add(hr);
     const canG = new THREE.Group(), can = wateringCan(); canG.add(can.g); body.add(canG);
     const bag = seedBag(); body.add(bag); const sick = sickle(); body.add(sick);
+    const axe = axeModel(); axe.visible = false; body.add(axe);
     const gun = cranGun(true); gun.g.position.set(.2, .78, .22); body.add(gun.g);
-    for (const o of [hr, can.g, bag, sick, gun.g]) o.traverse(c => { if ((c as THREE.Mesh).isMesh) c.castShadow = true; });
+    for (const o of [hr, can.g, bag, sick, gun.g, axe]) o.traverse(c => { if ((c as THREE.Mesh).isMesh) c.castShadow = true; });
     this.dyn.add(g);
-    return { rig, g, body, hr, can, canG, bag, sick, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0, low: 0, kneel: 0, strike: 0, lean: 0 };
+    return { rig, g, body, hr, can, canG, bag, sick, axe, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0, low: 0, kneel: 0, strike: 0, lean: 0 };
   }
   private dropPlayer(v: PlayerView) { this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.tag) { scene.remove(v.tag.s); v.tag.tex.dispose(); } }
   /** the local farmer + every other farmer on the farm (co-op) */
@@ -574,7 +592,7 @@ export class FarmView {
     const gunDay = !!sim && sim.canShoot(), tool = act?.info.tool ?? null;
     v.actT = act ? v.actT + dt : 0;
     v.gun.g.visible = gunDay && !act && !swing; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2;
-    v.canG.visible = tool === 'can'; v.bag.visible = tool === 'seed'; v.sick.visible = tool === 'sickle';
+    v.canG.visible = tool === 'can'; v.bag.visible = tool === 'seed'; v.sick.visible = tool === 'sickle'; v.axe.visible = tool === 'axe';
     // the hand rake is always in the right hand, except while that hand needs to be free (can, seeds, sickle, picking)
     v.hr.visible = !!swing || tool === 'handrake' || (!act && !gunDay);
     const kind = act?.info.kind, t = v.actT;
@@ -645,6 +663,15 @@ export class FarmView {
       if (Math.random() < dt * 10) { const tp = wp ?? sim!.targetPos(act.target); PART.spawn(V(tp.x + rand(-.6, .6), .4, tp.z + rand(-.6, .6)), V(rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6)), 0xe8c860, .08, .7, { g: 4 }); }
       if (Math.random() < dt * 3) play('rustle');
     }
+    // --- axe (22.11.2026): side swings into the notch of the yard tree, both hands on the handle
+    let axeHands: [THREE.Vector3, THREE.Vector3] | null = null;
+    if (tool === 'axe' && act) {
+      const ph = (t * 2.6) % 1, back = ph < .62 ? ph / .62 : 1 - (ph - .62) / .38, e = back * back * (3 - 2 * back); // slow wind-up, fast hit
+      v.axe.position.set(-.05 + e * .32, .82 + e * .22, .3 - e * .05); v.axe.rotation.set(-1.25 + e * .25, -.35 + e * 1.55, 0, 'YXZ');
+      v.axe.updateMatrixWorld(true);
+      axeHands = [v.axe.localToWorld(V(0, -.02, -.02)), v.axe.localToWorld(V(0, .2, 0))];
+      twist = .35 - e * .8; lean = Math.max(lean, .18);
+    }
     // --- hands: reach into the target (pick, gather, feed, shake a tree, work at a building), bucket at the well
     let pick: [THREE.Vector3, THREE.Vector3] | null = null;
     if ((tool === 'hands' || tool === 'bucket') && act && sim) {
@@ -666,6 +693,7 @@ export class FarmView {
     // hands: arm 0 = left, arm 1 = right (the farmer faces +z, his right is -x)
     let t0: THREE.Vector3 | null = tL, t1: THREE.Vector3 | null = tR;
     if (pick) { t0 = pick[0]; t1 = pick[1]; }
+    else if (axeHands) { t0 = axeHands[1]; t1 = axeHands[0]; }
     else if (v.gun.g.visible) { t1 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t0 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
     else if (v.canG.visible) { t1 = v.can.grip.getWorldPosition(V()); t0 = null; }
     else if (v.bag.visible) { t0 = v.bag.localToWorld(V(0, .05, 0)); t1 = throwHand; }
@@ -910,7 +938,7 @@ export class FarmView {
       // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
       case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
-      case 'deny': if (!mine) break; if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
+      case 'deny': if (!mine) break; if (e.why === 'place') this.fenceShow = 6; if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
       // night (21.11.2026)
       case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); sfx('hare.attack', e.x, e.z); break; }
       case 'plotBroken': { burst(V(e.x, .3, e.z), 0x6a4a30, 26, 2, .12, .7, { g: 6 }); burst(V(e.x, .4, e.z), 0x5e8e2c, 18, 1.8, .1, .7, { g: 5 }); sfx('night.broken', e.x, e.z); this.shake = Math.max(this.shake, .12); break; }
@@ -918,6 +946,28 @@ export class FarmView {
       case 'pocket': { sfx('night.pocket', e.x, e.z); for (const [k, n] of Object.entries(e.items as Record<string, number>)) burst(V(e.x, .9, e.z), itemHex(k), Math.min(10, 2 + n), 2.2, .1, .6, { g: 7 }); break; }
       case 'wave': sfx('night.wave', e.x, e.z); break; // from the forest gap the wave comes through, far off (sounds.yaml far: true)
       case 'nightfall': sfx('night.fall'); break;
+      // ---- wood + fences (22.11.2026)
+      case 'chop': {
+        this.lumber.chop(e.i, e.fx, e.fz); const p = this.lumber.notchPos(e.i);
+        sfx('lumber.chop', e.x, e.z); sfx('lumber.chip', e.x, e.z);
+        if (p) { burst(p, 0xe8c88e, 5, 2.2, .06, .5, { g: 8 }); burst(p, 0x6b4a32, 3, 1.6, .05, .4, { g: 8 }); }
+        if (Math.random() < .3) this.leafAt(e.x + rand(-.9, .9), rand(2.2, 3), e.z + rand(-.9, .9), .2);
+        break;
+      }
+      case 'treeFall': sfx('lumber.crack', e.x, e.z); for (let i = 0; i < 6; i++) this.leafAt(e.x + rand(-.8, .8), rand(2.2, 3.2), e.z + rand(-.8, .8), .3); this.fenceShow = 0; break;
+      case 'treeDown': {
+        const p = this.lumber.fallEnd(e.i) ?? V(e.x, .2, e.z); sfx('lumber.fall', e.x, e.z);
+        burst(p, 0x8a7a5a, 22, 2.6, .16, .8, { g: 3, a: .6 }); burst(V(e.x, .3, e.z), 0xe8c88e, 18, 2.4, .08, .7, { g: 8 });
+        for (let i = 0; i < 14; i++) this.leafAt(p.x + rand(-1.2, 1.2), rand(.3, 1.2), p.z + rand(-1.2, 1.2), .5);
+        if (Math.hypot(P.x - e.x, P.z - e.z) < 10) this.shake = Math.max(this.shake, .2);
+        break;
+      }
+      case 'treeUp': sfx('lumber.grow', e.x, e.z); for (let i = 0; i < 10; i++) this.leafAt(e.x + rand(-1, 1), rand(1.6, 3), e.z + rand(-1, 1), .4); break;
+      case 'craft': { this.lumber.crafting(true); this.fenceShow = 6; sfx('lumber.craft', e.x, e.z); sfx('lumber.saw', e.x, e.z); burst(V(e.x, 1, e.z), 0xe8c88e, 8, 1.4, .05, .5, { g: 6 }); break; }
+      case 'fencePlace': this.fenceShow = 6; sfx('lumber.place', e.x, e.z); burst(V(e.x, .1, e.z), 0x6a4a30, 14, 1.6, .1, .6, { g: 6 }); break;
+      case 'fenceHit': this.lumber.hitFence(e.id); sfx('lumber.hit', e.x, e.z); burst(V(e.x, .5, e.z), 0xc49260, 4, 1.6, .06, .4, { g: 8 }); break;
+      case 'fenceBroken': sfx('lumber.break', e.x, e.z); burst(V(e.x, .5, e.z), 0xc49260, 22, 2.6, .09, .7, { g: 8 }); burst(V(e.x, .1, e.z), 0x6a4a30, 10, 1.4, .1, .6, { g: 6 }); break;
+      case 'fenceGone': burst(V(e.x, .3, e.z), 0xc49260, 8, 1.2, .07, .5, { g: 6 }); play('throw'); break;
     }
   }
   floatXp: ((x: number, z: number, xp: number) => void) | null = null;
@@ -938,6 +988,12 @@ export class FarmView {
     this.updateSleep(sim, dt, day);
     this.updateBits(dt);
     this.wild.update(this.s, day ? sim : null, now);
+    { // wood + fences: trees, workbench, fence pieces; the preview of the next fence piece while the farmer has some
+      this.fenceShow = Math.max(0, this.fenceShow - dt);
+      const PL = day && sim ? sim.player : null, fo = this.cfg.lumber?.bench.out ?? 'fence';
+      const g = PL && this.fenceShow > 0 && !PL.action && !PL.swing && count(this.s, fo) > 0 && !sim!.inputLocked ? sim!.fenceSpot(PL) : null;
+      this.hof.syncLumber(this.s.lumber); this.lumber.update(this.s, dt, g);
+    }
     // pickable things twinkle now and then (tiny rising glints near the camera)
     if (day && Math.random() < dt * 9) { const p = this.wild.sparkle(this.s); if (p && Math.hypot(p.x - this.camX, p.z - this.camZ) < 15) PART.spawn(p, V(0, rand(.15, .3), 0), 0xfff4d0, .06, rand(.6, .9), { s1: 0, a: .9 }); }
     this.animPens(dt, now, day ? sim : null, day);
@@ -946,7 +1002,7 @@ export class FarmView {
     this.animShots(day ? sim : null, dt);
     // highlight of the hovered target
     const h = day && sim && !sim.inputLocked && !sim.finished && !this.cine ? this.hover : null;
-    const box = h && (h.k === 'bld' || h.k === 'stall') ? this.hof.building(h.id) : null, rect = !!box && box.kind === 'box';
+    const box = h && (h.k === 'bld' || h.k === 'stall') ? this.hof.building(h.id) : h?.k === 'bench' ? this.hof.benchObs : h?.k === 'fence' ? this.hof.fenceObs.get(h.id) ?? null : null, rect = !!box && box.kind === 'box';
     this.hl.ring.visible = !!h && !rect; this.hl.square.visible = rect;
     if (h && sim) {
       const p = sim.targetPos(h), pulse = .55 + .25 * Math.sin(now * 6);
@@ -956,7 +1012,7 @@ export class FarmView {
         const W = box.hw + .25, D = box.hd + .25, sq = this.hl.square; sq.position.set(box.x, .06, box.z); sq.rotation.y = Math.atan2(box.s, box.c);
         sq.children.forEach((b, i) => { const hz = i < 2; b.scale.set(hz ? W * 2 + .12 : .12, hz ? .12 : D * 2 + .12, 1); b.position.set(hz ? 0 : (i === 2 ? -W : W), 0, hz ? (i === 0 ? -D : D) : 0); });
       } else {
-        const r = h.k === 'well' ? (this.cfg.hof.buildings.well.r ?? 1) + .35 : h.k === 'plot' ? this.cfg.plots.size / 2 + .15 : h.k === 'bush' ? this.cfg.bush.radius + .25 : h.k === 'tree' ? 1.1
+        const r = h.k === 'well' ? (this.cfg.hof.buildings.well.r ?? 1) + .35 : h.k === 'plot' ? this.cfg.plots.size / 2 + .15 : h.k === 'bush' ? this.cfg.bush.radius + .25 : h.k === 'tree' ? 1.1 : h.k === 'lumber' ? .85
           : h.k === 'bramble' ? .95 : h.k === 'bld' || h.k === 'stall' ? ((box && box.kind === 'circle' ? box.r : 1) + .3) : .45;
         this.hl.ring.scale.setScalar(r * pop); this.hl.ring.position.set(p.x, .05, p.z);
       }
@@ -1137,4 +1193,16 @@ export class FarmView {
   /** hard cut of the camera (after a fade) */
   snapCamera(x: number, z: number) { this.camX = x; this.camZ = z; }
   clearDynamic() { for (const b of this.bits) this.dyn.remove(b.m); this.bits.length = 0; for (const [, v] of this.animals) { this.dyn.remove(v.v.g); v.bar.visible = false; } this.animals.clear(); for (const [, m] of this.lootViews) this.dyn.remove(m); this.lootViews.clear(); for (const [, v] of this.others) this.dropPlayer(v); this.others.clear(); this.setBubble(null); this.setArrow(null); this.shot = null; this.lastShot = null; this.shotK = 0; }
+}
+
+/** axe (22.11.2026): handle along local +y (grip at 0), iron head at the top */
+function axeModel() {
+  const g = new THREE.Group();
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(.018, .022, .62, 6), new THREE.MeshStandardMaterial({ color: 0x8a5a30, roughness: .8, flatShading: true }));
+  handle.position.y = .26; g.add(handle);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.04, .1, .16), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: .55, roughness: .4, flatShading: true }));
+  head.position.set(0, .52, .06); g.add(head);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(.03, .14, .03), new THREE.MeshStandardMaterial({ color: 0xe8ecf0, metalness: .7, roughness: .3 }));
+  edge.position.set(0, .52, .15); g.add(edge);
+  return g;
 }

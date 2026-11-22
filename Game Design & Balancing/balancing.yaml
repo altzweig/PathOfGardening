@@ -58,6 +58,7 @@ names:
     corn: Mais
     pepper: Paprika
     tomato: Tomaten
+    fence: Zaun              # Zaunstück von der Werkbank (Taste F / Zaun-Knopf stellt es auf)
     zucchini: Zucchini
     eggplant: Auberginen
     chili: Chili
@@ -151,6 +152,9 @@ actions:
   straw:       { time: 2.0, label: Stroh auslegen }   # Stall: 1x am Tag, frisches Stroh = mehr Ertrag
   milk:        { time: 3.0, label: Melken }           # Kühe, Schafe, Ziegen
   eggs:        { time: 2.0, label: Eier sammeln }     # Hühner
+  chop:        { time: 1.0, label: Holz hacken }      # Hofbaum (lumber): durchgehend, kein Balken, alle lumber.every s fällt ein Holzstück
+  craft:       { time: 1.0, label: Zäune bauen }      # Werkbank: durchgehend, alle lumber.bench.every s ein Zaun (kostet lumber.bench.cost)
+  unfence:     { time: 0.6, label: Abbauen }          # aufgestellten Zaun wieder einpacken (kommt zurück ins Lager)
 
 can:                       # Gießkanne (Basti 21.11.2026: 3x füllen = voll)
   capacity: 6              # Ladungen (eine Ladung = einmal gießen), mehr Wasser geht nicht in die Kanne
@@ -235,6 +239,41 @@ harvestXp:
 # Mehrjährige Kulturen aus der Tabelle, die noch keinen Platz auf dem Hof haben (kommen später):
 #   Preiselbeeren (Uncommon, alle 2 Tage, 3 x 5), Zitronen (Rare, alle 3 Tage, 3 x 1), Stachelbeeren (Rare, alle 2 Tage, 3 x 5)
 
+lumber:                    # Holz hacken + Zäune (Basti 22.11.2026)
+  # 3 Hofbäume am Rand der Felder (Lücken im Feldraster des Welt-Editor-Hofs). Hacken wie Ernten: durchgehend, jederzeit abbrechen,
+  # das Holz purzelt heraus und wird eingesammelt (harvest.collect). Die Kerbe wird immer tiefer; nach chop s fällt der Baum,
+  # der Stamm spaltet sich und dazwischen wächst sapling s lang ein Setzling, dann steht wieder ein Baum.
+  trees:
+    - { x: 1.5, z: 8.0 }
+    - { x: 6.25, z: 5.25 }
+    - { x: -3.0, z: 10.5 }
+  radius: 0.45             # m Stamm (Kollision)
+  chop: 10                 # s hacken bis der Baum fällt
+  every: 0.25              # s pro Holzstück -> 40 Holz pro Baum
+  yield: { wood: 1 }
+  fall: 1.6                # s Umfallen
+  sapling: 60              # s Setzling, dann wieder ein Baum
+  xp: 0.15                 # XP pro Holzstück
+  bench:                   # Werkbank neben den Feldern: Zäune craften (durchgehend, jederzeit)
+    x: 0.6
+    z: 0.7
+    rot: 25
+    w: 1.9
+    d: 0.9
+    every: 1.0             # s pro Zaun
+    cost: { wood: 2 }
+    out: fence
+  fence:                   # Zaun aufstellen: Taste F (Handy: Zaun-Knopf), ein Stück vor der Figur, quer zur Blickrichtung
+    length: 1.6            # m pro Zaunstück
+    depth: 0.18
+    hp: 12                 # Leben eines Zaunstücks
+    place: 1.2             # m vor der Figur
+    snap: 0.6              # m: Enden in der Nähe rasten an ein vorhandenes Zaunende an
+    max: 80                # Zaunstücke auf dem Hof
+    detour: 10             # m Umweg: mehr (oder gar kein Weg) = Tiere greifen den Zaun an, sonst laufen sie außen herum
+    bite: { raccoon: 2, hare: 1 }   # Schaden pro Biss
+    biteEvery: 0.8         # s zwischen zwei Bissen
+
 plots:
   size: 2.6                # m Durchmesser eines Feldes (natürlich wirkendes Sechseck ohne harte Kante)
   zone: 1.9                # m von der Feldmitte: Interaktionsbereich (Basti 22.11.2026, größer als bei anderem, Felder 3 m auseinander -> überlappt etwas). Im Überlapp: erst das aktuelle Feld, wenn es für den nächsten Schritt bereit ist, sonst das andere; ohne aktuelles Feld das mit der näheren Mitte. Im Bereich startet die Aktion sofort, die Figur läuft dabei selbst an die Arbeitsstelle
@@ -257,7 +296,7 @@ storage:
   sections:
     - { id: crops, title: Feldfrüchte,    items: [wheat, carrot, potato, onion, garlic, pea, celery, cab, radish, bean, leek, strawb, lettuce, corn, pepper, tomato, zucchini, eggplant, asp, pumpkin, melon, chili, rhubarb, fennel, blue, cran, goose, lemon] }
     - { id: wild,  title: Wilde Pflanzen, items: [apple, nut, bramble, baerlauch, dandel, sorrel, mushroom, wood, stone] }
-    - { id: goods, title: Erzeugnisse,    items: [straw, green, flour, bread, juice, milk, cheese, egg, slurry, fert, soup, pan, cake, plank] }
+    - { id: goods, title: Erzeugnisse,    items: [straw, green, flour, bread, juice, milk, cheese, egg, slurry, fert, soup, pan, cake, plank, fence] }
   rarity: { cran: Uncommon, goose: Rare, lemon: Rare }   # Seltenheit von Waren ohne Eintrag in crops / harvestXp.other (sonst Common)
   perennials:              # Mehrjährige aus der Fruchttabelle ohne Platz auf dem Hof (nur Anzeige): alle every Tage reif, picks x pick
     cran:  { every: 2, picks: 3, pick: 5 }

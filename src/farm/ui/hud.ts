@@ -41,7 +41,7 @@ const CLOCK = `<svg class="ck" viewBox="0 0 150 72"><defs>
   <path d="M2 56 H148" stroke="#e3b96499" stroke-width="2" stroke-linecap="round"/>
   <path d="M10 60 H140" stroke="#e3b96433" stroke-width="1.2" stroke-linecap="round"/></svg>
   <b class="ckDay" id="fDay">1</b><div class="ckCd" id="fCd"></div>`;
-const TOOL_ICON: Record<string, string> = { can: 'can', handrake: 'handrake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket' };
+const TOOL_ICON: Record<string, string> = { can: 'can', handrake: 'handrake', seed: 'seed', hands: 'hands', sickle: 'sickle', bucket: 'bucket', axe: 'axe' };
 /** left mouse button (PC label) */
 const LMB = `<svg class="ms" viewBox="0 0 30 42"><rect x="2" y="2" width="26" height="38" rx="13" fill="#1a2027" stroke="#fff2c0" stroke-width="2.4"/><path d="M15 2v17M2 19h26" stroke="#5a6570" stroke-width="2"/><path d="M15 3.5a12 12 0 0 0-11.5 12V19H15z" fill="#e3b964"/></svg>`;
 /** E key (PC label when played with the keyboard) */
@@ -173,7 +173,8 @@ export class FarmHud {
     // Basti 22.11.2026: Tab / the button beside the action button switch the berry of the shotgun (not the seed any more)
     const am = this.cfg.weapons.shotgun?.ammo ?? []; if (am.join() !== this.seeds.join()) this.seeds = [...am];
     const seed = this.activeSeed();
-    const key = [s.level, s.day, s.money, s.water, s.weapon, touch, seed, this.seeds.length, ...this.seeds.map(k => s.items[k] ?? 0)].join('|');
+    const fo = this.cfg.lumber?.bench.out ?? 'fence', fn = s.items[fo] ?? 0;
+    const key = [s.level, s.day, s.money, s.water, s.weapon, touch, seed, fn, sim.nightOn, this.seeds.length, ...this.seeds.map(k => s.items[k] ?? 0)].join('|');
     if (key !== this.key) {
       this.key = key;
       $('#fLvlN').textContent = '' + s.level;
@@ -184,6 +185,10 @@ export class FarmHud {
       const L = this.seeds, i = Math.max(0, L.indexOf(seed)), at = (d: number) => L[((i + d) % L.length + L.length) % L.length];
       const pc = $('#fSeedPc'); pc.hidden = touch;
       pc.innerHTML = `<kbd>Tab</kbd><span class="car">${L.length > 2 ? `<i class="pv">${ic(at(-1))}</i>` : ''}<i class="cu${n(seed) ? '' : ' no'}">${ic(seed)}<b>${n(seed)}</b></i>${L.length > 1 ? `<i class="nx">${ic(at(1))}</i>` : ''}</span><span>${sn}</span>`;
+      // fences (Basti 22.11.2026): how many are in the storage, F (PC) / the fence button (phone) puts one up
+      const fp = $('#fFencePc'), fb = $('#bFence');
+      fp.hidden = touch || fn <= 0; fb.hidden = !touch || fn <= 0;
+      fp.innerHTML = `<kbd>F</kbd>${ic(fo)}<b>${fn}</b>`; fb.innerHTML = `${ic(fo)}<b class="an">${fn}</b>`;
       $('#fMoney').textContent = '' + s.money;
       let w = ''; for (let i = 0; i < this.cfg.can.capacity; i++) w += `<i class="${i < s.water ? '' : 'e'}">${ic(i < s.water ? 'drop' : 'dropEmpty')}</i>`;
       $('#fWater').innerHTML = w; $('#fWater').style.display = this.cfg.harvest ? 'none' : ''; // harvest experiment: no watering can

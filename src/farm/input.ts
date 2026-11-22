@@ -55,6 +55,8 @@ export class FarmInput {
   /** PC: mouse captured, moving it turns the camera */
   locked = false;
   private eDown = false; private eHeld = false; private spaceHeld = false;
+  /** F / fence button pressed (one fence piece per press) */
+  private fenceDown = false;
 
   constructor(touch: boolean) {
     this.isTouch = touch;
@@ -65,6 +67,7 @@ export class FarmInput {
       if (e.code === 'Space') e.preventDefault(); // no button click / page scroll
       if (this.enabled && e.code === 'KeyE') { this.eDown = true; this.eHeld = true; this.kb = true; this.setTouch(false); }
       if (this.enabled && e.code === 'Space') { this.spaceHeld = true; this.kb = true; this.setTouch(false); }
+      if (this.enabled && e.code === 'KeyF') { this.fenceDown = true; this.setTouch(false); } // Basti 22.11.2026: F = put up a fence
       // Basti 22.11.2026: Tab = next berry; Tab held + mouse wheel = switch quickly back and forth
       if (e.code === 'Tab') { e.preventDefault(); if (this.enabled && !e.repeat) { this.tabHeld = true; this.onSeed(e.shiftKey ? -1 : 1); } }
       this.keys.add(e.code); if (this.enabled) this.onAny();
@@ -164,6 +167,8 @@ export class FarmInput {
     this.dualReset = () => { dId = -1; dualSet(''); };
     // phone (Basti 22.11.2026): the label over the spot ("[Gießen]") can be tapped too, one step per tap
     btn('#fLabel', () => { this.actBtn = true; }, () => {});
+    // fence button (phone): one fence piece per tap
+    btn('#bFence', () => { this.fenceDown = true; }, () => {});
     // seed button beside it: tap = next seed, held = the list of seeds
     const sb = $('#bSeed'); let sT = 0, sLong = false, sId = -1;
     sb.addEventListener('pointerdown', e => {
@@ -198,7 +203,7 @@ export class FarmInput {
   }
   /** camera turn since the last call (px) */
   takeRotate() { const r = this.rot; this.rot = { dx: 0, dy: 0 }; return r; }
-  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.dualReset(); this.pinch = null; this.tp.clear(); this.clickAt = null; this.tapAt = null; this.actBtn = false; this.drawStick(); }
+  releaseAll() { this.mmb = null; this.drag.id = -1; this.rot = { dx: 0, dy: 0 }; this.keys.clear(); this.rmb = false; this.lmb = false; this.actHeld = false; this.atkHeld = false; this.eDown = false; this.eHeld = false; this.spaceHeld = false; this.stick.id = -1; this.dualReset(); this.pinch = null; this.tp.clear(); this.clickAt = null; this.tapAt = null; this.actBtn = false; this.fenceDown = false; this.drawStick(); }
 
   /** the spot an action goes to (Basti 22.11.2026): the nearest one whose zone the farmer stands in (sim.focusTarget); PC without
    *  captured mouse: the spot under the mouse when the farmer stands in its zone */
@@ -235,6 +240,7 @@ export class FarmInput {
       if (this.clickAt) { const t = this.tapTarget(sim, view, this.clickAt.x, this.clickAt.y); it.act = t && sim.actionFor(t) ? t : sim.focusTarget(); this.clickAt = null; }
     }
     if (this.locked) it.face = view.camFace;
+    if (this.fenceDown) { it.fence = true; this.fenceDown = false; }
     // released this frame: the sim stops the work that was started by holding
     it.up = this.wasHold && !it.hold; this.wasHold = it.hold;
     return it;

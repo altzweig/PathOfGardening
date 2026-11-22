@@ -9,8 +9,8 @@ import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio,
 import { StartMenu } from './ui/startmenu';
 import { creditsHtml } from './ui/credits';
 import { loadLook } from './look';
-import { FarmCfg, loadFarmCfg, loadSounds } from './farm/config';
-import { FarmState, checkQuests, endDay, morningWeeds, newState, nextDay } from './farm/state';
+import { FarmCfg, levelFor, loadFarmCfg, loadSounds } from './farm/config';
+import { FarmState, checkQuests, endDay, gainXp, morningWeeds, newState, nextDay } from './farm/state';
 import { SaveMeta, createSave, deleteSave, freeName, listSaves, migrateOldSave, readSave, writeSave } from './farm/saves';
 import type { DaySnap } from './farm/sim';
 import { Hof } from './farm/hof';
@@ -34,6 +34,10 @@ import type { Ev } from './farm/sim';
 import * as THREE from 'three';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
+/** co-op guest without a farm (Basti 22.11.2026): figure + level + XP of a wanderer, kept for the next visits */
+const WANDER = 'pog-wanderer-v1';
+const wanderer = (): { level: number; xp: number } => { try { const w = JSON.parse(localStorage.getItem(WANDER) ?? ''); if (w && Number.isFinite(w.xp)) return { level: w.level ?? 1, xp: w.xp }; } catch { /* none yet */ } return { level: 1, xp: 0 }; };
+const saveWanderer = (w: { level: number; xp: number }) => { try { localStorage.setItem(WANDER, JSON.stringify(w)); } catch { /* private mode */ } };
 const OVERLAYS = ['#menu', '#newGame', '#saves', '#options', '#credits', '#controls', '#pause', '#visit', '#coop'];
 const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -75,6 +79,10 @@ class Game {
   private asks: Visitor[] = [];
   private hostEv: Ev[] = []; private snapT = 0; private stT = 0; private lastSt = '';
   private gEv: Ev[] = []; private gSteer = 0; private gSt = '';
+  /** where the guest comes from: one of its saves (XP go into that farm) or none (wanderer profile, Basti 22.11.2026) */
+  private gFrom: string | null | undefined = undefined;
+  /** guest XP: from its farm / profile at the start, earned on this visit and not booked yet, the farmer's XP of today so far */
+  private gXp0 = 0; private gGain = 0; private gDayXp = 0; private gClaimed: Set<string> | null = null;
   /** guests on the farm or visiting: nothing pauses (Basti 22.11.2026) */
   get coopLive() { return !!this.netHost?.guests.length || !!this.netGuest; }
   /** cutscenes (21.11.2026): the faint scene runs on every faint */
@@ -166,6 +174,7 @@ class Game {
     click('#fBook', () => this.toggleBook());
     // co-op
     click('#visitBtn', () => this.openVisit(''));
+    click('#visitFrom', () => { const ids = [...listSaves().map(m => m.id), null]; this.gFrom = ids[(ids.indexOf(this.gFrom ?? null) + 1) % ids.length]; this.showFrom(); });
     click('#visitBack', () => { this.netGuest?.close(); this.netGuest = null; this.only('#menu'); });
     $('#visitForm').addEventListener('submit', e => { e.preventDefault(); initAudio(); sfx('ui.confirm'); this.join(); });
     $('#visitCode').addEventListener('keydown', e => e.stopPropagation());
@@ -194,6 +203,7 @@ class Game {
   // ---------------- saves ----------------
   /** writes the current game into its save (also in the middle of a day); `show` = save icon */
   persist(show = true) {
+    if (this.netGuest) this.bookGuestXp(); // a guest keeps its XP of the visit
     if (!this.slot || this.tutorialMode || this.mode === 'menu' || this.ending) return false;
     const snap = this.mode === 'day' && this.sim ? this.sim.snapshot() : null;
     const ok = writeSave(this.slot, this.s, snap);
@@ -277,7 +287,7 @@ class Game {
       const m = listSaves()[0], d = m ? readSave(this.cfg, m.id) : null;
       this.s = d?.s ?? newState(this.cfg); this.slot = null; this.tutorialMode = false;
     }
-    this.closeFarm(); if (this.netGuest) { this.netGuest.close(); this.netGuest = null; }
+    this.closeFarm(); if (this.netGuest) { this.bookGuestXp(); this.netGuest.close(); this.netGuest = null; }
     this.paused = false; this.bookOpen = false; this.sim = null; this.tut = null; this.mode = 'menu';
     this.input.enabled = false; this.input.releaseAll(); this.input.unlock(); this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.hud.fade(false);
     this.house.showEvening(false);
@@ -493,6 +503,8 @@ class Game {
   // ---------------- co-op: the guest ----------------
   private openVisit(code: string) {
     ($('#visitCode') as HTMLInputElement).value = code; $('#visitMsg').textContent = ''; ($('#visitGo') as HTMLButtonElement).disabled = false;
+    if (this.gFrom === undefined || (this.gFrom && !listSaves().some(m => m.id === this.gFrom))) this.gFrom = listSaves()[0]?.id ?? null;
+    this.showFrom();
     this.only('#visit');
     if (!this.input.isTouch) setTimeout(() => $('#visitCode').focus(), 60);
   }
@@ -501,7 +513,8 @@ class Game {
     this.netGuest?.close();
     const g = new NetGuest(), msg = $('#visitMsg'), go = $('#visitGo') as HTMLButtonElement;
     this.netGuest = g; go.disabled = true; msg.textContent = '…';
-    const best = listSaves().reduce((a, m) => Math.max(a, m.level), 1);
+    this.gXp0 = this.fromXp(); this.gGain = 0; this.gDayXp = 0; this.gClaimed = null;
+    const level = levelFor(this.cfg, this.gXp0);
     g.onWait = () => { msg.textContent = 'Klopf, klopf …'; };
     g.onWelcome = () => { msg.textContent = '✓'; };
     g.onMsg = m => {
@@ -510,22 +523,26 @@ class Game {
     };
     g.onClose = why => {
       if (this.netGuest !== g) return;
-      this.netGuest = null; const inGame = this.mode !== 'menu';
+      this.netGuest = null; const inGame = this.mode !== 'menu'; this.bookGuestXp();
       if (inGame) this.leave();
       this.openVisit(code);
       msg.textContent = { full: 'Der Hof ist voll.', deny: 'Nicht reingelassen.', version: 'Andere Spielversion: bitte neu laden.', gone: 'Nach Hause geschickt.', lost: 'Verbindung verloren.', notfound: 'Kein Hof mit diesem Code.', bye: 'Der Hof wurde geschlossen.' }[why];
     };
-    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level: best, xp: 0 });
+    g.join(code, { v: versionOf(this.cfg), name: this.menu.look.name || 'Gast', look: this.menu.look, level, xp: this.gXp0 });
   }
   /** the owner's farm arrived (or changed): day on the farm, or the evening with the book (read only) */
   private guestState(d: { ph: Phase; s: FarmState; d: any }, raw: string) {
+    // orders the owner collected while the guest is there: the guest gets the same XP (Basti 22.11.2026)
+    const claimed = new Set(d.s.quests.active.filter(q => q.claimed).map(q => q.id));
+    if (this.gClaimed) for (const q of d.s.quests.active) if (q.claimed && !this.gClaimed.has(q.id)) { this.gGain += q.reward.xp; if (this.mode === 'evening') sfx('ui.levelup'); }
+    this.gClaimed = claimed;
     if (d.ph === 'day') {
       if (this.mode !== 'day' || !this.sim || this.s.day !== d.s.day) {
         this.house.closeDay(); this.house.showEvening(false); this.bookOpen = false;
         this.s = d.s; this.slot = null; this.tutorialMode = false;
         const sim = new DaySim(this.cfg, this.s, this.hof, {}); sim.localId = this.netGuest!.id;
         sim.players = [sim.newPlayer(sim.localId, { guest: true, look: this.menu.look, name: this.menu.look.name })];
-        this.sim = sim; this.tut = null; applyState(sim, this.s, d);
+        this.sim = sim; this.tut = null; applyState(sim, this.s, d); this.gDayXp = 0;
         this.view.setLook(this.menu.look); this.house.s = this.s;
         this.view.clearDynamic(); this.view.setState(this.s); this.view.snapCamera(this.cfg.hof.door.x, this.cfg.hof.door.z); this.view.resetLight();
         this.only(null); this.mode = 'day'; this.ending = false; this.paused = false;
@@ -536,7 +553,7 @@ class Game {
       this.mode = 'evening'; this.sim = null; this.input.enabled = false; this.input.releaseAll(); this.input.unlock();
       this.hud.show(false); this.hud.clear(); this.view.clearDynamic(); this.house.closeDay();
       Object.assign(this.s, d.s); this.view.setState(this.s); this.view.resetLight();
-      this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); this.gSt = raw; return;
+      this.bookOpen = true; this.house.s = this.s; this.house.openDay({}); this.gSt = raw; this.bookGuestXp(); return;
     }
     if (raw === this.gSt) return; this.gSt = raw;
     applyState(this.sim, this.s, d);
@@ -556,6 +573,7 @@ class Game {
     if (this.paused || this.bookOpen) it = { ...it, mx: 0, mz: 0, act: null, hold: false, holdAt: null, attack: false };
     const steer = Math.hypot(it.mx, it.mz) > .15; this.gSteer = steer ? .3 : Math.max(0, this.gSteer - dt);
     sim.t += dt; smooth(sim, dt); if (steer) predict(sim, it, dt);
+    const me = sim.player; if (me.xp > this.gDayXp) { this.gGain += me.xp - this.gDayXp; this.gDayXp = me.xp; }
     it.px = sim.player.x; it.pz = sim.player.z;
     g.send({ t: 'in', i: it });
     for (const e of sim.ev) {
@@ -566,7 +584,24 @@ class Game {
       if (e.k === 'pocket' && mine) { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
     }
     this.hud.kb = this.input.kb || this.input.locked;
-    this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
+    // the guest's own level, XP and watering can over the owner's farm
+    const own = Object.create(this.s) as FarmState, xp = this.gXp0 + this.gGain;
+    own.xp = xp; own.level = levelFor(this.cfg, xp); own.water = me.water ?? 0;
+    this.hud.update(sim, own, this.view, hover, info, this.input.lastTouch, this.mouse);
+  }
+  /** the guest's XP of this visit go into its own farm (or the wanderer profile): every evening and when it leaves */
+  private bookGuestXp() {
+    const n = this.gGain; if (n <= 0) return;
+    this.gGain = 0; this.gXp0 += n;
+    if (this.gFrom) {
+      const d = readSave(this.cfg, this.gFrom); if (!d) return;
+      gainXp(this.cfg, d.s, n); writeSave(this.gFrom, d.s, d.snap);
+    } else { const w = wanderer(); w.xp += n; w.level = levelFor(this.cfg, w.xp); saveWanderer(w); }
+  }
+  private fromXp() { if (this.gFrom) return readSave(this.cfg, this.gFrom)?.s.xp ?? 0; return wanderer().xp; }
+  private showFrom() {
+    const m = listSaves().find(x => x.id === this.gFrom);
+    $('#visitFrom').innerHTML = m ? `${ic('house')}${esc(m.name)} <i class="lv">${m.level}</i>` : `${ic('sun')}Ohne Hof <i class="lv">${levelFor(this.cfg, wanderer().xp)}</i>`;
   }
 
   /** tests (co-op without a network): n computer farmers join the farm, bot(0) sends them home */

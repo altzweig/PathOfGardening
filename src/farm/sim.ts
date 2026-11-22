@@ -631,7 +631,9 @@ export class DaySim {
     for (const t of [last]) {
       if (!t) continue;
       const a = this.actionFor(t);
-      if (!a || !a.ok || this.targetDist(t, P.x, P.z) > reach || (this.players.length > 1 && this.busy(t))) continue;
+      if (!a || this.targetDist(t, P.x, P.z) > reach || (this.players.length > 1 && this.busy(t))) continue;
+      // next step not possible (e.g. sown, but the can is empty): the same feedback as a manual try (Basti 22.11.2026)
+      if (!a.ok) { this.ev.push({ k: 'deny', why: a.why, target: t }); continue; }
       if (this.inPlace(t, a)) { this.startAction(t, a); return true; }
       if (walk) { P.goal = t; return true; }
     }

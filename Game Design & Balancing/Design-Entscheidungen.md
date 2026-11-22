@@ -246,3 +246,8 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 - Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
 - Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.
 - Name, Balken und „Z“ erscheinen nur in der Nähe, auch bei Bäumen und Brombeeren.
+
+## Erntereif-Meldung (Basti, 22.11.2026)
+- Oben links unter HP/XP: Sobald ein Feld erntereif ist, blendet von unten eine Meldung „[Frucht] erntereif“ ein.
+- Jedes weitere reife Feld schiebt sich von unten in die vorhandene Meldung und lässt sie kurz aufploppen: „2 Felder erntereif“ usw.
+- Wird geerntet, zählt die Zahl herunter; ist nichts mehr reif, blendet die Meldung aus. Gezählt werden nur Felder (keine Büsche/Bäume).

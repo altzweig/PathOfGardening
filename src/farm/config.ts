@@ -89,6 +89,8 @@ export interface FarmCfg {
   /** 0 HP: the worst case of the night (Basti 21.11.2026): the harvest of the day is gone, every field is broken */
   faint: { loseHarvest: boolean; breakFields: boolean };
   night: NightCfg;
+  /** co-op visits (Basti 22.11.2026): guests help on the farm, the yield goes to the farm, XP to whoever does the work */
+  coop?: { maxPlayers: number; koTime: number; hostShare: number; nightCountExp: number };
   levels: { xp: number[]; unlocks: Record<number, BuildingId[]> };
   quests: { daily: DailyQuestCfg; titles: { one: string[]; many: string[] } };
   /** farm shop in the house book (Basti 22.11.2026) */

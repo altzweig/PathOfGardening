@@ -16,13 +16,13 @@ import { animate, makeAnimal, Animal as AView } from '../../view/animals';
 import { Rig, animateArms, animateLegs, buildFarmer, disposeFarmer } from '../../view/farmer';
 import { cranGun, handRake, seedBag, setArsenalEnv, setArsenalLight, sickle, wateringCan } from '../../view/arsenal';
 import { play, setListener, sfx } from '../../audio';
-import type { Look } from '../../look';
+import { cleanLook, type Look } from '../../look';
 import type { BuildingId, FarmCfg, ItemId } from '../config';
 import { BUILDING_IDS, STALL_IDS, StallId } from '../config';
 import type { FarmState } from '../state';
 import { growMul, ripeCuts } from '../state';
 import type { Hof } from '../hof';
-import type { Animal, DaySim, Ev, Target } from '../sim';
+import type { Animal, DaySim, Ev, Player, Target } from '../sim';
 import { HofWorld } from './hofWorld';
 import { occludeTree, updateOcclusion } from './occlusion';
 import { BuildingView, buildBuilding, setWindowGlow } from './buildings';
@@ -204,6 +204,8 @@ interface PlayerView {
   gun: ReturnType<typeof cranGun>; rot: number; walk: number; stepN: number; twist: number; recoil: number; lookKey: string; actT: number;
   /** 0 standing .. 1 down (crouch / kneel), kneel 0 crouch (waddle) .. 1 on one knee; strike = last hand rake hit into the soil (dust) */
   low: number; kneel: number; strike: number; lean: number;
+  /** co-op: name over the head of another farmer; ko = 0..1 lying on the ground */
+  tag?: NameTag; ko?: number;
 }
 interface AnimalView { v: AView; bar: THREE.Group; key: string; frozen: number; rot?: number }
 
@@ -222,6 +224,8 @@ export class FarmView {
   private bits: Bit[] = [];
   private brambleShake: { g: THREE.Object3D; t: number }[] = [];
   player: PlayerView | null = null;
+  /** co-op (22.11.2026): the other farmers on the farm, by player id */
+  others = new Map<number, PlayerView>();
   animals = new Map<number, AnimalView>();
   private pelletPool: THREE.Mesh[] = []; private lootViews = new Map<number, THREE.Object3D>();
   private hl: { ring: THREE.Mesh; square: THREE.Group; mat: THREE.MeshBasicMaterial };
@@ -479,6 +483,10 @@ export class FarmView {
     const key = JSON.stringify(look);
     if (this.player && this.player.lookKey === key) return;
     if (this.player) { this.dyn.remove(this.player.g); disposeFarmer(this.player.rig); }
+    this.player = this.buildPlayer(look);
+  }
+  private buildPlayer(look: Look): PlayerView {
+    const key = JSON.stringify(look);
     const rig = buildFarmer(look), g = new THREE.Group(), body = new THREE.Group(); g.add(body); body.add(rig.root);
     rig.root.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     const hr = handRake(); body.add(hr);
@@ -487,13 +495,32 @@ export class FarmView {
     const gun = cranGun(true); gun.g.position.set(.2, .78, .22); body.add(gun.g);
     for (const o of [hr, can.g, bag, sick, gun.g]) o.traverse(c => { if ((c as THREE.Mesh).isMesh) c.castShadow = true; });
     this.dyn.add(g);
-    this.player = { rig, g, body, hr, can, canG, bag, sick, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0, low: 0, kneel: 0, strike: 0, lean: 0 };
+    return { rig, g, body, hr, can, canG, bag, sick, gun, rot: 0, walk: 0, stepN: 0, twist: 0, recoil: 0, lookKey: key, actT: 0, low: 0, kneel: 0, strike: 0, lean: 0 };
   }
-  private animPlayer(sim: DaySim | null, dt: number) {
-    const v = this.player; if (!v) return;
-    const P = sim?.player, H = this.cfg.hof, R0 = v.rig;
+  private dropPlayer(v: PlayerView) { this.dyn.remove(v.g); disposeFarmer(v.rig); if (v.tag) { scene.remove(v.tag.s); v.tag.tex.dispose(); } }
+  /** the local farmer + every other farmer on the farm (co-op) */
+  private animPlayers(sim: DaySim | null, dt: number) {
+    if (this.player) this.animPlayer(this.player, sim?.player ?? null, sim, dt, true);
+    const live = new Set<number>();
+    for (const P of sim?.players ?? []) {
+      if (P === sim!.player) continue;
+      live.add(P.id);
+      const look = cleanLook(P.look ?? {}), key = JSON.stringify(look);
+      let v = this.others.get(P.id);
+      if (v && v.lookKey !== key) { this.dropPlayer(v); v = undefined; }
+      if (!v) { v = this.buildPlayer(look); v.tag = nameTag(); v.rot = P.f; this.others.set(P.id, v); }
+      this.animPlayer(v, P, sim, dt, false);
+      const T = v.tag!, show = !this.cine && !!P.name;
+      T.s.visible = show; if (show) { drawName(T, P.name!); T.s.position.set(P.x, 2.05 - v.low * .55 - (v.ko ?? 0) * 1.3, P.z); T.s.scale.set(NAME_W * .7, NAME_H * .7, 1); }
+    }
+    for (const [id, v] of this.others) if (!live.has(id)) { this.dropPlayer(v); this.others.delete(id); }
+  }
+  private animPlayer(v: PlayerView, P: Player | null, sim: DaySim | null, dt: number, local: boolean) {
+    const H = this.cfg.hof, R0 = v.rig;
     const px = P ? P.x : H.door.x, pz = P ? P.z : H.door.z + .4;
-    v.g.visible = !!sim && !this.cine && this.fpK < .6; // first person (cutscene or camera)
+    v.g.visible = !!sim && !this.cine && (!local || this.fpK < .6); // first person (cutscene or camera)
+    // knocked out (co-op): lies on its side until it gets up at the house
+    v.ko = lerp(v.ko ?? 0, P && P.hp <= 0 ? 1 : 0, 1 - Math.exp(-dt * 6)); v.g.rotation.z = v.ko * 1.45; v.g.position.y = v.ko * .25;
     const spd = P ? P.speed : 0, swing = P?.swing, act = P?.action;
     // down on the ground: kneeling while working, a deep crouch (waddle) while moving with the button held
     const lowAct = !!act && !!sim && sim.low(act.target, act.info);
@@ -501,7 +528,7 @@ export class FarmView {
     v.kneel = lerp(v.kneel, lowAct && spd < .25 ? 1 : 0, 1 - Math.exp(-dt * 7));
     const crouchSp = this.cfg.player.crouchSpeed;
     v.walk = lerp(v.walk, clamp(spd / (v.low > .5 ? crouchSp : 2.2), 0, 1), 1 - Math.exp(-dt * 10));
-    v.g.position.set(px, 0, pz);
+    v.g.position.set(px, v.ko * .25, pz);
     v.rot = lerpAngle(v.rot, P ? P.f : 0, swing ? .6 : .25); v.g.rotation.y = v.rot;
     const wk = P ? P.walk : 0;
     v.body.position.y = Math.abs(Math.sin(wk)) * .04 * v.walk * (1 - v.low * .6);
@@ -610,6 +637,7 @@ export class FarmView {
     if (!t0 && v.kneel > .5 && v.low > .5) { const kp = R0.legs[0].knee.getWorldPosition(V()); kp.y += .05; t0 = kp; }
     animateArms(R0, dt, wk, [t0, t1]);
     // action progress bar over the head (lower while kneeling)
+    if (!local) return;
     const showBar = !!act;
     this.actBar.visible = showBar; if (showBar) { this.actBar.position.set(px, 2.05 - v.low * .55, pz); this.actBar.quaternion.copy(camera.quaternion); setBar(this.actBar, act!.t / act!.info.dur); }
   }
@@ -752,7 +780,7 @@ export class FarmView {
 
   // ---------------- events: effects + sounds ----------------
   event(e: Ev, sim: DaySim) {
-    const P = sim.player;
+    const P = (e.pid !== undefined ? sim.byId(e.pid) : null) ?? sim.player, mine = P === sim.player;
     switch (e.k) {
       case 'act':
         if (e.kind === 'weed' || e.kind === 'weedHof') sfx('player.till', P.x, P.z);
@@ -794,7 +822,7 @@ export class FarmView {
       case 'hungry': if (this.s.buildings.sheep?.built) { const b = this.hof.building('sheep'); if (b) sfx('sheep.wave', b.x, b.z); } break;
       case 'swing': sfx('player.slash', e.x, e.z); slashSmear(e.x, e.z, e.dir, this.cfg.weapons.rake.range, this.cfg.weapons.rake.arc, .2); break; // arc in degrees (was passed in radians: the smear was a sliver)
       case 'rakeHit': if (e.n) { punchStar(e.x, e.z, 1); play('punches', e.n); this.shake = Math.max(this.shake, .25); } break;
-      case 'shot': { this.player && (this.player.recoil = .18); play('shot'); const dx = Math.sin(e.dir), dz = Math.cos(e.dir); burst(V(e.x + dx * .9, .8, e.z + dz * .9), itemHex(e.ammo), 10, 3, .1, .25); this.shake = Math.max(this.shake, .15); break; }
+      case 'shot': { const pv = mine ? this.player : this.others.get(P.id); if (pv) pv.recoil = .18; play('shot'); const dx = Math.sin(e.dir), dz = Math.cos(e.dir); burst(V(e.x + dx * .9, .8, e.z + dz * .9), itemHex(e.ammo), 10, 3, .1, .25); this.shake = Math.max(this.shake, .15); break; }
       case 'pelletHit': burst(V(e.x, .6, e.z), itemHex(e.ammo), 6, 1.5, .1, .35); play('hit'); break;
       case 'hit': punchStar(e.x, e.z, .7); if (e.frozen) burst(V(e.x, .5, e.z), 0xbfe4ff, 10, 1.5, .12, .5); break;
       case 'driven': this.floatXp?.(e.x, e.z, e.xp); break;
@@ -804,12 +832,12 @@ export class FarmView {
       case 'spawn': if (e.type === 'raccoon') sfx('raccoon.wave', e.x, e.z); else sfx('squirrel.wave', e.x, e.z); break;
       case 'drop': burst(V(e.x, .5, e.z), 0xffffff, 8, 1.5, .1, .4); break;
       case 'pickup': sfx('collect.xp', e.x, e.z); break;
-      case 'hurt': this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); break;
+      case 'hurt': if (mine) { this.hurtT = .4; this.shake = Math.max(this.shake, .3); sfx('player.hurt'); } else sfx('player.hurt', e.x, e.z); break;
       case 'ripe': { const B = this.cfg.hof.bush; burst(V(B.x, .8, B.z), 0x8a9cff, 20, 1.5, .12, .8, { g: -1 }); sfx('plants.ripe'); break; }
       // a field is fully grown: golden sparkle rising from the bed + a bright little bell (not positional: it may be off screen)
       case 'plotRipe': { const p = this.cfg.hof.plots[e.i]; if (p) burst(V(p.x, .6, p.z), 0xffe27a, 22, 1.6, .1, .9, { g: -1.5 }); sfx('plants.ripe'); break; }
       case 'actCancel': if (e.kind === 'water') { this.pourStop?.(); this.pourStop = undefined; } break;
-      case 'deny': if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
+      case 'deny': if (!mine) break; if (e.why === 'water') { sfx('can.empty', P.x, P.z); sfx('can.empty2', P.x, P.z); } else play('imm'); break; // empty can: tin flick, then a lower one
       // night (21.11.2026)
       case 'gnaw': { const v = this.plots[e.i]; if (v) { v.hit = 1; v.shake = Math.max(v.shake, .5); } burst(V(e.x + rand(-.4, .4), .25, e.z + rand(-.4, .4)), 0x5e8e2c, 6, 1.2, .08, .5, { g: 6 }); sfx('night.gnaw', e.x, e.z); break; }
       case 'plotBroken': { burst(V(e.x, .3, e.z), 0x6a4a30, 26, 2, .12, .7, { g: 6 }); burst(V(e.x, .4, e.z), 0x5e8e2c, 18, 1.8, .1, .7, { g: 5 }); sfx('night.broken', e.x, e.z); this.shake = Math.max(this.shake, .12); break; }
@@ -836,7 +864,7 @@ export class FarmView {
     // pickable things twinkle now and then (tiny rising glints near the camera)
     if (day && Math.random() < dt * 9) { const p = this.wild.sparkle(this.s); if (p && Math.hypot(p.x - this.camX, p.z - this.camZ) < 15) PART.spawn(p, V(0, rand(.15, .3), 0), 0xfff4d0, .06, rand(.6, .9), { s1: 0, a: .9 }); }
     this.animPens(dt, now, day ? sim : null, day);
-    this.animPlayer(day ? sim : null, dt);
+    this.animPlayers(day ? sim : null, dt);
     this.animAnimals(day ? sim : null, dt, now);
     this.animShots(day ? sim : null, dt);
     // highlight of the hovered target
@@ -1014,5 +1042,5 @@ export class FarmView {
   get camFace() { return this.camYaw + Math.PI; }
   /** hard cut of the camera (after a fade) */
   snapCamera(x: number, z: number) { this.camX = x; this.camZ = z; }
-  clearDynamic() { for (const b of this.bits) this.dyn.remove(b.m); this.bits.length = 0; for (const [, v] of this.animals) { this.dyn.remove(v.v.g); v.bar.visible = false; } this.animals.clear(); for (const [, m] of this.lootViews) this.dyn.remove(m); this.lootViews.clear(); this.setBubble(null); this.setArrow(null); this.shot = null; this.lastShot = null; this.shotK = 0; }
+  clearDynamic() { for (const b of this.bits) this.dyn.remove(b.m); this.bits.length = 0; for (const [, v] of this.animals) { this.dyn.remove(v.v.g); v.bar.visible = false; } this.animals.clear(); for (const [, m] of this.lootViews) this.dyn.remove(m); this.lootViews.clear(); for (const [, v] of this.others) this.dropPlayer(v); this.others.clear(); this.setBubble(null); this.setArrow(null); this.shot = null; this.lastShot = null; this.shotK = 0; }
 }

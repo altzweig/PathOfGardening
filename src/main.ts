@@ -27,6 +27,7 @@ import { CutscenePlayer } from './farm/cutscene/cutscene';
 import { faintCutscene } from './farm/cutscene/faint';
 import { WINDOWS } from './farm/view/buildings';
 import { play } from './audio';
+import { Bot } from './farm/bot';
 import * as THREE from 'three';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -60,6 +61,8 @@ class Game {
   /** the save this game writes to (null = tutorial: nothing is saved) */
   private slot: string | null = null;
   private tutorialMode = false;
+  /** co-op test farmers (console: __pog.bot()) */
+  private bots: Bot[] = [];
   private autoT = 0;
   /** cutscenes (21.11.2026): the faint scene runs on every faint */
   cut = new CutscenePlayer();
@@ -279,7 +282,9 @@ class Game {
     s.phase = 'day';
     this.sim = new DaySim(this.cfg, s, this.hof, { tutorial }); this.sim.initRipe();
     // weeds + forage only grow where nobody is looking
-    this.sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return p.x > -60 && p.x < innerWidth + 60 && p.y > -60 && p.y < innerHeight + 60; };
+    const sim = this.sim; // ... and not next to another farmer (co-op)
+    sim.visible = (x, z) => { const p = this.view.screen(x, .3, z); return (p.x > -60 && p.x < innerWidth + 60 && p.y > -60 && p.y < innerHeight + 60) || sim.players.some(P => P !== sim.player && Math.hypot(P.x - x, P.z - z) < 22); };
+    if (!tutorial) this.bots = this.bots.map(b => new Bot(sim.addPlayer(b.P.id, { name: b.P.name, look: b.P.look }))); else this.bots = [];
     this.view.clearDynamic(); this.view.setState(s); this.view.snapCamera(this.sim.player.x, this.sim.player.z); this.view.resetLight();
     this.tut = tutorial ? new Tutorial(this.cfg, this.sim, this.view, this.hud, () => this.input.lastTouch) : null;
     if (this.tut) this.tut.onDone = () => this.endOfDay('time');
@@ -368,11 +373,12 @@ class Game {
     const cy = Math.cos(this.view.camYaw), sy = Math.sin(this.view.camYaw), mx = it.mx, mz = it.mz;
     it.mx = mx * cy + mz * sy; it.mz = -mx * sy + mz * cy;
     if (this.tut) it = this.tut.update(dt, it);
+    for (const b of this.bots) sim.intents.set(b.P.id, b.intent(sim));
     sim.update(dt, it);
     for (const e of sim.ev) {
       if (e.k === 'store') this.hud.harvest(e.x ?? sim.player.x, e.z ?? sim.player.z, e.item, e.n, !!e.lucky);
       if (e.k === 'faint') this.endOfDay('faint');
-      if (e.k === 'xp') this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
+      if (e.k === 'xp' && (e.pid ?? 0) === sim.localId) this.hud.float(e.x ?? sim.player.x, e.z ?? sim.player.z, `${ic('xp')}+${e.xp}`, 'xp');
       if (e.k === 'nightfall') this.hud.warn(true, this.cfg.night.warn);
       if (e.k === 'pocket') { let dy = 0; for (const [k, n] of Object.entries(e.items as Record<string, number>)) { this.hud.float(e.x + dy * .3, e.z, `${ic(k)}−${n}`, 'loss'); dy++; } }
     }
@@ -384,6 +390,13 @@ class Game {
     if (sec !== this.cdTick) { this.cdTick = sec; if (sec <= 10 && sec > 0 && !sim.finished) play('cdTick', sec <= 3); }
     this.hud.kb = this.input.kb || this.input.locked;
     this.hud.update(sim, this.s, this.view, hover, info, this.input.lastTouch, this.mouse);
+  }
+  /** tests (co-op without a network): n computer farmers join the farm, bot(0) sends them home */
+  bot(n = 1) {
+    const sim = this.sim; if (!sim || this.tut) return 'kein Tag';
+    if (n <= 0) { for (const b of this.bots) sim.removePlayer(b.P.id); this.bots = []; return 0; }
+    for (let i = 0; i < n && sim.players.length < (this.cfg.coop?.maxPlayers ?? 4); i++) { const id = Math.max(0, ...sim.players.map(p => p.id)) + 1; this.bots.push(Bot.add(sim, id)); }
+    return this.bots.length;
   }
   /** tests: run the day for `sec` seconds without rendering */
   fast(sec: number) { for (let t = 0; t < sec && this.mode === 'day'; t += .05) this.tick(.05); }

@@ -106,7 +106,7 @@ export class FarmHud {
     setA($('#ckTrail'), 'stroke-dasharray', `${(Math.min(1, Math.max(0, u)) * 100).toFixed(2)} 100`);
     setA($('#ckStars'), 'opacity', night ? (.5 + .5 * Math.min(1, sim.nightK * 8)).toFixed(2) : (sim.k > .9 ? ((sim.k - .9) * 4).toFixed(2) : '0'));
     // countdown: to the night (moon), at night the rest of the night + one dot per wave (red = it came)
-    const left = night ? sim.nightLeft : sim.dayLeft, hot = night ? left <= 15 : left <= 30;
+    const left = night ? sim.nightLeft : sim.dayLeft, hot = left <= 15;
     const txt = mss(left), waves = night ? sim.waves.length : 0, inn = night ? sim.wavesIn : 0;
     const key = [night, hot, txt, waves, inn, sim.nightLen > 0].join('|');
     if (key === this.cdKey) return; this.cdKey = key;

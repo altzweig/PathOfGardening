@@ -7,3 +7,4 @@ dist/
 .preview/
 tools/perf/out/
 tools/loading-shots/out/
+tools/look-lab/out/

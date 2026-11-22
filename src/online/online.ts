@@ -95,8 +95,14 @@ export class Online {
   }
 
   // ---------------- online + open farm ----------------
-  async goOnline() {
-    if (this.presence) return;
+  /** my presence is live (others see me online) */
+  get live() { return !!this.presence; }
+  /** why going online failed last time (shown in the friends list) */
+  liveErr = '';
+  private going: Promise<void> | null = null;
+  goOnline() { if (this.presence) return Promise.resolve(); return this.going ??= this.connect().finally(() => { this.going = null; }); }
+  private async connect() {
+    // presence alone in its own channel: a problem with the database feeds below cannot keep me offline
     const ch = this.db.channel('online', { config: { presence: { key: this.me.id } } });
     ch.on('presence', { event: 'sync' }, () => {
       this.online.clear();
@@ -104,10 +110,14 @@ export class Online {
       for (const f of this.friends) { if (f.pending) continue; const p = this.online.get(f.id); f.online = !!p; f.open = !!p?.open; if (p) { f.name = p.name; f.level = p.level; } }
       this.onChange();
     });
+    try {
+      await new Promise<void>((ok, bad) => ch.subscribe((s, err) => { if (s === 'SUBSCRIBED') ok(); else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') bad(new Error(err?.message || s)); }));
+    } catch (e) { this.liveErr = (e as Error).message; void this.db.removeChannel(ch); this.onChange(); throw e; }
+    this.presence = ch; this.liveErr = ''; await this.track(); await this.refresh();
+    // phone back from the background: show me again
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void this.track(); });
     // friend requests / answers come in live
-    ch.on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => void this.refresh());
-    await new Promise<void>((ok, bad) => ch.subscribe(s => { if (s === 'SUBSCRIBED') ok(); else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') bad(new Error(s)); }));
-    this.presence = ch; await this.track(); await this.refresh();
+    this.db.channel('friends:' + this.me.id).on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => void this.refresh()).subscribe();
     await this.loadInbox();
     // short messages to me
     this.db.channel('messages:' + this.me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_id=eq.${this.me.id}` }, p => {

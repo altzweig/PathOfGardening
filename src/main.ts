@@ -138,6 +138,7 @@ class Game {
     this.input.onPause = () => { if (this.mode !== 'menu') this.togglePause(); };
     this.input.onUnlock = () => { if (this.mode === 'day' && !this.paused) this.togglePause(); };
     this.input.mouseSens = this.cfg.camera.mouse ?? .55;
+    this.input.onZoom = dy => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(dy); };
     addEventListener('wheel', e => { if (this.mode === 'day' && !this.paused) this.view.zoomBy(e.deltaY); }, { passive: true });
     addEventListener('pointermove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'day' && !this.paused) this.togglePause(); });

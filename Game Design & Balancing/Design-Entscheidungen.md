@@ -223,6 +223,10 @@ Genau nach Bastis Ablauf: Pfeil zum Busch „Blaubeeren gießen“ → „Gieße
 
 - **Nachtrag 22.11.2026:** Ausblendung vor der Kamera doppelt so groß. Ein schlafendes Feld zeigt nur die „Z“, keinen Balken/Namen. Ernte-Popups: „Anzahl Icon Name“, Schrift in der Farbe der Seltenheit (Common weiß, Uncommon grün, Rare blau), enger untereinander, steigen von unten auf; ein Glückswurf (Kräuter beim Jäten) etwas größer.
 
+- **Kamera (22.11.2026):** Third Person 3 m hinter der Figur (Start), per Mausrad bis 8 m. Bei 3 m rastet sie ein; weiter gegen den Widerstand scrollen (ca. 3 Rasterschritte) wechselt in die First-Person-Ansicht (Figur ausgeblendet, Maus = Umschauen). Über 8 m hinaus gegen den Widerstand: Top-Down aus 10 m Höhe, oben = Blickrichtung. Zurück in die normale Ansicht reicht ca. 1 Rasterschritt. Handy: zwei Finger rechts = Pinch-Zoom mit denselben Rasten. Werte in `camera.zoom`.
+- **Figur dreht mit der Kamera:** Steht die Figur, dreht sie sich leicht verzögert in die Blickrichtung (kritisch gedämpfte Feder, immer der kürzeste Weg, max. 12 rad/s, `player.turnWithCam`), auch bei schnellem Drehen keine Extra-Umdrehungen.
+- **Esc:** öffnet und schließt die Pause; verweigert der Browser direkt nach Esc das erneute Fangen der Maus, wird es kurz danach automatisch wiederholt.
+
 ### Annahmen (bitte prüfen)
 - Die Kampf-Zielhilfe zielt am PC jetzt wie am Handy auf das nächste Tier, weil die Maus nicht mehr auf den Boden zeigt.
 - Handy bleibt wie es ist (Stick links, Wischen rechts dreht die Kamera), es passte schon zur Third-Person-Logik.

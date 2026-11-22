@@ -61,7 +61,7 @@ export interface DailyQuestCfg { count: number; load: number; cycle: number; obj
 export interface FarmCfg {
   names: { items: Record<ItemId, string>; weapons: Record<WeaponId, string>; buildings: Record<BuildingId | 'plot', string>; animals: Record<AnimalType, string>; livestock: Record<Livestock, string> };
   day: { length: number; clock: [number, number]; light: [number, number]; fade: number; rain: { chance: number; duration: [number, number] } };
-  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; nextField?: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
+  player: { hp: number; speed: number; radius: number; reach: number; kneel: number; leave: number; actionSpeed: number; crouchSpeed: number; actionGap?: number; nextField?: number; turnWithCam?: number; hover: number; pickupRadius: number; magnetRadius: number; magnetSpeed: number; hurtStun: number };
   actions: Record<Exclude<ActionKind, 'produce'>, ActionCfg>;
   can: { capacity: number; start: number; perFill: number };
   bush: { ripen: number; picks: number; berries: number; radius: number; barDelay: number; almostAt: number };
@@ -73,7 +73,8 @@ export interface FarmCfg {
   /** wild grass patches (view + where weeds grow): perM2 = blades per m² at full density, well/back = size factors, edge = patches along the forest edge */
   grass?: { perM2: number; well: number; back: number; edge: number };
   stalls: { strawBonus: number; strawCost: number } & Record<StallId, StallCfg>;
-  camera: { rotate: number; /** PC mouse turn factor (x rotate per px) */ mouse?: number; pitch: [number, number] };
+  camera: { rotate: number; /** PC mouse turn factor (x rotate per px) */ mouse?: number; pitch: [number, number];
+    /** 22.11.2026: third person near..far m, top = top-down height, push / back = wheel units against a detent (into / out of fp/td) */ zoom?: { near: number; far: number; top: number; push: number; back: number } };
   storage: { capacity: number; sections?: StoreSection[]; rarity?: Record<ItemId, Rarity>; perennials?: Record<ItemId, { every: number; picks: number; pick: number }>; history?: number };
   saves: { autosave: number; nameMax: number };
   start: { money: number; items: Record<ItemId, number>; plots: string[] };

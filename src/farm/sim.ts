@@ -35,6 +35,8 @@ export interface Intent {
   hold: boolean; holdAt: Target | null;
   /** the button was let go this frame (Basti 21.11.2026: releasing cancels the work at once) */
   up?: boolean;
+  /** PC third person (22.11.2026): where the camera looks; a standing farmer turns that way with a little delay */
+  face?: number;
   attack: boolean;                  // right click / attack button held
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, aimX: 0, aimZ: 0, aimAuto: false, act: null, hold: false, holdAt: null, attack: false });
@@ -53,6 +55,8 @@ export interface Player {
   rest: number; after: { target: Target; info: ActionInfo; pick: number } | null;
   /** the running work was started with the button held: letting go stops it */
   held?: boolean;
+  /** turning speed while following the camera (rad/s) */
+  fv?: number;
   swing: { t: number; dir: number; hit: boolean } | null;
   shotT: number; cd: number; hurt: number; stun: number;
 }
@@ -86,6 +90,7 @@ function segDist(ax: number, az: number, bx: number, bz: number, px: number, pz:
   const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz, t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
   return Math.hypot(ax + dx * t - px, az + dz * t - pz);
 }
+const clampN = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const angTo = (ax: number, az: number, bx: number, bz: number) => Math.atan2(bx - ax, bz - az); // three.js yaw (0 = +z)
 /** goods animals take from the Lager (not straw, wood, stones ...) */
 const NOT_EDIBLE = new Set(['straw', 'plank', 'wood', 'stone', 'water', 'green', 'slurry', 'fert']); // goods raccoons take from the Lager
@@ -490,7 +495,16 @@ export class DaySim {
       const c = this.hof.collide(nx, nz, C.radius, true);
       P.speed = dist(P.x, P.z, c.x, c.z) / dt; P.x = c.x; P.z = c.z;
       if (!P.swing && !P.action) P.f = Math.atan2(mx, mz);
-    } else P.speed = 0;
+    } else {
+      P.speed = 0;
+      // turn with the camera (Basti 22.11.2026): critically damped spring on the SHORTEST way to the view direction (the
+      // difference is wrapped every frame, so a fast spin never builds up extra turns), turn speed capped like a real body
+      if (it.face !== undefined && !P.swing && !P.action && !P.goal) {
+        const w = this.cfg.player.turnWithCam ?? 7, d = ((it.face - P.f + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+        P.fv = clampN((P.fv ?? 0) + (w * w * d - 2 * w * (P.fv ?? 0)) * Math.min(dt, .05), -12, 12);
+        P.f = ((P.f + P.fv * dt + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      } else P.fv = 0;
+    }
     P.walk += P.speed * dt * (P.crouch ? 3.4 : 2.1); // short quick steps in the crouch
     // --- running action: too far away = cancelled; when the bar is full it takes effect, then the next one follows
     if (P.action && this.tooFar(P.action.target, P.action.info)) this.cancelAction();

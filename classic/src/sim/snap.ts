@@ -41,7 +41,7 @@ export type FSnap = [number, number, number, number, number, number];
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]
-export type BSnap = [number, number, number, number, number, number, number, number, number];
+export type BSnap = [number, number, number, number, number, number, number, number, number, number?]; // [9] 1 = cabbage contact mine
 // lying cranberry (missed pellet): [id, x, z, fuse progress 0..1, height while scattered, burning]
 export type MSnap = [number, number, number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]
@@ -51,7 +51,7 @@ export type PuSnap = [number, number, number, number, number, number]; // + burn
 /** + flags (1 broken, 2 working), input stock of a building "typeIndex:n,..." */
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, string];
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768, frozen: 65536 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

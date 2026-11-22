@@ -43,7 +43,7 @@ import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
-import { aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight } from './arsenal';
+import { aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
@@ -522,9 +522,14 @@ export class GameView {
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
       return m;
     }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
-    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, true), (v, b) => {
+    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
       if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
+      if (b[9] && b[5]) { // contact mine lying on the ground: settled, slowly breathing, fuse spark now and then
+        v.ty = .14; v.m.rotation.x = lerp(v.m.rotation.x % (Math.PI * 2), .35, .2); v.m.scale.setScalar(.85 * (1 + Math.sin(performance.now() / 420 + b[0]) * .04));
+        if (Math.random() < .02) PART.spawn(V(v.x, .32, v.z), V(rand(-.1, .1), .5, rand(-.1, .1)), 0xffd040, .05, .35, { a: .9 });
+        return;
+      }
       v.m.rotation.x += .13;
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
@@ -971,8 +976,9 @@ export class GameView {
   /** cranberry blunderbuss / tied cabbage in the hand while that weapon is active */
   private animBaseHeld(v: PView) {
     const aw = v.s.aw ? WEAPONS[v.s.aw] : 'rake', al = !!v.s.al;
-    const gunOn = al && aw === 'cran', cabOn = al && aw === 'cab';
+    const gunOn = al && (aw === 'cran' || aw === 'blue'), cabOn = al && aw === 'cab';
     if (gunOn && !v.gun) { const m = cranGun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = m; }
+    if (v.gun && gunOn) { const blue = aw === 'blue', gg = v.gun as typeof v.gun & { blue?: boolean }; if (gg.blue !== blue) { gg.blue = blue; tintBerries(v.gun.g, blue); } }
     if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
@@ -1089,6 +1095,11 @@ export class GameView {
     const burning = fl & EF.burn, fire = burning ? .5 + .3 * Math.sin(now * 23 + e[0]) + .15 * Math.sin(now * 37) : 0;
     // toad: glows brighter and shimmers while sitting, the glow goes out when it jumps off
     const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - .5) * 12) : 0;
+    if (fl & EF.frozen) { // frozen by a blueberry: icy blue, sparkles
+      for (const m of v.P.mats) m.emissive.setRGB(.18, .38, .62);
+      if (Math.random() < dt * 8) PART.spawn(V(v.x + rand(-.25, .25), rand(.2, .6), v.z + rand(-.25, .25)), V(0, .3, 0), 0xc8f0ff, .07, .5);
+      return;
+    }
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
@@ -1124,8 +1135,8 @@ export class GameView {
       const m = this.aimInd.asp, r = rng('chili'), C = this.cfg.combos!.list.chilight;
       m.visible = true; m.scale.set(C.width, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI); return;
     }
-    if (w === 'rake' || w === 'cran') {
-      const m = this.aimInd[w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng('cran');
+    if (w === 'rake' || w === 'cran' || w === 'blue') {
+      const m = this.aimInd[w === 'blue' ? 'cran' : w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng(w);
       if (w === 'rake') return; // no marker: the scratches of the stroke show where the rake worked
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
     } else if (w === 'asp' || w === 'lemon') {
@@ -1135,6 +1146,8 @@ export class GameView {
       const m = this.aimInd.chili, arc = Math.min(359.9, (me.s.fw || 40) + (me.s.fc || 30));
       if (m.userData.arc !== arc) { m.userData.arc = arc; m.geometry.dispose(); m.geometry = sectorGeo(1, arc * Math.PI / 180, 32); }
       const r = me.s.fr || rng('chili'); m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
+    } else if (w === 'cab' && !cid) { // cabbage mine: blast radius right under the player
+      const m = this.aimInd.cab; m.visible = true; m.scale.setScalar(rng('cab')); m.position.set(px, .045, pz);
     } else if (w === 'cab') {
       // charged throw: the marker walks out from throwMin to the max distance while the charge fills
       const C = this.cfg.skills.cab, max = cid ? this.cfg.combos!.list[cid].throwDistance ?? C.throwMax : C.throwMax, mn = Math.min(C.throwMin, max);

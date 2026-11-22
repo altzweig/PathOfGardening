@@ -1,6 +1,7 @@
 import YAML from 'yaml';
 
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili';
+/** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue';
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
@@ -8,8 +9,10 @@ export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'cow'
 export type ProductType = 'flour' | 'water' | 'milk' | 'egg' | 'juice' | 'bread' | 'cheese' | 'meal';
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
-export const WEAPONS: Weapon[] = ['rake', 'asp', 'cran', 'cab', 'lemon', 'chili'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue'];
+/** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
+export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili'];
 export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'cow', 'dairy', 'kitchen'];
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'milk', 'egg', 'juice', 'bread', 'cheese', 'meal'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
@@ -55,7 +58,7 @@ export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
-  xp: { base: number; growth: number; linear: number; gain?: number };
+  xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
@@ -73,7 +76,8 @@ export interface Balancing {
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; splashDelay: number; splashDamage: number; splashRadius: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
+    blue: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; freeze: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;

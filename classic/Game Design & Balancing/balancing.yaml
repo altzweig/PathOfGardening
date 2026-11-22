@@ -13,9 +13,10 @@
 names:
   skills:
     rake: Harke
+    blue: Blaubeer-Schrotflinte
     asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
-    cab: Kohlbombe
+    cab: Kohlmine
     lemon: Citrateaser
     chili: Flammenwerfer
   plants:            # Pflanze (Doppelernte-Karte)
@@ -102,9 +103,10 @@ names:
     tea: Heilung
   # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
   effects:
+    blue: Friert 1 s ein
     asp: 3er-Salve · durchbohrt
     cran: Blutung · Beeren platzen
-    cab: Gift · verlangsamt
+    cab: Kontaktmine · Gift
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
 
@@ -135,7 +137,8 @@ xp:
   base: 40
   growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
   linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
-  gain: 0.6667             # XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
+  fieldPerSecond: 0.5      # 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
+  gain: 0.6667             # (alt) XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
@@ -259,6 +262,15 @@ skills:
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
+  blue:                    # 22.11.2026: Blaubeer-Schrotflinte, Startwaffe. Wie die Preiselbeer-Schrotflinte, aber Treffer frieren 1 s ein (keine Blutung, kein Platzen)
+    damage: 4              # je Beere
+    range: 6.5             # m
+    cooldown: 0.625
+    ammoPerShot: 6
+    pellets: 6
+    cone: 45
+    spreadSigma: 11
+    freeze: 1.0            # s eingefroren bei Treffer (nicht bei Bossen)
   cran:
     damage: 5              # je Projektil
     range: 7.00            # m (4,5 -> +50 %)
@@ -302,7 +314,10 @@ skills:
     burnTick: 0.5          # s pro Brand-Tick
     spreadRadius: 1.5      # m
     spreadShare: 0.5
-  cab:                     # 17.11.2026: Aufladewurf statt Zeitzünder + Giftlache
+  cab:                     # 22.11.2026: Kontaktmine statt Wurf. Wird beim Laufen vor die Füße gelegt, Gedrückthalten legt je Abklingzeit eine.
+    mineSpacing: 1.6       # Mindestabstand zur nächsten Mine = Explosionsradius x 1,6 (Explosionskreise überlappen leicht, Minen nie ineinander)
+    mineTrigger: 0.45      # m, Tier berührt die Mine -> Explosion (Flächenschaden radius)
+    maxMines: 15           # höchstens so viele Minen liegen gleichzeitig
     damage: 5
     radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
     cooldown: 1.0
@@ -548,7 +563,7 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
     damage: 1.25           # x Angriffsstärke
 
 weaponSlots:               # Waffen neben der Harke
-  max: 3                   # höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
+  max: 4                   # 22.11.2026 3 -> 4 (Blaubeer-Schrotflinte zählt jetzt mit); höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
 
 # ---------------------------------------------------------------------
 #  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")

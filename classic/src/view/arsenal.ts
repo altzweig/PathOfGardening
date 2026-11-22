@@ -543,3 +543,11 @@ export function comboModel(cid: ComboId, a: THREE.Group): ComboModel {
   }
   return { t0, t1, muzzle, base, loaded };
 }
+
+let BLUE_BERRY: THREE.MeshStandardMaterial | null = null;
+/** swap the gun's berry material between cranberry red and blueberry blue */
+export function tintBerries(g: THREE.Object3D, blue: boolean) {
+  const K = kit();
+  if (!BLUE_BERRY) { BLUE_BERRY = (K.berry as THREE.MeshStandardMaterial).clone(); BLUE_BERRY.color.set(0x4a64e0); BLUE_BERRY.emissive.set(0x0a1450); }
+  g.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; if (blue && m.material === K.berry) m.material = BLUE_BERRY!; else if (!blue && m.material === BLUE_BERRY) m.material = K.berry; });
+}

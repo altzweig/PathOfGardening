@@ -388,3 +388,22 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Tod: Tiere kippen auf die Seite (Kröte auf den Rücken), zucken kurz und sinken nach 1,6 s in den Boden. Höchstens 24 gleichzeitig, sonst verschwinden sie sofort.
 - Der Boss hat ein eingerissenes Ohr, eine Narbe und ein rotes Halstuch.
 - Vorschauseite für alle Tiere und Animationen: `tiere.html` (nicht im Spiel verlinkt).
+
+## Kacheln und Gebäude (22.11.2026, Classic weitergebaut)
+- Alles läuft über Hex-Kacheln: 1 Startfeld in der Mitte plus 4 Ringe drumherum (61 Plätze, `tiles.rings`).
+- Jedes Level-up bietet genau 3 Karten: +1 Feldbonus (Ausbau einer Kachelsorte), +1 neues Feld/Gebäude, +1 Waffe (neu oder Upgrade).
+- Kacheltypen: Beete (Blaubeere, Spargel, Preiselbeere, Kohl, Zitrone, Chili, Getreide) und Gebäude: Brunnen, Mühle, Saftpresse, Bäckerei, Hühnergehege, Kuh am Pfahl, Käserei, Küche.
+- Gebäude verarbeiten automatisch passende Erträge der Nachbarkacheln: Mühle 3 Getreide → Mehl, Hühner 2 Getreide → Ei, Saftpresse 4 Beeren/Zitronen → Saft, Bäckerei Mehl + Wasser (Brunnen) → Brot, Käserei 3 Milch (Kuh) → Käse, Küche 3 beliebige aus Ei/Milch/Saft/Brot/Käse → Mahlzeit. Brunnen und Kuh produzieren von selbst. Werte in `buildings`.
+- Kombinationsbonus bewusst klein, nur für gleiche Kacheln. Jede Kachel zählt sich selbst und jeden gleichen Nachbarn mit je 2 % + Ausbauwert. Drei Felder im Dreieck ohne Ausbau: jedes 3 × 2 % = 6 %. Ist eins auf Stufe 1 (+5 %), erhalten seine Nachbarn 2 + 7 + 2 = 11 %. Ausbauwerte: +5, +8, +12, +17, +23, +30 % … (Zuwachs +3, +4, +5, +6 …, unendlich).
+- Ausbaukosten: Stufe 1 braucht 1+1 Felder, Stufe 2 2+2, Stufe 3 4+3, Stufe 4 7+4 … gelesen als „gleichartige Kacheln, die man dafür setzt“: Feld auf ein gleiches Feld stapeln (Bau-Vorschau zeigt Kostenbalken).
+- Bau-Vorschau beim Hovern: sattgrüner Pfeil zu gleichen Nachbarn (Bonus), gelb-grüner Pfeil zu Gebäuden, die den Ertrag verarbeiten würden, und ein Hinweis „im Einflussradius von x Mühlen“.
+- Früchte sammelt man weiter von Hand ein. Waren und Gebäudeprodukte landen vor dem Gebäude und müssen abgeholt werden; Tiere klauen sie auch.
+- Mit dem Gebäude interagieren (Harke/Aktion): legt passende Waren aus dem eigenen Beutel nach und beschleunigt die Produktion deutlich, solange man arbeitet (`tiles.feedPerStroke`, `workPerStroke`).
+- Tiere greifen Gebäude an. Bei 0 HP ist das Gebäude lahmgelegt (qualmt, hängt durch) und muss mit der Harke repariert werden (`repairPerStroke`).
+- Jedes Gebäude hat eigene Sounds (Mühle rattert mit Mahlsteinen und Mehlrieseln, Saftpresse quetscht mit Rattern, usw.).
+
+## XP, Blaubeer-Schrotflinte, Kohlminen (22.11.2026)
+- Jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt: XP je Frucht = `xp.fieldPerSecond` × Erntezeit / Menge (Blaubeere 1, Preiselbeere 0,625, Spargel 2,5, Getreide 1,5, Kohl 7,5). Waffenfrüchte geben zusätzlich Munition.
+- Blaubeer-Schrotflinte ist die Startwaffe (man hat Blaubeeren von Anfang an). Wie die Preiselbeer-Schrotflinte, aber ein Treffer friert das Tier 1 s ein (nicht Bosse), keine Blutung, keine platzenden Beeren. Sie belegt einen Waffenplatz, deshalb `weaponSlots.max` 3 → 4.
+- Kohl wird nicht mehr geworfen, sondern ist eine Kontaktmine: wird beim Laufen an die eigene Position gelegt, Gedrückthalten legt je Abklingzeit eine. Explodiert, sobald ein Tier sie berührt (Flächenschaden + Gift wie bisher).
+- Minen dürfen leicht überlappen, aber nicht ineinander liegen (Mindestabstand Explosionsradius × `mineSpacing`), nie auf Kacheln. Wird später eine Kachel darauf gebaut, verschwindet die Mine. Höchstens `maxMines` gleichzeitig.

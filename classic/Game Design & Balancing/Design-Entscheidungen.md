@@ -501,6 +501,6 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 
 ## Körner-MP (23.11.2026)
 - Getreide bekommt eine eigene Waffe: eine Maschinenpistole aus Holz (Eschenschaft, Walnussgriffe, Holzlauf im gelochten Messingmantel, Trommelmagazin mit Sichtfenster voller Körner, Weizenähre am Schaft). Freischalt-Karte wie bei den anderen Feldwaffen, sobald ein Getreidefeld steht. Weizen ist damit Munition (liegt weiter in der Truhe und kann wie bisher in Gebäude).
-- 10 Körner pro Sekunde, wenig Schaden (1,6 je Korn, physisch), schnelle Körner (24 m/s), Reichweite 7,5 m (Schrotflinte 6,5 m). 1 Weizen = 4 Körner.
+- 10 Körner pro Sekunde, wenig Schaden (1,6 je Korn, physisch), schnelle Körner (24 m/s), Reichweite 7,5 m (Schrotflinte 6,5 m). 1 Weizen = 1 Korn.
 - Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
 - Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.

@@ -476,6 +476,12 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Kuh, Milch, Käserei und Käse sind vorerst ausgebaut (Basti, 23.11.2026). Modelle und Sounds bleiben im Code, die Werte in balancing.yaml sind auskommentiert.
 - Saftpresse-Look (Basti, 23.11.2026): Saftflecken in den drei Beerenfarben rund um die Presse, keine losen Beeren daneben. In der Presse liegen Beeren der aktuellen Sorte und werden bei jedem Pressen zerquetscht (Zermatschgeräusch, Saft quillt in der Beerenfarbe über den Rand). Unten läuft der Saft in eine kleine Flasche; volle Flaschen hüpfen in eine Reihe auf dem Hexfeld (max. 8) und geben beim Einsammeln die XP. Ist die Reihe voll, gibt es die XP direkt.
 
+## Erntezeiten je Feld, Beerenmenge, Kohl und Mehl (23.11.2026)
+- Erntezyklus je Pflanze (`plants.x.grow` / `harvest`, sonst `fields.cycle`): Standard 8 s wachsen, 4 s ernten. Weizen 6 s / 3 s. Kohl 12 s / 2 s, dafür mehr pro Ernte (ca. 7-8 statt 6). Chili 16 s / 4 s, Menge so angepasst, dass pro Zeit etwa gleich viel herauskommt. Harken während des Wachstums halbiert die Wachstumszeit höchstens.
+- Beerenmenge halbiert (Intervall 2 -> 4 s), XP je Beere dadurch verdoppelt.
+- Kohlminen: 2 pro Sekunde (Abklingzeit 0,5 s, Mindestabstand = Explosionsradius).
+- Mehlsack: gedrückt halten, im Laufen entsteht alle 0,4 s eine kleine Mehlwolke (2/5 des alten Radius, 1 Mehl je Wolke, keine Drehung mehr, bis zu 16 Wolken).
+
 ## Shop alle 5 Level, Boden aus dem Hof-Spiel, Nebel statt Wald (23.11.2026)
 
 - Die Werkstatt (Shop) öffnet sich alle `werkstatt.everyLevels` Level (5, 10, 15 ...) von selbst für alle Spieler, direkt nach der Level-up-Karte. Kein Hinlaufen zur Truhe mehr, kein Marker über der Truhe. Die Welt steht still, solange alle im Shop sind; die Glühbirnen sammeln sich bis dahin an (1 je Level).

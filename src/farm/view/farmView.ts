@@ -536,6 +536,15 @@ export class FarmView {
     if (this.player && this.player.lookKey === key) return;
     if (this.player) { this.dyn.remove(this.player.g); disposeFarmer(this.player.rig); }
     this.player = this.buildPlayer(look);
+    this.warmHidden(this.player.g);
+  }
+  /** 23.11.2026: compile the shaders of everything hidden in the figure (gun, watering can, sickle, axe, ...) right away,
+   *  not when it first appears in the hand (that was a short freeze on the first use of a tool or weapon) */
+  private warmHidden(root: THREE.Object3D) {
+    const hidden: THREE.Object3D[] = [];
+    root.traverse(o => { if (!o.visible && !(o as THREE.Light).isLight) { hidden.push(o); o.visible = true; } });
+    try { renderer.compile(scene, camera); } catch { /* only a warm-up */ }
+    for (const o of hidden) o.visible = false;
   }
   private buildPlayer(look: Look): PlayerView {
     const key = JSON.stringify(look);

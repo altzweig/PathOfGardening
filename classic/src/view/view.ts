@@ -1,7 +1,7 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, BERRIES, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, BERRIES, COMBOS, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { buildBuilding, chestModel, type BuildingView } from './buildings';
 import { Slot, accepts, cornerAngle, hexDist, hexR, outType, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
@@ -26,7 +26,7 @@ const lavaTex = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 import { BUILD_SND_EVERY, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
-import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flame';
+import { FireSprites, FlameFx, GroundHeat, flameLight, makeFlame, resetFlameLight, updateFlame } from './flame';
 import { fruitIcon, mini, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
@@ -45,6 +45,7 @@ import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
 import { EggFX, fryingPan } from './eggfx';
+import { friedEgg } from './eggfx';
 import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
@@ -55,6 +56,17 @@ const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9
 interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
+/** missed cranberry lying on the ground (hot = Hot-Cran combo) */
+const mineObj = (hot: boolean) => new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: hot ? 0xff7a20 : 0xff2040, emissive: hot ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 }));
+/** projectile mesh by sim kind (0 asparagus bolt, 1 cranberry, 2+ combos) */
+function projObj(kind: number): THREE.Object3D {
+      if (kind >= 2) return projMesh(kind);
+      if (kind !== 0) return fruitMesh('cran', .9, false, true);
+      const m = new THREE.Group();
+      const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
+      const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
+      return m;
+}
 /** eggs stacked into the pyramid at the hens: plain upright eggs */
 const EGG_STACK = new THREE.MeshStandardMaterial({ color: 0xf2e0c0, roughness: .42, emissive: 0xffe8c8, emissiveIntensity: .14 });
 /** crop cycle: sepia tint of dried-out plants, green unripe fruit (23.11.2026) */
@@ -221,7 +233,7 @@ export class GameView {
     buildWorld();
     setArsenalEnv(new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture); // reflections for the weapon props
     this.heat = new GroundHeat(scene); this.fire = new FireSprites(scene);
-    scene.add(this.dyn);
+    scene.add(this.dyn); scene.add(flameLight); // shared flamethrower light, always there (see flame.ts)
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
   // ---------------- build mode ----------------
@@ -577,14 +589,7 @@ export class GameView {
       const warn = b[4] || b[6] ? b[5] : 0; (ring.material as THREE.MeshBasicMaterial).opacity = warn ? .15 + .35 * warn * (.6 + .4 * Math.sin(performance.now() / 40)) : 0;
     });
     // projectiles / bombs / mines
-    this.sync(this.projs, s.pj, id, p => p[0], (p) => {
-      if (p[1] >= 2) return projMesh(p[1]);
-      if (p[1] !== 0) return fruitMesh('cran', .9, false, true);
-      const m = new THREE.Group();
-      const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
-      const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;
-      return m;
-    }, (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
+    this.sync(this.projs, s.pj, id, p => p[0], p => projObj(p[1]), (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
     this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
       if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
@@ -597,7 +602,7 @@ export class GameView {
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
     // missed cranberries lying on the ground: swell and pulse faster until they pop
-    this.sync(this.mines, s.mi, id, m => m[0], (m) => { const m2 = new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: m[5] ? 0xff7a20 : 0xff2040, emissive: m[5] ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 })); return m2; },
+    this.sync(this.mines, s.mi, id, m => m[0], m => mineObj(!!m[5]),
       (v, m) => { const k = m[3] || 0, mat = (v.m as THREE.Mesh).material as THREE.MeshStandardMaterial; v.tx = m[1]; v.ty = .06 + (m[4] || 0); v.tz = m[2];
         if (m[5] && Math.random() < .2) PART.spawn(V(v.x, .12, v.z), V(rand(-.1, .1), .7, rand(-.1, .1)), 0xff8a20, .08, .3, { a: .9 }); v.m.scale.setScalar(.065 * (1 + k * .5) * (1 + Math.sin(performance.now() / (160 - k * 110) + m[0]) * (.08 + k * .14))); mat.emissiveIntensity = 1.2 + k * k * 2.6; });
     // Shockgun berries lying on the ground
@@ -991,7 +996,35 @@ export class GameView {
   }
 
   // ---------------- per frame ----------------
+  /** 23.11.2026: build one of every weapon / projectile / effect / enemy model once and draw it (tiny, for one frame),
+   *  so three.js compiles their shaders and uploads their textures while the menu is open. Before, the first switch to a
+   *  weapon (or its first shot) compiled them in the middle of the game: a freeze of up to seconds. */
+  async prewarm() {
+    const G = new THREE.Group(), add = (o: THREE.Object3D) => { G.add(o); return o; }, cfg = this.cfg;
+    try {
+      add(buildPlayer(this.lookFor(-1, 0), cfg.rake.range, cfg.rake.diameter).g); // wand, rake, stars ... (all made visible below)
+      add(flourSack()); add(fryingPan().g); add(cabHeld()); add(aspCrossbow().g); add(chiliThrower()); add(friedEgg(.13));
+      for (const k of ['cran', ...BERRIES]) { const gun = cranGun(); tintBerries(gun.g, k); add(gun.g); }
+      const fl = makeFlame(); add(fl.g); fl.power = 1; updateFlame(fl, 0, 30, 3.5, true, 0);
+      for (const cid of COMBOS) add(buildHeld(cid).g);
+      for (let k = 0; k <= 11; k++) add(projObj(k));
+      for (let k = 1; k <= 3; k++) add(bombMesh(k, 0));
+      add(fruitMesh('cab', 1, false, true)); add(fruitMesh('cab', .6, false, false)); add(nodeMesh()); add(mineObj(false)); add(mineObj(true));
+      for (const f of FRUITS) add(fruitMesh(f, 1));
+      for (const e of ENEMIES) { add(buildEnemy(e).g); add(buildEnemy(e, true).g); }
+    } catch (e) { console.warn('prewarm', e); }
+    G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
+    G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
+    G.scale.setScalar(1e-4); G.position.set(0, -.5, 0); scene.add(G);
+    try { const r = renderer as THREE.WebGLRenderer & { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> }; if (r.compileAsync) await r.compileAsync(scene, camera); else renderer.compile(scene, camera); } catch { /* the render below still compiles */ }
+    // a burning flour cloud through its normal path (for this one frame only), then draw everything once:
+    // shadow pass + post: depth variants, texture uploads
+    this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
+    composer.render();
+    scene.remove(G); this.flourFx.clear();
+  }
   frame(dt: number) {
+    resetFlameLight();
     windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
@@ -1015,6 +1048,7 @@ export class GameView {
     this.updateOverlay();
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
+    if (this.sandbox) lantern.intensity = 0; // test room: no lantern (switched off, not hidden: a hidden light recompiles every shader)
     updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
     this.night = 1 - dayNow().day;
     this.chestFn?.(dt, this.chestN);
@@ -1368,7 +1402,7 @@ export class GameView {
 
   /** weapon test room: bare earth, no lantern, player on the left side of the screen */
   sandbox = false; sbSheet = false;
-  setSandbox(on: boolean) { this.sandbox = on; setBareRoom(on); lantern.visible = !on; }
+  setSandbox(on: boolean) { this.sandbox = on; setBareRoom(on); }
   private camX = 0; private camZ = 0;
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;

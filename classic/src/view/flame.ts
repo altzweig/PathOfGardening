@@ -64,19 +64,26 @@ export function flameMaterial(seed: number, layer: number) {
   });
 }
 
-export interface FlameFx { g: THREE.Group; layers: THREE.Mesh[]; light: THREE.PointLight; arc: number; power: number }
+export interface FlameFx { g: THREE.Group; layers: THREE.Mesh[]; arc: number; power: number }
+/** 23.11.2026: ONE flame light shared by every flamethrower, always in the scene (intensity 0 when nobody fires).
+ *  A light that appears (or becomes visible) changes the light count, and three.js then recompiles the shader of
+ *  every lit material in the scene: that was the second-long freeze on the first chili shot. Strongest flame gets it. */
+export const flameLight = new THREE.PointLight(0xff7a2a, 0, 7, 1.6);
+let flameLightPow = 0;
+/** once per frame before the flames update */
+export function resetFlameLight() { flameLightPow = 0; flameLight.intensity = 0; }
+const _lp = new THREE.Vector3();
 const LAYERS = [{ y: .42, s: .95, tilt: .05 }]; // soft shader base under the sprite fire
 export function makeFlame(): FlameFx {
   const g = new THREE.Group(), layers: THREE.Mesh[] = [];
   LAYERS.forEach((L, i) => { const m = new THREE.Mesh(flameGeo(1), flameMaterial(Math.random() * 50, i)); m.position.y = L.y; m.rotation.x = -L.tilt; m.renderOrder = 6 + i; m.frustumCulled = false; g.add(m); layers.push(m); });
-  const light = new THREE.PointLight(0xff7a2a, 0, 7, 1.6); light.position.y = .9; g.add(light);
-  return { g, layers, light, arc: -1, power: 0 };
+  return { g, layers, arc: -1, power: 0 };
 }
 /** cone in degrees, range in m, on = flame burning; power fades in/out for ignition and tail */
 export function updateFlame(F: FlameFx, dt: number, cone: number, range: number, on: boolean, time: number) {
   F.power += ((on ? 1 : 0) - F.power) * Math.min(1, dt * (on ? 14 : 7));
   F.g.visible = F.power > .01;
-  if (!F.g.visible) { F.light.intensity = 0; return; }
+  if (!F.g.visible) return;
   const arc = Math.min(359.9, cone) * Math.PI / 180, full = cone >= 359;
   if (Math.abs(arc - F.arc) > 1e-3) { F.arc = arc; for (const m of F.layers) { m.geometry.dispose(); m.geometry = flameGeo(arc); } }
   // ignition: the flame shoots out to full length, the tail shrinks back
@@ -87,8 +94,11 @@ export function updateFlame(F: FlameFx, dt: number, cone: number, range: number,
     u.uTime.value = time; u.uArc.value = arc; u.uLen.value = s; u.uFull.value = full ? 1 : 0; u.uPower.value = F.power;
   });
   const flick = .75 + .15 * Math.sin(time * 31) + .1 * Math.sin(time * 17.3);
-  F.light.intensity = 4 * F.power * flick; F.light.distance = range * 2 + 2;
-  F.light.position.set(0, .9, full ? 0 : range * .35);
+  if (F.power > flameLightPow) { // the strongest flame this frame drives the shared light
+    flameLightPow = F.power;
+    flameLight.intensity = 4 * F.power * flick; flameLight.distance = range * 2 + 2;
+    F.g.updateMatrixWorld(); flameLight.position.copy(F.g.localToWorld(_lp.set(0, .9, full ? 0 : range * .35)));
+  }
 }
 
 // ---------------- glowing ground under the flame ----------------

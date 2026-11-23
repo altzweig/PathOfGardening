@@ -123,7 +123,7 @@ interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant:
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
   /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
-  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number }
+  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number; dryM?: THREE.MeshStandardMaterial; dryH?: THREE.MeshStandardMaterial }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -764,7 +764,14 @@ export class GameView {
       const fr = (c.userData.fr || []) as THREE.Mesh[];
       let gy = 1, gx = 1, fs = 1, show = true, mat: 'ripe' | 'green' | 'dead' = 'ripe';
       c.visible = true;
-      if (st === 1) {
+      // harvest countdown (bushes + wheat): the 6 clumps dry up one after another while the harvest time runs (23.11.2026)
+      const k = v.order!.indexOf(i), gone = st === 0 && !head && t !== 'asp' && v.alive && h * 6 > k + .02;
+      this.dryClump(v, c, gone);
+      if (gone) {
+        mat = 'dead';
+        if (cut) { gy = .8; if (c.userData.bx === undefined) { const a = rand(0, 7), b = rand(.75, 1.05); c.userData.bx = Math.cos(a) * b; c.userData.bz = Math.sin(a) * b; } c.rotation.x += c.userData.bx; c.rotation.z += c.userData.bz; }
+        else fs = .9;
+      } else if (st === 1) {
         mat = 'dead';
         if (cut) { gy = .8; if (c.userData.bx === undefined) { const a = rand(0, 7), b = rand(.75, 1.05); c.userData.bx = Math.cos(a) * b; c.userData.bz = Math.sin(a) * b; } c.rotation.x += c.userData.bx; c.rotation.z += c.userData.bz; }
         else if (head) { gy = gx = .2 + .8 * dk; c.visible = dk > 0; }
@@ -790,6 +797,14 @@ export class GameView {
     // at night ripe fruit glows faintly and pulses slowly (the only bloom on the farm besides the lanterns, 23.11.2026)
     const np = ripe && v.alive ? this.night * (.3 + .4 * (.5 + .5 * Math.sin(now * 2.2 + v.x * 1.7 + v.z))) : 0;
     if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2, np); });
+  }
+  /** one clump dried up on its own (harvest countdown): its leaves / stalks switch to a dry material, back when it grows again */
+  private dryClump(v: FieldView, c: THREE.Object3D, on: boolean) {
+    if (!!c.userData.dry === on) return; c.userData.dry = on;
+    if (on && !v.dryM) { v.dryM = (v.mats.leaf as THREE.MeshStandardMaterial).clone(); v.dryM.color.copy(DRY_COL); v.dryH = (v.mats.head as THREE.MeshStandardMaterial).clone(); v.dryH.color.copy(DRY_HEAD); }
+    c.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return;
+      if (on) { if (m.material === v.mats.leaf) { m.userData.m0 = m.material; m.material = v.dryM!; } else if (m.material === v.mats.head) { m.userData.m0 = m.material; m.material = v.dryH!; } }
+      else if (m.userData.m0) { m.material = m.userData.m0; m.userData.m0 = undefined; } });
   }
   /** crop events: last harvest -> "all picked" sound (dry rustle for bushes), ripe -> chime + golden burst */
   private cropEvent(slot: number, ripe: boolean) {

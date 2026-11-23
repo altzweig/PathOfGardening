@@ -345,10 +345,17 @@ const BSND: Record<string, Record<string, () => void>> = {
     work() { noise({ t: 1.0, vol: .16, type: 'lowpass', f: 220, f2: 160, at: .15 }); tone({ type: 'sawtooth', f: 52, t: .95, vol: .03, at: .2, filt: { type: 'lowpass', f: 180 } }); clicks(7, .85, 1500, .07, 5); noise({ t: .9, vol: .025, type: 'highpass', f: 5200, at: .25 }); },
     done() { noise({ t: .6, vol: .05, type: 'bandpass', f: 4500, f2: 2500, q: .8, at: .05 }); },
   },
-  press: { // ratcheting screw, then fruit squashed (wet squish + drip)
-    work() { for (let i = 0; i < 4; i++) { tone({ type: 'square', f: 760 + i * 30, t: .025, vol: .035, when: i * .09, filt: { type: 'bandpass', f: 1400, q: 3 } }); noise({ t: .02, vol: .07, type: 'bandpass', f: 2200, q: 5, when: i * .09, at: .002 }); }
-      noise({ t: .35, vol: .14, type: 'lowpass', f: 900, f2: 180, when: .42, at: .02 }); tone({ f: 200, f2: 80, t: .25, vol: .08, when: .45 }); },
-    done() { for (let i = 0; i < 3; i++) tone({ f: rand(700, 1100), f2: rand(300, 500), t: .07, vol: .05, when: i * .12 }); },
+  press: { // ratcheting screw; the squelch comes from the animation at the bottom of every stroke (23.11.2026)
+    work() { for (let i = 0; i < 4; i++) { tone({ type: 'square', f: 760 + i * 30, t: .025, vol: .03, when: i * .09, filt: { type: 'bandpass', f: 1400, q: 3 } }); noise({ t: .02, vol: .06, type: 'bandpass', f: 2200, q: 5, when: i * .09, at: .002 }); } },
+    /** berries squashed: wet squelch (falling filtered noise), a few bubbly pops and a little trickle */
+    squish() {
+      noise({ t: .32, vol: .2, type: 'lowpass', f: 1400, f2: 220, at: .012 }); noise({ t: .2, vol: .1, type: 'bandpass', f: 700, f2: 300, q: 2.5, at: .01 });
+      tone({ f: 190, f2: 70, t: .22, vol: .09 });
+      for (let i = 0; i < 5; i++) tone({ type: 'sine', f: rand(300, 650), f2: rand(700, 1200), t: .05, vol: .04, when: .05 + i * rand(.03, .06) });
+      noise({ t: .5, vol: .03, type: 'bandpass', f: 3200, q: 1.2, when: .18, at: .15 });
+    },
+    /** full bottle: glass clink + cork pop */
+    done() { tone({ type: 'sine', f: 2600, t: .18, vol: .05 }); tone({ type: 'sine', f: 3900, t: .12, vol: .025, when: .01 }); noise({ t: .04, vol: .1, type: 'bandpass', f: 900, q: 3, when: .12, at: .002 }); tone({ f: 420, f2: 900, t: .06, vol: .05, when: .12 }); },
   },
   bakery: { // oven crackle and the low roar of the fire
     work() { noise({ t: 1.2, vol: .06, type: 'lowpass', f: 380, at: .3 }); clicks(9, 1.1, 3500, .045, 2); },

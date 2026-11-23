@@ -2,14 +2,18 @@
 // Each building gets a little cobbled/earthen pad and its own idle/work animation; broken buildings sag and lose parts.
 import * as THREE from 'three';
 import type { BuildingType } from '../config';
-import { GEO, M, PART, V, part, rand } from './core';
+import { GEO, M, PART, V, decal, part, rand } from './core';
+import { JUICE_HEX, juiceBottle } from './models';
+import { buildingSound } from '../audio';
 import { friedEgg } from './eggfx';
-import { EGG_POS } from '../sim/sim';
+import { BOTTLE_SPOUT, EGG_POS } from '../sim/sim';
 
 export interface BuildingView {
   g: THREE.Group;
   /** working: a batch is running / the source is producing; broken: knocked out by animals */
   anim(dt: number, now: number, working: boolean, broken: boolean, wx: number, wz: number): void;
+  /** news from the sim: 'work' (a batch starts, v = berry index for the press), 'done' (batch finished) */
+  set?(k: string, v: number): void;
 }
 
 const WOOD = M(0x7a5232), WOOD_D = M(0x553620), WOOD_L = M(0x9a7048), STONE = M(0x8a8a86), STONE_D = M(0x6a6a68);
@@ -80,26 +84,82 @@ function mill(g: THREE.Group, H: number) {
   };
 }
 
+/** Saftpresse (23.11.2026, Basti's polish): wooden vat with a screw press. Berries of the current kind lie in the vat and are
+ *  squashed by every stroke (squelch, juice oozing over the rim in the berry colour), juice runs from the spout into a little
+ *  bottle under it; when the batch is done the full bottle hops into the row on the tile (the sim's juice item).
+ *  Around the press: old juice stains in the three berry colours. No loose berries lying around any more. */
+const STAIN = JUICE_HEX.map(c => new THREE.MeshStandardMaterial({ color: new THREE.Color(c).multiplyScalar(.75), roughness: .35, transparent: true, opacity: .8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+const BERRY_COL = [0x3a50e0, 0x3a1a4a, 0xd8243e], BERRY_MAT = BERRY_COL.map(c => M(c, { r: .4, flat: false }));
+const JUICE_M = JUICE_HEX.map(c => M(c, { r: .2, flat: false, e: c, ei: .1 }));
+function stain(g: THREE.Group, mat: THREE.Material, x: number, z: number, r: number) { // a blot: a few overlapping flat discs + droplets
+  const s = new THREE.Group(); s.position.set(x, .045, z); s.rotation.y = rand(0, 7); g.add(s);
+  const disc = (dx: number, dz: number, rr: number) => { const m = new THREE.Mesh(GEO.circle, mat); m.rotation.x = -Math.PI / 2; m.scale.set(rr, rr * rand(.7, 1), 1); m.position.set(dx, 0, dz); m.renderOrder = 1; s.add(m); };
+  disc(0, 0, r); for (let i = 0; i < 3; i++) { const a = rand(0, 7), d = r * rand(.4, .75); disc(Math.cos(a) * d, Math.sin(a) * d, r * rand(.45, .7)); }
+  for (let i = 0; i < 5; i++) { const a = rand(0, 7), d = r * rand(1.25, 1.9); disc(Math.cos(a) * d, Math.sin(a) * d, r * rand(.08, .16)); }
+}
 function press(g: THREE.Group, H: number) {
   pad(g, H);
-  const vat = new THREE.Mesh(new THREE.CylinderGeometry(.42, .38, .5, 14, 1, true), WOOD); vat.position.y = .3; vat.castShadow = true; (vat.material as THREE.Material).side = THREE.DoubleSide; g.add(vat);
-  for (const y of [.12, .45]) part(g, GEO.cyl, IRON, .43, .03, .43, 0, y, 0);
-  const juice = part(g, GEO.cyl, JUICE, .37, .02, .37, 0, .35, 0, false);
-  for (const sx of [-1, 1]) part(g, GEO.box, WOOD_D, .1, 1.35, .1, sx * .55, .68, 0);
-  part(g, GEO.box, WOOD_D, 1.25, .12, .14, 0, 1.38, 0);
+  // stains of all three juices around the press (on the pad, in front of the bottle row they would be covered)
+  stain(g, STAIN[2], -.62, -.35, .2); stain(g, STAIN[0], .66, -.2, .17); stain(g, STAIN[1], -.18, -.7, .15); stain(g, STAIN[2], .45, .45, .1); stain(g, STAIN[1], -.55, .3, .12);
+  // vat on a low trestle, iron hoops, spout at the front
+  const VR = .4, VY = .2;
+  part(g, GEO.box, WOOD_D, .95, .08, .14, 0, .05, -.2); part(g, GEO.box, WOOD_D, .95, .08, .14, 0, .05, .2);
+  const vat = new THREE.Mesh(new THREE.CylinderGeometry(VR, VR * .92, .46, 16, 1, true), WOOD); vat.position.y = VY + .23; vat.castShadow = true; (vat.material as THREE.Material).side = THREE.DoubleSide; g.add(vat);
+  part(g, GEO.cyl, WOOD_D, VR * .92, .04, VR * .92, 0, VY + .02, 0);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; const st = part(g, GEO.box, WOOD_L, .012, .46, .02, Math.cos(a) * (VR + .004), VY + .23, Math.sin(a) * (VR + .004), false); st.rotation.y = -a; } // stave joints
+  for (const y of [.08, .38]) part(g, GEO.cyl, IRON, VR + .02, .035, VR + .02, 0, VY + y, 0);
+  const spout = part(g, GEO.box, WOOD_D, .07, .05, .2, 0, VY + .06, VR + .06); spout.rotation.x = .25;
+  // frame + screw + plate
+  for (const sx of [-1, 1]) part(g, GEO.box, WOOD_D, .1, 1.45, .1, sx * .56, .73, 0);
+  part(g, GEO.box, WOOD_D, 1.28, .13, .15, 0, 1.45, 0);
   const screw = new THREE.Group(); g.add(screw);
-  part(screw, GEO.cyl, IRON, .05, .9, .05, 0, .95, 0);
-  part(screw, GEO.cyl, WOOD_L, .36, .08, .36, 0, .5, 0); // pressing plate
-  const bar = part(screw, GEO.box, WOOD, .9, .05, .05, 0, 1.5, 0);
-  // fruit heap next to it + jug
-  for (let i = 0; i < 6; i++) part(g, GEO.sph, i % 2 ? RED : M(0x3a50e0), .06, .06, .06, .6 + rand(-.1, .1), .08, .45 + rand(-.1, .1));
-  part(g, GEO.cyl, M(0x8a5a3a), .1, .2, .1, -.6, .12, .4);
-  let ph = 0;
-  return (dt: number, n: number, working: boolean) => {
+  part(screw, GEO.cyl, IRON, .05, .75, .05, 0, 1.2, 0);
+  for (let i = 0; i < 5; i++) part(screw, GEO.cyl, IRON, .065, .015, .065, 0, .95 + i * .11, 0, false); // thread
+  part(screw, GEO.cyl, WOOD_L, VR - .04, .07, VR - .04, 0, .85, 0); // pressing plate (rests above the rim, the berries stay visible)
+  const bar = part(screw, GEO.box, WOOD, 1.0, .055, .055, 0, 1.62, 0); part(screw, GEO.sph, WOOD_D, .045, .045, .045, .5, 1.62, 0); part(screw, GEO.sph, WOOD_D, .045, .045, .045, -.5, 1.62, 0);
+  // juice pool + berries in the vat
+  const pool = part(g, GEO.cyl, JUICE_M[2], VR - .03, .02, VR - .03, 0, VY + .14, 0, false);
+  const berries: THREE.Mesh[] = [];
+  for (let i = 0; i < 18; i++) { const a = rand(0, 7), r = rand(0, VR - .09); berries.push(part(g, GEO.sph, BERRY_MAT[2], .055, .055, .055, Math.cos(a) * r, VY + .2 + rand(0, .12), Math.sin(a) * r)); }
+  // stream + bottle under the spout (filling)
+  const [sx0, sz0] = BOTTLE_SPOUT;
+  const stream = part(g, GEO.cyl, JUICE_M[2], .012, 1, .012, sx0, 0, sz0 - .02, false); stream.visible = false;
+  const bottleSpot = new THREE.Group(); bottleSpot.position.set(sx0, .09, sz0); g.add(bottleSpot);
+  let bottle = juiceBottle(2, 0); bottleSpot.add(bottle);
+  let ph = 0, jb = -1, fill = 0, pop = 0, lastK = 0, hadDown = false, wx0 = 0, wz0 = 0;
+  const color = () => jb < 0 ? 2 : jb;
+  const tint = () => {
+    const c = color(); (pool as THREE.Mesh).material = JUICE_M[c]; (stream as THREE.Mesh).material = JUICE_M[c];
+    berries.forEach((b, i) => { b.material = i % 6 === 5 && jb < 0 ? BERRY_MAT[i % 3] : BERRY_MAT[c]; });
+    bottleSpot.remove(bottle); bottle = juiceBottle(c, fill); bottleSpot.add(bottle);
+  };
+  const setFill = (k: number) => { const j = bottle.userData.juice as THREE.Mesh, t = bottle.userData.top as THREE.Mesh; j.scale.y = Math.max(.02, k); j.position.y = -.055 + .05 * j.scale.y; t.position.y = -.055 + .1 * j.scale.y; };
+  (g.userData as any).set = (k: string, v: number) => {
+    if (k === 'work') { if (v !== jb) { jb = v; tint(); } }
+    else if (k === 'done') { pop = .35; fill = 0; } // the full bottle hops away (the sim's bottle takes over), a new empty one appears
+  };
+  return (dt: number, n: number, working: boolean, _broken: boolean, wx = wx0, wz = wz0) => {
+    wx0 = wx; wz0 = wz;
     if (working) ph += dt * 3.2;
-    const k = Math.abs(Math.sin(ph)); screw.position.y = -k * .12; screw.rotation.y = ph * 1.5; void bar;
-    juice.position.y = .33 + (working ? Math.sin(n * 6) * .01 : 0);
-    if (working && Math.random() < dt * 4) PART.spawn(V(g.position.x + rand(-.2, .2), .55, g.position.z + rand(-.2, .2)), V(rand(-.4, .4), rand(.4, .9), rand(-.4, .4)), 0xd02050, .05, .5, { g: 3 });
+    const k = Math.abs(Math.sin(ph)); screw.position.y = -k * .3; screw.rotation.y = ph * 1.2; void bar;
+    // berries squashed under the plate, swell back while it rises
+    const sq = Math.max(0, (k - .55) / .45);
+    berries.forEach((b, i) => { b.scale.y = .055 * (1 - sq * .65); b.scale.x = b.scale.z = .055 * (1 + sq * .3); b.position.y = VY + .2 + (i % 4) * .03 - sq * .06; });
+    pool.position.y = VY + .14 + (working ? Math.sin(n * 6) * .006 + fill * .04 : 0);
+    // bottom of the stroke: squelch + juice oozing over the rim in the berry colour
+    if (working && lastK < k && k > .97 && !hadDown) {
+      hadDown = true; buildingSound('press', 'squish', wx, wz);
+      const c = JUICE_HEX[color()];
+      for (let i = 0; i < 14; i++) { const a = rand(0, 7), sp = rand(.3, .8); PART.spawn(V(wx + Math.cos(a) * VR * .95, VY + .46, wz + Math.sin(a) * VR * .95), V(Math.cos(a) * sp, rand(.2, .7), Math.sin(a) * sp), c, rand(.035, .06), rand(.35, .6), { g: 5 }); }
+      for (let i = 0; i < 2; i++) { const a = rand(0, 7), r = VR + rand(.05, .2); decal(wx + Math.cos(a) * r, wz + Math.sin(a) * r, c, rand(.04, .08), 2.5, { op: .7 }); }
+    }
+    if (k < .8) hadDown = false;
+    lastK = k;
+    // stream from the spout into the bottle, which fills up during the batch
+    stream.visible = working && pop <= 0;
+    if (stream.visible) { const top = VY + .02, bot = .2; stream.scale.y = top - bot; stream.position.y = (top + bot) / 2; stream.scale.x = stream.scale.z = .01 + Math.sin(n * 40) * .002; fill = Math.min(.92, fill + dt / 3); setFill(fill);
+      if (Math.random() < dt * 6) PART.spawn(V(wx + sx0, .14, wz + sz0), V(rand(-.2, .2), rand(.3, .6), rand(-.2, .2)), JUICE_HEX[color()], .025, .3, { g: 4 }); }
+    if (pop > 0) { pop -= dt; setFill(0); bottle.visible = pop < .25; bottle.scale.setScalar(Math.max(.01, 1 - Math.max(0, pop) / .25)); } else { bottle.visible = true; bottle.scale.setScalar(1); }
   };
 }
 
@@ -280,7 +340,7 @@ function kitchen(g: THREE.Group, H: number) {
   };
 }
 
-const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean) => void> = { well, mill, press, bakery, hens, kitchen };
+const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean, wx?: number, wz?: number) => void> = { well, mill, press, bakery, hens, kitchen };
 void cow; void dairy; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Modelle bleiben fürs Wiedereinbauen)
 
 /** Lager-Truhe (23.11.2026): big wooden chest with iron bands on an earth hex in the garden centre; the lid opens a crack
@@ -321,7 +381,8 @@ export function buildBuilding(type: BuildingType, H: number): BuildingView {
       sag += ((broken ? 1 : 0) - sag) * Math.min(1, dt * 4);
       g.rotation.z = sag * .14; g.rotation.x = sag * -.08; g.scale.y = 1 - sag * .18;
       if (broken) { smokeT -= dt; if (smokeT <= 0) { smokeT = rand(.15, .35); PART.spawn(V(wx + rand(-.4, .4), rand(.4, 1), wz + rand(-.4, .4)), V(rand(-.1, .1), rand(.3, .6), rand(-.1, .1)), 0x5a5048, rand(.15, .25), rand(1, 1.8), { s1: 2, a: .4 }); } }
-      anim(dt, now, working && !broken, broken);
+      anim(dt, now, working && !broken, broken, wx, wz);
     },
+    set(k, v) { (g.userData as any).set?.(k, v); },
   };
 }

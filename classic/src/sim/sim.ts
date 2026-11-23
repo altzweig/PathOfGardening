@@ -30,6 +30,9 @@ export function accepts(cfg: Balancing, b: FruitType, item: FruitType) {
 }
 /** egg pyramid (23.11.2026): square layers L x L, (L-1) x (L-1) ... 1, each layer in the hollows of the one below */
 export const pyramidCount = (L: number) => { let n = 0; for (let k = 1; k <= L; k++) n += k * k; return n; };
+/** Saftpresse (23.11.2026): where the bottle is filled (under the spout) and the row the full bottles stand in (relative to the tile) */
+export const BOTTLE_SPOUT: [number, number] = [0, .62], BOTTLE_Y = .09;
+export const BOTTLE_ROW: [number, number][] = [-.63, -.45, -.27, -.09, .09, .27, .45, .63].map(x => [x, .92 - Math.abs(x) * .1] as [number, number]);
 export const EGG_SP = .1, EGG_LAYER = .085, EGG_POS: [number, number] = [.52, .42];
 /** local position (x, height of the egg's centre, z) of stack slot i in a pyramid of L layers, next to the coop */
 export function eggSlot(i: number, L: number): [number, number, number] {
@@ -123,6 +126,7 @@ interface Fruit {
   /** egg pyramid at the hens (23.11.2026): slot index in the stack, height it rests at */ sk?: number; gy?: number;
   /** loot a raccoon stole from the chest: gives no XP when picked up again */ nx?: boolean;
   /** 23.11.2026: XP multiplier of a berry dropped by an animal (enemy XP grows with the wave) */ xm?: number;
+  /** juice bottle of the Saftpresse: berry (BERRIES index), XP it gives when picked up, resting spot relative to the press */ jb?: number; xv?: number; lx?: number; lz?: number;
 }
 type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | { kind: 'chest' } | null;
 interface Enemy {
@@ -500,8 +504,14 @@ export class Sim {
     this.emit({ k: 'bdone', s: f.slot, b: BUILDINGS.indexOf(f.type as BuildingType) });
     if (f.type === 'press' && this.cfg.juice) { // juice is drunk right away: XP, twice the XP rate of a crop field while pressing (faster with the press level)
       const J = this.cfg.juice, xv = J.xpFactor * (this.cfg.xp.fieldPerSecond ?? .5) * (B.time ?? 1) * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent);
-      this.xpNow.j += xv; this.addXP(xv);
-      this.emit({ k: 'juice', s: f.slot, b: BERRIES.indexOf(f.jb ?? 'blue'), v: Math.round(xv * 10) / 10 });
+      // 23.11.2026 (Basti): the juice runs into a little bottle that hops onto the tile, the bottles stand in a row to be picked up
+      const jb = BERRIES.indexOf(f.jb ?? 'blue'), used = new Set(this.fruits.filter(x => x.src === f.slot && x.sk !== undefined && x.state !== 'collect').map(x => x.sk!));
+      for (let i = 0; i < BOTTLE_ROW.length; i++) if (!used.has(i)) {
+        const [lx, lz] = BOTTLE_ROW[i], fr = this.spawnFruit('juice', 0, f.x + BOTTLE_SPOUT[0], .12, f.z + BOTTLE_SPOUT[1], f.x + lx, f.z + lz, f.slot, BOTTLE_Y);
+        fr.sk = i; fr.gy = BOTTLE_Y; fr.lx = lx; fr.lz = lz; fr.r = .06; fr.jb = jb; fr.xv = xv; return;
+      }
+      this.xpNow.j += xv; this.addXP(xv); // the row is full: drunk right there
+      this.emit({ k: 'juice', s: f.slot, b: jb, v: Math.round(xv * 10) / 10 });
       return;
     }
     for (let n = Math.max(1, B.amount ?? 1); n > 0; n--) this.putOut(f, item, B);
@@ -528,7 +538,7 @@ export class Sim {
     if (B.interval) { f.t -= s; let n = 0; while (f.t <= 0 && n++ < 8) { f.t += B.interval; this.buildingOut(f); } return; }
     let n = 0;
     while (s > 0 && n++ < 8) {
-      if (f.work <= 0) { if (!this.takeBatch(f)) { f.work = 0; return; } f.work = B.time ?? 1; this.emit({ k: 'bwork', s: f.slot, b: BUILDINGS.indexOf(f.type as BuildingType) }); }
+      if (f.work <= 0) { if (!this.takeBatch(f)) { f.work = 0; return; } f.work = B.time ?? 1; this.emit({ k: 'bwork', s: f.slot, b: BUILDINGS.indexOf(f.type as BuildingType), j: f.jb ? BERRIES.indexOf(f.jb) : -1 }); }
       const d = Math.min(s, f.work); f.work -= d; s -= d;
       if (f.work <= 1e-6) { f.work = 0; this.buildingOut(f); }
     }
@@ -585,6 +595,12 @@ export class Sim {
     return I?.xp ?? 0;
   }
   collectFruit(fr: Fruit, p: Player) {
+    if (fr.xv !== undefined) { // juice bottle: drunk right away = XP (not into the bag)
+      const xv = fr.nx ? 0 : fr.xv; this.xpNow.j += xv; this.addXP(xv);
+      this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: 0, x: r2(p.x), z: r2(p.z) });
+      this.emit({ k: 'juice', s: -1, p: p.id, b: fr.jb ?? 2, v: Math.round(xv * 10) / 10, x: r2(p.x), z: r2(p.z) });
+      return;
+    }
     const v = fr.val, xp = fr.nx ? 0 : this.itemXP(fr.type) * (fr.xm ?? 1);
     if (xp > 0) { const xv = v * xp * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v * xp; if (fr.src === -1) this.xpNow.e += xv; else this.xpNow.h += xv; this.addXP(xv); }
     if (fr.type === 'nut') p.nuts += v;
@@ -2227,7 +2243,7 @@ export class Sim {
       const fr = this.fruits[i];
       if (fr.state === 'fly') {
         fr.vy -= 9.8 * dt; fr.x += fr.vx * dt; fr.y += fr.vy * dt; fr.z += fr.vz * dt;
-        if (fr.gy !== undefined) { if (fr.y <= fr.gy && fr.vy < 0) { fr.y = fr.gy; fr.vx = fr.vy = fr.vz = 0; const [lx, , lz] = eggSlot(fr.sk!, this.cfg.buildings.hens.stack || 4), f = this.fields.find(q => q.slot === fr.src); fr.x = (f?.x ?? 0) + lx; fr.z = (f?.z ?? 0) + lz; fr.state = 'ground'; } }
+        if (fr.gy !== undefined) { if (fr.y <= fr.gy && fr.vy < 0) { fr.y = fr.gy; fr.vx = fr.vy = fr.vz = 0; const [lx, , lz] = fr.lx !== undefined ? [fr.lx, 0, fr.lz!] : eggSlot(fr.sk!, this.cfg.buildings.hens.stack || 4), f = this.fields.find(q => q.slot === fr.src); fr.x = (f?.x ?? 0) + lx; fr.z = (f?.z ?? 0) + lz; fr.state = 'ground'; } }
         else if (fr.y <= fr.r && fr.vy < 0) { if (fr.bounce < 1) { fr.vy *= -.32; fr.vx *= .4; fr.vz *= .4; fr.bounce++; fr.y = fr.r; } else { fr.y = fr.r; fr.state = 'ground'; } }
       } else if (fr.state === 'ground') {
         let best: Player | null = null, bd = 1e9;
@@ -2633,7 +2649,7 @@ export class Sim {
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }
         return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => FRUITS.indexOf(f.type)).join(','), aux, aux2] as ESnap;
       }),
-      fr: this.fruits.filter(f => f.state !== 'carried').map(f => f.sk !== undefined ? [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z), 1] : [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
+      fr: this.fruits.filter(f => f.state !== 'carried').map(f => f.sk !== undefined ? (f.jb !== undefined ? [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z), 1, f.jb] : [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z), 1]) : [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
       eg: this.baits.filter(b => b.delay <= 0).map(b => [b.id, r2(b.x + (b.sx - b.x) * (1 - Math.min(1, b.t / b.fl))), r2(b.y), r2(b.z + (b.sz - b.z) * (1 - Math.min(1, b.t / b.fl))), b.t >= b.fl ? 1 : 0, r2(Math.max(0, b.left) / b.total), r2(b.out), r2(b.r), b.eaters]),
       pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? 1 : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
       cl: this.clouds.map(c => [c.id, r2(c.x), r2(c.z), r2(c.r), r2(c.age), c.life, c.ign, r2(c.ix), r2(c.iz)]),

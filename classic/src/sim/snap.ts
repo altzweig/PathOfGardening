@@ -45,7 +45,7 @@ export interface Priv {
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
 // fruit: [id, type, tier, x, y, z]
-export type FSnap = [number, number, number, number, number, number] | [number, number, number, number, number, number, number]; // [6] = 1: egg in the pyramid at the hens
+export type FSnap = [number, number, number, number, number, number] | [number, number, number, number, number, number, number] | [number, number, number, number, number, number, number, number]; // [7]: juice bottle of berry n // [6] = 1: egg in the pyramid at the hens
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]

@@ -32,7 +32,7 @@ import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
@@ -557,7 +557,8 @@ export class GameView {
       if (!v) {
         const type = FRUITS[f[1]], stacked = f[6] === 1;
         let g: THREE.Group;
-        if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
+        if (stacked && f[7] !== undefined) g = juiceBottle(f[7]); // Saftpresse bottle standing in the row
+        else if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
         else g = fruitMesh(type, this.cfg.fruit.tierScale[f[2]] || 1);
         g.traverse(o => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = true));
         this.dyn.add(g); v = { g, tier: f[2], type, x: f[3], y: f[4], z: f[5], tx: f[3], ty: f[4], tz: f[5], seen: id, st: stacked }; this.fruits.set(f[0], v);
@@ -951,7 +952,7 @@ export class GameView {
         this.flyers.push({ m, fx, fy, fz, tx: b.x, tz: b.z, t: 0, T: .45 + Math.random() * .15 });
         break;
       }
-      case 'bwork': { const v = this.fields.get(e.s); if (v) { v.sndT = 0; } break; }
+      case 'bwork': { const v = this.fields.get(e.s); if (v) { v.sndT = 0; v.bld?.set?.('work', e.j ?? -1); } break; }
       case 'juiceUp': { // a berry bar of the press ran full: splash in the berry colour + "+1 % Bleeding-Effizienz" rising up
         const v = this.fields.get(e.s), b = BERRIES[e.b]; if (!v || !b) break;
         const c = FRUIT_HEX[b] === 0x5a2a6a ? 0x9a4ac0 : FRUIT_HEX[b];
@@ -964,8 +965,8 @@ export class GameView {
         this.dmgLayer.appendChild(el); this.juiceTxt.push({ el, p: V(v.x, 1.75, v.z), t: 0 });
         break;
       }
-      case 'juice': { const v = this.fields.get(e.s); if (v) this.floatNum(v.x, v.z, `+${String(e.v).replace('.', ',')} XP`, '#ffe08a'); break; }
-      case 'bdone': { const v = this.fields.get(e.s); if (v) { buildingSound(v.ftype, 'done', v.x, v.z); burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
+      case 'juice': { const v = this.fields.get(e.s), x = v ? v.x : e.x, z = v ? v.z : e.z; if (x !== undefined) this.floatNum(x, z, `+${String(e.v).replace('.', ',')} XP`, '#ffe08a'); break; }
+      case 'bdone': { const v = this.fields.get(e.s); if (v) { v.bld?.set?.('done', 0); buildingSound(v.ftype, 'done', v.x, v.z); if (v.ftype !== 'press') burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
       case 'broken': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'break', v.x, v.z); burst(V(v.x, .8, v.z), 0x7a6048, 40, 3, .25, 1, { g: 5 }); } break; }
       case 'repair': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repair', v.x, v.z); burst(V(v.x, .9, v.z), 0xc8a070, 6, 1.5, .08, .4, { g: 6 }); } break; }
       case 'repaired': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repaired', v.x, v.z); burst(V(v.x, 1, v.z), 0x9aff7a, 30, 2.2, .14, .7); } break; }

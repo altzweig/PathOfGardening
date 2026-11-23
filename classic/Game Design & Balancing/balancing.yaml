@@ -14,6 +14,7 @@ names:
   skills:
     rake: Harke
     blue: Blaubeer-Schrotflinte
+    flour: Mehlsack
     asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
     cab: Kohlmine
@@ -103,6 +104,7 @@ names:
     tea: Heilung
   # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
   effects:
+    flour: Mehlwolke · Feuer entzündet sie
     blue: Friert 1 s ein
     asp: 3er-Salve · durchbohrt
     cran: Blutung · Beeren platzen
@@ -271,6 +273,18 @@ skills:
     cone: 45
     spreadSigma: 11
     freeze: 1.0            # s eingefroren bei Treffer (nicht bei Bossen)
+  flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
+    damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
+    range: 2.6             # m, Radius der Mehlwolke um den Spieler (Reichweite-Upgrade vergrößert sie)
+    cooldown: 2.5          # s
+    ammoPerShot: 2         # Mehl je Wurf
+    spin: 0.45             # s, so lange dreht sich die Figur beim Werfen einmal im Kreis
+    life: 6                # s hängt die Wolke in der Luft ...
+    fade: 2                # ... die letzten 2 s verpufft sie langsam (in dieser Zeit noch entzündbar)
+    frontSpeed: 4          # m/s, Flammenwelle frisst sich konzentrisch von der Zündstelle aus durch die Wolke
+    burnTime: 3            # s Nachbrennen getroffener Tiere ...
+    burnDps: 4             # ... mit so viel Schaden pro Sekunde
+    maxClouds: 4           # höchstens so viele unentzündete Wolken gleichzeitig (die älteste verschwindet)
   cran:
     damage: 5              # je Projektil
     range: 7.00            # m (4,5 -> +50 %)
@@ -753,3 +767,25 @@ hud:
     lowSeconds: 3          # "geht zur Neige": wenn nur noch so viele Sekunden Dauerfeuer übrig sind
     lowShow: 1.0           # s sichtbar bei "geht zur Neige"
     fade: 0.3              # s Ein-/Ausblenden
+
+# ---------------------------------------------------------------------
+#  Grafik-Parameter Mehlwolke / Flammenteppich (23.11.2026). Nur Optik, ändern nichts am Spiel.
+fx:
+  flour:
+    layers: 6              # Schichten der Wolke (mehr = dichter/volumetrischer, teurer)
+    height: 1.5            # m Höhe der Wolke
+    noiseScale: 1.6        # Größe der Rauschstrukturen (größer = feiner)
+    swirl: 0.35            # Verwirbelung / Driftgeschwindigkeit
+    density: 0.95          # Deckkraft
+    speckle: 0.55          # Anteil harter weißer Pixel in der Wolke
+    speckleSize: 3         # Pixelgröße der harten Punkte (Bildschirmpixel)
+    color: 0xf4efe4        # Mehlfarbe
+  fire:
+    edgeWidth: 0.55        # m, glühender Rand der Flammenwelle (Dissolve)
+    flameHeight: 1.1       # m Höhe der Flammenzungen
+    flameSpeed: 1.6        # Flackertempo
+    intensity: 2.2         # Helligkeit (wirkt mit dem Glow)
+    burnOut: 0.9           # s, so schnell verlöscht der Teppich hinter der Welle
+    sparks: 220            # Funken pro Brand
+    haze: 0.004            # Stärke Hitzeflirren (Bildverzerrung), 0 = aus
+    hazeHeight: 2.2        # m Höhe der Flirrzone

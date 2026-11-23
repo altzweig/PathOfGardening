@@ -19,6 +19,7 @@ export interface PSnap {
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped
   aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
+  sp?: number; // Mehlsack spin progress 0..1 (0 = not spinning)
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
@@ -59,7 +60,7 @@ export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
   wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
-  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
+  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; /** flour clouds: [id, x, z, r, age, life, ignAge (-1 unlit), ix, iz] */ cl?: number[][]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss
   sn?: number[][]; // Shockgun berries on the ground: [id, x, z, ticks left 0..1]

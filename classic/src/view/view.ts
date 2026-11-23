@@ -44,6 +44,7 @@ import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
+import { EggFX, fryingPan } from './eggfx';
 import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
@@ -51,10 +52,12 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { sack?: THREE.Group; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
-interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
+/** eggs stacked into the pyramid at the hens: plain upright eggs */
+const EGG_STACK = new THREE.MeshStandardMaterial({ color: 0xf2e0c0, roughness: .42, emissive: 0xffe8c8, emissiveIntensity: .14 });
+interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number; st?: boolean }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 /** nature-pack broadleaf tree (about 7 units tall) scaled to a ~3.5 m nut tree */
 const NUT_TREE_SCALE = .5;
@@ -116,6 +119,7 @@ export interface LocalAim { weapon: Weapon | null; x: number; z: number; show: b
 export class GameView {
   cfg!: Balancing;
   private flourFx = new FlourFX();
+  private eggFx = new EggFX();
   me = 0;
   smooth = false; // clients interpolate
   snap: Snap | null = null;
@@ -147,9 +151,12 @@ export class GameView {
   /** goods flying into a building */
   private flyers: { m: THREE.Object3D; fx: number; fy: number; fz: number; tx: number; tz: number; t: number; T: number }[] = [];
   hurtT = 0;
-  zoom = 1;
+  /** camera distance factor (23.11.2026: default 30 % closer than before; zoom out at most to the old distance, in to another 30 % closer) */
+  static readonly ZOOM = { def: .7, min: .49, max: 1 };
+  zoom = GameView.ZOOM.def;
+  setZoom(z: number) { this.zoom = clamp(z, GameView.ZOOM.min, GameView.ZOOM.max); }
   /** mouse wheel: + zooms out, - zooms in */
-  zoomBy(dy: number) { this.zoom = clamp(this.zoom * Math.pow(1.0015, dy), .55, 1.7); }
+  zoomBy(dy: number) { this.setZoom(this.zoom * Math.pow(1.0015, dy)); }
   private berryT = 0;
   private lowHp = 0;
   /** low-HP warning for the local player: red screen edges (life itself shows in the HUD bar + bars over the mates) */
@@ -402,13 +409,13 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
-    this.flourFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    this.flourFx.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
   apply(s: Snap) {
     this.snap = s; const id = ++this.frameId;
-    this.flourFx.sync(s.cl);
+    this.flourFx.sync(s.cl); this.eggFx.sync(s.eg);
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -501,8 +508,12 @@ export class GameView {
     for (const f of s.fr) {
       let v = this.fruits.get(f[0]);
       if (!v) {
-        const type = FRUITS[f[1]]; const g = fruitMesh(type, this.cfg.fruit.tierScale[f[2]] || 1); g.traverse(o => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = true));
-        this.dyn.add(g); v = { g, tier: f[2], type, x: f[3], y: f[4], z: f[5], tx: f[3], ty: f[4], tz: f[5], seen: id }; this.fruits.set(f[0], v);
+        const type = FRUITS[f[1]], stacked = f[6] === 1;
+        let g: THREE.Group;
+        if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
+        else g = fruitMesh(type, this.cfg.fruit.tierScale[f[2]] || 1);
+        g.traverse(o => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = true));
+        this.dyn.add(g); v = { g, tier: f[2], type, x: f[3], y: f[4], z: f[5], tx: f[3], ty: f[4], tz: f[5], seen: id, st: stacked }; this.fruits.set(f[0], v);
       }
       v.tx = f[3]; v.ty = f[4]; v.tz = f[5]; v.seen = id; if (!this.smooth) { v.x = v.tx; v.y = v.ty; v.z = v.tz; }
     }
@@ -751,6 +762,11 @@ export class GameView {
         break;
       }
       case 'shot': {
+        if (e.w === 'pan') { // the eggs leave the pan: a puff of steam and spattering fat (the eggs themselves are the EggFX)
+          const pv = this.players.get(e.p); if (pv) pv.panT = performance.now();
+          for (let i = 0; i < 6; i++) PART.spawn(V(e.x + rand(-.15, .15), .9, e.z + rand(-.15, .15)), V(rand(-.3, .3), rand(.4, .8), rand(-.3, .3)), 0x6a6864, .18, rand(.6, 1), { s1: .45, a: .5 });
+          break;
+        }
         if (e.w === 'flour') { // spin throw: flour puffs flung out in a ring (the cloud itself is the FlourFX)
           for (let i = 0; i < 18; i++) { const an = i / 18 * Math.PI * 2; PART.spawn(V(e.x, .7, e.z), V(Math.cos(an) * 3.6, .5, Math.sin(an) * 3.6), 0xf4efe4, .3, .5, { drag: 3 }); }
           break;
@@ -856,7 +872,7 @@ export class GameView {
 
   // ---------------- per frame ----------------
   frame(dt: number) {
-    windU.value += dt; this.flourFx.frame(dt);
+    windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
     if (s) {
@@ -866,7 +882,7 @@ export class GameView {
       for (const v of this.fruits.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.g.position.set(v.x, v.y, v.z);
         if (v.tier > 0) { v.g.rotation.y += dt; if (Math.random() < dt * v.tier * 2) PART.spawn(V(v.x + rand(-.15, .15), v.y + .1, v.z + rand(-.15, .15)), V(0, .6, 0), FRUIT_HEX[v.type], .1, .8); }
-        else v.g.rotation.y += dt * (v.ty > .25 ? 5 : 0);
+        else if (!v.st) v.g.rotation.y += dt * (v.ty > .25 ? 5 : 0);
       }
       for (const v of this.projs.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z);
@@ -902,8 +918,8 @@ export class GameView {
     v.g.position.set(v.x, 0, v.z); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(v.x, .035, v.z);
     const swinging = s.sw > 0;
     v.rot = lerpAngle(v.rot, swinging ? s.sd : s.f, swinging ? .55 : .25); // a running stroke turns with the player at once
-    const sp = s.sp || 0; // Mehlsack: one full turn, fast start, soft stop
-    v.g.rotation.y = v.rot + (sp > 0 ? (1 - Math.pow(1 - sp, 2.2)) * Math.PI * 2 : 0);
+    const sp = s.sp || 0; // Mehlsack: one full turn, fast start, soft stop; Bratpfanne: whips round and stops almost dead
+    v.g.rotation.y = v.rot + (sp > 0 ? (s.sk ? Math.min(1, Math.pow(sp, 1.15) * 1.04) : 1 - Math.pow(1 - sp, 2.2)) * Math.PI * 2 : 0);
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
@@ -938,7 +954,7 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible || v.sack?.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -967,6 +983,7 @@ export class GameView {
     else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
+    else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
@@ -994,6 +1011,17 @@ export class GameView {
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
     const sackOn = al && aw === 'flour';
     if (sackOn && !v.sack) { const m = flourSack(); m.position.set(.26, .86, .1); v.g.add(m); v.sack = m; }
+    const panOn = al && aw === 'pan';
+    if (panOn && !v.pan) { const m = fryingPan(); m.g.position.set(.24, .84, .3); v.g.add(m.g); v.pan = m; }
+    if (v.pan) {
+      v.pan.g.visible = panOn;
+      const sp = v.s.sp || 0, now = performance.now();
+      // swung round flat at arm's length while spinning, then held out in front, the pan jiggling a little
+      v.pan.g.position.x = .24 + (sp > 0 ? .18 : 0); v.pan.g.rotation.x = sp > 0 ? -.25 : lerp(v.pan.g.rotation.x, Math.sin(now / 300) * .04, .2);
+      v.pan.g.rotation.y = sp > 0 ? -.6 : lerp(v.pan.g.rotation.y, 0, .25);
+      v.pan.eggs.visible = now - (v.panT ?? 0) > 1400 || (sp > 0 && sp < .9); // fresh ones are back in the pan after a moment
+      v.pan.eggs.children.forEach((c, i) => { c.position.y = .01 + Math.abs(Math.sin(now / 90 + i * 2)) * .004; }); // sizzling
+    }
     if (v.sack) { v.sack.visible = sackOn; const sp = v.s.sp || 0; v.sack.rotation.z = sp > 0 ? -Math.sin(sp * Math.PI) * 1.3 : lerp(v.sack.rotation.z, Math.sin(performance.now() / 260) * .06, .2); v.sack.position.x = .26 + (sp > 0 ? Math.sin(sp * Math.PI) * .22 : 0); }
   }
   /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */

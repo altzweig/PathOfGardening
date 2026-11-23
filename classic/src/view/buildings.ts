@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import type { BuildingType } from '../config';
 import { GEO, M, PART, V, part, rand } from './core';
+import { friedEgg } from './eggfx';
+import { EGG_POS } from '../sim/sim';
 
 export interface BuildingView {
   g: THREE.Group;
@@ -141,12 +143,13 @@ function hens(g: THREE.Group, H: number) {
   }
   house(g, .7, .55, .5, WOOD, THATCH, 0, -.45);
   part(g, GEO.box, BLACK, .16, .16, .02, 0, .2, -.17);
-  part(g, GEO.cyl, WOOD_D, .14, .06, .14, .35, .04, .2); // feed trough
-  const birds = [0, 1, 2].map(i => { const b = chicken(g); b.c.position.set(-.35 + i * .35, 0, .2 + (i % 2) * .2); b.c.rotation.y = rand(0, 7); return { ...b, t: rand(0, 5), tx: 0, tz: 0, peck: 0 }; });
+  part(g, GEO.cyl, WOOD_D, .14, .06, .14, -.5, .04, .25); // feed trough
+  const straw = new THREE.Mesh(new THREE.CylinderGeometry(.27, .3, .03, 8), M(0xd8b860)); straw.position.set(EGG_POS[0], .065, EGG_POS[1]); straw.rotation.y = .3; straw.receiveShadow = true; g.add(straw); // straw bed under the egg pyramid
+  const birds = [0, 1, 2].map(i => { const b = chicken(g); b.c.position.set(-.45 + i * .25, 0, .1 + (i % 2) * .2); b.c.rotation.y = rand(0, 7); return { ...b, t: rand(0, 5), tx: 0, tz: 0, peck: 0 }; });
   return (dt: number, _n: number, working: boolean) => {
     for (const b of birds) {
       b.t -= dt;
-      if (b.t <= 0) { b.t = rand(.8, 2.5); const a = rand(0, 7), r = rand(0, .45); b.tx = Math.cos(a) * r; b.tz = Math.sin(a) * r + .1; b.peck = working ? 1.2 : .5; }
+      if (b.t <= 0) { b.t = rand(.8, 2.5); const a = rand(0, 7), r = rand(0, .38); b.tx = Math.cos(a) * r - .15; b.tz = Math.sin(a) * r + .05; /* keeps off the egg pyramid */ b.peck = working ? 1.2 : .5; }
       const dx = b.tx - b.c.position.x, dz = b.tz - b.c.position.z, d = Math.hypot(dx, dz);
       if (d > .03) { b.c.position.x += dx / d * dt * .4; b.c.position.z += dz / d * dt * .4; b.c.rotation.y = Math.atan2(dx, dz); b.c.position.y = Math.abs(Math.sin(_n * 18)) * .02; }
       else { b.peck -= dt; b.head.rotation.x = b.peck > 0 ? Math.max(0, Math.sin(_n * 14)) * .9 : 0; }
@@ -203,24 +206,77 @@ function dairy(g: THREE.Group, H: number) {
   return (dt: number, _n: number, working: boolean) => { if (working) ph += dt * 5; dash.position.y = .55 + Math.sin(ph) * .08; };
 }
 
+/** Spiegeleierei (23.11.2026, replaces the kitchen): an old cast-iron stove on legs with a giant paella pan full of sizzling fried eggs.
+ *  Now and then the pan wobbles by itself and the eggs slide about; steam rises; flames lick out from under the stove;
+ *  the oven door has slits with a flickering fire glow (emissive, picked up by the bloom). */
 function kitchen(g: THREE.Group, H: number) {
   pad(g, H);
-  // open-air kitchen: stone hearth with a cauldron, a roof on posts, a table with dishes
-  for (const [x, z] of [[-.5, -.4], [.5, -.4], [-.5, .4], [.5, .4]]) part(g, GEO.box, WOOD, .07, 1.05, .07, x, .52, z);
-  const r = new THREE.Mesh(gable(1.25, 1.05, .42), THATCH); r.position.y = 1.05; r.castShadow = true; g.add(r);
-  const hearth = new THREE.Mesh(new THREE.CylinderGeometry(.32, .36, .25, 8), STONE); hearth.position.set(-.1, .13, -.05); hearth.castShadow = true; g.add(hearth);
-  const fire = new THREE.Group(); fire.position.set(-.1, .27, -.05); g.add(fire);
-  const flames = [0, 1, 2].map(i => part(fire, GEO.cone, i ? FIRE : EMBER, .08 - i * .015, .2, .08 - i * .015, (i - 1) * .07, .1, 0, false));
-  const pot = part(g, GEO.sph, IRON, .22, .17, .22, -.1, .48, -.05);
-  part(g, GEO.cyl, M(0x9a5a30, { e: 0x7a3a10, ei: .3 }), .19, .02, .19, -.1, .6, -.05, false); // stew
-  part(g, GEO.box, WOOD_L, .45, .05, .3, .55, .42, .45); for (const [x, z] of [[.36, .35], [.74, .35], [.36, .55], [.74, .55]]) part(g, GEO.box, WOOD_D, .04, .4, .04, x, .2, z);
-  part(g, GEO.sph, M(0xd8c8b0), .08, .03, .08, .45, .47, .45); part(g, GEO.capsule, M(0xb87a38), .04, .08, .04, .62, .48, .45).rotation.z = Math.PI / 2;
-  let heat = 0;
+  const CAST = M(0x34322f, { m: .5, r: .62 }), CAST_D = M(0x24221f, { m: .5, r: .7 }), RUST = M(0x5a3a26, { r: .9 }), STEEL = M(0x8a8a8a, { m: .7, r: .35, flat: false });
+  const GLOW = M(0xff7a20, { e: 0xff5a10, ei: 2.6 }), GLOW_D = M(0xff5a10, { e: 0xff3a00, ei: 1.8 });
+  const st = new THREE.Group(); st.position.set(-.05, 0, -.05); g.add(st);
+  // legs, body, top plate with two hot plates, stove pipe at the back right
+  for (const [x, z] of [[-.44, -.26], [.44, -.26], [-.44, .26], [.44, .26]]) part(st, GEO.box, CAST_D, .06, .34, .06, x, .17, z);
+  part(st, GEO.box, CAST, .96, .5, .58, 0, .58, 0);
+  part(st, GEO.box, CAST_D, 1.08, .05, .68, 0, .855, 0);
+  for (const x of [-.24, .24]) part(st, GEO.cyl, RUST, .2, .012, .2, x, .885, -.02, false);
+  part(st, GEO.cyl, STEEL, .065, 1.05, .065, .38, 1.35, -.24);
+  part(st, GEO.cyl, CAST_D, .075, .05, .075, .38, 1.88, -.24);
+  part(st, GEO.box, CAST_D, .98, .03, .6, 0, .335, 0); // bottom rail
+  // front: small upper door, lower ash door with a draught dial (left), big oven door with glowing slits (right)
+  const fz = .295;
+  part(st, GEO.box, CAST_D, .3, .2, .03, -.28, .7, fz); part(st, GEO.box, STEEL, .025, .07, .025, -.16, .7, fz + .03);
+  part(st, GEO.box, CAST_D, .3, .17, .03, -.28, .45, fz); part(st, GEO.cyl, STEEL, .04, .01, .04, -.28, .46, fz + .02).rotation.x = Math.PI / 2;
+  part(st, GEO.box, STEEL, .02, .06, .02, -.16, .44, fz + .03).rotation.z = .5;
+  part(st, GEO.box, CAST_D, .5, .38, .03, .18, .57, fz);
+  part(st, GEO.box, STEEL, .14, .025, .03, .18, .7, fz + .035); // handle
+  for (const x of [.02, .34]) part(st, GEO.box, CAST_D, .04, .05, .04, x, .39, fz + .02); // hinges
+  const slits: THREE.Mesh[] = [];
+  for (let i = 0; i < 5; i++) slits.push(part(st, GEO.box, i % 2 ? GLOW_D : GLOW, .06, .02, .012, .03 + i * .075, .48, fz + .018, false));
+  for (let i = 0; i < 4; i++) slits.push(part(st, GEO.box, GLOW_D, .045, .018, .012, -.33 + i * .05, .4, fz + .018, false)); // ash door vents
+  // warm glow on the ground in front of the oven (additive, no extra light)
+  const glow = new THREE.Mesh(GEO.circle, new THREE.MeshBasicMaterial({ color: 0xff7a30, transparent: true, opacity: .25, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.rotation.x = -Math.PI / 2; glow.scale.set(.55, .4, 1); glow.position.set(.05, .06, .55); st.add(glow);
+  // flames licking out from under the stove
+  const under = [0, 1, 2, 3].map(i => { const f = part(st, GEO.cone, i % 2 ? FIRE : EMBER, .05, .2, .05, -.3 + i * .2, .3, .2 + (i % 2) * .05, false); f.visible = false; return { f, t: 0, d: 0, x: -.3 + i * .2 }; });
+  // giant paella pan with two loop handles and a load of fried eggs
+  const pan = new THREE.Group(); pan.position.set(-.06, .9, .02); st.add(pan);
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.6, .55, .07, 32, 1, true), CAST); (bowl.material as THREE.Material).side = THREE.DoubleSide; bowl.position.y = .035; bowl.castShadow = true; pan.add(bowl);
+  part(pan, GEO.cyl, CAST_D, .555, .012, .555, 0, .006, 0);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(.6, .012, 6, 40), CAST); lip.rotation.x = Math.PI / 2; lip.position.y = .07; pan.add(lip);
+  for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.TorusGeometry(.07, .014, 6, 14, Math.PI), CAST); h.position.set(sx * .64, .06, 0); h.rotation.set(Math.PI / 2, 0, sx > 0 ? -Math.PI / 2 : Math.PI / 2); pan.add(h); }
+  const eggs = [0, 1, 2, 3, 4, 5, 6].map(i => { const e = friedEgg(.13, i); const a = i / 6 * Math.PI * 2 + .3, r = i === 6 ? 0 : .33; e.position.set(Math.cos(a) * r, .012, Math.sin(a) * r); e.rotation.y = rand(0, 7); pan.add(e); return { e, vx: 0, vz: 0 }; });
+  let heat = 0, wob = 0, wobT = rand(2, 5), wobA = 0, smokeT = 0;
   return (dt: number, n: number, working: boolean) => {
-    heat += ((working ? 1 : .2) - heat) * Math.min(1, dt * 2);
-    flames.forEach((f, i) => { f.scale.y = (.15 + .12 * heat) * (1 + Math.sin(n * (13 + i * 3) + i) * .25); });
-    if (working && Math.random() < dt * 4) PART.spawn(V(g.position.x - .1 + rand(-.1, .1), .7, g.position.z - .05), V(rand(-.05, .05), rand(.4, .7), rand(-.05, .05)), 0xd8d4d0, rand(.1, .16), rand(1, 1.6), { s1: 2.2, a: .3 });
-    void pot;
+    heat += ((working ? 1 : .35) - heat) * Math.min(1, dt * 1.5);
+    // flickering glow through the slits (bloom does the rest)
+    const fl = .55 + .25 * Math.sin(n * 11.3) + .15 * Math.sin(n * 23.7 + 1) + .1 * Math.sin(n * 5.1);
+    (GLOW.emissiveIntensity as number) = (1.2 + 2.2 * heat) * fl; GLOW_D.emissiveIntensity = (.8 + 1.6 * heat) * fl;
+    (glow.material as THREE.MeshBasicMaterial).opacity = (.12 + .2 * heat) * fl;
+    // flames from under the stove: short random bursts
+    for (const u of under) {
+      if (u.t <= 0 && Math.random() < dt * (.25 + heat * .9)) { u.t = u.d = rand(.25, .6); }
+      if (u.t > 0) { u.t -= dt; const k = Math.sin((1 - u.t / u.d) * Math.PI); u.f.visible = true; u.f.scale.set(.05 + k * .03, .05 + k * rand(.15, .24), .05 + k * .03); u.f.position.set(u.x + Math.sin(n * 17 + u.x * 9) * .02, .28 + u.f.scale.y * .3, .27 + k * .05); }
+      else u.f.visible = false;
+    }
+    // the pan wobbles by itself now and then, the eggs slide about (and settle again)
+    wobT -= dt; if (wobT <= 0) { wobT = rand(3, 7) / (.6 + heat * .6); wob = .9; wobA = rand(0, 7); }
+    let tx = 0, tz = 0;
+    if (wob > 0) { wob -= dt; const k = Math.max(0, wob) / .9, w = Math.sin(n * 26) * .035 * k; tx = Math.cos(wobA) * w; tz = Math.sin(wobA) * w; }
+    pan.rotation.x = tz; pan.rotation.z = -tx;
+    for (const e of eggs) {
+      e.vx += tx * 9 * dt; e.vz += tz * 9 * dt; e.vx *= Math.exp(-dt * 3); e.vz *= Math.exp(-dt * 3);
+      e.e.position.x += e.vx * dt; e.e.position.z += e.vz * dt;
+      const r = Math.hypot(e.e.position.x, e.e.position.z); if (r > .42) { e.e.position.x *= .42 / r; e.e.position.z *= .42 / r; e.vx *= -.3; e.vz *= -.3; }
+      e.e.position.y = .012 + Math.max(0, Math.sin(n * 30 + e.e.position.x * 40)) * .002 * heat; // bubbling fat
+    }
+    for (let a = 0; a < eggs.length; a++) for (let b = a + 1; b < eggs.length; b++) { // keep apart
+      const A = eggs[a].e.position, B = eggs[b].e.position, dx = B.x - A.x, dz = B.z - A.z, d = Math.hypot(dx, dz);
+      if (d < .2 && d > 1e-4) { const p = (.2 - d) * .5 / d; A.x -= dx * p; A.z -= dz * p; B.x += dx * p; B.z += dz * p; }
+    }
+    // a little steam over the pan, sizzling fat specks; smoke from the pipe
+    if (Math.random() < dt * (1.5 + heat * 4)) PART.spawn(V(g.position.x - .1 + rand(-.4, .4), 1.05, g.position.z - .03 + rand(-.35, .35)), V(rand(-.05, .05), rand(.3, .55), rand(-.05, .05)), 0x5a5856, rand(.14, .22), rand(1.2, 1.8), { s1: .5, a: .4 });
+    if (working && Math.random() < dt * 6) PART.spawn(V(g.position.x - .1 + rand(-.35, .35), 1, g.position.z + rand(-.3, .3)), V(rand(-.5, .5), rand(.5, 1.1), rand(-.5, .5)), 0xffd890, .03, .25, { g: 5 });
+    smokeT -= dt; if (smokeT <= 0) { smokeT = rand(.25, .5) / (.5 + heat); PART.spawn(V(g.position.x + .33, 1.95, g.position.z - .29), V(rand(-.05, .1), rand(.4, .6), rand(-.05, .05)), 0x4a4644, rand(.12, .18), rand(1.5, 2.2), { s1: .55, a: .35 }); }
   };
 }
 

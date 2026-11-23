@@ -513,3 +513,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Brunnen hat eine sichtbare Kurbel (Eisenarm + Holzgriff), die sich dreht, solange dort gearbeitet wird, egal wo die Figur genau steht.
 - Mühle ist kein Windrad mehr, sondern eine kleine Handmühle (zwei Mühlsteine auf einem Holzgestell, Kurbelgriff am oberen Stein, Mehlhaufen + Sack), etwa so groß wie Truhe/Brunnen. Der obere Stein dreht sich nur beim Arbeiten.
 - Werkstatt: Hintergrund ist das eingefrorene Bild der Welt (am Rand leicht abgedunkelt), kein brauner Raum mehr. Auf Laptop/PC kommt der große Tisch vom linken Bildschirmrand herein (rechte Kante perspektivisch schräg), Vorrat-Liste rechts.
+
+## PC-Steuerung (23.11.2026)
+- Linksklick = Harke (ernten, auch gegen Tiere), Leertaste = mit der aktiven Waffe schießen (halten = Dauerfeuer), Tab = nächste Waffe. Q wechselt weiter die Beere der Schrotflinte.
+- Die aktive Waffe ist immer eine Schusswaffe, sobald eine geladen ist (die Harke hat ihren eigenen Knopf). Steuerungsseite in den Optionen angepasst.

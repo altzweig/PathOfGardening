@@ -489,3 +489,11 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
   - Nach gut einem Drittel der Wachstumszeit: klein und grün (kleine grüne Früchte, grüne Halme). Bei Reife sofort groß und farbig.
 - Hühner ohne Stall und Zaun: 5 Hühner laufen frei auf dem Feld herum und picken. Wenn nicht gearbeitet wird, setzen sie sich hin und schlafen.
 - Gegner etwas leichter: `waves.countMultiplier` 0,7 -> 0,6 (Beerenmenge und Beeren-XP bleiben).
+
+## Shop alle 5 Level, Boden aus dem Hof-Spiel, Nebel statt Wald (23.11.2026)
+
+- Die Werkstatt (Shop) öffnet sich alle `werkstatt.everyLevels` Level (5, 10, 15 ...) von selbst für alle Spieler, direkt nach der Level-up-Karte. Kein Hinlaufen zur Truhe mehr, kein Marker über der Truhe. Die Welt steht still, solange alle im Shop sind; die Glühbirnen sammeln sich bis dahin an (1 je Level).
+- Während der Shop offen ist, wird die 3D-Welt nicht gerendert; der Shop hat einen eigenen dunklen Hintergrund.
+- Leistung (Messung 23.11.): Wald, Büsche, Gras und Deko waren rund 78 % aller Dreiecke und wurden zusätzlich im Schattenpass gezeichnet. Darum gibt es keine Umgebung mehr außer dem Boden: rundherum Nebel (Boden geht ab ~12,5 m in die Nebelfarbe über, dazu treibende Nebelbänke), Augen leuchten im Nebel, Irrlichter bleiben. Laternenpfahl und sein Licht sind weg.
+- Boden = FreeStylized-Texturen wie im Hof-Spiel (KTX2-Array, ein Draw Call, Handy 512 px ohne Normalen). Überall Wiese (Grass 01 mit Grass 04-Flecken), nasse dunkle Erde (Ground 02/06, glänzender) nur um und zwischen Feldern, Gebäuden und der Truhe. Neue Felder: die Wiese dort und drumherum wird in ~1,5 s zu nasser Erde.
+- Jedes Feld ist ein klar sichtbares Hexagon (spitze Seite oben, genau der Hex-Platz), Nachbarfelder greifen wie ein Hexgrid ineinander, mit weicher Fuge dazwischen. Die nasse Erde drumherum ist ebenfalls ein etwas größeres Hexagon je Feld (Basti, 23.11.2026: "nicht wie Schachbrett").

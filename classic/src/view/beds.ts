@@ -3,6 +3,7 @@
 // canvases (atlas of variants), each bed is merged into one mesh per material (2 draw calls).
 import * as THREE from 'three';
 import { TINE_GAP } from './core';
+import { bedMaterial } from './textures';
 
 // ---- value noise ----
 const P = new Uint8Array(512); { const p = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) P[i] = p[i & 255]; }
@@ -98,11 +99,35 @@ export function buildBed(H: number, plants: [number, number][]) {
   const earth: Parameters<typeof quads>[0] = [];
   const n = 9 + Math.floor(R(0, 4));
   for (let i = 0; i < n; i++) {
-    const [x, z] = inHex(i < 3 ? .5 : R(.75, 1.12));
+    const [x, z] = inHex(i < 3 ? .45 : R(.6, .82)); // stays inside the hex, so the tile outline reads clearly
     earth.push({ x, z, w: EARTH_SIZE, l: EARTH_SIZE, r: R(0, Math.PI * 2), v: Math.floor(R(0, N * N)), y: .012 + i * .0005 });
   }
   const wet = plants.map(([x, z], i) => { const sz = R(1.25, 1.65); return { x: x + R(-.08, .08), z: z + R(-.08, .08), w: sz * R(.85, 1.15), l: sz * R(.85, 1.15), r: R(0, 7), v: Math.floor(R(0, N * N)), y: .02 + i * .0005 }; });
   const e = new THREE.Mesh(quads(earth), M.earth), w = new THREE.Mesh(quads(wet), M.wet);
   e.renderOrder = -2; w.renderOrder = -1; e.receiveShadow = w.receiveShadow = true;
-  g.add(e, w); return g;
+  const hx = new THREE.Mesh(hexGeo(H), hexMat()); hx.position.y = .008; hx.renderOrder = -3; hx.receiveShadow = true;
+  g.add(e, w, hx); return g;
+}
+/** 23.11.2026: every bed is a clear hexagon (pointy-top, exactly the slot), so neighbouring fields interlock like a hex grid;
+ *  the edge fades a little, leaving a soft seam between two fields */
+let hexM: THREE.MeshStandardMaterial | null = null;
+function hexMat() {
+  if (hexM) return hexM;
+  hexM = bedMaterial(); hexM.vertexColors = true; hexM.transparent = true; hexM.depthWrite = false;
+  hexM.polygonOffset = true; hexM.polygonOffsetFactor = -1; hexM.polygonOffsetUnits = -1;
+  return hexM;
+}
+function hexGeo(H: number) {
+  const pos: number[] = [0, 0, 0], col: number[] = [1, 1, 1, 1], idx: number[] = [];
+  const ring = (r: number, c: number, a: number) => { for (let k = 0; k < 6; k++) { const ang = -Math.PI / 2 + k * Math.PI / 3; pos.push(Math.cos(ang) * r, 0, Math.sin(ang) * r); col.push(c, c, c, a); } };
+  ring(H * .86, 1, 1); ring(H * .97, .8, .85); ring(H * 1.02, .7, 0);
+  for (let k = 0; k < 6; k++) {
+    const n = (k + 1) % 6; idx.push(0, 1 + n, 1 + k);
+    for (let r = 0; r < 2; r++) { const a = 1 + r * 6, b = 1 + (r + 1) * 6; idx.push(a + k, a + n, b + n, a + k, b + n, b + k); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => i % 3 === 1 ? 1 : 0), 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Array(pos.length / 3 * 2).fill(0), 2));
+  g.setIndex(idx); return g;
 }

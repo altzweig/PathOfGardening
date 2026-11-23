@@ -21,6 +21,9 @@ export class Input {
   private aimW: Weapon | null = null; private aimT0 = 0; private aimEl: HTMLElement | null = null; private aimLong = false;
   private moveEl = document.getElementById('moveStick')!;
   private aimStickEl = document.getElementById('aimStick')!;
+  /** touches on the free screen (not on a button): one on the left = move stick; two at once = pinch zoom (23.11.2026) */
+  private free = new Map<number, { x: number; y: number }>();
+  private pinch: { a: number; b: number; d0: number; z0: number } | null = null;
 
   constructor(private view: GameView, touchDefault: boolean) {
     this.mode = touchDefault ? 'touch' : 'pc';
@@ -60,14 +63,15 @@ export class Input {
       this.startAim(e, sk.dataset.skill as Weapon, r.left + r.width / 2, r.top + r.height / 2, 56, sk);
       e.preventDefault(); return;
     }
-    if (e.clientX < innerWidth * .45) {
-      if (this.move.id !== null) return;
+    // free screen: the left part moves; a second finger anywhere turns both into a pinch (zoom), no second stick any more
+    this.free.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!this.pinch && this.free.size >= 2) {
+      const [a, b] = [...this.free.keys()].slice(-2), A = this.free.get(a)!, B = this.free.get(b)!;
+      this.pinch = { a, b, d0: Math.max(20, Math.hypot(A.x - B.x, A.y - B.y)), z0: this.view.zoom };
+      if (this.move.id === a || this.move.id === b) { Object.assign(this.move, newStick()); this.moveEl.style.display = 'none'; }
+    } else if (!this.pinch && e.clientX < innerWidth * .45 && this.move.id === null) {
       Object.assign(this.move, { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: 0, y: 0, mag: 0 });
       this.showStick(this.moveEl, e.clientX, e.clientY);
-    } else {
-      if (this.aim.id !== null) return;
-      this.startAim(e, 'rake', e.clientX, e.clientY, 52, null);
-      this.showStick(this.aimStickEl, e.clientX, e.clientY);
     }
     e.preventDefault();
   }
@@ -84,6 +88,12 @@ export class Input {
   }
   private pmove(e: PointerEvent) {
     if (e.pointerType === 'mouse') { this.mouse = { x: e.clientX, y: e.clientY }; return; }
+    const fp = this.free.get(e.pointerId); if (fp) { fp.x = e.clientX; fp.y = e.clientY; }
+    if (this.pinch && (e.pointerId === this.pinch.a || e.pointerId === this.pinch.b)) {
+      const A = this.free.get(this.pinch.a), B = this.free.get(this.pinch.b);
+      if (A && B) this.view.setZoom(this.pinch.z0 * this.pinch.d0 / Math.max(20, Math.hypot(A.x - B.x, A.y - B.y))); // fingers apart = closer
+      return;
+    }
     if (e.pointerId === this.move.id) { const [dx, dy] = this.stickVec(this.move, e.clientX, e.clientY); (this.moveEl.firstElementChild as HTMLElement).style.transform = `translate(${dx}px,${dy}px)`; }
     else if (e.pointerId === this.aim.id) {
       const [dx, dy] = this.stickVec(this.aim, e.clientX, e.clientY);
@@ -93,6 +103,8 @@ export class Input {
   }
   private up(e: PointerEvent) {
     if (e.pointerType === 'mouse') return;
+    this.free.delete(e.pointerId);
+    if (this.pinch && (e.pointerId === this.pinch.a || e.pointerId === this.pinch.b)) this.pinch = null;
     if (e.pointerId === this.move.id) { Object.assign(this.move, newStick()); this.moveEl.style.display = 'none'; }
     else if (e.pointerId === this.aim.id) this.releaseAim(true);
   }
@@ -102,6 +114,7 @@ export class Input {
     Object.assign(this.aim, newStick()); this.aimW = null; this.aimEl = null; this.aimStickEl.style.display = 'none';
   }
   releaseAll() {
+    this.free.clear(); this.pinch = null;
     this.releaseAim(false); Object.assign(this.move, newStick()); this.moveEl.style.display = 'none';
     this.mouseDown = false; this.keys = {};
   }

@@ -98,6 +98,16 @@ export const SND: Record<string, (arg?: any) => void> = {
     noise({ t: .9, vol: .09, type: 'highpass', f: 5200, f2: 2600, q: .5, when: .12, at: .15 });
     for (let i = 0; i < 6; i++) noise({ t: rand(.05, .1), vol: rand(.02, .05), type: 'bandpass', f: rand(5000, 9000), q: 3, when: .15 + rand(0, .6), at: .01 });
   },
+  /** Bratpfanne: fast swish round the body, abrupt stop (clunk), then the eggs fly off hissing */
+  pan() {
+    if (!can('pan', .2)) return;
+    noise({ t: .36, vol: .17, type: 'bandpass', f: 420, f2: 1700, q: 1.6, at: .07 });
+    tone({ type: 'triangle', f: 210, f2: 150, t: .12, vol: .1, when: .34 }); noise({ t: .05, vol: .1, type: 'bandpass', f: 1800, q: 3, when: .34, at: .002 });
+    noise({ t: .8, vol: .07, type: 'highpass', f: 6000, f2: 4200, q: .5, when: .36, at: .03 });
+    for (let i = 0; i < 8; i++) noise({ t: rand(.02, .05), vol: rand(.02, .05), type: 'bandpass', f: rand(4000, 8000), q: 4, when: .36 + rand(0, .6), at: .002 });
+  },
+  /** fried egg lands: soft wet slap + a short sizzle */
+  eggLand() { if (!can('eggLand', .07)) return; noise({ t: .09, vol: .12, type: 'lowpass', f: 1300, f2: 300 }); tone({ f: 190, f2: 80, t: .08, vol: .06 }); noise({ t: .5, vol: .045, type: 'highpass', f: 5500, when: .05, at: .02 }); },
   /** flour cloud catches fire: deep whoomp, roaring rush that grows and fades, lots of crackle */
   flourFire() {
     if (!can('flourFire', .25)) return;

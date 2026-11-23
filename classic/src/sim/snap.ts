@@ -19,7 +19,8 @@ export interface PSnap {
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
   lw: 0 | 1; // lemon wand equipped
   aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
-  sp?: number; // Mehlsack spin progress 0..1 (0 = not spinning)
+  sp?: number; // Mehlsack / Bratpfanne spin progress 0..1 (0 = not spinning)
+  sk?: number; // spin kind: 0 Mehlsack, 1 Spiegeleischleuder (fast turn, abrupt stop)
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
@@ -38,7 +39,7 @@ export interface Priv {
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
 // fruit: [id, type, tier, x, y, z]
-export type FSnap = [number, number, number, number, number, number];
+export type FSnap = [number, number, number, number, number, number] | [number, number, number, number, number, number, number]; // [6] = 1: egg in the pyramid at the hens
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]
@@ -60,7 +61,7 @@ export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
   wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
   lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
-  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; /** flour clouds: [id, x, z, r, age, life, ignAge (-1 unlit), ix, iz] */ cl?: number[][]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
+  pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; /** Spiegeleier: [id, x, y, z, landed, left 0..1, outward angle, lure radius, eaters] */ eg?: number[][]; /** flour clouds: [id, x, z, r, age, life, ignAge (-1 unlit), ix, iz] */ cl?: number[][]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss
   sn?: number[][]; // Shockgun berries on the ground: [id, x, z, ticks left 0..1]

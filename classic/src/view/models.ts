@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { lemonWand, rakeHandle, rakeHeadModel } from './arsenal';
+import { friedEgg } from './eggfx';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
@@ -8,7 +9,7 @@ import type { Look } from '../look';
 import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
-const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, meal: 0xff9a50,
+const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, fegg: 0xfff4e0,
   well: 0x7a8a9a, mill: 0xd8c8a8, press: 0x9a5a3a, bakery: 0xd87a3a, hens: 0xe8d8a8, cow: 0xf0f0e8, dairy: 0xf6d860, kitchen: 0xe0a060 };
 export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
 export const FRUIT_COL: Record<FruitType, string> = Object.fromEntries(Object.entries(FRUIT_HEX).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])) as Record<FruitType, string>;
@@ -31,7 +32,7 @@ export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknow
   juice: new THREE.MeshStandardMaterial({ color: 0xc02850, emissive: 0xe03060, emissiveIntensity: .7, roughness: .2 }),
   bread: new THREE.MeshStandardMaterial({ color: 0xb87a38, emissive: 0xc07a28, emissiveIntensity: .45, roughness: .7, flatShading: true }),
   cheese: new THREE.MeshStandardMaterial({ color: 0xf2c630, emissive: 0xf0b820, emissiveIntensity: .55, roughness: .5, flatShading: true }),
-  meal: new THREE.MeshStandardMaterial({ color: 0xff9040, emissive: 0xff7a20, emissiveIntensity: .8, roughness: .4 }),
+  fegg: new THREE.MeshStandardMaterial({ color: 0xfffaf0, emissive: 0xfff0d0, emissiveIntensity: .3, roughness: .4 }),
 };
 const GLASS = new THREE.MeshStandardMaterial({ color: 0xdff0ff, roughness: .1, transparent: true, opacity: .45 });
 const CORK = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: .8 });
@@ -49,7 +50,7 @@ function itemMesh(type: FruitType, g: THREE.Group, mat: THREE.Material) {
     case 'egg': for (let i = 0; i < 3; i++) { const a = i / 3 * 7; part(g, GEO.sph, mat, .045, .06, .045, Math.cos(a) * .045, 0, Math.sin(a) * .045); } return true;
     case 'bread': { const b = part(g, GEO.capsule, mat, .07, .1, .07, 0, 0, 0); b.rotation.z = Math.PI / 2; b.scale.y = .1; for (let i = -1; i <= 1; i++) { const c = part(g, GEO.box, SACK, .012, .01, .07, i * .05, .065, 0); c.rotation.y = .5; } return true; }
     case 'cheese': { const w = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .09, 3, 1, false, 0, Math.PI / 2.2), mat); w.castShadow = true; g.add(w); return true; }
-    case 'meal': part(g, GEO.sph, BOWL, .11, .05, .11, 0, 0, 0); part(g, GEO.sph, mat, .09, .035, .09, 0, .03, 0); part(g, GEO.sph, GROUND_MAT.egg, .03, .02, .03, .03, .06, .02); return true;
+    case 'fegg': { const e = friedEgg(.1); e.position.y = -.07; g.add(e); void BOWL; return true; } // Spiegelei (23.11.2026)
   }
   return false;
 }

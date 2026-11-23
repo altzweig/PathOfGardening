@@ -15,6 +15,7 @@ names:
     rake: Harke
     blue: Blaubeer-Schrotflinte
     flour: Mehlsack
+    pan: Spiegeleischleuder
     asp: Spargel-Armbrust
     cran: Preiselbeer-Schrotflinte
     cab: Kohlmine
@@ -45,7 +46,7 @@ names:
     hens: Hühnergehege
     cow: Kuh am Pfahl
     dairy: Käserei
-    kitchen: Küche
+    kitchen: Spiegeleierei
   items:             # Waren (Name im Inventar)
     wheat: Weizen
     flour: Mehl
@@ -55,7 +56,7 @@ names:
     juice: Saft
     bread: Brot
     cheese: Käse
-    meal: Mahlzeit
+    fegg: Spiegeleier
   combos:           # Kombiwaffen (Bastis Namen)
     jam: Jam-Bow
     cole: Coleateral Bomb
@@ -105,6 +106,7 @@ names:
   # Spezialeffekt auf der großen Freischalt-Karte einer Waffe (knapp)
   effects:
     flour: Mehlwolke · Feuer entzündet sie
+    pan: Köder · lockt Tiere an
     blue: Friert 1 s ein
     asp: 3er-Salve · durchbohrt
     cran: Blutung · Beeren platzen
@@ -202,11 +204,11 @@ buildings:
   well:    { minLevel: 2, interval: 4, makes: water }                                   # Brunnen: Wasser
   cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
   mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
-  hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg }                    # Hühnergehege: 2 Weizen (Futter) -> Eier
+  hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
   press:   { minLevel: 4, needsAny: [blue, cran, lemon], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren/Zitronen -> Saft
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
   dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
-  kitchen: { minLevel: 8, needsAny: [egg, milk, juice, bread, cheese], count: 3, time: 6, makes: meal }  # Küche: 3 beliebige Waren -> Mahlzeit
+  kitchen: { minLevel: 5, needs: { egg: 1 }, time: 3, amount: 3, makes: fegg }      # 23.11.2026 Spiegeleierei (statt Küche): 1 Ei -> 3 Spiegeleier (Munition der Spiegeleischleuder)
 
 # Waren beim Einsammeln: xp (x xp.gain) und heal (Leben) sofort, die Ware landet außerdem im Inventar (zum Einlegen in Gebäude).
 items:
@@ -218,7 +220,7 @@ items:
   juice:  { xp: 6, heal: 4 }
   bread:  { xp: 12, heal: 8 }
   cheese: { xp: 15 }
-  meal:   { xp: 45, heal: 25 }
+  fegg:   { xp: 4, heal: 3 }      # Spiegelei (ohne Schleuder: XP + etwas Leben)
 
 fruit:
   tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
@@ -273,6 +275,24 @@ skills:
     cone: 45
     spreadSigma: 11
     freeze: 1.0            # s eingefroren bei Treffer (nicht bei Bossen)
+  pan:                     # 23.11.2026 Spiegeleischleuder (Bratpfanne): Köder, macht keinen Schaden. Munition = Spiegeleier aus der Spiegeleierei
+    damage: 0
+    range: 5               # m Anziehradius um jedes Spiegelei (Upgrade +rangeStep)
+    rangeStep: 1           # m mehr Anziehradius je Upgrade
+    cooldown: 5            # s
+    cdStep: 0.10           # Upgrade: Abklingzeit -10 % (multiplikativ)
+    ammoPerShot: 3         # Spiegeleier je Wurf
+    eggs: 3                # so viele fliegen aus der Pfanne
+    throw: 5               # m, Mittelpunkt der Landestelle vor der Figur
+    ring: [0.2, 0.3]       # m, Abstand jedes Eis vom Mittelpunkt (zufällig)
+    spread: 120            # Grad zwischen den Eiern um den Mittelpunkt ...
+    spreadJitter: 10       # ... +- so viel Grad
+    spin: 0.38             # s, eine Drehung mit der Pfanne, dann fast abrupter Stopp
+    flight: 0.75           # s Flugzeit der Eier
+    eat: 3                 # s, so lange kann insgesamt an einem Ei gegessen werden (3 Tiere am Ei: 1 s)
+    eatStep: 1             # s mehr je Nährwert-Upgrade
+    maxLife: 20            # s, unberührte Eier verschwinden danach
+    boss: false            # Bosse lassen sich nicht ablenken
   flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
     damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
     range: 2.6             # m, Radius der Mehlwolke um den Spieler (Reichweite-Upgrade vergrößert sie)
@@ -456,7 +476,7 @@ enemies:
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: true
-    steals: [blue, wheat, flour, water, milk, egg, juice, bread, cheese, meal]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
+    steals: [blue, wheat, flour, water, milk, egg, juice, bread, cheese, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
     fleeSpeed: 6.2
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
@@ -465,7 +485,7 @@ enemies:
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue, juice, bread, cheese, meal]   # ... sonst alle anderen (auch fertige Waren)
+    steals: [cran, chili, asp, cab, lemon, blue, juice, bread, cheese, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]

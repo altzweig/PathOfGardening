@@ -87,13 +87,14 @@ export class Hud {
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
     const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'blue' && t !== 'wheat' && !isBuilding(t as any));
     if ((pr.sl || []).includes(SKILLS.indexOf('flour'))) have.push('flour'); // Mehlsack: flour is ammo now
+    if ((pr.sl || []).includes(SKILLS.indexOf('pan'))) have.push('fegg'); // Spiegeleischleuder: fried eggs are ammo now
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
       this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip${(SKILLS as string[]).includes(t) ? '' : ' bag'}">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
       for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
     }
-    document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const i = SKILLS.indexOf(el.dataset.r as any); const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : i >= 0 ? pr.am[i] : pr.iv?.[FRUITS.indexOf(el.dataset.r as any)] ?? 0); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
+    document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const r = el.dataset.r === 'fegg' ? 'pan' : el.dataset.r, i0 = SKILLS.indexOf(r as any), i = i0 >= 0 && (pr.ln[i0] || !['flour', 'pan'].includes(r!)) ? i0 : -1; /* Mehl / Spiegeleier: ammo once their weapon is learned, else in the bag */ const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : i >= 0 ? pr.am[i] : pr.iv?.[FRUITS.indexOf(el.dataset.r as any)] ?? 0); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
     const fx = (ps.po ? `<div class="chip">${mini('poison')}<span>${ps.po}</span></div>` : '') + (ps.st ? `<div class="chip">${mini('stun')}</div>` : '');
     this.set('#statusfx', 'fx', fx, true);
     const mates = s.pl.filter(p => p.id !== me).map(p => `<span class="mate" style="background:${PLAYER_CSS[p.c % 4]};opacity:${p.al ? 1 : .3}"></span>`).join('');

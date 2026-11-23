@@ -1,6 +1,6 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF } from '../config';
 import { emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -27,6 +27,16 @@ export const tileCost = (cfg: Balancing, level: number) => cfg.tiles.costFirst +
 export function accepts(cfg: Balancing, b: FruitType, item: FruitType) {
   if (!isBuilding(b)) return false; const B = cfg.buildings[b];
   return !!(B.needs && B.needs[item]) || !!(B.needsAny && B.needsAny.includes(item));
+}
+/** egg pyramid (23.11.2026): square layers L x L, (L-1) x (L-1) ... 1, each layer in the hollows of the one below */
+export const pyramidCount = (L: number) => { let n = 0; for (let k = 1; k <= L; k++) n += k * k; return n; };
+export const EGG_SP = .1, EGG_LAYER = .085, EGG_POS: [number, number] = [.52, .42];
+/** local position (x, height of the egg's centre, z) of stack slot i in a pyramid of L layers, next to the coop */
+export function eggSlot(i: number, L: number): [number, number, number] {
+  let layer = 0, n = L;
+  while (i >= n * n && n > 1) { i -= n * n; n--; layer++; }
+  const gx = i % n, gz = Math.floor(i / n), off = (n - 1) / 2;
+  return [EGG_POS[0] + (gx - off) * EGG_SP, .11 + layer * EGG_LAYER, EGG_POS[1] + (gz - off) * EGG_SP];
 }
 /** item a tile puts out: crops their fruit, buildings their product */
 export const outType = (cfg: Balancing, t: FruitType): FruitType => isBuilding(t) ? cfg.buildings[t].makes : t;
@@ -84,7 +94,7 @@ export interface Player {
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; dia: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
-  xbT: number; handT: number; /** s left of the Mehlsack spin */ spinT: number; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
+  xbT: number; handT: number; /** s left of the Mehlsack / Bratpfannen spin, its length, which weapon spins */ spinT: number; spinD: number; spinK: string; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
   /** collected nuts (nut trees in the forest) */
   nuts: number;
   /** combo weapon shown in the hand for cwT s after it fired */
@@ -102,6 +112,7 @@ interface Fruit {
   id: number; type: FruitType; tier: number; val: number; x: number; y: number; z: number; vx: number; vy: number; vz: number;
   state: 'fly' | 'ground' | 'collect' | 'merge' | 'carried'; src: number; born: number; bounce: number; r: number;
   ct: number; fx: number; fz: number; fy: number; collector: Player | null; tx: number; tz: number; mt: number;
+  /** egg pyramid at the hens (23.11.2026): slot index in the stack, height it rests at */ sk?: number; gy?: number;
 }
 type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | null;
 interface Enemy {
@@ -118,6 +129,8 @@ interface Enemy {
   puff: number; // hedgehog: s into the current puff cycle
   /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
   hx: number; hz: number; cx: number; cz: number; y: number;
+  /** Spiegelei it is lured to (id, 0 = none), s spent eating so far */
+  bait?: number; eat?: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
 export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'blue'] as const;
@@ -129,6 +142,9 @@ interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx
   zt?: number; ch?: number; rc?: number; cd?: number; tr?: number }
 export const BK = ['cab', 'cole', 'cabboom', 'kimchi'] as const;
 /** Mehlsack flour cloud (23.11.2026): hangs life s (fades the last fade s); fire ignites it at (ix, iz) -> burn front grows at frontSpeed */
+/** Spiegelei bait (23.11.2026): waits delay s in the pan (spin), flies fl s from (sx, sz) to (x, z), then lures every animal within r m.
+ *  left = s of eating left (all eaters together eat it up: 3 animals on 3 eggs 3 s, 9 animals 1 s); out = angle pointing away from the centre of the 3 */
+interface Bait { id: number; x: number; z: number; sx: number; sz: number; y: number; delay: number; fl: number; t: number; left: number; total: number; r: number; age: number; out: number; eaters: number; /** animals heading for it */ n: number }
 interface Cloud { id: number; x: number; z: number; r: number; age: number; life: number; ign: number; ix: number; iz: number; front: number; dmg: number; hit: Set<number> }
 interface Bomb { /** cabbage contact mine lying on the ground */ mine?: boolean; id: number; fx: number; fy: number; fz: number; tx: number; tz: number; x: number; y: number; z: number; t: number; flight: number; fuse: number; radius: number; dmg: number; minis: number; mini: boolean; gas?: number; pm?: number;
   kind: typeof BK[number]; gen: number; cs?: ComboStats; tickT?: number }
@@ -144,7 +160,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number; /** Spiegelei: s of eating per egg */ eat: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string; freeze: boolean }
@@ -161,7 +177,7 @@ export class Sim {
   /** 0..1 progress of the slow-motion ramp into / out of a pause (1 = full speed) */
   ramp = 1;
   players: Player[] = [];
-  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; clouds: Cloud[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = []; snodes: SNode[] = []; lwaves: LWave[] = [];
+  fields: Field[] = []; fruits: Fruit[] = []; enemies: Enemy[] = []; projs: Proj[] = []; bombs: Bomb[] = []; clouds: Cloud[] = []; baits: Bait[] = []; mines: Mine[] = []; pools: Pool[] = []; berryBombs: BerryBomb[] = []; snodes: SNode[] = []; lwaves: LWave[] = [];
   yieldLv: Record<FruitType, number> = Object.fromEntries(FRUITS.map(t => [t, 0])) as Record<FruitType, number>;
   tillHealLv = 0;
   events: Ev[] = [];
@@ -203,8 +219,8 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
-      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk() },
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, spinT: 0, flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk() },
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // blueberry shotgun from the start (22.11.2026)
@@ -300,11 +316,11 @@ export class Sim {
       if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
     }
   }
-  spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number) {
+  spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number, ty = 0) {
     const T = .55;
     const fr: Fruit = {
       id: this.nid++, type, tier, val: this.cfg.fruit.tierValue[tier], x: fx, y: fy, z: fz,
-      vx: (tx - fx) / T, vy: (0 - fy + .5 * 9.8 * T * T) / T, vz: (tz - fz) / T,
+      vx: (tx - fx) / T, vy: (ty - fy + .5 * 9.8 * T * T) / T, vz: (tz - fz) / T,
       state: 'fly', src, born: this.time, bounce: 0, r: (type === 'cab' ? .14 : type === 'nut' ? .07 : .08) * this.cfg.fruit.tierScale[tier],
       ct: 0, fx: 0, fy: 0, fz: 0, collector: null, tx: 0, tz: 0, mt: 0,
     };
@@ -396,7 +412,19 @@ export class Sim {
   buildingOut(f: Field) {
     const B = this.cfg.buildings[f.type as BuildingType], item = B.makes;
     this.emit({ k: 'bdone', s: f.slot, b: BUILDINGS.indexOf(f.type as BuildingType) });
+    for (let n = Math.max(1, B.amount ?? 1); n > 0; n--) this.putOut(f, item, B);
+  }
+  /** one finished item: to an adjacent building that wants it, onto the egg pyramid (hens), else down in front of the building */
+  putOut(f: Field, item: FruitType, B: Balancing['buildings'][BuildingType]) {
     if (this.routeOut(f, item, 1)) return;
+    if (B.stack) { // hens: the eggs are stacked neatly into a square pyramid next to the coop
+      const used = new Set(this.fruits.filter(x => x.src === f.slot && x.sk !== undefined && x.state !== 'collect').map(x => x.sk!));
+      const n = pyramidCount(B.stack);
+      for (let i = 0; i < n; i++) if (!used.has(i)) {
+        const [lx, ly, lz] = eggSlot(i, B.stack), fr = this.spawnFruit(item, 0, f.x + rand(-.3, .3), .5, f.z - .3, f.x + lx, f.z + lz, f.slot, ly);
+        fr.sk = i; fr.gy = ly; fr.r = .06; return;
+      }
+    }
     f.edge = (f.edge + 1) % 6;
     const H = hexR(this.cfg), ca = cornerAngle(f.edge), cx = f.x + Math.cos(ca) * H * .8, cz = f.z + Math.sin(ca) * H * .8;
     const a = rand(0, Math.PI * 2), d = rand(0, this.cfg.fruit.cornerScatter);
@@ -450,7 +478,7 @@ export class Sim {
     const v = fr.val, xp = this.itemXP(fr.type);
     if (xp > 0) { const xv = v * xp * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v * xp; this.addXP(xv); }
     if (fr.type === 'nut') p.nuts += v;
-    else if (fr.type === 'flour' && p.skills.flour.learned) { p.ammo.flour += v; p.collected.flour += v; }
+    else if (SKILLS.some(k => AMMO_OF[k] === fr.type && p.skills[k].learned)) { const k = SKILLS.find(k => AMMO_OF[k] === fr.type && p.skills[k].learned)!; p.ammo[k] += v; p.collected[k] += v; } // Mehl / Spiegeleier: ammo once their weapon is learned
     else if (isWeaponFruit(fr.type)) { const o = this.comboOwner(p, fr.type); if (o) p.ammo[o.id] += v * o.f; else p.ammo[fr.type] += v; p.collected[fr.type] += v; } // merged sub weapon: its fruit feeds the combo
     else { // wheat and goods: into the bag (to feed buildings), healing right away
       const I = this.cfg.items[fr.type] ?? {}; p.inv[fr.type] = (p.inv[fr.type] || 0) + v;
@@ -461,7 +489,7 @@ export class Sim {
   mergeFruit() {
     const M = this.cfg.fruit.mergeCount;
     for (const f of this.fields) for (let tier = 0; tier < this.cfg.fruit.tierValue.length - 1; tier++) {
-      const ot = outType(this.cfg, f.type), list = this.fruits.filter(x => x.src === f.slot && x.type === ot && x.state === 'ground' && x.tier === tier);
+      const ot = outType(this.cfg, f.type), list = this.fruits.filter(x => x.src === f.slot && x.type === ot && x.state === 'ground' && x.tier === tier && x.sk === undefined);
       if (list.length < M) continue;
       list.sort((a, b) => a.born - b.born); const grp = list.slice(0, M), ax = grp[0].x, az = grp[0].z;
       for (const x of grp) { x.state = 'merge'; x.mt = 0; x.tx = ax; x.tz = az; }
@@ -508,8 +536,8 @@ export class Sim {
   baseStats(id: SkillId, s: SkillState): SkillStats {
     const S = this.cfg.skills, U = this.cfg.upgrades;
     const B = S[id] as any;
-    const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - U.cooldownPerLevel, s.lvCd);
-    const range = id === 'lemon' ? B.range : (id === 'cab' ? S.cab.radius : B.range) * rm; // lemon: the range upgrade grows the ball instead (ballR)
+    const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - (id === 'pan' ? S.pan.cdStep : U.cooldownPerLevel), s.lvCd);
+    const range = id === 'pan' ? B.range + S.pan.rangeStep * s.lvRange : id === 'lemon' ? B.range : (id === 'cab' ? S.cab.radius : B.range) * rm; // pan: lure radius +1 m per level // lemon: the range upgrade grows the ball instead (ballR)
     // crossbow: cd = one whole salvo; the salvo upgrade adds bolts that fit into the time the base salvo takes
     const shots0 = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1, shots = id === 'asp' && s.salvoLv > 0 ? U.aspSalvo.shots[Math.min(s.salvoLv, U.aspSalvo.shots.length) - 1] : shots0;
     const size = 1 + U.aspSize.step * s.sizeLv;
@@ -522,6 +550,7 @@ export class Sim {
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: (id === 'blue' ? S.blue.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
       minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv),
+      eat: id === 'pan' ? S.pan.eat + S.pan.eatStep * s.lvDmg : 0,
       chainDmg: Math.min(1, S.lemon.chainDamage + U.lemonEfficiency.step * s.effLv), ballR: S.lemon.ballRadius * rm, tickR: S.lemon.tickRadius * rm, poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
@@ -666,7 +695,7 @@ export class Sim {
     this.burst(e.x, .4, e.z, 0x404040, 10, 1.2, .5, .9, { a: .4 });
     for (const fr of e.carry) {
       fr.x = e.x; fr.y = .4; fr.z = e.z; const a = rand(0, 7);
-      fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1;
+      fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1; fr.sk = fr.gy = undefined; fr.r = .08;
     }
     e.carry = [];
     // every enemy drops XP (blueberries), elites more
@@ -796,7 +825,7 @@ export class Sim {
   dropCarry(e: Enemy) {
     for (const fr of e.carry) {
       fr.x = e.x; fr.y = .4; fr.z = e.z; const a = rand(0, 7);
-      fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1;
+      fr.vx = Math.cos(a) * 1.5; fr.vy = 3; fr.vz = Math.sin(a) * 1.5; fr.state = 'fly'; fr.bounce = 0; fr.src = -1; fr.sk = fr.gy = undefined; fr.r = .08;
     }
     if (e.carry.length) { e.carry = []; e.fleeing = false; e.target = null; }
   }
@@ -989,6 +1018,8 @@ export class Sim {
       this.flame(p, dx, dz, st);
     } else if (id === 'flour') {
       this.flourThrow(p, st);
+    } else if (id === 'pan') {
+      this.panThrow(p, dx, dz, st);
     } else { // cabbage: contact mine put down right where the player stands (see canLayMine)
       this.snd('throw');
       const b = this.spawnBomb(p.x, .5, p.z, p.x, p.z, st.range, st.dmg, st.minis, false, st.gas, st.poisonMul);
@@ -997,10 +1028,59 @@ export class Sim {
       if (mines.length > max) { const old = mines[0]; this.bombs.splice(this.bombs.indexOf(old), 1); this.burst(old.x, .2, old.z, 0x6fbf3a, 8, 1, .1, .4); }
     }
   }
+  /** Spiegeleischleuder: one fast turn with the pan, abrupt stop, then the fried eggs fly out sizzling to a point throw m ahead:
+   *  each 0.2-0.3 m from that point, 120 deg (+-spreadJitter) apart, so their scent drifts outwards in three directions */
+  panThrow(p: Player, dx: number, dz: number, st: SkillStats) {
+    const P = this.cfg.skills.pan;
+    p.spinT = p.spinD = P.spin; p.spinK = 'pan'; this.snd('pan');
+    const cx = p.x + dx * P.throw, cz = p.z + dz * P.throw, [ax, az] = this.clampArena(cx, cz), a0 = rand(0, Math.PI * 2);
+    let a = a0;
+    for (let i = 0; i < P.eggs; i++) {
+      const r = rand(P.ring[0], P.ring[1]), [x, z] = this.clampArena(ax + Math.cos(a) * r, az + Math.sin(a) * r);
+      this.baits.push({ id: this.nid++, x, z, sx: p.x + dx * .4, sz: p.z + dz * .4, y: .9, delay: P.spin * .92 + i * .04, fl: P.flight * rand(.92, 1.08), t: 0, left: st.eat, total: st.eat, r: st.range, age: 0, out: a, eaters: 0, n: 0 });
+      a += (P.spread + rand(-P.spreadJitter, P.spreadJitter)) * Math.PI / 180;
+    }
+  }
+  /** fried eggs: in the pan during the spin, flying, then lying (eaten up by the animals around them, or gone after maxLife s) */
+  updateBaits(dt: number) {
+    const P = this.cfg.skills.pan;
+    for (const b of this.baits) b.n = 0;
+    for (const e of this.enemies) if (e.bait) { const b = this.baits.find(x => x.id === e.bait); if (b) b.n++; }
+    for (const b of [...this.baits]) {
+      b.left -= dt * b.eaters; b.eaters = 0;
+      if (b.delay > 0) { b.delay -= dt; continue; }
+      if (b.t < b.fl) {
+        b.t += dt; const k = Math.min(1, b.t / b.fl);
+        b.y = .9 * (1 - k) + .03 * k + Math.sin(k * Math.PI) * 1.5;
+        if (k >= 1) { b.y = .03; this.emit({ k: 'eggLand', x: r2(b.x), z: r2(b.z) }); this.snd('eggLand'); }
+        continue;
+      }
+      b.age += dt;
+      if (b.left <= 0 || b.age > P.maxLife) { this.baits.splice(this.baits.indexOf(b), 1); this.emit({ k: 'eggGone', x: r2(b.x), z: r2(b.z), e: b.left <= 0 ? 1 : 0 }); }
+    }
+  }
+  /** lured by a Spiegelei: runs to the nearest one whose scent reaches it (fewer eaters preferred) and eats instead of attacking */
+  lure(e: Enemy, dt: number) {
+    let b = e.bait ? this.baits.find(x => x.id === e.bait && x.left > 0 && x.t >= x.fl && x.delay <= 0) : undefined;
+    if (!b || !e.eat) { // not eating yet: (re)pick the egg - nearest whose scent reaches it, spread over the eggs (eggs land a moment apart)
+      let best: Bait | undefined, bd = 1e9;
+      for (const x of this.baits) if (x.delay <= 0 && x.t >= x.fl && x.left > 0) { const d = Math.hypot(e.x - x.x, e.z - x.z), sc = d + (x.n - (x === b ? 1 : 0)) * 1.2; if (d <= x.r && sc < bd) { bd = sc; best = x; } }
+      if (!best) { if (b) b.n--; e.bait = 0; e.eat = 0; return false; }
+      if (best !== b) { if (b) b.n--; best.n++; b = best; e.bait = b.id; e.target = null; e.eat = 0; }
+    }
+    const reach = .25 + e.r * .6;
+    const d = this.steer(e, b.x, b.z, e.speed * (e.type === 'toad' ? 1.6 : 1), dt, reach);
+    if (e.type === 'toad') e.hop += dt / (this.cfg.enemies.toad.hopPeriod || .5);
+    if (d <= reach + .35) { // close enough (others crowding round the same egg) // eating: nibbles, the egg shrinks
+      b.eaters++; e.eat = (e.eat || 0) + dt + 1e-6; e.face = Math.atan2(b.x - e.x, b.z - e.z);
+      if ((e.eat % .55) < dt) { e.lunge = .16; if (Math.random() < .5) this.burst(b.x, .08, b.z, Math.random() < .5 ? 0xfff6e8 : 0xffb030, 3, .7, .05, .25); }
+    }
+    return true;
+  }
   /** Mehlsack: the player spins once and flings flour in every direction -> a cloud around him (max maxClouds, the oldest unlit one goes) */
   flourThrow(p: Player, st: SkillStats) {
     const F = this.cfg.skills.flour;
-    p.spinT = F.spin; this.snd('flour');
+    p.spinT = p.spinD = F.spin; p.spinK = 'flour'; this.snd('flour');
     const c: Cloud = { id: this.nid++, x: p.x, z: p.z, r: st.range, age: 0, life: F.life, ign: -1, ix: 0, iz: 0, front: 0, dmg: st.dmg, hit: new Set() };
     this.clouds.push(c);
     const unlit = this.clouds.filter(x => x.ign < 0);
@@ -1378,7 +1458,7 @@ export class Sim {
     // fruit: preferred kinds first, then everything else it takes (steals or eats)
     const want = D.eats || D.steals;
     if (want) {
-      const near = (types: FruitType[]) => { let best: Fruit | null = null, b2 = 1e9; for (const fr of this.fruits) if (fr.state === 'ground' && types.includes(fr.type)) { const d = dist(e, fr); if (d < b2) { b2 = d; best = fr; } } return best; };
+      const near = (types: FruitType[]) => { let best: Fruit | null = null, b2 = 1e9; for (const fr of this.fruits) if (fr.state === 'ground' && types.includes(fr.type) && this.topOfStack(fr)) { const d = dist(e, fr); if (d < b2) { b2 = d; best = fr; } } return best; };
       const best = (D.prefers && near(D.prefers)) || near(want);
       if (best) return { kind: 'fruit', fr: best };
     }
@@ -1392,6 +1472,8 @@ export class Sim {
     if (D.prefersFields) { let best: Field | null = null, bd = 1e9; for (const f of this.fields) if (f.alive && f.hp > 0 && D.prefersFields.includes(f.type)) { const d = dist(e, f); if (d < bd) { bd = d; best = f; } } if (best) return { kind: 'field', f: best }; }
     const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
   }
+  /** a stacked egg can only be taken from the top of the pyramid */
+  topOfStack(fr: Fruit) { return fr.sk === undefined || !this.fruits.some(o => o.src === fr.src && o.sk !== undefined && o.sk > fr.sk! && o.state === 'ground'); }
   /** poisoned (cabbage) enemies are slower */
   slowF(e: Enemy) { return e.pois > 0 ? 1 - (this.cfg.skills.cab.poisonSlow ?? 0) : 1; }
   steer(e: Enemy, tx: number, tz: number, speed: number, dt: number, stop = 0) {
@@ -1455,6 +1537,8 @@ export class Sim {
     if (e.stun > 0) { // stunned: everything it does runs slower, ramping up from 0 to normal
       const sf = this.stunF(e); e.stun = Math.max(0, e.stun - dt); dt *= sf; if (dt <= 0) return;
     }
+    if (this.baits.length && !e.fleeing && (!e.boss || this.cfg.skills.pan.boss) && e.state !== 'climb' && (e.type !== 'sheep' || e.state === 'approach') && this.lure(e, dt)) return;
+    e.bait = 0;
     if (e.boss) return this.bossAI(e, dt);
     if (e.type === 'squirrel') return this.squirrelAI(e, dt);
     e.think -= dt;
@@ -1909,7 +1993,7 @@ export class Sim {
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) this.updatePlayer(p, dt);
-    this.updateClouds(dt);
+    this.updateClouds(dt); this.updateBaits(dt);
     // fields
     for (const f of this.fields) {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
@@ -1930,16 +2014,22 @@ export class Sim {
       const fr = this.fruits[i];
       if (fr.state === 'fly') {
         fr.vy -= 9.8 * dt; fr.x += fr.vx * dt; fr.y += fr.vy * dt; fr.z += fr.vz * dt;
-        if (fr.y <= fr.r && fr.vy < 0) { if (fr.bounce < 1) { fr.vy *= -.32; fr.vx *= .4; fr.vz *= .4; fr.bounce++; fr.y = fr.r; } else { fr.y = fr.r; fr.state = 'ground'; } }
+        if (fr.gy !== undefined) { if (fr.y <= fr.gy && fr.vy < 0) { fr.y = fr.gy; fr.vx = fr.vy = fr.vz = 0; const [lx, , lz] = eggSlot(fr.sk!, this.cfg.buildings.hens.stack || 4), f = this.fields.find(q => q.slot === fr.src); fr.x = (f?.x ?? 0) + lx; fr.z = (f?.z ?? 0) + lz; fr.state = 'ground'; } }
+        else if (fr.y <= fr.r && fr.vy < 0) { if (fr.bounce < 1) { fr.vy *= -.32; fr.vx *= .4; fr.vz *= .4; fr.bounce++; fr.y = fr.r; } else { fr.y = fr.r; fr.state = 'ground'; } }
       } else if (fr.state === 'ground') {
         let best: Player | null = null, bd = 1e9;
         for (const p of this.players) if (p.alive) { const d = dist(fr, p); if (d < bd) { bd = d; best = p; } }
         if (best) {
-          if (bd < PL.pickupRadius + fr.tier * PL.pickupPerTier) { fr.state = 'collect'; fr.ct = 0; fr.fx = fr.x; fr.fy = fr.y; fr.fz = fr.z; fr.collector = best; }
-          else if (bd < PL.magnetRadius && this.cfg.plants[fr.type]?.magnet !== false) { fr.x += (best.x - fr.x) / bd * PL.magnetSpeed * dt; fr.z += (best.z - fr.z) / bd * PL.magnetSpeed * dt; }
+          if (bd < PL.pickupRadius + fr.tier * PL.pickupPerTier) {
+            if (fr.sk !== undefined) { // egg pyramid: the whole stack is taken, top egg first
+              const st = this.fruits.filter(x => x.src === fr.src && x.sk !== undefined && x.state === 'ground').sort((a, b) => b.sk! - a.sk!);
+              st.forEach((x, k) => { x.state = 'collect'; x.ct = -k * .035; x.fx = x.x; x.fy = x.y; x.fz = x.z; x.collector = best; });
+            } else { fr.state = 'collect'; fr.ct = 0; fr.fx = fr.x; fr.fy = fr.y; fr.fz = fr.z; fr.collector = best; }
+          }
+          else if (fr.sk === undefined && bd < PL.magnetRadius && this.cfg.plants[fr.type]?.magnet !== false) { fr.x += (best.x - fr.x) / bd * PL.magnetSpeed * dt; fr.z += (best.z - fr.z) / bd * PL.magnetSpeed * dt; }
         }
       } else if (fr.state === 'collect') {
-        const p = fr.collector!; fr.ct += dt; const k = Math.min(1, fr.ct / .14);
+        const p = fr.collector!; fr.ct += dt; const k = Math.max(0, Math.min(1, fr.ct / .14));
         fr.x = fr.fx + (p.x - fr.fx) * k; fr.y = fr.fy + (.9 - fr.fy) * k; fr.z = fr.fz + (p.z - fr.fz) * k;
         if (k >= 1) { this.fruits.splice(i, 1); if (this.players.includes(p)) this.collectFruit(fr, p); }
       } else if (fr.state === 'merge') {
@@ -2071,12 +2161,13 @@ export class Sim {
     }
     for (const id of SKILLS) {
       const s = p.skills[id];
-      const flourFull = id === 'flour' && SKILLS.filter(k => p.skills[k].learned).length >= this.maxWeapons;
-      if (this.fieldOf(id === 'flour' ? 'mill' : id) && !flourFull && !s.learned && !s.merged && !this.closedType(p, id) && (second || p.collected[id] >= (PL[id]?.unlockAt || 0))) {
+      const src = SOURCE_OF[id], srcFull = !!src && SKILLS.filter(k => p.skills[k].learned).length >= this.maxWeapons;
+      if (this.fieldOf((src ?? id) as FruitType) && !srcFull && !s.learned && !s.merged && (src || !this.closedType(p, id as FruitType)) && (second || src || p.collected[id] >= (PL[id as FruitType]?.unlockAt || 0))) {
         // weapon unlock card: every stat as an icon chip, special effect named briefly
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
           : id === 'cab' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.range * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, ammo]
+          : id === 'pan' ? [`{range} ${nf(C.pan.throw, 1)} m`, `{radius} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, `${nf(st.eat, 1)} s / {fegg}`, `${nf(st.cost)} {fegg}`]
           : [`{dmg} ${nf(st.dmg)}${id === 'cran' ? ' × ' + st.pellets : ''}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
         // 23.11.2026: unlock card is no longer forced every level-up (it blocked all weapon upgrades while you did not want it): weighted draw instead
         pool.push({ key: 'learn_' + id, cat: 'skill', w: U.learnWeight ?? 4, pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
@@ -2102,6 +2193,12 @@ export class Sim {
         const s2 = { ...s }; mut(s2); const b = this.stats(id, s2);
         pool.push({ key, cat: 'skill', w: 1, pic: 'skill_' + id, title: N.skills[id], lines: [line(b)] });
       };
+      if (id === 'pan') { // Spiegeleischleuder: no damage, only faster / wider lure / longer eating
+        mk('pan_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`);
+        mk('pan_rng', x => x.lvRange++, b => `{radius} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
+        mk('pan_eat', x => x.lvDmg++, b => `{fegg} ${nf(a.eat, 1)} → ${nf(b.eat, 1)} s`);
+        continue;
+      }
       mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} · {fire} ${nf(this.cfg.skills.chili.burnDamage * a.dmgPct, 1)} → ${nf(this.cfg.skills.chili.burnDamage * b.dmgPct, 1)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
       mk(id + '_rng', x => x.lvRange++, b => id === 'cab' ? `{radius} ${nf(a.range * 100)} → ${nf(b.range * 100)} cm` : id === 'lemon' ? `{radius} ${nf(a.ballR * 200)} → ${nf(b.ballR * 200)} cm` : `{range} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
       if (id !== 'chili') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s
@@ -2215,6 +2312,9 @@ export class Sim {
       case 'flour_dmg': s.lvDmg++; break;
       case 'flour_rng': s.lvRange++; break;
       case 'flour_cd': s.lvCd++; break;
+      case 'pan_cd': s.lvCd++; break;
+      case 'pan_rng': s.lvRange++; break;
+      case 'pan_eat': s.lvDmg++; break;
       case 'lemon_tgt': s.tgtLv++; break;
       case 'lemon_xfer': s.xferLv++; break;
       case 'lemon_eff': s.effLv++; break;
@@ -2258,7 +2358,7 @@ export class Sim {
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
         ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw
-        sp: p.spinT > 0 ? r2(1 - p.spinT / Math.max(.05, this.cfg.skills.flour.spin)) : 0, // Mehlsack spin progress 0..1
+        sp: p.spinT > 0 ? r2(1 - p.spinT / Math.max(.05, p.spinD)) : 0, sk: p.spinK === 'pan' ? 1 : 0, // Mehlsack / Bratpfanne spin progress 0..1
         // combo weapon in the hand: active weapon is a combo, or a combo fired just now
         cw: (() => { const ac = p.active !== 'rake' ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
@@ -2276,7 +2376,8 @@ export class Sim {
         if (e.type === 'sheep') { if (e.state === 'windup') { fl |= EF.windup; aux = r2(1 - e.st / this.cfg.enemies.sheep.windup!); aux2 = r2(Math.atan2(e.cdx, e.cdz)); } if (e.state === 'charge') fl |= EF.charge; }
         return [e.id, ENEMIES.indexOf(e.type), r2(e.x), r2(e.z), r2(e.face), r2(e.hp / e.maxHp), e.shieldMax ? r2(e.shield / e.shieldMax) : -1, fl, e.carry.map(f => FRUITS.indexOf(f.type)).join(','), aux, aux2] as ESnap;
       }),
-      fr: this.fruits.filter(f => f.state !== 'carried').map(f => [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
+      fr: this.fruits.filter(f => f.state !== 'carried').map(f => f.sk !== undefined ? [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z), 1] : [f.id, FRUITS.indexOf(f.type), f.tier, r2(f.x), r2(f.y), r2(f.z)]),
+      eg: this.baits.filter(b => b.delay <= 0).map(b => [b.id, r2(b.x + (b.sx - b.x) * (1 - Math.min(1, b.t / b.fl))), r2(b.y), r2(b.z + (b.sz - b.z) * (1 - Math.min(1, b.t / b.fl))), b.t >= b.fl ? 1 : 0, r2(Math.max(0, b.left) / b.total), r2(b.out), r2(b.r), b.eaters]),
       pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? 1 : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
       cl: this.clouds.map(c => [c.id, r2(c.x), r2(c.z), r2(c.r), r2(c.age), c.life, c.ign, r2(c.ix), r2(c.iz)]),
       bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen, b.mine ? 1 : 0]),

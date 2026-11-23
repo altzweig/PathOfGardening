@@ -508,8 +508,8 @@ export class GameView {
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk + (s.ch !== undefined) !== this.fieldKey) {
       this.fieldKey = fk + (s.ch !== undefined); syncTorches([], hexR(this.cfg)); // no torches at the beds any more
       // wet earth around and between the fields (and the chest), meadow everywhere else
-      const H = hexR(this.cfg), es = s.fi.map(f => this.slots[f[0]]).filter(Boolean).map(sl => ({ x: sl.x, z: sl.z, r: H * 1.5 }));
-      if (s.ch !== undefined) es.push({ x: 0, z: 0, r: H * 1.5 });
+      const H = hexR(this.cfg), es = s.fi.map(f => this.slots[f[0]]).filter(Boolean).map(sl => ({ x: sl.x, z: sl.z, r: H * 1.3 }));
+      if (s.ch !== undefined) es.push({ x: 0, z: 0, r: H * 1.3 });
       setEarthSpots(es);
     }
     // cabbage poison pools

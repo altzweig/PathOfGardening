@@ -127,7 +127,7 @@ export interface Balancing {
   /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */
   juice?: { xpFactor: number; fill: number; step: number; names?: Partial<Record<Berry, string>> };
   /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
-  werkstatt?: { radius: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number };
+  werkstatt?: { everyLevels?: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
   combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };

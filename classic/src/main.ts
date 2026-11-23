@@ -83,6 +83,7 @@ class Game {
       const dt = Math.min(.1, (now - last) / 1000); last = now; this.frame(dt, true);
     };
     (window as any).__pog = this;
+    if (location.search.includes('perf')) import('./view/core').then(c => { (window as any).__core = c; }); // perf measurements (tools/perf)
   }
   /** garden behind the menus */
   idle() {
@@ -311,20 +312,13 @@ class Game {
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);
   }
-  /** Werkstatt: bulbs next to the XP bar, the bench while open, the marker above the chest in the pause */
+  /** Werkstatt: bulbs next to the XP bar, the bench while open (every werkstatt.everyLevels levels) */
   private syncShop(s: Snap) {
     const pr = s.me[this.me], W = this.view.cfg.werkstatt;
     this.bulbs.set(pr?.id ?? 0, innerWidth < 560 ? Math.min(4, W?.maxBulbs ?? 10) : W?.maxBulbs ?? 10); // narrow phones: fewer bulbs, then the number
     this.shop.update(s, this.me, this.view.cfg);
-    const mk = $('#shopMark'), want = !!W && !!pr?.sh && !pr.so && !!s.wp && s.wv >= 1 && s.ph === 'play';
-    mk.hidden = !want;
-    if (want) {
-      const p = this.view.worldScreen(0, 1.2, 0);
-      if (!p) { mk.hidden = true; return; }
-      const n = pr!.id ?? 0, k = `${n}`;
-      if (mk.dataset.k !== k) { mk.dataset.k = k; mk.innerHTML = bulb() + (n > 0 ? `<b>${n}</b>` : ''); mk.classList.toggle('dim', n === 0); }
-      mk.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
-    }
+    // the shop covers the whole screen: no need to draw the world behind it
+    this.view.noRender = !!pr?.so && !!pr.sh && s.ph === 'play';
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];

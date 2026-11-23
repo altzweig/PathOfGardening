@@ -595,7 +595,7 @@ waves:
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
-  countMultiplier: 0.7     # 23.11.2026 Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
+  countMultiplier: 0.6     # 23.11.2026 0.7 -> 0.6 (Basti: Gegner etwas leichter nach halbierter Beerenmenge; Bot Median wieder ca. Welle 38-40). Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 1.0     # s länger je Welle (23.11.2026 Sim-Balancing: 2.5 -> 1.0, weniger Gruppen in späten Wellen)
   countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
@@ -665,9 +665,9 @@ juice:
   step: 0.01           # je voller Balken: +1 % Wirkungsdauer des passenden Effekts (Preiselbeere Bleeding, Blaubeere Freeze, Brombeere Thorns)
   names: { cran: Bleeding, blue: Freeze, black: Thorns }
 
-werkstatt:                 # nach jeder Welle an der Truhe in der Mitte: Ideen ausbrüten
-  radius: 1.9              # m um die Truhe: hineinlaufen öffnet die Werkstatt (in der Pause zwischen den Wellen)
-  openDelay: 1.2           # s nach Wellenende, bevor sie für jemanden öffnet, der schon an der Truhe steht
+werkstatt:                 # Shop: öffnet sich alle paar Level von selbst für alle (nach der Level-up-Karte), die Welt steht still
+  everyLevels: 5           # alle 5 Level (Level 5, 10, 15 ...)
+  openDelay: 0.6           # s nach der Level-up-Karte, bevor der Shop aufgeht
   slots: 6                 # normale Ideen auf der Werkbank (Waffen-Upgrades)
   cost: 1                  # Glühbirnen je normaler Idee
   goldenCost: 2            # Glühbirnen für die goldene Idee

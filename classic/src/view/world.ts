@@ -1,201 +1,91 @@
-// Static garden + the dark rim: black bush/tree silhouettes with a faint cold edge,
-// and blinking eye pairs behind them (more of them where the next wave comes from).
+// The garden ground, the fog all around it, blinking eye pairs in the fog (more of them where the next wave
+// comes from), will-o'-wisps and the field torches.
 import * as THREE from 'three';
-import { GEO, LANT, M, gfx, part, rand, scene, windU } from './core';
-import { groundMaterial } from './textures';
-import { Inst, instance, loadNature } from './nature';
+import { GEO, M, lantern, part, rand, scene, windU } from './core';
+import { GROUND_U, groundMaterial } from './textures';
 
 const ARENA = 15;
-/** trodden paths from the forest into the garden: quadratic curves, also carry stepping stones */
-const PATHS = Array.from({ length: 7 }, (_, k) => ({ a: k / 7 * Math.PI * 2 + rand(-.2, .2), w: rand(7, 12) }));
-function pathPoint(a: number, t: number) {
-  const u = 1 - t, p0 = [Math.cos(a) * 26, Math.sin(a) * 26], p1 = [Math.cos(a + .3) * 12, Math.sin(a + .3) * 12], p2 = [Math.cos(a) * 4.5, Math.sin(a) * 4.5];
-  return { x: u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], z: u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1] };
-}
 
-/** control map for the ground shader: r = bare dirt (garden + trodden paths), g = worn patches, b = brightness (falls to black at the rim) */
-function groundControl() {
-  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
-  const W = 64; const toPx = (x: number) => (x / W + .5) * S;
-  g.fillStyle = 'rgb(0,0,0)'; g.fillRect(0, 0, S, S);
+// 23.11.2026: no forest, deco or lamp post any more (they cost ~80 % of the triangles, also in the shadow pass).
+// Only the ground: meadow everywhere, wet earth around and between the fields, and fog all around.
+const W = 64, CS = 256, toPx = (x: number) => (x / W + .5) * CS;
+interface Spot { x: number; z: number; r: number; k: number; want: number }
+const spots = new Map<string, Spot>();
+let ctlCv: HTMLCanvasElement, ctlTex: THREE.CanvasTexture, ctlDirty = true;
+/** control map for the ground shader: r = wet earth (around the fields, grows in for new ones), g = brightness */
+function drawControl() {
+  const g = ctlCv.getContext('2d')!;
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgb(0,0,0)'; g.fillRect(0, 0, CS, CS);
   g.globalCompositeOperation = 'lighter';
-  // worn patches (green channel)
-  for (let i = 0; i < 260; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(4, 16); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,120,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
-  // trodden paths from the dark into the garden (red channel)
-  g.strokeStyle = 'rgba(150,0,0,1)'; g.lineCap = 'round'; g.filter = 'blur(3px)';
-  for (const P of PATHS) {
-    const a = P.a; g.lineWidth = P.w; g.beginPath();
-    g.moveTo(toPx(Math.cos(a) * 26), toPx(Math.sin(a) * 26));
-    g.quadraticCurveTo(toPx(Math.cos(a + .3) * 12), toPx(Math.sin(a + .3) * 12), toPx(Math.cos(a) * 4.5), toPx(Math.sin(a) * 4.5)); g.stroke();
+  for (const s of spots.values()) {
+    if (s.k <= .001) continue;
+    // a slightly larger hexagon (pointy-top like the slots): neighbours merge, the earth keeps the grid's outline
+    const r = s.r * (.35 + .65 * s.k) * CS / W, x = toPx(s.x), y = toPx(s.z);
+    g.fillStyle = `rgba(255,0,0,${Math.min(1, s.k * 1.6)})`; g.filter = 'blur(2px)'; g.beginPath();
+    for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+    g.closePath(); g.fill(); g.filter = 'none';
   }
-  g.filter = 'none';
-  // the garden itself: bare earth (red channel)
-  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 10.2 / W);
-  grd.addColorStop(0, 'rgba(255,0,0,1)'); grd.addColorStop(.85, 'rgba(255,0,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = grd; g.beginPath(); g.arc(S / 2, S / 2, S * 10.2 / W, 0, 7); g.fill();
-  // brightness (blue channel): lit garden, dimmer lawn, total darkness at the edge
-  const b = g.createRadialGradient(S / 2, S / 2, S * 9 / W, S / 2, S / 2, S * 18.5 / W);
-  b.addColorStop(0, 'rgba(0,0,255,1)'); b.addColorStop(.55, 'rgba(0,0,150,1)'); b.addColorStop(1, 'rgba(0,0,0,1)');
-  g.fillStyle = b; g.fillRect(0, 0, S, S);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
+  // brightness (green): lit garden, dimmer towards the fog
+  const b = g.createRadialGradient(CS / 2, CS / 2, CS * 9 / W, CS / 2, CS / 2, CS * 19 / W);
+  b.addColorStop(0, 'rgba(0,255,0,1)'); b.addColorStop(.6, 'rgba(0,170,0,1)'); b.addColorStop(1, 'rgba(0,60,0,1)');
+  g.fillStyle = b; g.fillRect(0, 0, CS, CS);
+  ctlTex.needsUpdate = true; ctlDirty = false;
+}
+/** fields, buildings and the chest that get wet earth around them (radius in m); new ones grow in, removed ones fade */
+export function setEarthSpots(list: { x: number; z: number; r: number }[]) {
+  const seen = new Set<string>();
+  for (const e of list) {
+    const key = e.x.toFixed(2) + ',' + e.z.toFixed(2); seen.add(key);
+    const s = spots.get(key);
+    if (s) { s.want = 1; s.r = e.r; } else spots.set(key, { x: e.x, z: e.z, r: e.r, k: firstSpots ? 1 : 0, want: 1 });
+  }
+  for (const [key, s] of spots) if (!seen.has(key)) s.want = 0;
+  firstSpots = false; ctlDirty = true;
+}
+let firstSpots = true;
+/** earth grows in over ~1.5 s */
+export function updateGround(dt: number) {
+  for (const [key, s] of spots) {
+    if (s.k === s.want) continue;
+    s.k = s.want > s.k ? Math.min(1, s.k + dt / 1.5) : Math.max(0, s.k - dt / 1.5);
+    if (!s.k && !s.want) spots.delete(key);
+    ctlDirty = true;
+  }
+  if (ctlDirty && ctlTex && !bare) drawControl();
 }
 
 /** weapon test room: plain earth everywhere, bright inside the room, dark far outside */
 function bareControl() {
-  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!;
   g.fillStyle = 'rgb(255,0,0)'; g.fillRect(0, 0, S, S);
   g.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 90; i++) { const x = Math.random() * S, y = Math.random() * S, r = rand(3, 9); const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(0,90,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); }
   const b = g.createRadialGradient(S / 2, S / 2, S * 15 / 64, S / 2, S / 2, S * 30 / 64);
-  b.addColorStop(0, 'rgba(0,0,255,1)'); b.addColorStop(1, 'rgba(0,0,40,1)');
+  b.addColorStop(0, 'rgba(0,255,0,1)'); b.addColorStop(1, 'rgba(0,40,0,1)');
   g.fillStyle = b; g.fillRect(0, 0, S, S);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace; return t;
 }
-let ground: THREE.Mesh, post: THREE.Group, gardenMat: THREE.Material, bareMat: THREE.Material | null = null, bare = false;
-/** weapon test room on/off: only earth, no forest, deco, lantern, fog banks or wisps */
+let ground: THREE.Mesh, gardenMat: THREE.MeshStandardMaterial, bareTex: THREE.Texture | null = null, bare = false;
+/** weapon test room on/off: only earth, no fog banks or wisps */
 export function setBareRoom(on: boolean) {
   bare = on;
-  if (on && !bareMat) bareMat = groundMaterial(bareControl());
-  ground.material = on ? bareMat! : gardenMat;
-  for (const o of [post, natureGroup, gardenDeco, mistMesh, ...spirits.map(w => w.s)]) if (o) o.visible = !on;
-  if (on) clearEyes();
+  if (on && !bareTex) bareTex = bareControl();
+  gardenMat.map = on ? bareTex! : ctlTex; GROUND_U.uFogR.value.set(on ? 22 : 12.5, on ? 30 : 19);
+  for (const o of [mistMesh, ...spirits.map(w => w.s)]) if (o) o.visible = !on;
+  if (on) clearEyes(); else ctlDirty = true;
 }
 export const isBareRoom = () => bare;
 
 export function buildWorld() {
-  gardenMat = groundMaterial(groundControl());
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), gardenMat);
+  ctlCv = document.createElement('canvas'); ctlCv.width = ctlCv.height = CS;
+  ctlTex = new THREE.CanvasTexture(ctlCv); ctlTex.colorSpace = THREE.NoColorSpace; drawControl();
+  gardenMat = groundMaterial(ctlTex);
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), gardenMat);
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  lantern.visible = false; // the lamp post is gone
   buildFog(); buildWisps();
-  post = new THREE.Group(); part(post, GEO.cyl, M(0x3a2a1c), .06, 2.2, .06, 0, 1.1, 0); part(post, GEO.box, M(0x2a2a2a, { m: .6, r: .4 }), .22, .3, .22, 0, 2.3, 0);
-  part(post, GEO.sph, new THREE.MeshBasicMaterial({ color: 0xffc070 }), .09, .12, .09, 0, 2.3, 0, false);
-  post.position.copy(LANT); scene.add(post);
-  loadNature().then(buildNature).catch(e => console.error('nature models', e));
-}
-
-// ---------------- nature: forest, bushes, undergrowth, stones (Quaternius MegaKit) ----------------
-const white = new THREE.Color(1, 1, 1);
-const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
-const hsl = (h: number, s: number, l: number) => new THREE.Color().setHSL(h, s, l);
-/** random point in a ring, optionally rejecting points too close to earlier ones */
-function ringPts(n: number, r0: number, r1: number, minD = 0, taken: { x: number; z: number; d: number }[] = [], avoidLantern = 0) {
-  const out: { x: number; z: number; r: number; a: number }[] = [];
-  for (let tries = 0; out.length < n && tries < n * 40; tries++) {
-    const a = rand(0, Math.PI * 2), r = Math.sqrt(rand(r0 * r0, r1 * r1)), x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (minD && taken.some(t => (t.x - x) ** 2 + (t.z - z) ** 2 < (minD + t.d) ** 2 / 4)) continue;
-    if (avoidLantern && (x - LANT.x) ** 2 + (z - LANT.z) ** 2 < avoidLantern ** 2) continue;
-    if (minD) taken.push({ x, z, d: minD });
-    out.push({ x, z, r, a });
-  }
-  return out;
-}
-// inside the garden only the band between the field slots and the lawn gets decoration (fields can be built on every slot)
-let freeSpot: ((x: number, z: number) => boolean) | null = null, natureReady = false, gardenDeco: THREE.Group | null = null;
-export function setGardenSlots(free: (x: number, z: number) => boolean) { freeSpot = free; if (natureReady) buildGardenDeco(); }
-function buildGardenDeco() {
-  if (!freeSpot) return;
-  if (gardenDeco) scene.remove(gardenDeco);
-  const G = gardenDeco = new THREE.Group(); G.visible = !bare; scene.add(G);
-  const ok = (x: number, z: number) => [0, 1, 2, 3, 4, 5].every(k => freeSpot!(x + Math.cos(k * 1.047) * .45, z + Math.sin(k * 1.047) * .45)) && freeSpot!(x, z) && (x - LANT.x) ** 2 + (z - LANT.z) ** 2 > 1.2;
-  const pts = (n: number, r0: number, r1: number) => ringPts(n * 3, r0, r1).filter(p => ok(p.x, p.z)).slice(0, n);
-  const pebbles = pts(26, 6, 9.8).map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.6, 1.2), tilt: .3, shade: rand(.85, 1.1) }));
-  for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3', 'Pebble_Round_4', 'Pebble_Round_5'], pebbles)) instance(G, name, list);
-  // a few fallen petals near the lawn
-  for (const [name, list] of group(['Petal_1', 'Petal_2', 'Petal_3', 'Petal_5'], pts(18, 7.2, 10)))
-    instance(G, name, list.map(p => ({ x: p.x, z: p.z, y: .01, s: rand(.25, .4), tilt: .3, col: hsl(rand(.6, .85), .2, .6) })));
-  // grass creeping in from the lawn, and a few glowing mushrooms
-  for (const [name, list] of group(['Grass_Common_Short', 'Clover_1', 'Clover_2'], pts(34, 8.4, 10)))
-    instance(G, name, list.map(p => ({ x: p.x, z: p.z, s: rand(.25, .4), col: hsl(rand(.22, .35), .25, rand(.6, .72)) })));
-  const sh: Inst[] = [];
-  for (const p of pts(5, 7, 9.8)) for (let i = 0, n = 2 + Math.floor(Math.random() * 3); i < n; i++) { const x = p.x + rand(-.25, .25), z = p.z + rand(-.25, .25); if (ok(x, z)) sh.push({ x, z, s: rand(.3, .5), tilt: .3 }); }
-  instance(G, 'Mushroom_Common', sh);
-}
-function group<T>(names: string[], list: T[]) { const m = new Map<string, T[]>(); for (const it of list) { const n = pick(names); if (!m.has(n)) m.set(n, []); m.get(n)!.push(it); } return m; }
-
-// clearings in the forest belt where nut trees can be planted: no bushes, rocks or undergrowth there
-let clearings: { x: number; z: number; r: number }[] = [], natureGroup: THREE.Group | null = null;
-const inClearing = (x: number, z: number) => clearings.some(c => (c.x - x) ** 2 + (c.z - z) ** 2 < c.r * c.r);
-export function setForestClearings(list: { x: number; z: number; r: number }[]) {
-  const key = (l: typeof list) => l.map(c => `${c.x.toFixed(2)},${c.z.toFixed(2)},${c.r}`).join(';');
-  if (key(list) === key(clearings)) return;
-  clearings = list;
-  if (natureReady && natureGroup) { scene.remove(natureGroup); natureGroup = null; buildNature(); } // models already there: rebuild with the clearings
-}
-function buildNature() {
-  const W = natureGroup = new THREE.Group(); W.name = 'nature'; W.visible = !bare; scene.add(W);
-  const dens = gfx.quality === 'niedrig' ? .45 : gfx.quality === 'mittel' ? .7 : 1, N = (n: number) => Math.max(1, Math.round(n * dens));
-  const add = (name: string, list: Inst[], o: { shadow?: boolean; receive?: boolean; scale?: number } = {}) => instance(W, name, list.filter(p => !inClearing(p.x, p.z)), o);
-
-  // --- forest: twisted giants, dead trees, dark pines, a few broadleaf trees; a dense wall close in, thinner behind
-  const taken: { x: number; z: number; d: number }[] = [];
-  const trees: { name: string; s: number; col: () => THREE.Color; d: number; n: number; r0: number; r1: number }[] = [
-    { name: 'Twisted', s: .38, n: 11, d: 4, r0: 15.6, r1: 23, col: () => Math.random() < .25 ? hsl(rand(.07, .12), rand(.65, .8), rand(.42, .5)) : hsl(rand(.22, .3), rand(.55, .7), rand(.34, .42)) },
-    { name: 'Pine', s: .72, n: 28, d: 2.2, r0: 15.4, r1: 26, col: () => hsl(rand(.2, .28), rand(.25, .4), rand(.78, .9)) },
-    { name: 'Dead', s: .42, n: 11, d: 2.6, r0: 15.4, r1: 25, col: () => white },
-    { name: 'Common', s: .62, n: 12, d: 2.6, r0: 15.8, r1: 25, col: () => hsl(rand(.24, .32), rand(.55, .7), rand(.32, .4)) },
-  ];
-  const variants: Record<string, string[]> = {
-    Twisted: [1, 2, 3, 4, 5].map(i => 'TwistedTree_' + i), Dead: [1, 2, 3, 4, 5].map(i => 'DeadTree_' + i),
-    Pine: [1, 2, 4, 5].map(i => 'Pine_' + i), Common: [1, 3, 5].map(i => 'CommonTree_' + i),
-  };
-  for (const T of trees) {
-    const pts = ringPts(N(T.n), T.r0, T.r1, T.d, taken, 2.5);
-    for (const [name, list] of group(variants[T.name], pts)) add(name, list.map(p => {
-      const s = T.s * rand(.8, 1.2) * (p.r > 21 ? 1.15 : 1);
-      // giants lean their crowns toward the garden a little
-      return { x: p.x, z: p.z, y: -.1, s, col: T.col(), shade: rand(.75, 1.05), ry: T.name === 'Twisted' ? -p.a + rand(-.8, .8) : undefined };
-    }), { shadow: true, scale: T.s });
-  }
-
-  // --- bushes on the rim (the eyes sit in them); some flowering
-  const bushPts = ringPts(N(70), 13, 15.3, 1.1, [], 1.6).filter(p => !inClearing(p.x, p.z));
+  // eyes glow in the fog on a ring around the garden
   BUSHES.length = 0;
-  const bushList = bushPts.map(p => { const s = rand(.6, 1.05); BUSHES.push({ x: p.x, y: s * .6, z: p.z, r: s * .9, a: p.a }); return { x: p.x, z: p.z, s, col: hsl(rand(.25, .34), rand(.5, .65), rand(.28, .36)) }; });
-  const fl = bushList.filter(() => Math.random() < .25);
-  add('Bush_Common', bushList.filter(b => !fl.includes(b)), { shadow: true });
-  add('Bush_Common_Flowers', fl.map(b => ({ ...b, col: hsl(rand(.27, .33), .55, .34) })), { shadow: true });
-
-  // --- boulders: rim + forest floor, mossy cool grey
-  add('Rock_Medium_1', ringPts(N(7), 12.6, 22).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.35, .8), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
-  add('Rock_Medium_2', ringPts(N(7), 12.6, 22).map(p => ({ x: p.x, z: p.z, y: -.1, s: rand(.3, .7), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
-  add('Rock_Medium_3', ringPts(N(6), 14, 24).map(p => ({ x: p.x, z: p.z, y: -.15, s: rand(.4, .9), tilt: .3, shade: rand(.7, 1) })), { shadow: true });
-
-  // --- undergrowth: ferns and big leaves under the trees, grass + clover on the lawn
-  const fern = (n: number, r0: number, r1: number) => ringPts(N(n), r0, r1).map(p => ({ x: p.x, z: p.z, s: rand(.15, .26), tilt: .25, col: hsl(rand(.4, .5), rand(.2, .35), rand(.62, .75)) }));
-  add('Fern_1', fern(70, 13.4, 23));
-  add('Plant_1_Big', ringPts(N(26), 13.5, 22).map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.42, .52), .3, rand(.6, .72)) })));
-  add('Plant_1', ringPts(N(30), 11.5, 16).map(p => ({ x: p.x, z: p.z, s: rand(.35, .55), col: hsl(rand(.38, .5), .25, rand(.62, .75)) })));
-  for (const [name, list] of group(['Clover_1', 'Clover_2'], ringPts(N(30), 10.6, 15))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.3, .45), col: hsl(rand(.22, .32), .35, rand(.7, .8)) })));
-  const grassCol = () => hsl(rand(.2, .32), rand(.2, .35), rand(.58, .72));
-  for (const [name, list] of group(['Grass_Common_Short', 'Grass_Common_Short', 'Grass_Common_Tall'], ringPts(N(260), 10.3, 17.5)))
-    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.32, .55) * (p.r > 13 ? 1.25 : 1), col: grassCol() })));
-  add('Grass_Wispy_Tall', ringPts(N(40), 14.5, 22).map(p => ({ x: p.x, z: p.z, s: rand(.5, .8), col: grassCol() })));
-  for (const [name, list] of group(['Clover_1', 'Clover_2'], ringPts(N(36), 10.2, 14))) add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.28, .42), col: hsl(rand(.3, .45), .3, rand(.65, .78)) })));
-
-  // --- flowers that glow faintly at night
-  for (const [name, list] of group(['Flower_3_Group', 'Flower_4_Group', 'Flower_3_Single', 'Flower_4_Single'], ringPts(N(34), 10.8, 15.5)))
-    add(name, list.map(p => ({ x: p.x, z: p.z, s: rand(.22, .34), col: hsl(rand(.08, .15), .2, .95) })));
-
-  // --- glowing mushrooms: two fairy rings on the lawn, clusters at the tree feet
-  const shrooms: Inst[] = [], bracket: Inst[] = [];
-  for (let k = 0; k < 2; k++) {
-    const a = rand(0, Math.PI * 2), r = rand(11.2, 12.6), cx = Math.cos(a) * r, cz = Math.sin(a) * r, rr = rand(.7, 1), n = 11;
-    for (let i = 0; i < n; i++) { const b = i / n * Math.PI * 2 + rand(-.15, .15); shrooms.push({ x: cx + Math.cos(b) * rr, z: cz + Math.sin(b) * rr, s: rand(.4, .65), tilt: .3 }); }
-  }
-  for (const p of ringPts(N(10), 13.5, 20)) for (let i = 0, n = 2 + Math.floor(Math.random() * 4); i < n; i++) shrooms.push({ x: p.x + rand(-.4, .4), z: p.z + rand(-.4, .4), s: rand(.35, .7), tilt: .3 });
-  for (const p of ringPts(N(10), 15, 20)) bracket.push({ x: p.x, z: p.z, s: rand(.5, .8), tilt: .2 });
-  add('Mushroom_Common', shrooms); add('Mushroom_Laetiporus', bracket);
-
-  // --- stepping stones along the trodden paths, pebbles along the garden border
-  const stones: Inst[] = [];
-  for (const P of PATHS) for (let t = 0; t < 1; t += .028) {
-    const q = pathPoint(P.a, t), r = Math.hypot(q.x, q.z); if (r < 10.4 || r > 21 || Math.random() < .25) continue;
-    stones.push({ x: q.x + rand(-.35, .35), z: q.z + rand(-.35, .35), y: -.02, s: rand(.5, .75), shade: rand(.75, 1) });
-  }
-  for (const [name, list] of group(['RockPath_Round_Small_1', 'RockPath_Round_Small_2', 'RockPath_Round_Small_3'], stones)) add(name, list, { receive: true });
-  const pebbles = [...ringPts(N(34), 9.7, 10.8), ...ringPts(N(30), 10.8, 18)].map(p => ({ x: p.x, z: p.z, y: -.02, s: rand(.8, 1.5), tilt: .3, shade: rand(.85, 1.1) }));
-  for (const [name, list] of group(['Pebble_Round_1', 'Pebble_Round_2', 'Pebble_Round_3', 'Pebble_Round_4', 'Pebble_Round_5'], pebbles)) add(name, list, { shadow: gfx.quality === 'hoch' });
-  natureReady = true; buildGardenDeco();
+  for (let i = 0; i < 46; i++) { const a = i / 46 * Math.PI * 2 + rand(-.05, .05), r = rand(12.6, 14.6), s = rand(.6, 1.05); BUSHES.push({ x: Math.cos(a) * r, y: s * .6, z: Math.sin(a) * r, r: s * .9, a }); }
 }
 
 // ---------------- eyes on the bushes ----------------
@@ -253,17 +143,17 @@ export function updateEyes(dt: number) {
 }
 export function clearEyes() { for (const E of eyeBushes) for (const p of E.pairs) scene.remove(p.g); eyeBushes.length = 0; }
 
-// ---------------- fog banks drifting in from the forest ----------------
+// ---------------- fog banks drifting in from all around ----------------
 // Finely animated mist: flat, ground-hugging strips (one instanced draw call) that are born between the trees,
 // creep slowly towards the garden while their noise texture churns, and dissolve before they reach the beds.
-const MIST = 30;
+const MIST = 40;
 const mistU = { uTime: windU, uCol: { value: new THREE.Color(0x8aa0c8) }, uOp: { value: 1 } };
 interface Mist { a: number; r: number; v: number; turn: number; len: number; wid: number; t: number; life: number; y: number }
 const mists: Mist[] = [];
 let mistMesh: THREE.InstancedMesh | null = null, mistFade: THREE.InstancedBufferAttribute, mistSeed: THREE.InstancedBufferAttribute;
 function newMist(m: Partial<Mist> = {}, age = 0): Mist {
   const life = rand(22, 38);
-  return Object.assign(m, { a: rand(0, Math.PI * 2), r: rand(18, 22), v: rand(.25, .5), turn: rand(-.012, .012), len: rand(5, 9), wid: rand(2.2, 3.6), t: age * life, life, y: rand(.25, .7) }) as Mist;
+  return Object.assign(m, { a: rand(0, Math.PI * 2), r: rand(14.5, 20), v: rand(.2, .42), turn: rand(-.012, .012), len: rand(5, 9), wid: rand(2.2, 3.6), t: age * life, life, y: rand(.25, .7) }) as Mist;
 }
 function buildFog() {
   const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
@@ -335,7 +225,7 @@ const fogLook = { col: new THREE.Color(0x8aa0c8), mul: 1, night: 1 };
 export function setFogLook(col: THREE.Color, mul: number, night = 1) { fogLook.col.copy(col); fogLook.mul = mul; fogLook.night = night; }
 export function updateFog(dt: number) {
   updateWisps(dt, fogLook.night);
-  mistU.uCol.value.copy(fogLook.col); mistU.uOp.value = Math.min(1.4, fogLook.mul);
+  mistU.uCol.value.copy(fogLook.col); mistU.uOp.value = Math.min(1.4, Math.max(.6, fogLook.mul)); // the fog replaces the forest: never quite gone
   updateMist(dt);
 }
 

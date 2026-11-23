@@ -6,6 +6,7 @@ import { GEO, M, PART, V, decal, part, rand } from './core';
 import { JUICE_HEX, juiceBottle } from './models';
 import { buildingSound } from '../audio';
 import { friedEgg } from './eggfx';
+import { hexGeo } from './beds';
 import { BOTTLE_SPOUT, EGG_POS } from '../sim/sim';
 
 export interface BuildingView {
@@ -22,6 +23,7 @@ const IRON = M(0x4a4a50, { m: .4, r: .5 }), WATER = M(0x3a8adf, { e: 0x1a5aaf, e
 const JUICE = M(0xb0204a, { e: 0x801030, ei: .12, r: .2, flat: false }), FIRE = M(0xff8a20, { e: 0xff6a10, ei: .5 }), EMBER = M(0xffd060, { e: 0xffb030, ei: .5 }); // 23.11.2026: buildings no longer glow (no bloom)
 const WHITE = M(0xf4f2ea), BLACK = M(0x2a2622), PINK = M(0xe8a0a0), RED = M(0xd03020), YELLOW = M(0xf0c030), CHEESE = M(0xf2c630, { e: 0x8a6000, ei: .15 }), HORN = M(0xe8dcc0);
 const GROUND = M(0x6a5038), COBBLE = M(0x9a948a);
+const PAD = new THREE.MeshStandardMaterial({ color: 0x6a5038, roughness: 1, vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
 /** triangular prism (gable roof) along x: width w (x), depth d (z), height h */
 function gable(w: number, d: number, h: number) {
@@ -29,7 +31,7 @@ function gable(w: number, d: number, h: number) {
   const g = new THREE.ExtrudeGeometry(s, { depth: w, bevelEnabled: false }); g.translate(0, 0, -w / 2); g.rotateY(Math.PI / 2); return g;
 }
 function pad(g: THREE.Group, H: number) {
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(H * .9, H * .95, .05, 6), GROUND); base.rotation.y = Math.PI / 6; base.position.y = .02; base.receiveShadow = true; g.add(base);
+  const base = new THREE.Mesh(hexGeo(H * .95), PAD); base.position.y = .02; base.receiveShadow = true; g.add(base); // roughly hex, fading out irregularly (no exact hexagon)
   for (let i = 0; i < 16; i++) { const a = rand(0, 7), r = rand(.55, .82) * H; const st = part(g, GEO.lo, COBBLE, rand(.07, .13), .04, rand(.07, .13), Math.cos(a) * r, .05, Math.sin(a) * r, false); st.rotation.y = rand(0, 7); st.receiveShadow = true; }
 }
 function house(g: THREE.Group, w: number, d: number, h: number, wall: THREE.Material, roof: THREE.Material, x = 0, z = 0) {

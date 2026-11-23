@@ -21,7 +21,7 @@ function drawControl() {
     if (s.k <= .001) continue;
     // a slightly larger hexagon (pointy-top like the slots): neighbours merge, the earth keeps the grid's outline
     const r = s.r * (.35 + .65 * s.k) * CS / W, x = toPx(s.x), y = toPx(s.z);
-    g.fillStyle = `rgba(255,0,0,${Math.min(1, s.k * 1.6)})`; g.filter = 'blur(2px)'; g.beginPath();
+    g.fillStyle = `rgba(255,0,0,${Math.min(1, s.k * 1.6)})`; g.filter = 'blur(4px)'; g.beginPath();
     for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
     g.closePath(); g.fill(); g.filter = 'none';
   }

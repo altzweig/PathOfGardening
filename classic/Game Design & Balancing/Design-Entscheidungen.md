@@ -496,7 +496,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Während der Shop offen ist, wird die 3D-Welt nicht gerendert; der Shop hat einen eigenen dunklen Hintergrund.
 - Leistung (Messung 23.11.): Wald, Büsche, Gras und Deko waren rund 78 % aller Dreiecke und wurden zusätzlich im Schattenpass gezeichnet. Darum gibt es keine Umgebung mehr außer dem Boden: rundherum Nebel (Boden geht ab ~12,5 m in die Nebelfarbe über, dazu treibende Nebelbänke), Augen leuchten im Nebel, Irrlichter bleiben. Laternenpfahl und sein Licht sind weg.
 - Boden = FreeStylized-Texturen wie im Hof-Spiel (KTX2-Array, ein Draw Call, Handy 512 px ohne Normalen). Überall Wiese (Grass 01 mit Grass 04-Flecken), nasse dunkle Erde (Ground 02/06, glänzender) nur um und zwischen Feldern, Gebäuden und der Truhe. Neue Felder: die Wiese dort und drumherum wird in ~1,5 s zu nasser Erde.
-- Jedes Feld ist ein klar sichtbares Hexagon (spitze Seite oben, genau der Hex-Platz), Nachbarfelder greifen wie ein Hexgrid ineinander, mit weicher Fuge dazwischen. Die nasse Erde drumherum ist ebenfalls ein etwas größeres Hexagon je Feld (Basti, 23.11.2026: "nicht wie Schachbrett").
+- Felder und Gebäude-Plätze sitzen im Hexgrid und sind grob hexförmig, aber kein exaktes Hexagon: der Rand ist unregelmäßig und fadet nach außen aus (Basti, 23.11.2026, nach kurzem Test mit exakten Hexagonen). Die nasse Erde drumherum ist ebenfalls ein etwas größeres Hexagon je Feld (Basti, 23.11.2026: "nicht wie Schachbrett").
 - Gebäude bewegen sich nur, solange jemand dort arbeitet (harkt): Mühlenflügel stehen sonst still, Brunnenkurbel, Presse, Backofen-Rauch ebenso (Basti, 23.11.2026). Der Brunnen liefert sein Wasser weiterhin passiv.
 
 ## Körner-MP (23.11.2026)
@@ -505,3 +505,11 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
 - Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.
 - Ernte als Countdown (23.11.2026): Bei allen Büschen und beim Getreide vertrocknen während der Erntezeit die 6 Büschel nacheinander (braune Blätter/Halme, braune Beeren bzw. Ähren, Getreide knickt ab). Ist das letzte Büschel durch, ist die Ernte vorbei. Die Früchte fallen weiter zufällig vom ganzen Feld.
+
+
+## Werkzeuge je Feld, Handmühle, Werkstatt-Tisch (23.11.2026)
+- Das Werkzeug richtet sich nach dem Feld vor der Figur (Mitte des Trefferkreises, gewählt zu Beginn jedes Schlags): Weizen = einhändige Sichel, Beerenfelder (Blau-, Brom-, Preiselbeere) = kleiner Handrechen, sonst die Harke.
+- Jeder Schlag (Ernten und Angriff) ist gleich: kurz ausholen, dann ein Schwung nach vorn über ca. 60°, zufällig von links nach rechts oder umgekehrt.
+- Brunnen hat eine sichtbare Kurbel (Eisenarm + Holzgriff), die sich dreht, solange dort gearbeitet wird, egal wo die Figur genau steht.
+- Mühle ist kein Windrad mehr, sondern eine kleine Handmühle (zwei Mühlsteine auf einem Holzgestell, Kurbelgriff am oberen Stein, Mehlhaufen + Sack), etwa so groß wie Truhe/Brunnen. Der obere Stein dreht sich nur beim Arbeiten.
+- Werkstatt: Hintergrund ist das eingefrorene Bild der Welt (am Rand leicht abgedunkelt), kein brauner Raum mehr. Auf Laptop/PC kommt der große Tisch vom linken Bildschirmrand herein (rechte Kante perspektivisch schräg), Vorrat-Liste rechts.

@@ -71,6 +71,7 @@ export function animHeld(h: Held, k: number) {
 
 // ---------- projectiles / bombs / ground ----------
 /** PK index (sim): 0 asp, 1 cran, 2 jam, 3 spike, 4 sour, 5 lance, 6 hot, 7 rocket, 8 shock, 9 lemon ball lightning */
+const GRAIN = M(0xe0b050, { r: .5 });
 export function projMesh(kind: number): THREE.Object3D {
   const g = new THREE.Group();
   switch (kind) {
@@ -101,6 +102,7 @@ export function projMesh(kind: number): THREE.Object3D {
     }
     case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .07, .07, .07, 0, 0, 0, false); break; // blueberry pellet
     case 11: part(g, BERRY_GEO.black, PEL_BLACK, .075, .075, .075, 0, 0, 0, false); break; // blackberry pellet
+    case 12: part(g, GEO.sph, GRAIN, .035, .035, .075, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff0b0, .35), .05, .05, .16, 0, 0, -.06, false); break; // Körner-MP: wheat grain with a faint streak
     default: part(g, GEO.sph, PROJ_CRAN, .07, .07, .07, 0, 0, 0, false);
   }
   return g;

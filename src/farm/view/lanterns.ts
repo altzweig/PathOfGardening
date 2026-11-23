@@ -188,7 +188,7 @@ export class Lanterns {
     this.t += dt; const on = k > .02, C = this.C;
     lanternGlass.emissiveIntensity = k * C.glas;
     haloMat.opacity = k * C.halo[1]; poolMat.opacity = k * C.boden[1]; haloMat.visible = poolMat.visible = on;
-    if (this.light) { this.light.intensity = k * C.licht[0] * (1 + Math.sin(this.t * 9.1) * .03 + Math.sin(this.t * 23.7) * .02); this.light.visible = on; }
+    if (this.light) { this.light.intensity = k * C.licht[0] * (1 + Math.sin(this.t * 9.1) * .03 + Math.sin(this.t * 23.7) * .02); } // stays visible at 0 by day: a light that appears changes the light count and recompiles every shader (lag at dusk)
     for (const L of this.lamps) {
       L.halo.scale.setScalar(C.halo[0] * (1 + Math.sin(this.t * 7.3 + L.ph) * .04 + Math.sin(this.t * 17.9 + L.ph * 3) * .03));   // candle flicker
       if (L.pivot) L.pivot.rotation.set(Math.sin(this.t * L.f + L.ph) * C.pendeln, 0, Math.sin(this.t * L.f * .83 + L.ph * 2) * C.pendeln * .7);

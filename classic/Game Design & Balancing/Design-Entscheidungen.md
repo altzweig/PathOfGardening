@@ -478,7 +478,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 
 ## Erntezeiten je Feld, Beerenmenge, Kohl und Mehl (23.11.2026)
 - Erntezyklus je Pflanze (`plants.x.grow` / `harvest`, sonst `fields.cycle`): Standard 8 s wachsen, 4 s ernten. Weizen 6 s / 3 s. Kohl 12 s / 2 s, dafür mehr pro Ernte (ca. 7-8 statt 6). Chili 16 s / 4 s, Menge so angepasst, dass pro Zeit etwa gleich viel herauskommt. Harken während des Wachstums halbiert die Wachstumszeit höchstens.
-- Beerenmenge halbiert (Intervall 2 -> 4 s), XP je Beere dadurch verdoppelt.
+- Beerenmenge halbiert (Intervall 2 -> 4 s), XP je Beere dadurch verdoppelt. Später am selben Tag nochmal halbiert (4 -> 8 s, XP je Beere wieder x2): man soll zwischendurch Beerenmangel haben und andere Waffen nehmen.
 - Kohlminen: 2 pro Sekunde (Abklingzeit 0,5 s, Mindestabstand = Explosionsradius).
 - Mehlsack: gedrückt halten, im Laufen entsteht alle 0,4 s eine kleine Mehlwolke (2/5 des alten Radius, 1 Mehl je Wolke, keine Drehung mehr, bis zu 16 Wolken).
 
@@ -498,6 +498,12 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Boden = FreeStylized-Texturen wie im Hof-Spiel (KTX2-Array, ein Draw Call, Handy 512 px ohne Normalen). Überall Wiese (Grass 01 mit Grass 04-Flecken), nasse dunkle Erde (Ground 02/06, glänzender) nur um und zwischen Feldern, Gebäuden und der Truhe. Neue Felder: die Wiese dort und drumherum wird in ~1,5 s zu nasser Erde.
 - Jedes Feld ist ein klar sichtbares Hexagon (spitze Seite oben, genau der Hex-Platz), Nachbarfelder greifen wie ein Hexgrid ineinander, mit weicher Fuge dazwischen. Die nasse Erde drumherum ist ebenfalls ein etwas größeres Hexagon je Feld (Basti, 23.11.2026: "nicht wie Schachbrett").
 - Gebäude bewegen sich nur, solange jemand dort arbeitet (harkt): Mühlenflügel stehen sonst still, Brunnenkurbel, Presse, Backofen-Rauch ebenso (Basti, 23.11.2026). Der Brunnen liefert sein Wasser weiterhin passiv.
+
+## Körner-MP (23.11.2026)
+- Getreide bekommt eine eigene Waffe: eine Maschinenpistole aus Holz (Eschenschaft, Walnussgriffe, Holzlauf im gelochten Messingmantel, Trommelmagazin mit Sichtfenster voller Körner, Weizenähre am Schaft). Freischalt-Karte wie bei den anderen Feldwaffen, sobald ein Getreidefeld steht. Weizen ist damit Munition (liegt weiter in der Truhe und kann wie bisher in Gebäude).
+- 10 Körner pro Sekunde, wenig Schaden (1,6 je Korn, physisch), schnelle Körner (24 m/s), Reichweite 7,5 m (Schrotflinte 6,5 m). 1 Weizen = 1 Korn.
+- Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
+- Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.
 
 ## Werkzeuge je Feld, Handmühle, Werkstatt-Tisch (23.11.2026)
 - Das Werkzeug richtet sich nach dem Feld vor der Figur (Mitte des Trefferkreises, gewählt zu Beginn jedes Schlags): Weizen = einhändige Sichel, Beerenfelder (Blau-, Brom-, Preiselbeere) = kleiner Handrechen, sonst die Harke.

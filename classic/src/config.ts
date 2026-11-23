@@ -1,7 +1,7 @@
 import YAML from 'yaml';
 
 /** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat';
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
@@ -9,7 +9,7 @@ export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitc
 export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat'];
 /** 23.11.2026: one shotgun (skill 'blue', the start weapon) fires whichever berry is selected; the berries are only its ammo
  *  (cran and black are no weapons of their own any more): blue = freeze, black = thorn bind, cran = bleeding */
 export type Berry = 'blue' | 'black' | 'cran';
@@ -17,7 +17,7 @@ export const BERRIES: Berry[] = ['blue', 'black', 'cran'];
 export const isBerry = (t: string): t is Berry => t === 'blue' || t === 'black' || t === 'cran';
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
 export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
-export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan'];
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat'];
 export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen'];
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'egg', 'juice', 'bread', 'fegg'];
 export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
@@ -95,11 +95,14 @@ export interface Balancing {
     flour: { damage: number; range: number; cooldown: number; ammoPerShot: number; spin: number; life: number; fade: number; frontSpeed: number; burnTime: number; burnDps: number; maxClouds: number; minLevel?: number };
     /** Spiegeleischleuder (23.11.2026): spin, then eggs fly throw m and lure every animal within range m (lure radius); eat s of eating per egg (shared by all eaters) */
     pan: { damage: number; range: number; cooldown: number; ammoPerShot: number; eggs: number; throw: number; spin: number; flight: number; eat: number; cdStep: number; rangeStep: number; eatStep: number; spread: number; spreadJitter: number; ring: [number, number]; maxLife: number; boss?: boolean };
+    /** Körner-MP (23.11.2026): wooden SMG firing wheat grains; heats up (full after heatTime s of firing, then locked until cooled,
+     *  coolTime s from full), spread grows with heat from spreadMin to spreadMax deg */
+    wheat: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; heatTime: number; coolTime: number; coolDelay: number; spreadMin: number; spreadMax: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
-    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; cabGas: Lim; cabPoison: Lim; doubleHarvest: Lim;
+    aspPierce: Lim; aspPierceBonus: Lim; aspSize: Lim; aspSalvo: { shots: number[] }; cranPellets: Lim; cranPierce: Lim; cranSplash: Lim; cabMini: Lim; cabGas: Lim; cabPoison: Lim; doubleHarvest: Lim; /** Körner-MP: +step x heatTime per level */ wheatDuration?: Lim;
     rakeDiameter: Lim; rakeSpeed?: Lim; rakeRange: Lim; rakeDamage: Lim; tillHeal: Lim & { weight: number };
     lemonTargets: Lim; lemonTransfer: Lim; lemonEfficiency: Lim;
     chiliSweep: { sweepStep: number; coneStep: number; circleSpeedBonus: number; circleConeStep: number; circleSpeedStep: number; maxCone: number };

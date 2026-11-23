@@ -68,6 +68,7 @@ class Game {
     applyQuality();
     this.idle();
     this.wire();
+    await this.view.prewarm(); // compile every weapon / effect shader now, not on its first use in the game
     only('#menu');
     let last = performance.now();
     let lastRaf = performance.now();

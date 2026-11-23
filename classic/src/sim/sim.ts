@@ -85,7 +85,7 @@ export const cornerAngle = (k: number) => -Math.PI / 2 + k * Math.PI / 3;
 export const triPlant = (x: number, z: number, H: number, k: number): [number, number] => { const a = cornerAngle(k) + Math.PI / 6, r = H * .577; return [x + Math.cos(a) * r, z + Math.sin(a) * r]; };
 export const hexDist =(a: Slot, b: Slot) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 
-interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; cranPierceLv: number; mineLv: number; minis: number; gasLv: number; poisLv: number; effLv: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number }
+interface SkillState { combo: ComboId | ''; merged: boolean; partner?: SkillState; learned: boolean; lvDmg: number; lvRange: number; lvCd: number; pierce: number; pierceBonus: number; extraPel: number; cranPierceLv: number; mineLv: number; minis: number; gasLv: number; poisLv: number; effLv: number; sizeLv: number; salvoLv: number; tgtLv: number; xferLv: number; sweepLv: number; tickLv: number; cdT: number; firing: boolean; burst: number; burstT: number; /** Körner-MP: heat 0..1, overheated (locked until cooled), fire-duration level, s since the last shot */ heat?: number; hot?: boolean; durLv?: number; idle?: number }
 interface Poison { t: number; ticks: number }
 export interface Player {
   id: number; color: number; x: number; z: number; face: number; hp: number; alive: boolean; deaths: number; respawnT: number;
@@ -149,9 +149,10 @@ interface Enemy {
   thorn: number; thornT: number; bx: number; bz: number;
   /** raccoon at the chest: thief slot on the circle (-1 none), s to the next stolen item, items it can carry */
   cs: number; stealT: number; cmax: number;
+  /** Körner-MP: grain damage not shown yet, time of the last number */ gs?: number; gt?: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
-export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'blue', 'black'] as const;
+export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'blue', 'black', 'wheat'] as const;
 type ProjKind = typeof PK[number];
 interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx: number; dz: number; speed: number; left: number; total: number; dmg: number; pierceLeft: number; pf: number; mine: number; w: number; hit: Set<Enemy>;
   /** combo extras: blast radius / share (jam, rocket), burn stacks + tick (lance, hot), shock share (sour), stats of the shot */
@@ -178,7 +179,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number; /** Spiegelei: s of eating per egg */ eat: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number; /** Spiegelei: s of eating per egg */ eat: number; /** Körner-MP: s of fire until it overheats */ dur: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string; freeze: boolean }
@@ -250,7 +251,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
-      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk() }, berry: 'blue', lastBerry: 0,
+      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk() }, berry: 'blue', lastBerry: 0,
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
@@ -687,8 +688,8 @@ export class Sim {
     const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
       ...fl, tick,
-      dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot,
-      need: Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots, shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
+      dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot, dur: id === 'wheat' ? S.wheat.heatTime * (1 + (U.wheatDuration?.step ?? .25) * (s.durLv ?? 0)) : 0,
+      need: Math.ceil(Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots - 1e-9), shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: (id === 'blue' ? S.blue.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
@@ -1139,6 +1140,7 @@ export class Sim {
   tryFire(p: Player, id: SkillId, dir?: [number, number]) {
     const s = p.skills[id];
     if (!p.alive || !this.canFire(p, id) || s.cdT > 0) return false;
+    if (id === 'wheat' && s.hot) return false; // overheated: cools down first
     if (id === 'cab' && !s.combo && !this.canLayMine(p)) return false; // mines: not on tiles, not on top of each other
     const st = this.stats(id, s);
     const d = dir || this.aimDir(p, this.thrown(s, id) ? st.throwDist : st.range);
@@ -1165,6 +1167,11 @@ export class Sim {
         const a = base + g * Math.PI / 180;
         this.projs.push({ id: this.nid++, kind, x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: rand(10, 12), left: st.range * rand(.85, 1), total: st.range, dmg: st.dmg, pierceLeft: Math.random() < st.cranPierce ? 1 : 0, pf: 1, mine: st.splash, w: .1, hit: new Set() }); // pierce chance: flies through one enemy
       }
+    } else if (id === 'wheat') { // Körner-MP: one fast grain; the hotter the gun, the wider the spread
+      const W = S.wheat, h = s.heat ?? 0, sig = W.spreadMin + (W.spreadMax - W.spreadMin) * h * h, a = Math.atan2(dx, dz) + clamp(gauss() * sig, -sig * 2, sig * 2) * Math.PI / 180;
+      this.projs.push({ id: this.nid++, kind: 'wheat', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: W.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 1, mine: 0, w: .07, hit: new Set() });
+      this.sfx('weapons.grain', p.x, p.z);
+      s.heat = Math.min(1, h + st.cd / st.dur); s.idle = 0; if (s.heat >= 1) { s.hot = true; this.sfx('weapons.overheat', p.x, p.z); this.emit({ k: 'overheat', p: p.id, x: r2(p.x), z: r2(p.z) }); }
     } else if (id === 'lemon') {
       this.lemonBall(p, dx, dz, st);
     } else if (id === 'chili') {
@@ -2150,6 +2157,10 @@ export class Sim {
     if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
 
     p.rakeCd -= dt * sf; for (const id of SKILLS) p.skills[id].cdT = Math.max(0, p.skills[id].cdT - dt * sf);
+    { // Körner-MP: cools down coolDelay s after the last grain (full -> cold in coolTime s); overheated stays locked until cold
+      const w = p.skills.wheat, W = this.cfg.skills.wheat;
+      if (W && w.heat) { w.idle = (w.idle ?? 0) + dt; if (w.idle > W.coolDelay || w.hot) w.heat = Math.max(0, w.heat - dt / W.coolTime); if (w.hot && w.heat <= 0) { w.hot = false; this.sfx('weapons.cooled', p.x, p.z); } }
+    }
     p.xbT = Math.max(0, p.xbT - dt); p.handT = Math.max(0, p.handT - dt); p.spinT = Math.max(0, p.spinT - dt); p.cwT = Math.max(0, p.cwT - dt);
     const xa = p.skills.asp; // crossbow salvo: remaining bolts follow at burstGap, re-aimed each time
     if (xa.burst > 0) {
@@ -2310,6 +2321,12 @@ export class Sim {
           if (pr.pierceLeft > 0) { pr.pierceLeft--; pr.dmg *= pr.pf; } else { done = true; break; }
         } else if (pr.kind === 'ball') {
           this.ballHit(pr, e); done = true; break;
+        } else if (pr.kind === 'wheat') { // grain: small physical hit
+          // 10 hits/s: no number per grain, the damage is summed up and shown every .35 s
+          const d0 = e.hp; this.hurtEnemy(e, pr.dmg, { color: 'w', src: 'wheat', phys: true, silent: true, dot: true }); e.flash = .06;
+          e.gs = (e.gs ?? 0) + Math.max(0, d0 - e.hp); if (this.time - (e.gt ?? -9) >= .35 || e.dead) { if (e.gs > 0) this.num(e.x, e.z, e.gs, 'w'); e.gs = 0; e.gt = this.time; }
+          this.burst(e.x, .45, e.z, 0xe8c060, 3, 1.4, .05, .2);
+          done = true; break;
         } else if (pr.kind === 'black') { // blackberry: thorn bind (and one neighbour)
           this.hurtEnemy(e, pr.dmg, { color: 't', src: 'black', phys: true });
           this.thornBind(e);
@@ -2341,6 +2358,7 @@ export class Sim {
           this.mines.push({ id: this.nid++, x: pr.x, z: pr.z, dmg: pr.dmg * pr.mine, t: this.cfg.skills.cran.splashDelay }); // missed: lies, then pops
         } else if (pr.kind === 'ball') this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 10, 1.6, .08, .3); // fizzles out
         else if (pr.kind === 'blue') this.burst(pr.x, .1, pr.z, 0x4a64f0, 4, .8, .06, .3);
+        else if (pr.kind === 'wheat') { if (Math.random() < .3) this.burst(pr.x, .1, pr.z, 0xd8b050, 2, .6, .04, .25); }
         else this.comboLand(pr);
       }
       if (done) this.projs.splice(i, 1);
@@ -2426,7 +2444,8 @@ export class Sim {
       }
       mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} · {fire} ${nf(this.cfg.skills.chili.burnDamage * a.dmgPct, 1)} → ${nf(this.cfg.skills.chili.burnDamage * b.dmgPct, 1)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
       mk(id + '_rng', x => x.lvRange++, b => id === 'cab' ? `{radius} ${nf(a.range * 100)} → ${nf(b.range * 100)} cm` : id === 'lemon' ? `{radius} ${nf(a.ballR * 200)} → ${nf(b.ballR * 200)} cm` : `{range} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
-      if (id !== 'chili') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s
+      if (id !== 'chili' && id !== 'wheat') mk(id + '_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`); // flamethrower: fixed 8 chilis/s; Körner-MP: fixed 10 grains/s
+      if (id === 'wheat' && (s.durLv ?? 0) < (U.wheatDuration?.maxLevel || 5)) mk('wheat_dur', x => x.durLv = (x.durLv ?? 0) + 1, b => `{heat} ${nf(a.dur, 1)} → ${nf(b.dur, 1)} s`);
       if (id === 'chili') {
         // "circle": sweep + cone grow together; from 360 deg the flame spins (U/s = turns per second)
         if (!a.sweepMax) {
@@ -2620,7 +2639,7 @@ export class Sim {
     for (const p of this.players) {
       const st = SKILLS.map(id => this.stats(id, p.skills[id]));
       me[p.id] = {
-        am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
+        am: SKILLS.map(id => Math.floor(p.ammo[id] + 1e-6)), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'any' ? 2 : p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
@@ -2637,6 +2656,7 @@ export class Sim {
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
         ch: p.chW ? r2(this.chargeK(p)) : -1, // charging a throw
+        ht: p.skills.wheat.heat ? r2(p.skills.wheat.heat) + (p.skills.wheat.hot ? 2 : 0) : undefined, // Körner-MP heat
         sp: p.spinT > 0 ? r2(1 - p.spinT / Math.max(.05, p.spinD)) : 0, sk: p.spinK === 'pan' ? 1 : 0, // Mehlsack / Bratpfanne spin progress 0..1
         // combo weapon in the hand: active weapon is a combo, or a combo fired just now
         cw: (() => { const ac = p.active !== 'rake' ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),

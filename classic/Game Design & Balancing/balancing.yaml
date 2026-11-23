@@ -22,6 +22,7 @@ names:
     cab: Kohlmine
     lemon: Citrateaser
     chili: Flammenwerfer
+    wheat: Körner-MP
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
     black: Brombeerbusch
@@ -98,6 +99,7 @@ names:
     rng: Reichweite
     cab_rng: Radius
     cd: Abklingzeit
+    wheat_dur: Feuerdauer bis heiß
     arc: Kegelbreite
     wid: Breite
     pierce: Durchbohren
@@ -125,6 +127,7 @@ names:
     cab: Kontaktmine · Gift
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
+    wheat: 10 Körner/s · läuft heiß
 
 player:
   hp: 100
@@ -255,10 +258,10 @@ fruit:
 
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
-  blue: { interval: 4 }                 # 23.11.2026: Beerenmenge halbiert (2 -> 4, XP je Beere damit verdoppelt). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  blue: { interval: 8 }                 # 23.11.2026: Beerenmenge zweimal halbiert (2 -> 4 -> 8, XP je Beere damit jeweils verdoppelt; Basti: man soll zwischendurch Beerenmangel haben). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  black: { interval: 4 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
-  cran: { interval: 4, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
+  black: { interval: 8 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
+  cran: { interval: 8, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
   cab:  { interval: 3.2, unlockAt: 0, grow: 12, harvest: 2 }   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 1.2, unlockAt: 0, amount: 1, minLevel: 10, grow: 16, harvest: 4 } # Chilifeld: wächst 16 s, 4 s Ernte (23.11.2026, Menge angepasst: pro Zeit etwa wie vorher), wie das Zitronenbäumchen erst ab Level 10
@@ -325,6 +328,17 @@ skills:
     eatStep: 1             # s mehr je Nährwert-Upgrade
     maxLife: 20            # s, unberührte Eier verschwinden danach
     boss: false            # Bosse lassen sich nicht ablenken
+  wheat:                   # 23.11.2026 Körner-MP aus Holz: Munition = Weizen (Getreidefeld), Freischalt-Karte wie die anderen Feldwaffen
+    damage: 1.6            # je Korn (wenig Schaden, dafür 10 Schuss/s)
+    range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
+    cooldown: 0.1          # s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
+    ammoPerShot: 1         # Weizen je Korn (Basti 23.11.2026: 1 Weizen = 1 Korn)
+    speed: 24              # m/s, schnelle Körner
+    heatTime: 3            # s Dauerfeuer bis heiß (Upgrade Feuerdauer +25 %/Stufe); dann gesperrt, bis sie abgekühlt ist
+    coolTime: 2            # s von ganz heiß bis kalt
+    coolDelay: 0.3         # s nach dem letzten Korn beginnt sie abzukühlen
+    spreadMin: 1           # Grad Streuung kalt (sehr genau)
+    spreadMax: 14          # Grad Streuung kurz vor heiß (wächst quadratisch mit der Hitze)
   flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
     damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
     range: 1.04            # m, Radius der Mehlwolke um den Spieler (23.11.2026: 2/5 von 2,6; Reichweite-Upgrade vergrößert sie)
@@ -433,6 +447,7 @@ upgrades:
   cranSplash:     { step: 0.15, maxLevel: 5 }  # +15 Prozentpunkte Platzschaden liegender Beeren: 25 -> 40/55/70/85/100 % (17.11.2026)
   cabMini:        { step: 1,    maxLevel: 5 }
   cabPoison:      { step: 0.50, maxLevel: 5 }  # Poison Damage: Gift-Tickschaden des Kohls +50 % je Stufe (additiv, 100 -> 350 %), gilt auch für Mini-Kohl und Kohlgas (17.11.2026)
+  wheatDuration:  { step: 0.25, maxLevel: 5 }  # Körner-MP Feuerdauer: +25 % Zeit bis zum Heißlaufen je Stufe (23.11.2026)
   cabGas:         { step: 0.10, maxLevel: 5 }  # Kohlgas: Kohl-Treffer legen Debuff "Kohlgas" (so lange wie das Gift); stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis cab.gasRadius (17.11.2026)
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
   # Kartenregeln pro Level-up (3 Karten):

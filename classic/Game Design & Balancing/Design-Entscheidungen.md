@@ -482,6 +482,14 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Kohlminen: 2 pro Sekunde (Abklingzeit 0,5 s, Mindestabstand = Explosionsradius).
 - Mehlsack: gedrückt halten, im Laufen entsteht alle 0,4 s eine kleine Mehlwolke (2/5 des alten Radius, 1 Mehl je Wolke, keine Drehung mehr, bis zu 16 Wolken).
 
+## Eindeutige Feldzustände, freilaufende Hühner, Gegner leichter (23.11.2026)
+- Alle Zustandswechsel der Felder sind schlagartig, ohne sanftes Überblenden:
+  - Reif und während der Ernte: volle Pflanzen, große farbige Früchte, Weizen golden-gelb. Was die Harke abschüttelt, wächst sofort sichtbar nach.
+  - Ernte vorbei: der Strauch vertrocknet sofort, die Beeren werden braun. Weizen- und Spargelhalme welken und knicken ab. Kohl verdorrt, schrumpft und verweht als Staub.
+  - Nach gut einem Drittel der Wachstumszeit: klein und grün (kleine grüne Früchte, grüne Halme). Bei Reife sofort groß und farbig.
+- Hühner ohne Stall und Zaun: 5 Hühner laufen frei auf dem Feld herum und picken. Wenn nicht gearbeitet wird, setzen sie sich hin und schlafen.
+- Gegner etwas leichter: `waves.countMultiplier` 0,7 -> 0,6 (Beerenmenge und Beeren-XP bleiben).
+
 ## Shop alle 5 Level, Boden aus dem Hof-Spiel, Nebel statt Wald (23.11.2026)
 
 - Die Werkstatt (Shop) öffnet sich alle `werkstatt.everyLevels` Level (5, 10, 15 ...) von selbst für alle Spieler, direkt nach der Level-up-Karte. Kein Hinlaufen zur Truhe mehr, kein Marker über der Truhe. Die Welt steht still, solange alle im Shop sind; die Glühbirnen sammeln sich bis dahin an (1 je Level).

@@ -58,7 +58,11 @@ interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Gro
 /** eggs stacked into the pyramid at the hens: plain upright eggs */
 const EGG_STACK = new THREE.MeshStandardMaterial({ color: 0xf2e0c0, roughness: .42, emissive: 0xffe8c8, emissiveIntensity: .14 });
 /** crop cycle: sepia tint of dried-out plants, green unripe fruit (23.11.2026) */
-const DRY_COL = new THREE.Color(0x7a6438);
+const DRY_COL = new THREE.Color(0x6e5430), DRY_HEAD = new THREE.Color(0x5c4528), WHEAT_GOLD = new THREE.Color(0xd8b048);
+/** dried-up fruit after the harvest (23.11.2026: berries turn brown at once) */
+const DEAD_FRUIT = M(0x5a3e24, { r: .9 });
+/** share of the growing time the plants stay dried up after the harvest, then young and green */
+const CROP_DEAD = .35;
 const UNRIPE: Partial<Record<FruitType, THREE.Material>> = {
   blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), black: M(0x9a3a34, { r: .4 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
 };
@@ -107,7 +111,7 @@ interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant:
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
   /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
-  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color }
+  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -727,44 +731,59 @@ export class GameView {
     });
     if (!one) this.animCrop(v, dt);
   }
-  /** crop cycle look: during the harvest the clumps are picked one after another (fruit gone; wheat/asparagus cut to stubble,
-   *  bushes dry out to a sepia tint), at the end the stubble disappears; then young green shoots / green fruit grow back and at
-   *  ripeness the fruit snaps to its colour with a golden shimmer */
+  /** crop cycle look (23.11.2026, Basti: clear states, no soft fading, every change snaps):
+   *  ripe / being harvested: full plants, big coloured fruit (wheat golden); fruit shaken off by the rake grows back right away.
+   *  harvest over: at once dried up: bushes brown with brown berries, wheat/asparagus wilted and bent over, cabbage withers,
+   *  shrinks and blows away as dust. Then young: small green plants with small green fruit. Ripe: snaps to big and coloured. */
   private night = 0;
   private chest: THREE.Group | null = null; private chestFn: ((dt: number, n: number) => void) | null = null; private chestN = 0;
   private animCrop(v: FieldView, dt: number) {
     const h = v.cy ?? 0, t = v.ftype, now = performance.now() / 1000;
-    const cut = t === 'wheat' || t === 'asp', head = t === 'cab', bush = !cut && !head;
-    const harvest = h < 1, r = harvest ? 0 : h - 1;
-    // field-wide dryness: bushes fade to sepia while picked, grow green again while resting
-    const dry = !v.alive ? 0 : harvest ? (bush ? Math.min(1, h * 1.3) * .55 : h * .3) : Math.max(0, 1 - r * 1.6) * (bush ? .55 : .3);
-    v.mats.leaf.color.copy(v.leafC!).lerp(DRY_COL, dry); if (head || t === 'lemon' || t === 'chili' || t === 'blue' || t === 'black') v.mats.head.color.copy(v.headC!).lerp(DRY_COL, dry * .8);
+    const cut = t === 'wheat' || t === 'asp', head = t === 'cab';
+    const ripe = h < 1, r = ripe ? 0 : h - 1, dead = !ripe && r < CROP_DEAD, st = !v.alive ? 0 : ripe ? 0 : dead ? 1 : 2;
+    if (v.cst !== st) { // state change: snap
+      if (st === 1 && head) v.dust = .0001; // cabbage: wither, shrink, blow away
+      if (st !== 1) { v.dust = 0; for (const m of [v.mats.leaf, v.mats.head]) { m.transparent = false; m.opacity = 1; } }
+      v.cst = st;
+      const lc = st === 1 ? DRY_COL : st === 0 && t === 'wheat' ? WHEAT_GOLD : v.leafC!;
+      v.mats.leaf.color.copy(lc); v.mats.head.color.copy(st === 1 ? DRY_HEAD : v.headC!);
+    }
+    // cabbage dust: the heads shrink and fade while dust drifts off with the wind
+    let dk = 1;
+    if (v.dust && v.dust < 1) {
+      v.dust = Math.min(1, v.dust + dt / .9); dk = 1 - v.dust;
+      for (const m of [v.mats.leaf, v.mats.head]) { m.transparent = true; m.opacity = Math.max(0, dk * 1.4 - .2); }
+      if (Math.random() < dt * 60 * dk) { const a = rand(0, 7), rr = Math.sqrt(Math.random()) * hexR(this.cfg) * .7; PART.spawn(V(v.x + Math.cos(a) * rr, rand(.1, .35), v.z + Math.sin(a) * rr), V(rand(.6, 1.3), rand(.15, .5), rand(.2, .7)), Math.random() < .5 ? 0x8a7650 : 0x6e5c3a, rand(.08, .16), rand(.9, 1.6), { s1: 2.2, a: .55 }); }
+    } else if (v.dust && v.dust >= 1) dk = 0;
     v.plant.children.forEach((c, i) => {
-      const k = v.order!.indexOf(i), picked = harvest && h * 6 > k + .3, fr = (c.userData.fr || []) as THREE.Mesh[];
-      let gy = 1, gx = 1, fs = 1, show = true, green = false;
-      if (harvest) {
-        if (picked) { show = false; if (cut) gy = .2; else if (head) { gy = .35; gx = .7; } }
-      } else { // growing back: cut crops from the ground, heads from a stump; fruit small and green until ripe
-        const g = Math.pow(r, .8);
-        if (cut) { gy = .04 + .96 * g; gx = .6 + .4 * g; } else if (head) { gy = .35 + .65 * g; gx = .7 + .3 * g; }
-        show = r > (cut ? .55 : .3); fs = .45 + .4 * Math.min(1, (r - .3) / .7); green = true;
+      const fr = (c.userData.fr || []) as THREE.Mesh[];
+      let gy = 1, gx = 1, fs = 1, show = true, mat: 'ripe' | 'green' | 'dead' = 'ripe';
+      c.visible = true;
+      if (st === 1) {
+        mat = 'dead';
+        if (cut) { gy = .8; if (c.userData.bx === undefined) { const a = rand(0, 7), b = rand(.75, 1.05); c.userData.bx = Math.cos(a) * b; c.userData.bz = Math.sin(a) * b; } c.rotation.x += c.userData.bx; c.rotation.z += c.userData.bz; }
+        else if (head) { gy = gx = .2 + .8 * dk; c.visible = dk > 0; }
+        else fs = .9;
+      } else if (st === 2) {
+        mat = 'green';
+        if (cut) { gy = .45; gx = .8; } else if (head) { gy = gx = .5; } else fs = .5;
       }
-      if (h >= .985 && h < 1 && cut) gy = Math.max(.01, gy * (1 - (h - .985) / .015)); // stubble vanishes with the last cut
-      c.userData.gy = lerp(c.userData.gy ?? 1, gy, Math.min(1, dt * 6));
-      const sx = (c.userData.sx ?? .56) * lerp(c.scale.x / (c.userData.sx ?? .56), gx, Math.min(1, dt * 6)); c.scale.x = c.scale.z = sx;
+      c.userData.gy = gy; c.scale.x = c.scale.z = (c.userData.sx ?? .56) * gx;
       for (const m of fr) {
         m.visible = show && v.alive;
-        const mat = green ? UNRIPE[t] ?? UNRIPE.blue : m.userData.mat0; if (m.material !== mat) m.material = mat;
+        const mm = mat === 'dead' ? DEAD_FRUIT : mat === 'green' ? UNRIPE[t] ?? UNRIPE.blue : m.userData.mat0; if (m.material !== mm) m.material = mm;
         if (!m.userData.s0) m.userData.s0 = m.scale.clone();
-        m.scale.copy(m.userData.s0).multiplyScalar(fs);
+        // shaken off by a rake stroke during the harvest: grows back right away (0 -> full in .6 s)
+        let g = 1; if (m.userData.rg !== undefined) { m.userData.rg += dt / .6; g = Math.min(1, m.userData.rg); if (g >= 1) m.userData.rg = undefined; }
+        m.scale.copy(m.userData.s0).multiplyScalar(fs * (st === 0 ? g * g * (3 - 2 * g) : 1));
       }
     });
     // golden shimmer: builds up in the last moment before ripeness, bursts at the snap
     v.ripeT = Math.max(0, (v.ripeT ?? 0) - dt);
-    const pre = !harvest && r > .85 ? (r - .85) / .15 : 0, gold = pre * .6 + v.ripeT * 1.6;
+    const pre = !ripe && r > .85 ? (r - .85) / .15 : 0, gold = pre * .6 + v.ripeT * 1.6;
     if (gold > 0 && Math.random() < dt * gold * 30) { const a = rand(0, 7), rr = Math.sqrt(Math.random()) * hexR(this.cfg) * .8; PART.spawn(V(v.x + Math.cos(a) * rr, rand(.15, .55), v.z + Math.sin(a) * rr), V(rand(-.1, .1), rand(.3, .7), rand(-.1, .1)), Math.random() < .5 ? 0xffd860 : 0xfff0a0, rand(.06, .12), rand(.5, .9)); }
     // at night ripe fruit glows faintly and pulses slowly (the only bloom on the farm besides the lanterns, 23.11.2026)
-    const np = harvest && v.alive ? this.night * (.3 + .4 * (.5 + .5 * Math.sin(now * 2.2 + v.x * 1.7 + v.z))) : 0;
+    const np = ripe && v.alive ? this.night * (.3 + .4 * (.5 + .5 * Math.sin(now * 2.2 + v.x * 1.7 + v.z))) : 0;
     if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2, np); });
   }
   /** crop events: last harvest -> "all picked" sound (dry rustle for bushes), ripe -> chime + golden burst */
@@ -790,6 +809,8 @@ export class GameView {
     play('rustle');
     const lm = leafMat(v.mats.leaf.color), clumps = v.plant.children;
     // (the real harvest shaken loose by the stroke falls out of the raked plants as normal fruit, see sim produce)
+    // ripe: a few fruits of the raked plants are shaken off and grow back at once (animCrop)
+    if ((v.cy ?? 0) < 1) for (const k of hitK) { const c = clumps.length === 1 ? clumps[0] : clumps[k]; for (const m of (c?.userData.fr || []) as THREE.Mesh[]) if (Math.random() < .35) m.userData.rg = 0; }
     // leaves whirl up out of the raked plants only and flutter down
     const n = Math.max(2, Math.round(hitK.length * rand(2, 3)));
     for (let i = 0; i < n; i++) {

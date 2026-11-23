@@ -190,29 +190,30 @@ function chicken(par: THREE.Object3D) {
   for (const sx of [-1, 1]) part(c, GEO.cyl, YELLOW, .01, .07, .01, sx * .04, .035, 0);
   void body; return { c, head };
 }
+/** hens (23.11.2026): no coop, no fence; the hens run about freely on the tile. When the work is over (nobody rakes /
+ *  nothing to do) they each settle down where they are and sleep (crouched, head tucked in, slow breathing). */
 function hens(g: THREE.Group, H: number) {
   pad(g, H);
-  // low fence on 5 sides, coop hut at the back
-  const R = H * .78;
-  for (let i = 0; i < 6; i++) {
-    const a = Math.PI / 6 + i * Math.PI / 3, b = a + Math.PI / 3;
-    part(g, GEO.box, WOOD, .05, .38, .05, Math.cos(a) * R, .19, Math.sin(a) * R);
-    if (i === 1) continue; // gap = gate (towards the camera)
-    const mx = (Math.cos(a) + Math.cos(b)) / 2 * R, mz = (Math.sin(a) + Math.sin(b)) / 2 * R, len = R;
-    for (const y of [.14, .3]) { const r = part(g, GEO.box, WOOD_L, len, .035, .025, mx, y, mz); r.rotation.y = -(a + Math.PI / 3 / 2) - Math.PI / 2; }
-  }
-  house(g, .7, .55, .5, WOOD, THATCH, 0, -.45);
-  part(g, GEO.box, BLACK, .16, .16, .02, 0, .2, -.17);
   part(g, GEO.cyl, WOOD_D, .14, .06, .14, -.5, .04, .25); // feed trough
   const straw = new THREE.Mesh(new THREE.CylinderGeometry(.27, .3, .03, 8), M(0xd8b860)); straw.position.set(EGG_POS[0], .065, EGG_POS[1]); straw.rotation.y = .3; straw.receiveShadow = true; g.add(straw); // straw bed under the egg pyramid
-  const birds = [0, 1, 2].map(i => { const b = chicken(g); b.c.position.set(-.45 + i * .25, 0, .1 + (i % 2) * .2); b.c.rotation.y = rand(0, 7); return { ...b, t: rand(0, 5), tx: 0, tz: 0, peck: 0 }; });
-  return (dt: number, _n: number, working: boolean) => {
+  const R = H * .68, free = (x: number, z: number) => Math.hypot(x - EGG_POS[0], z - EGG_POS[1]) > .42;
+  const spot = (): [number, number] => { for (let k = 0; k < 12; k++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * R, x = Math.cos(a) * r, z = Math.sin(a) * r; if (free(x, z)) return [x, z]; } return [-.3, -.2]; };
+  const birds = [0, 1, 2, 3, 4].map(() => { const b = chicken(g), [x, z] = spot(); b.c.position.set(x, 0, z); b.c.rotation.y = rand(0, 7); return { ...b, t: rand(0, 3), tx: x, tz: z, peck: 0, sit: 0, ph: rand(0, 7) }; });
+  return (dt: number, n: number, working: boolean) => {
     for (const b of birds) {
+      // asleep: settles down on the spot, head tucked in; wakes up and scurries off when work starts again
+      b.sit = Math.max(0, Math.min(1, b.sit + (working ? -dt * 4 : dt * 2.5)));
+      if (b.sit > 0) {
+        b.c.position.y = -b.sit * .06; b.c.scale.set(1 + b.sit * .12, 1 - b.sit * .1 + Math.sin(n * 1.6 + b.ph) * .02 * b.sit, 1 + b.sit * .05);
+        b.head.rotation.x = b.sit * .7; b.head.position.set(0, .2 - b.sit * .06, .1 - b.sit * .04);
+        b.t = rand(0, .4); continue;
+      }
+      b.c.scale.set(1, 1, 1); b.head.position.set(0, .2, .1);
       b.t -= dt;
-      if (b.t <= 0) { b.t = rand(.8, 2.5); const a = rand(0, 7), r = rand(0, .38); b.tx = Math.cos(a) * r - .15; b.tz = Math.sin(a) * r + .05; /* keeps off the egg pyramid */ b.peck = working ? 1.2 : .5; }
+      if (b.t <= 0) { b.t = rand(.6, 2.2); [b.tx, b.tz] = spot(); b.peck = rand(.4, 1.4); }
       const dx = b.tx - b.c.position.x, dz = b.tz - b.c.position.z, d = Math.hypot(dx, dz);
-      if (d > .03) { b.c.position.x += dx / d * dt * .4; b.c.position.z += dz / d * dt * .4; b.c.rotation.y = Math.atan2(dx, dz); b.c.position.y = Math.abs(Math.sin(_n * 18)) * .02; }
-      else { b.peck -= dt; b.head.rotation.x = b.peck > 0 ? Math.max(0, Math.sin(_n * 14)) * .9 : 0; }
+      if (d > .03) { const sp = .55; b.c.position.x += dx / d * Math.min(d, dt * sp); b.c.position.z += dz / d * Math.min(d, dt * sp); b.c.rotation.y = Math.atan2(dx, dz); b.c.position.y = Math.abs(Math.sin(n * 18 + b.ph)) * .02; b.head.rotation.x = 0; }
+      else { b.peck -= dt; b.c.position.y = 0; b.head.rotation.x = b.peck > 0 ? Math.max(0, Math.sin(n * 14 + b.ph)) * .9 : 0; }
     }
   };
 }

@@ -380,10 +380,11 @@ export class Sim {
       if (f.ct >= C.harvest) { f.cyc = 1; f.ct = 0; this.emit({ k: 'cropDone', s: f.slot }); }
     } else if (f.ct >= C.rest) { f.cyc = 0; f.ct = 0; f.t = Math.min(f.t, iv * .25); this.emit({ k: 'cropRipe', s: f.slot }); }
   }
-  /** rake stroke on a crop: during the harvest it shakes the next harvest loose, while resting it makes the field grow back faster */
+  /** rake stroke on a crop: during the harvest it shakes extra yield loose; it never changes the timing
+   *  (23.11.2026 Basti: 5 s harvest and 10 s rest are fixed, raking during the rest does nothing) */
   tillGrow(f: Field, s: number, tri: number[]) {
     const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
-    if (C && !this.isForest(f) && f.cyc === 1) { this.growField(f, s); return; }
+    if (C && !this.isForest(f) && f.cyc === 1) return;
     f.t -= s; while (f.t <= 0) { f.t += iv; this.produce(f, tri); }
   }
   /** short card line of a tile type: crop "2 {asp} / 10 s", source "{water} / 4 s", processor "3 {wheat} → {flour}" */

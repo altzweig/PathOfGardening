@@ -165,7 +165,7 @@ forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im W
 
 fields:
   hp: 100
-  cycle: { harvest: 5, rest: 10 }   # 23.11.2026 Erntezyklus: 5 s wird abgeerntet (Ertrag eines ganzen Zyklus), dann 10 s Ruhepause (wächst sichtbar nach), dann wieder erntereif. Harken in der Pause lässt schneller nachwachsen. Nussbaum ausgenommen.
+  cycle: { harvest: 5, rest: 10 }   # 23.11.2026 Erntezyklus: 5 s wird abgeerntet (Ertrag eines ganzen Zyklus), dann 10 s Ruhepause (wächst sichtbar nach), dann wieder erntereif. Harken beeinflusst die Zeiten nie (23.11.2026), nur während der Ernte gibt es mehr Ertrag. Nussbaum ausgenommen.
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt

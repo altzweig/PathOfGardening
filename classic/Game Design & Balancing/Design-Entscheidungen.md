@@ -430,7 +430,7 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Kamera: Standard 30 % näher (neue Normalansicht). Pinch-Zoom auf dem Handy (maximal alte Entfernung, minimal nochmal 30 % näher), Mausrad am PC mit denselben Grenzen. Der zweite Steuerknopf auf der rechten Bildschirmseite ist entfernt.
 
 ## Erntezyklus der Felder (23.11.2026)
-- Jedes Feld wird 5 s lang abgeerntet (in dieser Zeit fällt der Ertrag eines ganzen Zyklus) und ruht dann 10 s (`fields.cycle`). Der Ertrag über die Zeit bleibt wie vorher. Harken während der Pause lässt schneller nachwachsen. Der Nussbaum ist ausgenommen.
+- Jedes Feld wird 5 s lang abgeerntet (in dieser Zeit fällt der Ertrag eines ganzen Zyklus) und ruht dann 10 s (`fields.cycle`). Der Ertrag über die Zeit bleibt wie vorher. Harken ändert die Zeiten nie: 5 s Ernte und 10 s Pause bleiben fix, nur während der Ernte bringt Harken mehr Ertrag (Basti, 23.11.2026). Der Nussbaum ist ausgenommen.
 - Beim Abernten werden die 6 Pflanzen nacheinander gepflückt: Weizen und Spargel werden zu Stoppeln, Kohl zu Strünken. Beeren, Chili und Zitronen verlieren die Früchte, und der Busch wird dörr und leicht sepiastichig.
   - Beim letzten Ernten verschwinden die Stoppeln.
   - Sound beim letzten Ernten: Weizen Sensen-Rascheln, Spargel/Kohl Knacken, Büsche trockenes Rascheln.

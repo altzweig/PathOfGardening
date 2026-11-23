@@ -27,12 +27,12 @@ const lavaTex = (() => {
 })();
 import { BUILD_SND_EVERY, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flame';
-import { fruitIcon, skillIcon } from '../ui/icons';
+import { fruitIcon, mini, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
@@ -101,6 +101,8 @@ function badgeTex(t: FruitType, rarity = 0) {
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fruitIcon(t).replace('<svg ', `<svg width="${S}" height="${S}" `));
   return tex;
 }
+/** debuff of each shotgun berry (Saftpresse bars) */
+const DEBUFF_ICON: Record<string, string> = { cran: 'bleed', blue: 'freeze', black: 'thorns' };
 interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number;
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
@@ -167,6 +169,9 @@ export class GameView {
   private aggro: THREE.Mesh;
   private nums: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
   private dmgLayer = document.getElementById('dmg')!;
+  /** Saftpresse (23.11.2026): bar stack above every press, rising "+1 % ..." texts, when each berry's bar last grew */
+  private pressEls = new Map<number, HTMLElement>(); private juiceTxt: { el: HTMLElement; p: THREE.Vector3; t: number }[] = [];
+  private jcPrev: number[] = []; private jcOn = [0, 0, 0];
   private shake = 0; private dtLast = .016;
   private heat!: GroundHeat; private fire!: FireSprites;
   private bits: Bit[] = [];
@@ -438,6 +443,7 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
+    for (const n of this.juiceTxt) n.el.remove(); this.juiceTxt.length = 0; for (const el of this.pressEls.values()) el.remove(); this.pressEls.clear(); this.jcPrev = [];
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
@@ -551,7 +557,8 @@ export class GameView {
       if (!v) {
         const type = FRUITS[f[1]], stacked = f[6] === 1;
         let g: THREE.Group;
-        if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
+        if (stacked && f[7] !== undefined) g = juiceBottle(f[7]); // Saftpresse bottle standing in the row
+        else if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
         else g = fruitMesh(type, this.cfg.fruit.tierScale[f[2]] || 1);
         g.traverse(o => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = true));
         this.dyn.add(g); v = { g, tier: f[2], type, x: f[3], y: f[4], z: f[5], tx: f[3], ty: f[4], tz: f[5], seen: id, st: stacked }; this.fruits.set(f[0], v);
@@ -945,8 +952,21 @@ export class GameView {
         this.flyers.push({ m, fx, fy, fz, tx: b.x, tz: b.z, t: 0, T: .45 + Math.random() * .15 });
         break;
       }
-      case 'bwork': { const v = this.fields.get(e.s); if (v) { v.sndT = 0; } break; }
-      case 'bdone': { const v = this.fields.get(e.s); if (v) { buildingSound(v.ftype, 'done', v.x, v.z); burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
+      case 'bwork': { const v = this.fields.get(e.s); if (v) { v.sndT = 0; v.bld?.set?.('work', e.j ?? -1); } break; }
+      case 'juiceUp': { // a berry bar of the press ran full: splash in the berry colour + "+1 % Bleeding-Effizienz" rising up
+        const v = this.fields.get(e.s), b = BERRIES[e.b]; if (!v || !b) break;
+        const c = FRUIT_HEX[b] === 0x5a2a6a ? 0x9a4ac0 : FRUIT_HEX[b];
+        burst(V(v.x, 1.6, v.z), c, 34, 2.6, .14, .8); burst(V(v.x, 1.6, v.z), 0xffffff, 10, 1.6, .08, .5);
+        decal(v.x, v.z, c, .25, .8, { ring: true, add: true, grow: hexR(this.cfg) * .9, op: .9 });
+        play('juiceUp');
+        const J = this.cfg.juice, pct = Math.round((J?.step ?? .01) * 100), el = document.createElement('div');
+        el.className = 'juiceUp jb-' + b; el.innerHTML = `<i>${mini(DEBUFF_ICON[b])}</i><span></span>`;
+        el.querySelector('span')!.textContent = `+${pct} % ${J?.names?.[b] ?? b}-Effizienz`;
+        this.dmgLayer.appendChild(el); this.juiceTxt.push({ el, p: V(v.x, 1.75, v.z), t: 0 });
+        break;
+      }
+      case 'juice': { const v = this.fields.get(e.s), x = v ? v.x : e.x, z = v ? v.z : e.z; if (x !== undefined) this.floatNum(x, z, `+${String(e.v).replace('.', ',')} XP`, '#ffe08a'); break; }
+      case 'bdone': { const v = this.fields.get(e.s); if (v) { v.bld?.set?.('done', 0); buildingSound(v.ftype, 'done', v.x, v.z); if (v.ftype !== 'press') burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
       case 'broken': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'break', v.x, v.z); burst(V(v.x, .8, v.z), 0x7a6048, 40, 3, .25, 1, { g: 5 }); } break; }
       case 'repair': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repair', v.x, v.z); burst(V(v.x, .9, v.z), 0xc8a070, 6, 1.5, .08, .4, { g: 6 }); } break; }
       case 'repaired': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repaired', v.x, v.z); burst(V(v.x, 1, v.z), 0x9aff7a, 30, 2.2, .14, .7); } break; }
@@ -1003,7 +1023,7 @@ export class GameView {
     const night = 1 - dayNow().day;
     if (Math.random() < dt * 2 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
     else if (Math.random() < dt * 2.5 * (1 - night)) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(Math.cos(a) * r, rand(.4, 2), Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); } // pollen drifting in the sun
-    this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt); this.updateFlyers(dt);
+    this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt); this.updatePress(dt); this.updateFlyers(dt);
     this.updateCamera(dt);
     const meV = this.players.get(this.me);
     this.hurtT = Math.max(0, this.hurtT - dt);
@@ -1266,6 +1286,43 @@ export class GameView {
     }
     v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z); v.bar.quaternion.copy(camera.quaternion);
     setBar(v.bar, e[5], e[6]);
+  }
+  /** Saftpresse: one thin bar per berry that was pressed, with its debuff icon; the bar being filled right now glows */
+  private updatePress(dt: number) {
+    const jc = this.snap?.jc, seen = new Set<number>(), now = performance.now() / 1000; void dt;
+    if (jc) {
+      for (let i = 0; i < BERRIES.length; i++) { if (this.jcPrev.length && jc[i * 2] !== this.jcPrev[i * 2]) this.jcOn[i] = now; }
+      this.jcPrev = jc.slice();
+      const step = (this.cfg.juice?.step ?? .01) * 100;
+      for (const [slot, v] of this.fields) {
+        if (v.ftype !== 'press' || !v.alive || this.placing) continue;
+        const rows = BERRIES.map((b, i) => ({ b, i, w: jc[i * 2], lv: jc[i * 2 + 1] })).filter(o => o.w > 0 || o.lv > 0);
+        const p = rows.length ? this.worldScreen(v.x, 1.75, v.z) : null; if (!p) continue;
+        seen.add(slot);
+        let el = this.pressEls.get(slot);
+        if (!el) { el = document.createElement('div'); el.className = 'pressBars'; this.dmgLayer.appendChild(el); this.pressEls.set(slot, el); }
+        const key = rows.map(o => o.b + o.lv).join(',');
+        if (el.dataset.k !== key) {
+          el.dataset.k = key;
+          el.innerHTML = rows.map(o => `<div class="pb jb-${o.b}" data-b="${o.i}"><i>${mini(DEBUFF_ICON[o.b])}</i><s><u></u></s><em>${o.lv ? '+' + Math.round(o.lv * step) + ' %' : ''}</em></div>`).join('');
+        }
+        for (const o of rows) {
+          const r = el.querySelector(`[data-b="${o.i}"]`) as HTMLElement | null; if (!r) continue;
+          (r.querySelector('u') as HTMLElement).style.width = (o.w * 100).toFixed(1) + '%';
+          r.classList.toggle('on', now - this.jcOn[o.i] < .6);
+        }
+        el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
+      }
+    }
+    for (const [k, el] of this.pressEls) if (!seen.has(k)) { el.remove(); this.pressEls.delete(k); }
+    const w = innerWidth, h = innerHeight, tv = V();
+    for (let i = this.juiceTxt.length - 1; i >= 0; i--) {
+      const n = this.juiceTxt[i]; n.t += dt; if (n.t > 2.2) { n.el.remove(); this.juiceTxt.splice(i, 1); continue; }
+      tv.copy(n.p); tv.project(camera);
+      const rise = 58 + 60 * (1 - Math.pow(1 - Math.min(1, n.t / 2.2), 2)); // starts just above the bars of the press
+      n.el.style.transform = `translate(${((tv.x * .5 + .5) * w).toFixed(1)}px,${((-tv.y * .5 + .5) * h - rise).toFixed(1)}px) translate(-50%,-50%) scale(${n.t < .15 ? .5 + n.t / .15 * .5 : 1})`;
+      n.el.style.opacity = String(n.t < 1.5 ? 1 : 1 - (n.t - 1.5) / .7);
+    }
   }
   private updateNums(dt: number) {
     const w = innerWidth, h = innerHeight, tv = V();

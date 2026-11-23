@@ -45,7 +45,7 @@ export interface Priv {
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
 // fruit: [id, type, tier, x, y, z]
-export type FSnap = [number, number, number, number, number, number] | [number, number, number, number, number, number, number]; // [6] = 1: egg in the pyramid at the hens
+export type FSnap = [number, number, number, number, number, number] | [number, number, number, number, number, number, number] | [number, number, number, number, number, number, number, number]; // [7]: juice bottle of berry n // [6] = 1: egg in the pyramid at the hens
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]
@@ -67,7 +67,7 @@ export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
   /** Lager-Truhe: raccoons stealing right now (undefined = no chest) */ ch?: number;
   wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
-  lv: number; xp: number; nx: number; ki: number; cx: number; n: number; /** Brunnen: crop bonus now, unlocked */ wb?: number; wo?: 0 | 1; // ts: slow-motion ramp into/out of a pause 0..1
+  lv: number; xp: number; nx: number; ki: number; cx: number; n: number; /** Brunnen: crop bonus now, unlocked */ wb?: number; wo?: 0 | 1; /** Saftpresse: per berry (BERRIES order) bar fill 0..1 and fills so far */ jc?: number[]; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; /** Spiegeleier: [id, x, y, z, landed, left 0..1, outward angle, lure radius, eaters] */ eg?: number[][]; /** flour clouds: [id, x, z, r, age, life, ignAge (-1 unlit), ix, iz] */ cl?: number[][]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss

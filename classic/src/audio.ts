@@ -173,6 +173,12 @@ export const SND: Record<string, (arg?: any) => void> = {
     (gold ? [784, 988, 1175, 1568, 1976] : [880, 1175, 1568]).forEach((f, i) => tone({ type: 'triangle', f, t: .4, vol: gold ? .07 : .06, when: .04 + i * .055 }));
     noise({ t: .5, vol: gold ? .04 : .025, type: 'highpass', f: 6500, when: .08, at: .15 });
   },
+  /** Saftpresse (23.11.2026): a berry bar ran full - juicy bubbling pop + small rising sparkle */
+  juiceUp() {
+    if (!can('juiceUp', .3)) return;
+    for (let i = 0; i < 4; i++) tone({ type: 'sine', f: 380 + i * 140, f2: 720 + i * 180, t: .07, vol: .05, when: i * .045 });
+    [1047, 1319, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .35, vol: .045, when: .18 + i * .05 }));
+  },
   /** not enough ideas: dull double thud */
   deny() { if (!can('deny', .2)) return; tone({ type: 'triangle', f: 220, f2: 160, t: .09, vol: .1 }); tone({ type: 'triangle', f: 180, f2: 130, t: .1, vol: .09, when: .1 }); },
   /** Werkstatt opens: chest lid creak + soft workshop chord */
@@ -332,17 +338,24 @@ export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn
 
 // ---------------- buildings (Classic, 22.11.2026): synthesized, positional ----------------
 /** seconds between two work sounds while a building runs */
-export const BUILD_SND_EVERY: Record<string, number> = { mill: .9, press: 1.0, bakery: 1.3, well: 1.4, cow: 7, hens: 1.6, dairy: .85, kitchen: 1.2 };
+export const BUILD_SND_EVERY: Record<string, number> = { mill: .9, press: 1.0, bakery: 1.3, well: 1.4, hens: 1.6, kitchen: 1.2 };
 const clicks = (n: number, span: number, f: number, vol: number, q = 4, when = 0) => { for (let i = 0; i < n; i++) noise({ t: .03, vol: vol * rand(.7, 1), type: 'bandpass', f: f * rand(.85, 1.15), q, when: when + i * span / n + rand(0, span / n * .3), at: .002 }); };
 const BSND: Record<string, Record<string, () => void>> = {
   mill: { // rattling wooden gear, millstones grinding, flour trickling
     work() { noise({ t: 1.0, vol: .16, type: 'lowpass', f: 220, f2: 160, at: .15 }); tone({ type: 'sawtooth', f: 52, t: .95, vol: .03, at: .2, filt: { type: 'lowpass', f: 180 } }); clicks(7, .85, 1500, .07, 5); noise({ t: .9, vol: .025, type: 'highpass', f: 5200, at: .25 }); },
     done() { noise({ t: .6, vol: .05, type: 'bandpass', f: 4500, f2: 2500, q: .8, at: .05 }); },
   },
-  press: { // ratcheting screw, then fruit squashed (wet squish + drip)
-    work() { for (let i = 0; i < 4; i++) { tone({ type: 'square', f: 760 + i * 30, t: .025, vol: .035, when: i * .09, filt: { type: 'bandpass', f: 1400, q: 3 } }); noise({ t: .02, vol: .07, type: 'bandpass', f: 2200, q: 5, when: i * .09, at: .002 }); }
-      noise({ t: .35, vol: .14, type: 'lowpass', f: 900, f2: 180, when: .42, at: .02 }); tone({ f: 200, f2: 80, t: .25, vol: .08, when: .45 }); },
-    done() { for (let i = 0; i < 3; i++) tone({ f: rand(700, 1100), f2: rand(300, 500), t: .07, vol: .05, when: i * .12 }); },
+  press: { // ratcheting screw; the squelch comes from the animation at the bottom of every stroke (23.11.2026)
+    work() { for (let i = 0; i < 4; i++) { tone({ type: 'square', f: 760 + i * 30, t: .025, vol: .03, when: i * .09, filt: { type: 'bandpass', f: 1400, q: 3 } }); noise({ t: .02, vol: .06, type: 'bandpass', f: 2200, q: 5, when: i * .09, at: .002 }); } },
+    /** berries squashed: wet squelch (falling filtered noise), a few bubbly pops and a little trickle */
+    squish() {
+      noise({ t: .32, vol: .2, type: 'lowpass', f: 1400, f2: 220, at: .012 }); noise({ t: .2, vol: .1, type: 'bandpass', f: 700, f2: 300, q: 2.5, at: .01 });
+      tone({ f: 190, f2: 70, t: .22, vol: .09 });
+      for (let i = 0; i < 5; i++) tone({ type: 'sine', f: rand(300, 650), f2: rand(700, 1200), t: .05, vol: .04, when: .05 + i * rand(.03, .06) });
+      noise({ t: .5, vol: .03, type: 'bandpass', f: 3200, q: 1.2, when: .18, at: .15 });
+    },
+    /** full bottle: glass clink + cork pop */
+    done() { tone({ type: 'sine', f: 2600, t: .18, vol: .05 }); tone({ type: 'sine', f: 3900, t: .12, vol: .025, when: .01 }); noise({ t: .04, vol: .1, type: 'bandpass', f: 900, q: 3, when: .12, at: .002 }); tone({ f: 420, f2: 900, t: .06, vol: .05, when: .12 }); },
   },
   bakery: { // oven crackle and the low roar of the fire
     work() { noise({ t: 1.2, vol: .06, type: 'lowpass', f: 380, at: .3 }); clicks(9, 1.1, 3500, .045, 2); },

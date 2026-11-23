@@ -664,3 +664,21 @@ body.shopOn #res,body.shopOn #btns,body.shopOn .stick,body.shopOn #wcd,body.shop
   #shopGo{position:static;margin:14px 0 6px;align-self:center}
 }
 @media (prefers-reduced-motion:reduce){.wsCard,#shop.in,.wsCard.gold .wsPaper::before,#shopMark{animation:none}}
+/* Saftpresse (23.11.2026): thin berry bars above the press, rising efficiency text */
+.pressBars{position:absolute;left:0;top:0;display:flex;flex-direction:column;gap:3px;padding:4px 6px;border-radius:8px;background:rgba(20,14,8,.55);box-shadow:0 1px 4px rgba(0,0,0,.5);will-change:transform}
+.pressBars .pb{display:flex;align-items:center;gap:5px;height:14px}
+.pressBars i{width:14px;height:14px;display:block;flex:none;filter:drop-shadow(0 0 1px #000)}
+.pressBars i svg{width:100%;height:100%;display:block}
+.pressBars s{position:relative;width:62px;height:4px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;text-decoration:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}
+.pressBars u{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:3px;background:var(--jb);transition:width .25s linear}
+.pressBars .pb.on u{box-shadow:0 0 6px var(--jb);background:linear-gradient(90deg,var(--jb),var(--jb2))}
+.pressBars .pb:not(.on){opacity:.72}
+.pressBars em{font:700 10px var(--f-body);font-style:normal;color:#f4ead8;min-width:24px;text-shadow:0 1px 2px #000}
+.jb-cran{--jb:#e2384a;--jb2:#ff8a96}
+.jb-blue{--jb:#5a74ff;--jb2:#a8c8ff}
+.jb-black{--jb:#9a4ac0;--jb2:#d8a0f0}
+.juiceUp{position:absolute;left:0;top:0;z-index:2;display:flex;align-items:center;gap:5px;padding:3px 10px 3px 6px;border-radius:999px;background:radial-gradient(closest-side,rgba(20,12,6,.6),rgba(20,12,6,.35) 70%,transparent);white-space:nowrap;font:800 15px var(--f-body);color:#fff;text-shadow:0 1px 2px #000,0 0 8px var(--jb),0 0 14px var(--jb);will-change:transform,opacity}
+.juiceUp i{width:20px;height:20px;display:block;filter:drop-shadow(0 0 4px var(--jb))}
+.juiceUp i svg{width:100%;height:100%;display:block}
+@media (max-width:700px){.pressBars s{width:46px}.juiceUp{font-size:13px}}
+.hexFlow .hs i:has(.hsMulti){width:34px;margin-right:3px}.hsMulti{display:flex;height:100%}.hsMulti svg{flex:1;min-width:0;margin-right:-6px}

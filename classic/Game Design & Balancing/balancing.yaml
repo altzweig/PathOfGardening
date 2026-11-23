@@ -153,7 +153,7 @@ xp:
   base: 40
   growth: 1.02             # 23.11.2026 Sim-Balancing: 1.0667 -> 1.02, sonst kommen ab Welle ~25 kaum noch Level-ups (vorher: 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
   linear: 4.5              # 23.11.2026 Sim-Balancing: 6.67 -> 4.5 (16.11.2026: 5 -> 6.67)
-  fieldPerSecond: 0.5      # 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
+  fieldPerSecond: 0.3      # 23.11.2026 0.5 -> 0.3 (Gegner-XP soll ca. 1/3 über der Ernte liegen, Levelkurve bleibt gleich, siehe enemies.xpScale). 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
   gain: 0.6667             # (alt) XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
 
 arena:
@@ -225,12 +225,13 @@ tiles:
 # buffer: so viele Ladungen Zutaten nimmt das Gebäude auf Vorrat. minLevel: ab dieser Spielerstufe als neue Kachel im Angebot.
 buildings:
   well:    { minLevel: 2, interval: 4, makes: water, cropBonus: [0.10, 0.18, 0.24] }    # Brunnen: Wasser; 23.11.2026: alle Anbaufelder (keine Gebäude) +10 % Ertrag, Level 2: 18 %, Level 3: 24 % (der beste Brunnen zählt). Muss in der Werkstatt freigeschaltet werden
-  cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
+  # 23.11.2026 Kuh, Milch, Käserei, Käse vorerst ausgebaut (Basti). Zum Wiedereinbauen: Zeilen aktivieren + BUILDINGS/PRODUCTS in src/config.ts
+  # cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
   mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
   hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
-  press:   { minLevel: 4, needsAny: [blue, black, cran, lemon], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren/Zitronen -> Saft
+  press:   { minLevel: 4, needsAny: [blue, black, cran], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren -> Saft. 23.11.2026: presst immer die Beere, von der am meisten da ist; Saft wird sofort zu XP (siehe juice)
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
-  dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
+  # dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
   kitchen: { minLevel: 5, needs: { egg: 1 }, time: 3, amount: 3, makes: fegg }      # 23.11.2026 Spiegeleierei (statt Küche): 1 Ei -> 3 Spiegeleier (Munition der Spiegeleischleuder)
 
 # Waren beim Einsammeln: xp (x xp.gain) und heal (Leben) sofort, die Ware landet außerdem im Inventar (zum Einlegen in Gebäude).
@@ -238,11 +239,11 @@ items:
   wheat:  { xp: 1 }
   flour:  { xp: 1 }
   water:  { xp: 0 }
-  milk:   { xp: 3, heal: 4 }
+  # milk:   { xp: 3, heal: 4 }
   egg:    { xp: 4 }
   juice:  { xp: 6, heal: 4 }
   bread:  { xp: 12, heal: 8 }
-  cheese: { xp: 15 }
+  # cheese: { xp: 15 }
   fegg:   { xp: 4, heal: 3 }      # Spiegelei (ohne Schleuder: XP + etwas Leben)
 
 fruit:
@@ -455,6 +456,12 @@ enemies:
     hp:     { growth: 1.0, linear: 0.04 }     # 23.11.2026 Sim-Balancing: linear statt exponentiell. Leben: Welle 10 ≈ 1,4x · Welle 24 ≈ 1,9x · Welle 48 ≈ 2,9x (vorher 1,6x / 2,7x / 5,4x)
     damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
     # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), zusätzlich zum Nachtfaktor (dayNight.night)
+  # 23.11.2026 XP-Faktor der Gegner-Beeren je Welle: base * growth^(w-1) + linear*(w-1). Ziel (Basti): Gegner-XP pro Runde im Schnitt
+  # ca. 1/3 mehr als Ernte-XP (Ernte inkl. Saftpresse). Bot-Simulation (60 Läufe): die Zahl der Tiere pro Welle wächst schneller als
+  # die Ernte, deshalb sinkt der Faktor pro Tier leicht: Welle 1 x6,5 · 10 x4,3 · 20 x2,6 · 30 x1,6 · 40 x1,0.
+  # Ergebnis: Gegner/Ernte ab Welle 4 etwa 1,1-1,5, Schnitt 1,3; Levelkurve wie vorher (Welle 8/16/24/32: Lvl 7/12/17/21).
+  # Die Beere als Munition bleibt 1 Schuss.
+  xpScale: { base: 6.5, growth: 0.953, linear: 0 }
   elite:                   # Elite-Gegner: selten, größer, dunkle Outline wie alle, größerer Lebensbalken (kein Leuchten mehr, 23.11.2026)
     fromWave: 4            # ab dieser Welle möglich
     chanceStart: 0.01      # Anteil Elite in dieser Welle
@@ -508,7 +515,7 @@ enemies:
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: false        # 23.11.2026 true -> false: wer nicht an der Truhe stiehlt, greift an
-    steals: [blue, black, wheat, flour, water, milk, egg, juice, bread, cheese, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
+    steals: [blue, black, wheat, flour, water, egg, juice, bread, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
     fleeSpeed: 6.2         # (an der Truhe voll beladen: chest.fleeSpeed)
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
@@ -517,7 +524,7 @@ enemies:
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, cheese, fegg]   # ... sonst alle anderen (auch fertige Waren)
+    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]
@@ -639,15 +646,24 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
 #  Im Pool: das gewählte Startfeld + diese Typen. Die anderen beiden Startbeeren tauchen nicht mehr auf.
 # ---------------------------------------------------------------------
 fieldPool:
-  types: [wheat, mill, bakery, well]   # well nur, wenn in der Werkstatt freigeschaltet
+  types: [wheat, mill, bakery, well, press]   # well nur, wenn in der Werkstatt freigeschaltet
   offers: 3                            # Hexfelder pro Level-up (fehlen Typen, füllt Kräutertee auf)
-  weights: { start: 1, wheat: 1, mill: 1.6, bakery: 1.6, well: 1.3 }
+  weights: { start: 1, wheat: 1, mill: 1.6, bakery: 1.6, well: 1.3, press: 1.6 }
 
 # Verarbeitung: jedes Level-3-Feld von "from" schaltet 1 Kachel frei (neu oder Ausbau).
 # Mühle Level 3 = 4 Kacheln = 4 Weizenfelder auf Level 3. Stufe 2 (Bäckerei): je Level-3-Mühle 1 Kachel, neue Bäckerei nur neben einem Brunnen.
 chains:
   mill:   { from: wheat, stage: 1 }
   bakery: { from: mill, stage: 2, nextTo: well }
+  press:  { from: [blue, black, cran], stage: 1 }   # jedes Beerenfeld auf Level 3 = 1 Pressen-Kachel
+
+# 23.11.2026 Gebäude (Mühle, Saftpresse, Bäckerei ...) arbeiten nur, solange jemand dort harkt und die Zutaten da sind.
+# Saftpresse: presst die Beere mit dem größten Vorrat (des Spielers, der dort arbeitet), bis sie leer ist, dann die nächste.
+juice:
+  xpFactor: 2          # Saft gibt doppelt so viel XP pro Sekunde wie ein normales Anbaufeld (Ausbau der Presse = schneller = mehr XP)
+  fill: 60             # s aktives Pressen einer Beere, bis ihr Balken voll ist
+  step: 0.01           # je voller Balken: +1 % Wirkungsdauer des passenden Effekts (Preiselbeere Bleeding, Blaubeere Freeze, Brombeere Thorns)
+  names: { cran: Bleeding, blue: Freeze, black: Thorns }
 
 werkstatt:                 # nach jeder Welle an der Truhe in der Mitte: Ideen ausbrüten
   radius: 1.9              # m um die Truhe: hineinlaufen öffnet die Werkstatt (in der Pause zwischen den Wellen)
@@ -684,6 +700,8 @@ werkstatt:                 # nach jeder Welle an der Truhe in der Mitte: Ideen a
     herbs: Kräuter
     yield: Ertrag
     stock: Vorrat          # Liste rechts in der Werkstatt
+    berries: Beeren        # Saftpresse-Hexfeld: alle Beeren -> XP
+    xp: XP
 
 weaponSlots:               # Waffen neben der Harke
   max: 4                   # 22.11.2026 3 -> 4 (Blaubeer-Schrotflinte zählt jetzt mit); höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up

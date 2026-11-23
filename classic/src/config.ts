@@ -5,8 +5,8 @@ export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flo
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
-export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'cow' | 'dairy' | 'kitchen';
-export type ProductType = 'flour' | 'water' | 'milk' | 'egg' | 'juice' | 'bread' | 'cheese' | 'fegg';
+export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitchen'; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Basti)
+export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
 export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black'];
@@ -18,8 +18,8 @@ export const isBerry = (t: string): t is Berry => t === 'blue' || t === 'black' 
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
 export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
 export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan'];
-export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'cow', 'dairy', 'kitchen'];
-export const PRODUCTS: ProductType[] = ['flour', 'water', 'milk', 'egg', 'juice', 'bread', 'cheese', 'fegg'];
+export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen'];
+export const PRODUCTS: ProductType[] = ['flour', 'water', 'egg', 'juice', 'bread', 'fegg'];
 export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
 export const isBuilding = (t: FruitType | null | undefined): t is BuildingType => !!t && (BUILDINGS as string[]).includes(t);
 /** one building: source (interval: makes one item every x s by itself) or processor (needs/needsAny -> makes, time s) */
@@ -107,6 +107,7 @@ export interface Balancing {
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; learnWeight?: number; rakeWeight?: number; newOtherWeight?: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number; resistance: number;
+    /** 23.11.2026: XP of dropped berries x (base * growth^(w-1) + linear*(w-1)) */ xpScale?: { base?: number; growth: number; linear: number };
     /** per-wave growth of enemy HP / attack: growth^(w-1) + linear*(w-1) */
     scaling?: { hp: { growth: number; linear: number }; damage: { growth: number; linear: number } };
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
@@ -122,7 +123,9 @@ export interface Balancing {
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
   fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
   /** processing chains: every level-3 tile of "from" unlocks one tile of this type; stage 2 also needs a "nextTo" neighbour */
-  chains?: Partial<Record<FruitType, { from: FruitType; stage: number; nextTo?: FruitType }>>;
+  chains?: Partial<Record<FruitType, { from: FruitType | FruitType[]; stage: number; nextTo?: FruitType }>>;
+  /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */
+  juice?: { xpFactor: number; fill: number; step: number; names?: Partial<Record<Berry, string>> };
   /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
   werkstatt?: { radius: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */

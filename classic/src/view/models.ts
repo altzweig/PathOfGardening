@@ -41,16 +41,35 @@ const BOWL = new THREE.MeshStandardMaterial({ color: 0xd8c8b0, roughness: .6, fl
 const SACK = new THREE.MeshStandardMaterial({ color: 0xd8c49a, roughness: .95, flatShading: true });
 const STRING = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: .9 });
 /** goods: little props instead of round fruit (sheaf, sack, droplet, bottle, egg, loaf, wedge, bowl) */
+/** Saftpresse (23.11.2026): juice colour of each berry (BERRIES order: blue, black, cran) */
+export const JUICE_HEX = [0x3a2fb0, 0x6e2476, 0xc81e3c];
+const JUICE_MATS = JUICE_HEX.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .25, emissive: c, emissiveIntensity: .45 }));
+const BOTTLE_GLASS = new THREE.MeshStandardMaterial({ color: 0xf4fbff, roughness: .3, transparent: true, opacity: .14, depthWrite: false });
+const BOTTLE_CORK = new THREE.MeshStandardMaterial({ color: 0xe2c690, roughness: .9, flatShading: true });
+const BOTTLE_BODY = new THREE.CylinderGeometry(.052, .055, .12, 14), BOTTLE_SHOULDER = new THREE.SphereGeometry(.052, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+const BOTTLE_NECK = new THREE.CylinderGeometry(.021, .024, .045, 10), BOTTLE_JUICE = new THREE.CylinderGeometry(.047, .05, .1, 14), BOTTLE_TOP = new THREE.CircleGeometry(.047, 14);
+/** little juice bottle like Basti's sketch: round shoulders, short neck, cork; juice of berry jb (-1 = mixed red) up to the shoulder.
+ *  Origin = bottle centre, the bottom sits at y -.06 */
+export function juiceBottle(jb = 2, fill = 1) {
+  const g = new THREE.Group(), jm = JUICE_MATS[jb] ?? JUICE_MATS[2];
+  const j = new THREE.Mesh(BOTTLE_JUICE, jm); j.scale.y = Math.max(.02, fill); j.position.y = -.055 + .05 * j.scale.y; g.add(j);
+  const top = new THREE.Mesh(BOTTLE_TOP, jm); top.rotation.x = -Math.PI / 2; top.position.y = -.055 + .1 * j.scale.y; g.add(top);
+  const body = new THREE.Mesh(BOTTLE_BODY, BOTTLE_GLASS); body.renderOrder = 3; g.add(body);
+  const sh = new THREE.Mesh(BOTTLE_SHOULDER, BOTTLE_GLASS); sh.position.y = .06; sh.scale.y = .7; sh.renderOrder = 3; g.add(sh);
+  const nk = new THREE.Mesh(BOTTLE_NECK, BOTTLE_GLASS); nk.position.y = .11; nk.renderOrder = 3; g.add(nk);
+  part(g, GEO.cyl, BOTTLE_CORK, .025, .03, .025, 0, .14, 0);
+  g.userData.juice = j; g.userData.top = top; g.scale.setScalar(1.5);
+  return g;
+}
 function itemMesh(type: FruitType, g: THREE.Group, mat: THREE.Material) {
   switch (type) {
     case 'wheat': for (let i = 0; i < 5; i++) { const a = i / 5 * 7, s = part(g, GEO.capsule, mat, .022, .09, .022, Math.cos(a) * .03, .02, Math.sin(a) * .03); s.rotation.set(Math.cos(a) * .3, 0, Math.sin(a) * .3); }
       part(g, GEO.cyl, STRING, .045, .03, .045, 0, -.03, 0); return true;
     case 'flour': part(g, GEO.sph, SACK, .09, .1, .08, 0, 0, 0); part(g, GEO.cone, SACK, .05, .06, .05, 0, .11, 0); part(g, GEO.cyl, STRING, .04, .015, .04, 0, .085, 0); part(g, GEO.sph, mat, .05, .02, .05, 0, .14, 0); return true;
     case 'water': part(g, GEO.sph, mat, .07, .07, .07, 0, 0, 0); part(g, GEO.cone, mat, .045, .08, .045, 0, .09, 0); return true;
-    case 'milk': case 'juice': part(g, GEO.cyl, GLASS, .05, .14, .05, 0, 0, 0); part(g, GEO.cyl, mat, .044, .11, .044, 0, -.012, 0); part(g, GEO.cyl, GLASS, .022, .05, .022, 0, .09, 0); part(g, GEO.cyl, CORK, .02, .025, .02, 0, .12, 0); return true;
+    case 'juice': g.add(juiceBottle(2)); void GLASS; void CORK; void mat; return true;
     case 'egg': for (let i = 0; i < 3; i++) { const a = i / 3 * 7; part(g, GEO.sph, mat, .045, .06, .045, Math.cos(a) * .045, 0, Math.sin(a) * .045); } return true;
     case 'bread': { const b = part(g, GEO.capsule, mat, .07, .1, .07, 0, 0, 0); b.rotation.z = Math.PI / 2; b.scale.y = .1; for (let i = -1; i <= 1; i++) { const c = part(g, GEO.box, SACK, .012, .01, .07, i * .05, .065, 0); c.rotation.y = .5; } return true; }
-    case 'cheese': { const w = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .09, 3, 1, false, 0, Math.PI / 2.2), mat); w.castShadow = true; g.add(w); return true; }
     case 'fegg': { const e = friedEgg(.1); e.position.y = -.07; g.add(e); void BOWL; return true; } // Spiegelei (23.11.2026)
   }
   return false;

@@ -49,38 +49,46 @@ function well(g: THREE.Group, H: number) {
   const r = new THREE.Mesh(gable(1.15, .7, .35), ROOF); r.position.y = 1.08; r.castShadow = true; g.add(r);
   const crank = new THREE.Group(); crank.position.set(0, .86, 0); g.add(crank);
   part(crank, GEO.cyl, WOOD_L, .06, .9, .06, 0, 0, 0).rotation.z = Math.PI / 2;
-  const handle = part(crank, GEO.box, WOOD_D, .04, .22, .04, .5, .1, 0);
+  // crank outside the right post (23.11.2026): iron arm + wooden grip, turns while someone works at the well
+  part(crank, GEO.cyl, IRON, .035, .06, .035, .55, 0, 0).rotation.z = Math.PI / 2;
+  part(crank, GEO.box, IRON, .03, .24, .035, .58, .1, 0);
+  const handle = part(crank, GEO.cyl, WOOD_D, .028, .16, .028, .66, .2, 0); handle.rotation.z = Math.PI / 2;
   const rope = part(g, GEO.cyl, M(0xc8b088), .012, .5, .012, 0, .6, 0, false);
   const bucket = new THREE.Group(); g.add(bucket);
   part(bucket, GEO.cyl, WOOD, .09, .12, .09, 0, 0, 0); part(bucket, GEO.cyl, IRON, .095, .02, .095, 0, .04, 0);
   let ph = 0;
   return (dt: number, _n: number, working: boolean) => {
-    ph += dt * (working ? 2.2 : 0); crank.rotation.x = ph * 2; void handle;
+    ph += dt * (working ? 2.2 : 0); crank.rotation.x = -ph * 2; void handle;
     const y = .45 + (Math.sin(ph) * .5 + .5) * .3; bucket.position.y = y; rope.scale.y = .86 - y; rope.position.y = (y + .86) / 2;
     w.position.y = .28 + Math.sin(_n * 2) * .005;
   };
 }
 
+/** hand mill (23.11.2026, Basti): no windmill any more, two millstones on a low wooden stand, the upper one turned
+ *  by a crank handle on its rim while someone works there; grain in the eye, flour runs out into a heap / sack */
 function mill(g: THREE.Group, H: number) {
   pad(g, H);
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(.38, .58, 1.7, 10), PLASTER); tower.position.y = .85; tower.castShadow = true; g.add(tower);
-  for (const y of [.35, 1.05]) part(g, GEO.cyl, WOOD_D, .56 - y * .12, .05, .56 - y * .12, 0, y, 0);
-  part(g, GEO.box, WOOD_D, .22, .42, .05, 0, .21, .52); // door
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(.5, .55, 10), THATCH); cap.position.y = 1.95; cap.castShadow = true; g.add(cap);
-  const hub = new THREE.Group(); hub.position.set(0, 1.6, .5); g.add(hub);
-  part(hub, GEO.cyl, WOOD_D, .07, .16, .07, 0, 0, 0).rotation.x = Math.PI / 2;
-  for (let i = 0; i < 4; i++) {
-    const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; hub.add(arm);
-    part(arm, GEO.box, WOOD, .05, 1.05, .04, 0, .55, .06);
-    part(arm, GEO.box, CLOTH, .26, .8, .015, .15, .62, .07);
-    for (let k = 0; k < 4; k++) part(arm, GEO.box, WOOD_L, .3, .02, .02, .15, .28 + k * .22, .08, false);
-  }
-  // sacks at the foot
-  for (let i = 0; i < 2; i++) part(g, GEO.sph, M(0xd8c49a), .14, .17, .12, .55 - i * .25, .15, .3 + i * .15);
+  // stand: four short legs, a plank top
+  for (const [x, z] of [[-.32, -.32], [.32, -.32], [-.32, .32], [.32, .32]]) part(g, GEO.box, WOOD_D, .07, .3, .07, x, .15, z);
+  part(g, GEO.box, WOOD, .8, .06, .8, 0, .32, 0);
+  const lower = new THREE.Mesh(new THREE.CylinderGeometry(.34, .36, .14, 18), STONE_D); lower.position.y = .42; lower.castShadow = true; g.add(lower);
+  // spout + flour heap and a sack in front
+  part(g, GEO.box, WOOD_L, .1, .03, .2, 0, .4, .42).rotation.x = .35;
+  const heap = part(g, GEO.cone, M(0xf2ece0), .16, .1, .16, 0, .09, .6); heap.castShadow = false;
+  part(g, GEO.sph, M(0xd8c49a), .15, .18, .13, .45, .17, .5);
+  const top = new THREE.Group(); top.position.y = .55; g.add(top);
+  const upper = new THREE.Mesh(new THREE.CylinderGeometry(.32, .33, .12, 18), STONE); upper.castShadow = true; top.add(upper);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(top, GEO.box, STONE_D, .012, .121, .2, Math.cos(a) * .2, 0, Math.sin(a) * .2).rotation.y = -a; } // dressing grooves, so the turning shows
+  part(top, GEO.cyl, BLACK, .07, .125, .07, 0, .002, 0); // eye
+  part(top, GEO.sph, M(0xe0b85a), .06, .03, .06, 0, .06, 0, false); // grain in the eye
+  // crank: upright wooden handle in the rim
+  part(top, GEO.cyl, WOOD_D, .03, .3, .03, .25, .2, 0);
+  part(top, GEO.sph, WOOD_L, .045, .045, .045, .25, .36, 0);
   let sp = 0, ang = 0;
   return (dt: number, _n: number, working: boolean, broken: boolean) => {
-    sp += ((broken ? 0 : working ? 2.6 : 0) - sp) * Math.min(1, dt * 1.5); ang += sp * dt; hub.rotation.z = -ang;
-    if (working && Math.random() < dt * 3) PART.spawn(V(g.position.x + .5 + rand(-.1, .1), .3, g.position.z + .35), V(rand(-.15, .15), rand(.2, .5), rand(-.1, .1)), 0xfff4e0, .06, rand(.6, 1.1));
+    sp += ((broken ? 0 : working ? 3.4 : 0) - sp) * Math.min(1, dt * 4); ang += sp * dt; top.rotation.y = ang;
+    heap.scale.y = .1 + Math.sin(_n * 9) * (sp > .5 ? .004 : 0);
+    if (sp > .5 && Math.random() < dt * 6) PART.spawn(V(g.position.x + rand(-.05, .05), .4, g.position.z + .5), V(rand(-.1, .1), rand(.05, .25), rand(.05, .2)), 0xfff4e0, .05, rand(.5, .9));
   };
 }
 

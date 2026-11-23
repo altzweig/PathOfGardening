@@ -179,7 +179,7 @@ forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im W
 
 fields:
   hp: 100
-  cycle: { harvest: 5, rest: 10 }   # 23.11.2026 Erntezyklus: 5 s wird abgeerntet (Ertrag eines ganzen Zyklus), dann 10 s Ruhepause (wächst sichtbar nach), dann wieder erntereif. Harken beeinflusst die Zeiten nie (23.11.2026), nur während der Ernte gibt es mehr Ertrag. Nussbaum ausgenommen.
+  cycle: { grow: 8, harvest: 8, rakeGrow: 2 }   # 23.11.2026 (Basti): Feld wächst 8 s, dann erntereif. Keine passive Ernte: Ertrag nur durch Harken, und die Erntezeit läuft nur, solange geharkt wird (Pausen erlaubt), insgesamt bis zu 8 s, dann wächst es wieder. Harken während des Wachstums beschleunigt es auf bis zu 4 s (rakeGrow x2, solange das Feld als beackert gilt). Nussbaum ausgenommen.
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
@@ -188,7 +188,7 @@ fields:
   # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
-  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkenzug x (geharkte Fläche auf dem Feld / Fläche der Grundharke range x width)
+  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkentreffer auf dem Feld (23.11.2026: nur Treffer ja/nein, Trefferfläche egal)
                            # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.

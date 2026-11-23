@@ -103,7 +103,12 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const fr = sim.fruits.filter(f => f.state === 'ground' || f.state === 'fly');
       let fb = null as any, fd = 1e9; for (const f of fr) { const d = Math.hypot(f.x - p.x, f.z - p.z) - (want.has(f.type) ? 2 : 0); if (d < fd) { fd = d; fb = f; } }
       const close = near(p.x, p.z, 2.2);
-      if (gun && tgt) { // shoot
+      // no passive harvest (23.11.2026): with little ammo left, go and rake a ripe weapon field
+      const ripe = (f: any) => f.alive && !isBuilding(f.type) && (f as any).cyc === 0;
+      const low = gun && (p.ammo as any)[gun === 'blue' ? p.berry : gun] < 12;
+      let rf = null as any; if (low) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && want.has(f.type)) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rf = f; } } }
+      if (rf && !close) { const d = Math.hypot(rf.x - p.x, rf.z - p.z); if (d > .4) go(rf.x, rf.z, .2); it.fire = 'rake'; }
+      else if (gun && tgt) { // shoot
         fightT += dt; const d = Math.hypot(tgt.x - p.x, tgt.z - p.z), R = sim.stats(gun as SkillId, p.skills[gun as SkillId]).range;
         if (d > R * .75) go(tgt.x, tgt.z); else if (d < R * .3) { it.mx = (p.x - tgt.x) / d; it.mz = (p.z - tgt.z) / d; }
         it.fire = gun; it.aim = true; it.ax = tgt.x - p.x; it.az = tgt.z - p.z;
@@ -114,7 +119,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       } else if (fb && fd < 6) go(fb.x, fb.z, .05);
       else { // tend the garden: broken building / wilting tile first, else the weapon fields (raking makes ammo)
         let ff = null as any, fs = 1e9;
-        for (const f of sim.fields) { if (!f.alive) continue; const s = (f.broken ? -5 : 0) + f.hp / f.maxHp * 2 + (want.has(f.type) ? (gun ? -1 : -3) : 0) + Math.hypot(f.x - p.x, f.z - p.z) * .05; if (s < fs) { fs = s; ff = f; } }
+        for (const f of sim.fields) { if (!f.alive) continue; const s = (f.broken ? -5 : 0) + f.hp / f.maxHp * 2 + (ripe(f) ? -2 : 0) + (want.has(f.type) ? (gun ? -1 : -3) : 0) + Math.hypot(f.x - p.x, f.z - p.z) * .05; if (s < fs) { fs = s; ff = f; } }
         if (tgt) { fightT += dt; noAmmo += dt; }
         if (ff) { const d = Math.hypot(ff.x - p.x, ff.z - p.z); if (d > .4) go(ff.x, ff.z, .2); it.fire = 'rake'; }
       }

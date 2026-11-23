@@ -428,3 +428,11 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
   - Upgrades: Abklingzeit -10 % (Start 5 s), Anziehradius +1 m, Nährwert +1 s pro Ei.
   - Duft: dünne, flauschige Schwaden ziehen von jedem Ei nach außen (weg vom Mittelpunkt), wabern wellenförmig, drehen gelegentlich um 15-25°, manchmal ein Kringel.
 - Kamera: Standard 30 % näher (neue Normalansicht). Pinch-Zoom auf dem Handy (maximal alte Entfernung, minimal nochmal 30 % näher), Mausrad am PC mit denselben Grenzen. Der zweite Steuerknopf auf der rechten Bildschirmseite ist entfernt.
+
+## Erntezyklus der Felder (23.11.2026)
+- Jedes Feld wird 5 s lang abgeerntet (in dieser Zeit fällt der Ertrag eines ganzen Zyklus) und ruht dann 10 s (`fields.cycle`). Der Ertrag über die Zeit bleibt wie vorher. Harken während der Pause lässt schneller nachwachsen. Der Nussbaum ist ausgenommen.
+- Beim Abernten werden die 6 Pflanzen nacheinander gepflückt: Weizen und Spargel werden zu Stoppeln, Kohl zu Strünken. Beeren, Chili und Zitronen verlieren die Früchte, und der Busch wird dörr und leicht sepiastichig.
+  - Beim letzten Ernten verschwinden die Stoppeln.
+  - Sound beim letzten Ernten: Weizen Sensen-Rascheln, Spargel/Kohl Knacken, Büsche trockenes Rascheln.
+- In der Pause wachsen junge grüne Sprossen (Weizen, Spargel) bzw. die Köpfe (Kohl) nach, und die Büsche werden wieder grün. Kleine grüne Früchte sind zu sehen.
+- Kurz vor der Erntereife beginnt ein goldener Schimmer. Bei Erntereife schnappen die Früchte schlagartig in ihre Farbe um, mit einem Erntereif-Glockenspiel (für alle Pflanzen gleich). Sounds nur in der Nähe des Spielers.

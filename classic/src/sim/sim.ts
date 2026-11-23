@@ -104,7 +104,9 @@ export interface Player {
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
-  inb: Partial<Record<FruitType, number>>; work: number; broken: boolean; boost: number }
+  inb: Partial<Record<FruitType, number>>; work: number; broken: boolean; boost: number;
+  /** crop cycle (23.11.2026): cyc 0 = being harvested (harvest s), 1 = resting / growing back (rest s); ct = s into the phase */
+  cyc: number; ct: number }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number; dur: number; iv: number; fire?: { tick: number; dmgPct: number } }
@@ -260,7 +262,7 @@ export class Sim {
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
     for (let i = this.bombs.length - 1; i >= 0; i--) { const b = this.bombs[i]; if (b.mine && slotAt(this.cfg, this.slots, b.x, b.z) === slot) { this.bombs.splice(i, 1); this.burst(b.x, .2, b.z, 0x6fbf3a, 8, 1, .1, .4); } } // a tile built on top removes the mine
     const iv = isBuilding(type) ? (this.cfg.buildings[type].interval ?? 0) : this.cfg.plants[type]?.interval ?? 1;
-    f = { slot, type, x: s.x, z: s.z, hp: hp0, maxHp: hp0, alive: true, t: rand(0, iv), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false, inb: {}, work: 0, broken: false, boost: 0 };
+    f = { slot, type, x: s.x, z: s.z, hp: hp0, maxHp: hp0, alive: true, t: rand(0, iv), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false, inb: {}, work: 0, broken: false, boost: 0, cyc: 0, ct: rand(0, 1.5) };
     this.fields.push(f);
     this.burst(s.x, .4, s.z, 0x8fe36a, 30, 2.5, .2, .8);
     return f;
@@ -365,6 +367,24 @@ export class Sim {
       }
     }
     f.shake = .18; this.sfx('plants.produce.' + f.type, f.x, f.z);
+  }
+  /** crop cycle: harvest phase (the yield of a whole cycle drops within harvest s), then rest s while it grows back; ripe again with a golden shimmer.
+   *  Long-run yield stays the same as the old steady production. Trees (forest) keep producing steadily. */
+  get cycle() { return this.cfg.fields.cycle; }
+  growField(f: Field, k: number) {
+    const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
+    if (!C || this.isForest(f)) { f.t -= k; while (f.t <= 0) { f.t += iv; this.produce(f); } return; }
+    f.ct += k;
+    if (f.cyc === 0) {
+      f.t -= k * (C.harvest + C.rest) / C.harvest; while (f.t <= 0) { f.t += iv; this.produce(f); }
+      if (f.ct >= C.harvest) { f.cyc = 1; f.ct = 0; this.emit({ k: 'cropDone', s: f.slot }); }
+    } else if (f.ct >= C.rest) { f.cyc = 0; f.ct = 0; f.t = Math.min(f.t, iv * .25); this.emit({ k: 'cropRipe', s: f.slot }); }
+  }
+  /** rake stroke on a crop: during the harvest it shakes the next harvest loose, while resting it makes the field grow back faster */
+  tillGrow(f: Field, s: number, tri: number[]) {
+    const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
+    if (C && !this.isForest(f) && f.cyc === 1) { this.growField(f, s); return; }
+    f.t -= s; while (f.t <= 0) { f.t += iv; this.produce(f, tri); }
   }
   /** short card line of a tile type: crop "2 {asp} / 10 s", source "{water} / 4 s", processor "3 {wheat} → {flour}" */
   tileLine(t: FruitType) {
@@ -796,8 +816,7 @@ export class Sim {
       if (A > bestA) { bestA = A; best = f; }
       f.tilledT = F.tillDuration; f.shake = Math.max(f.shake, .2);
       if (isBuilding(f.type)) { this.tillBuilding(p, f, Math.min(1, A / A0)); this.emit({ k: 'till', s: f.slot, a: r2(Math.min(1, A / A0)), m: 0, w: [] }); continue; }
-      f.t -= F.tillStroke * (A / A0) * this.prodMult(f) * this.hpF(f);
-      while (f.t <= 0) { f.t += this.cfg.plants[f.type]!.interval; this.produce(f, tri); }
+      this.tillGrow(f, F.tillStroke * (A / A0) * this.prodMult(f) * this.hpF(f), tri);
       // view: field flash; only the plants of the raked triangles wobble and shed leaves (bit mask m), rustle
       let m = 0; tri.forEach((x, k) => { if (x > .01) m |= 1 << k; });
       // w: raked share of each triangle (0..1) -> the berries of that plant light up accordingly
@@ -1999,7 +2018,7 @@ export class Sim {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
       if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
       if (isBuilding(f.type)) this.tickBuilding(f, dt);
-      else if (f.alive) { f.t -= dt * this.prodMult(f) * this.hpF(f); if (f.t <= 0) { f.t += this.cfg.plants[f.type]!.interval; this.produce(f); } }
+      else if (f.alive) this.growField(f, dt * this.prodMult(f) * this.hpF(f));
       f.shake = Math.max(0, f.shake - dt);
     }
     // fruit
@@ -2390,7 +2409,7 @@ export class Sim {
         const pr = B ? (B.interval ? 1 - f.t / B.interval : f.work > 0 ? 1 - f.work / (B.time ?? 1) : 0) : 1 - f.t / this.cfg.plants[f.type]!.interval;
         const fl = (f.broken ? 1 : 0) | (B && !f.broken && (B.interval || f.work > 0) ? 2 : 0);
         const st = B ? Object.entries(f.inb).filter(([, n]) => n! > 0).map(([k, n]) => FRUITS.indexOf(k as FruitType) + ':' + n).join(',') : '';
-        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st] as FiSnap;
+        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st, B || !this.cycle || this.isForest(f) ? 0 : r2(f.cyc === 0 ? Math.min(1, f.ct / this.cycle.harvest) : 1 + Math.min(1, f.ct / this.cycle.rest))] as FiSnap;
       }),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / p.dur)), p.fire ? 1 : 0]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),

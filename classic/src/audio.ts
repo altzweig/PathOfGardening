@@ -98,6 +98,31 @@ export const SND: Record<string, (arg?: any) => void> = {
     noise({ t: .9, vol: .09, type: 'highpass', f: 5200, f2: 2600, q: .5, when: .12, at: .15 });
     for (let i = 0; i < 6; i++) noise({ t: rand(.05, .1), vol: rand(.02, .05), type: 'bandpass', f: rand(5000, 9000), q: 3, when: .15 + rand(0, .6), at: .01 });
   },
+  /** crop ripe again (23.11.2026): soft rising sparkle chime with a shimmer, the same for every crop */
+  cropRipe() {
+    if (!can('cropRipe', .25)) return;
+    [659, 880, 1175, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .55 - i * .06, vol: .045, when: i * .07 }));
+    tone({ type: 'sine', f: 2637, t: .6, vol: .018, when: .26 });
+    noise({ t: .7, vol: .025, type: 'highpass', f: 7000, when: .05, at: .2 });
+  },
+  /** wheat field all cut: a last scythe swish and crisp stubble crackle */
+  cropDoneWheat() {
+    if (!can('cropDone', .25)) return;
+    noise({ t: .32, vol: .1, type: 'bandpass', f: 2200, f2: 5200, q: 1.6, at: .05 });
+    for (let i = 0; i < 7; i++) noise({ t: rand(.015, .03), vol: rand(.03, .06), type: 'bandpass', f: rand(3000, 6000), q: 4, when: .2 + rand(0, .35), at: .002 });
+    tone({ f: 180, f2: 110, t: .12, vol: .04, when: .3 });
+  },
+  /** asparagus / cabbage all cut: two crunchy snaps */
+  cropDoneCut() {
+    if (!can('cropDone', .25)) return;
+    for (let i = 0; i < 2; i++) { noise({ t: .05, vol: .12, type: 'bandpass', f: 2600 - i * 500, q: 3, when: i * .14, at: .002 }); tone({ f: 420 - i * 80, f2: 200, t: .06, vol: .05, when: i * .14 }); }
+  },
+  /** bush picked bare: dry leaves rustling */
+  cropDoneDry() {
+    if (!can('cropDone', .25)) return;
+    noise({ t: .7, vol: .07, type: 'bandpass', f: 3800, f2: 2400, q: .9, at: .1 });
+    for (let i = 0; i < 14; i++) noise({ t: rand(.01, .03), vol: rand(.025, .05), type: 'bandpass', f: rand(2500, 7500), q: 5, when: rand(0, .7), at: .002 });
+  },
   /** Bratpfanne: fast swish round the body, abrupt stop (clunk), then the eggs fly off hissing */
   pan() {
     if (!can('pan', .2)) return;

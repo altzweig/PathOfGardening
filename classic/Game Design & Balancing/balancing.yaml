@@ -135,8 +135,8 @@ coop:
 xp:
   # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))
   base: 40
-  growth: 1.0667           # 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
-  linear: 6.67             # 16.11.2026: +1/3 (vorher 5)
+  growth: 1.02             # 23.11.2026 Sim-Balancing: 1.0667 -> 1.02, sonst kommen ab Welle ~25 kaum noch Level-ups (vorher: 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
+  linear: 4.5              # 23.11.2026 Sim-Balancing: 6.67 -> 4.5 (16.11.2026: 5 -> 6.67)
   fieldPerSecond: 0.5      # 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
   gain: 0.6667             # (alt) XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
 
@@ -266,7 +266,7 @@ skills:
     damage: 4              # je Beere
     range: 6.5             # m
     cooldown: 0.625
-    ammoPerShot: 6
+    ammoPerShot: 1         # 23.11.2026 Sim-Balancing: 6 -> 1 (1 Blaubeere = 1 Schuss), sonst war man 85 % der Kampfzeit ohne Munition
     pellets: 6
     cone: 45
     spreadSigma: 11
@@ -335,9 +335,12 @@ skills:
 
 upgrades:
   offersPerLevel: 3
-  damagePerLevel: 0.20     # +10 % Schaden je Stufe (additiv)
+  damagePerLevel: 0.30     # +30 % Schaden je Stufe (additiv; 23.11.2026 Sim-Balancing: 0.2 -> 0.3)
   rangePerLevel: 0.20      # +10 % Reichweite / Radius je Stufe (additiv)
-  cooldownPerLevel: 0.10   # Abklingzeit x 0.9 je Stufe (multiplikativ)
+  cooldownPerLevel: 0.12   # Abklingzeit x 0.88 je Stufe (multiplikativ; 23.11.2026 Sim-Balancing: 0.1 -> 0.12)
+  learnWeight: 4           # 23.11.2026 Sim-Balancing: Freischalt-Karte einer Waffe wird gewichtet gezogen statt jedes Mal erzwungen (blockierte sonst alle Waffen-Upgrades)
+  rakeWeight: 0.2          # Harken-Upgrades auf der Waffenkarte seltener, sobald man eine Schusswaffe hat
+  newOtherWeight: 1.5      # Neues-Feld-Karte: Gewicht neuer Gebäude/Nicht-Waffen-Felder (Waffenfrucht-Felder 3, schon gebaute Sorten 1)
   aspPierce:      { step: 1,    max: 4 }       # Durchbohren +1, +1, +1 bis max, letzte Stufe danach: alle Ziele (17.11.2026)
   aspPierceBonus: { step: 0.10, maxLevel: 5 }  # Piercing Damage +10 Prozentpunkte (50 -> 100 %), Karte: alter Wert + goldenes +10 %
   aspSize:        { step: 1.00, maxLevel: 4 }  # Geschossgröße +100 % additiv je Stufe, max 500 % (17.11.2026), Karte: alter Wert + goldenes +100 %
@@ -383,7 +386,7 @@ enemies:
   meleeInterval: 1         # s
   xpDrop: 1                # jeder besiegte Gegner lässt so viele Blaubeeren (XP) fallen
   scaling:                 # Gegner werden über die Wellen stärker, gleiche Kurvenform wie XP:  Faktor = growth^(w-1) + linear*(w-1)
-    hp:     { growth: 1.03, linear: 0.03 }    # Leben:  Welle 10 ≈ 1,6x · Welle 24 ≈ 2,7x · Welle 48 ≈ 5,4x
+    hp:     { growth: 1.0, linear: 0.04 }     # 23.11.2026 Sim-Balancing: linear statt exponentiell. Leben: Welle 10 ≈ 1,4x · Welle 24 ≈ 1,9x · Welle 48 ≈ 2,9x (vorher 1,6x / 2,7x / 5,4x)
     damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
     # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), zusätzlich zum Nachtfaktor (dayNight.night)
   elite:                   # Elite-Gegner: selten, größer, leuchtende Outline in ihrer Farbe (mit leichtem Bloom)
@@ -396,7 +399,7 @@ enemies:
     damage: 2              # x Angriffsstärke
     xpMultiplier: 5        # x XP-Drop
   boss:                    # Waschbär-Boss (vorerst der einzige Boss)
-    levels: { first: 20, every: 10 }   # 17.11.2026: kommt zu Beginn der ersten Welle, nachdem die Spieler Level 20 erreicht haben, dann Level 30, 40, 50 ...
+    levels: { first: 25, every: 10 }   # 23.11.2026 Sim-Balancing: erster Boss ab Level 25 statt 20 (kam sonst mitten in der ersten Nacht). 17.11.2026: kommt zu Beginn der ersten Welle, nachdem die Spieler Level 20 erreicht haben, dann Level 30, 40, 50 ...
     every: 24              # nur ohne "levels": alle N Wellen (mit dayNight: in der letzten Nachtwelle)
     scale: 2.4
     hpEnemies: 33.33       # Leben = so viel wie 33,3 normale Waschbären (17.11.2026: Boss x3 Leben; vorher 20 Waschbären à 7 HP = 140, jetzt 33,33 x 12,6 = 420) ...
@@ -518,9 +521,9 @@ waves:
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
-  countMultiplier: 1.3     # 17.11.2026: Gegneranzahl aller Wellen +30 % (auf Gruppengröße, nach sizeMax)
+  countMultiplier: 0.7     # 23.11.2026 Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
-  durationPerWave: 2.5     # s länger je Welle
+  durationPerWave: 1.0     # s länger je Welle (23.11.2026 Sim-Balancing: 2.5 -> 1.0, weniger Gruppen in späten Wellen)
   countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
   leaveTime: 3             # s nach Ablauf drehen die Gegner um, laufen Richtung Wald und verblassen; danach sind sie weg
   leaveSpeed: 1.3          # x Laufgeschwindigkeit beim Abdrehen
@@ -534,7 +537,7 @@ waves:
   gapMin: 3                # s, kürzester Abstand
   gapJitter: 0.25          # +-25 % Zufall auf den Abstand
   sizeStart: 3             # Gegner pro Gruppe in Welle 1 (Grundwert)
-  sizePerWave: 0.8         # + Gegner pro Gruppe je Welle
+  sizePerWave: 0.15        # + Gegner pro Gruppe je Welle (23.11.2026 Sim-Balancing: 0.8 -> 0.15)
   sizeMax: 24
   rampFrom: 0.5            # innerhalb der Welle: erste Gruppe = 50 % der Grundgröße ...
   rampTo: 1.5              # ... letzte normale Gruppe = 150 %
@@ -558,7 +561,7 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
   dayWaves: 16             # so viele Tag-Wellen (16 h Tag) ...
   nightWaves: 8            # ... dann so viele Nacht-Wellen (8 h Nacht). Boss nur in der letzten Nachtwelle, danach wird es Tag
   night:                   # Nachtwellen sind größer und stärker
-    size: 1.4              # x Gegner pro Gruppe
+    size: 1.15             # x Gegner pro Gruppe (23.11.2026 Sim-Balancing: 1.4 -> 1.15, die erste Nacht war eine harte Wand)
     hp: 1.3                # x Leben
     damage: 1.25           # x Angriffsstärke
 

@@ -57,6 +57,11 @@ interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** eggs stacked into the pyramid at the hens: plain upright eggs */
 const EGG_STACK = new THREE.MeshStandardMaterial({ color: 0xf2e0c0, roughness: .42, emissive: 0xffe8c8, emissiveIntensity: .14 });
+/** crop cycle: sepia tint of dried-out plants, green unripe fruit (23.11.2026) */
+const DRY_COL = new THREE.Color(0x7a6438);
+const UNRIPE: Partial<Record<FruitType, THREE.Material>> = {
+  blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
+};
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number; st?: boolean }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 /** nature-pack broadleaf tree (about 7 units tall) scaled to a ~3.5 m nut tree */
@@ -83,7 +88,9 @@ function badgeTex(t: FruitType, rarity = 0) {
 }
 interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number;
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
-  bld?: BuildingView; flags?: number; stock?: string; sndT?: number }
+  bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
+  /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
+  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -458,7 +465,7 @@ export class GameView {
       if (v.alive && f[2] <= 0 && !v.wilt) { this.killField(v); v.wilt = true; }
       else if (v.wilt && f[2] > 0) { this.removeField(f[0], v); v = this.makeField(f[0], FRUITS[f[1]], slots[f[0]]); }
       if (v.rarity !== f[5]) { v.rarity = f[5]; (v.rim.material as THREE.MeshBasicMaterial).color.set(RARITY_COL[f[5]] ?? RARITY_COL[0]); v.plant.scale.setScalar(1 + f[5] * .08); }
-      v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9];
+      v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9]; v.cy = f[13] ?? 0;
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
       v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
@@ -602,7 +609,7 @@ export class GameView {
     }
     else for (let k = 0; k < 6; k++) { // one low plant per triangle of the hex (the rake works per triangle)
       const b = buildPlant(type, mats), [px, pz] = triPlant(0, 0, H, k);
-      b.g.position.set(px, 0, pz); b.g.scale.set(.56, .5, .56); b.g.userData.sy = .5; b.g.rotation.y = rand(0, 7);
+      b.g.position.set(px, 0, pz); b.g.scale.set(.56, .5, .56); b.g.userData.sy = .5; b.g.userData.sx = .56; b.g.userData.fr = b.fruits; b.g.rotation.y = rand(0, 7);
       plant.add(b.g); fruits.push(...b.fruits);
     }
     // own fruit material per plant, so the berries of a raked plant can light up on their own
@@ -618,7 +625,8 @@ export class GameView {
       lava = new THREE.Mesh(softBedGeo(H * .92, rand(0, 99)), new THREE.MeshBasicMaterial({ map: lavaTex, vertexColors: true, color: 0xff5a10, transparent: true, opacity: .05, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
-    const v: FieldView = { bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    for (const m of fruits) m.userData.mat0 = m.material; // ripe material (unripe: green, see animCrop)
+    const v: FieldView = { order: [0, 1, 2, 3, 4, 5].sort(() => Math.random() - .5), leafC: mats.leaf.color.clone(), headC: mats.head.color.clone(), bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
@@ -670,8 +678,61 @@ export class GameView {
       const cv = Math.max(v.comb, one ? Math.max(...v.combs) : v.combs[i] || 0), cb = cv * cv;
       c.rotation.x = Math.sin(now * 31 + i * 2.1) * .28 * cb;
       c.rotation.z = Math.cos(now * 27 + i * 1.3) * .28 * cb;
-      c.scale.y = (c.userData.sy ?? 1) * (1 - (one ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
+      c.scale.y = (c.userData.sy ?? 1) * (c.userData.gy ?? 1) * (1 - (one ? .05 : .18) * cb + Math.sin(now * 38 + i) * .08 * cb);
     });
+    if (!one) this.animCrop(v, dt);
+  }
+  /** crop cycle look: during the harvest the clumps are picked one after another (fruit gone; wheat/asparagus cut to stubble,
+   *  bushes dry out to a sepia tint), at the end the stubble disappears; then young green shoots / green fruit grow back and at
+   *  ripeness the fruit snaps to its colour with a golden shimmer */
+  private animCrop(v: FieldView, dt: number) {
+    const h = v.cy ?? 0, t = v.ftype, now = performance.now() / 1000;
+    const cut = t === 'wheat' || t === 'asp', head = t === 'cab', bush = !cut && !head;
+    const harvest = h < 1, r = harvest ? 0 : h - 1;
+    // field-wide dryness: bushes fade to sepia while picked, grow green again while resting
+    const dry = !v.alive ? 0 : harvest ? (bush ? Math.min(1, h * 1.3) * .55 : h * .3) : Math.max(0, 1 - r * 1.6) * (bush ? .55 : .3);
+    v.mats.leaf.color.copy(v.leafC!).lerp(DRY_COL, dry); if (head || t === 'lemon' || t === 'chili') v.mats.head.color.copy(v.headC!).lerp(DRY_COL, dry * .8);
+    v.plant.children.forEach((c, i) => {
+      const k = v.order!.indexOf(i), picked = harvest && h * 6 > k + .3, fr = (c.userData.fr || []) as THREE.Mesh[];
+      let gy = 1, gx = 1, fs = 1, show = true, green = false;
+      if (harvest) {
+        if (picked) { show = false; if (cut) gy = .2; else if (head) { gy = .35; gx = .7; } }
+      } else { // growing back: cut crops from the ground, heads from a stump; fruit small and green until ripe
+        const g = Math.pow(r, .8);
+        if (cut) { gy = .04 + .96 * g; gx = .6 + .4 * g; } else if (head) { gy = .35 + .65 * g; gx = .7 + .3 * g; }
+        show = r > (cut ? .55 : .3); fs = .45 + .4 * Math.min(1, (r - .3) / .7); green = true;
+      }
+      if (h >= .985 && h < 1 && cut) gy = Math.max(.01, gy * (1 - (h - .985) / .015)); // stubble vanishes with the last cut
+      c.userData.gy = lerp(c.userData.gy ?? 1, gy, Math.min(1, dt * 6));
+      const sx = (c.userData.sx ?? .56) * lerp(c.scale.x / (c.userData.sx ?? .56), gx, Math.min(1, dt * 6)); c.scale.x = c.scale.z = sx;
+      for (const m of fr) {
+        m.visible = show && v.alive;
+        const mat = green ? UNRIPE[t] ?? UNRIPE.blue : m.userData.mat0; if (m.material !== mat) m.material = mat;
+        if (!m.userData.s0) m.userData.s0 = m.scale.clone();
+        m.scale.copy(m.userData.s0).multiplyScalar(fs);
+      }
+    });
+    // golden shimmer: builds up in the last moment before ripeness, bursts at the snap
+    v.ripeT = Math.max(0, (v.ripeT ?? 0) - dt);
+    const pre = !harvest && r > .85 ? (r - .85) / .15 : 0, gold = pre * .6 + v.ripeT * 1.6;
+    if (gold > 0 && Math.random() < dt * gold * 30) { const a = rand(0, 7), rr = Math.sqrt(Math.random()) * hexR(this.cfg) * .8; PART.spawn(V(v.x + Math.cos(a) * rr, rand(.15, .55), v.z + Math.sin(a) * rr), V(rand(-.1, .1), rand(.3, .7), rand(-.1, .1)), Math.random() < .5 ? 0xffd860 : 0xfff0a0, rand(.06, .12), rand(.5, .9)); }
+    if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2); });
+    void now;
+  }
+  /** crop events: last harvest -> "all picked" sound (dry rustle for bushes), ripe -> chime + golden burst */
+  private cropEvent(slot: number, ripe: boolean) {
+    const v = this.fields.get(slot); if (!v || !v.alive || v.bld) return;
+    const me = this.players.get(this.me), near = !me || Math.hypot(me.x - v.x, me.z - v.z) < 11;
+    if (ripe) {
+      v.ripeT = .8;
+      burst(V(v.x, .4, v.z), 0xffd860, 22, 1.6, .12, .8, { g: -.5 });
+      if (near) play('cropRipe');
+    } else {
+      const t = v.ftype;
+      if (t === 'wheat' || t === 'asp') burst(V(v.x, .15, v.z), t === 'wheat' ? 0xd8b050 : 0x6aa83c, 14, 1.4, .08, .6, { g: 4 });
+      else burst(V(v.x, .3, v.z), 0x8a7448, 14, 1.2, .1, .7, { g: 3 });
+      if (near) play(t === 'wheat' ? 'cropDoneWheat' : t === 'asp' || t === 'cab' ? 'cropDoneCut' : 'cropDoneDry');
+    }
   }
   /** feedback for one rake stroke on a field: flash, comb the plants, shake off fruit, whirl leaves, rustle */
   private rakeStroke(slot: number, a: number, mask: number, w?: number[]) {
@@ -820,6 +881,8 @@ export class GameView {
         this.shake = Math.min(.2, this.shake + .02); break;
       }
       case 'till': this.rakeStroke(e.s, e.a ?? 1, e.m ?? 63, e.w); break;
+      case 'cropDone': this.cropEvent(e.s, false); break;
+      case 'cropRipe': this.cropEvent(e.s, true); break;
       case 'rustleTree': { // squirrel appears in the crown of a nut tree: leaves fall, the crown shakes
         for (const v of this.fields.values()) if (Math.hypot(v.x - e.x, v.z - e.z) < .5) { v.comb = Math.max(v.comb, .6); v.shake = Math.max(v.shake, .3); }
         for (let i = 0; i < 10; i++) { const a = rand(0, 7), r = rand(.3, 1.1); PART.spawn(V(e.x + Math.cos(a) * r, rand(2, 2.8), e.z + Math.sin(a) * r), V(rand(-.4, .4), rand(-.2, .3), rand(-.4, .4)), Math.random() < .5 ? 0x5a8a3a : 0x8aa840, rand(.06, .1), rand(.8, 1.4), { g: 1.5 }); }

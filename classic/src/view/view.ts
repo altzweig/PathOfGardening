@@ -685,7 +685,7 @@ export class GameView {
   private animField(v: FieldView, dt: number) {
     const H = hexR(this.cfg) * .935, now = performance.now() / 1000;
     if (v.bld) {
-      const working = !!((v.flags ?? 0) & 2), broken = !!((v.flags ?? 0) & 1);
+      const broken = !!((v.flags ?? 0) & 1), working = !!((v.flags ?? 0) & 2) && v.tilled; // 23.11.2026: buildings only move while someone works there
       v.bld.anim(dt, now, working, broken, v.x, v.z);
       v.g.rotation.z = Math.sin(now * 50) * v.shake * .05;
       // work sound now and then while the building runs (only near the player, see buildingSound)

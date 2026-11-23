@@ -478,7 +478,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 
 ## Erntezeiten je Feld, Beerenmenge, Kohl und Mehl (23.11.2026)
 - Erntezyklus je Pflanze (`plants.x.grow` / `harvest`, sonst `fields.cycle`): Standard 8 s wachsen, 4 s ernten. Weizen 6 s / 3 s. Kohl 12 s / 2 s, dafür mehr pro Ernte (ca. 7-8 statt 6). Chili 16 s / 4 s, Menge so angepasst, dass pro Zeit etwa gleich viel herauskommt. Harken während des Wachstums halbiert die Wachstumszeit höchstens.
-- Beerenmenge halbiert (Intervall 2 -> 4 s), XP je Beere dadurch verdoppelt.
+- Beerenmenge halbiert (Intervall 2 -> 4 s), XP je Beere dadurch verdoppelt. Später am selben Tag nochmal halbiert (4 -> 8 s, XP je Beere wieder x2): man soll zwischendurch Beerenmangel haben und andere Waffen nehmen.
 - Kohlminen: 2 pro Sekunde (Abklingzeit 0,5 s, Mindestabstand = Explosionsradius).
 - Mehlsack: gedrückt halten, im Laufen entsteht alle 0,4 s eine kleine Mehlwolke (2/5 des alten Radius, 1 Mehl je Wolke, keine Drehung mehr, bis zu 16 Wolken).
 

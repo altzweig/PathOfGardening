@@ -258,10 +258,10 @@ fruit:
 
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
-  blue: { interval: 4 }                 # 23.11.2026: Beerenmenge halbiert (2 -> 4, XP je Beere damit verdoppelt). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  blue: { interval: 8 }                 # 23.11.2026: Beerenmenge zweimal halbiert (2 -> 4 -> 8, XP je Beere damit jeweils verdoppelt; Basti: man soll zwischendurch Beerenmangel haben). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  black: { interval: 4 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
-  cran: { interval: 4, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
+  black: { interval: 8 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
+  cran: { interval: 8, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
   cab:  { interval: 3.2, unlockAt: 0, grow: 12, harvest: 2 }   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 1.2, unlockAt: 0, amount: 1, minLevel: 10, grow: 16, harvest: 4 } # Chilifeld: wächst 16 s, 4 s Ernte (23.11.2026, Menge angepasst: pro Zeit etwa wie vorher), wie das Zitronenbäumchen erst ab Level 10

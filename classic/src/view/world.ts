@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { GEO, M, lantern, part, rand, scene, windU } from './core';
 import { GROUND_U, groundMaterial } from './textures';
+import { BodenWeights, PaintedU, loadSlots, paintedU } from './terrain';
+import { BodenPaint, Rect, loadBoden } from '../boden/paint';
 
 const ARENA = 15;
 
@@ -75,6 +77,29 @@ export function setBareRoom(on: boolean) {
 }
 export const isBareRoom = () => bare;
 
+// ---------------- painted ground (boden.html, 23.11.2026) ----------------
+export interface BodenHandle { P: BodenPaint; W: BodenWeights; U: PaintedU; changed(R?: Rect): void; layersChanged(): Promise<void> }
+let boden: BodenHandle | null = null;
+/** show a painted ground (the game at start, the editor live); the old material stays until the textures are there */
+export async function setBoden(P: BodenPaint): Promise<BodenHandle> {
+  const W = new BodenWeights(P), U = paintedU(W);
+  W.compose(); await loadSlots(W, U);
+  const mat = groundMaterial(ctlTex, U);
+  const swap = () => { const old = ground.material as THREE.Material; gardenMat = mat; if (bare) { mat.map = bareTex; GROUND_U.uFogR.value.set(22, 30); } ground.material = mat; if (old !== mat) old.dispose(); };
+  swap();
+  const h: BodenHandle = {
+    P, W, U,
+    changed: R => W.compose(R),
+    /** base/layers/visibility changed: new slots (maybe new textures), recompose everything */
+    layersChanged: async () => {
+      if (W.updateSlots()) { const ok = await loadSlots(W, U); if (!ok) return; if (U.nl !== W.slots.length) { U.nl = W.slots.length; mat.needsUpdate = true; } }
+      W.compose();
+    },
+  };
+  boden = h; return h;
+}
+export const bodenHandle = () => boden;
+
 export function buildWorld() {
   ctlCv = document.createElement('canvas'); ctlCv.width = ctlCv.height = CS;
   ctlTex = new THREE.CanvasTexture(ctlCv); ctlTex.colorSpace = THREE.NoColorSpace; drawControl();
@@ -83,6 +108,8 @@ export function buildWorld() {
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   lantern.visible = false; // the lamp post is gone
   buildFog(); buildWisps();
+  // painted ground (boden.html): public/world/boden.json or the editor's draft (?boden=entwurf); none = built-in meadow
+  if (!(window as { __bodenEditor?: boolean }).__bodenEditor) void loadBoden().then(P => { if (P) void setBoden(P); });
   // eyes glow in the fog on a ring around the garden
   BUSHES.length = 0;
   for (let i = 0; i < 46; i++) { const a = i / 46 * Math.PI * 2 + rand(-.05, .05), r = rand(12.6, 14.6), s = rand(.6, 1.05); BUSHES.push({ x: Math.cos(a) * r, y: s * .6, z: Math.sin(a) * r, r: s * .9, a }); }

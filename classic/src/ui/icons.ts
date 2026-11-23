@@ -97,12 +97,31 @@ const MINI: Record<string, string> = {
   spin: `<path d="M31 14 A13 13 0 1 0 33 24" stroke="#ff8a3a" stroke-width="3.4" fill="none" stroke-linecap="round"/><path d="M35 8 l-1 9 l-8 -3z" fill="#ff8a3a"/><path d="M20 20 l8 -4 l-3 7z" fill="#ffd860"/>`,
   chain: `<path d="M6 30 L16 16 L13 22 L24 10" stroke="#fff6a0" stroke-width="3" fill="none" stroke-linejoin="round"/><circle cx="6" cy="30" r="3.4" fill="#f0d030"/><circle cx="24" cy="10" r="3.4" fill="#f0d030"/><path d="M24 10 L34 18 M24 10 L33 4" stroke="#d8f0ff" stroke-width="2"/><circle cx="34" cy="18" r="2.6" fill="#d8f0ff"/><circle cx="33" cy="4" r="2.6" fill="#d8f0ff"/>`,
 };
+// Werkstatt (23.11.2026): light bulb = idea (2D, black outline, yellow light), sprout = crop field, seed = what a field starts from
+const BULB_BODY = `<path d="M12 1.6 C6.2 1.6 2.4 6 2.4 11.2 c0 3.6 1.9 5.9 3.6 7.8 c1 1.1 1.6 2.3 1.6 3.6 v.9 h8.8 v-.9 c0 -1.3 .6 -2.5 1.6 -3.6 c1.7 -1.9 3.6 -4.2 3.6 -7.8 C21.6 6 17.8 1.6 12 1.6z" fill="url(#bulbG)" stroke="#000" stroke-width="1.7" stroke-linejoin="round"/>`
+  + `<path d="M9 18.5 l1.5 -4 l1.5 3 l1.5 -3 l1.5 4" stroke="#b85a00" stroke-width="1.1" fill="none" stroke-linejoin="round" stroke-linecap="round"/><path d="M9.6 23.4 v-4.8 M14.4 23.4 v-4.8" stroke="#8a5a10" stroke-width=".9"/>`
+  + `<path d="M6.2 9.4 a6 6 0 0 1 4.2 -4.6" stroke="#fffbe0" stroke-width="1.8" fill="none" stroke-linecap="round"/>`
+  + `<rect x="7.4" y="23.4" width="9.2" height="5.4" rx="1.2" fill="#9aa0a6" stroke="#000" stroke-width="1.5"/><path d="M7.6 25.2 h8.8 M7.6 27 h8.8" stroke="#3a3e44" stroke-width=".9"/><path d="M9.6 28.8 h4.8 l-1 2 h-2.8z" fill="#3a3e44" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/>`;
+let bulbN = 0;
+const BULB_DEF = `<defs><radialGradient id="bulbG" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#fffbe6"/><stop offset=".35" stop-color="#fff07a"/><stop offset=".8" stop-color="#ffd21a"/><stop offset="1" stop-color="#f0a800"/></radialGradient></defs>`;
+/** light bulb (idea); off = grey empty socket look */
+export function bulb(off = false) {
+  const id = 'bulbG' + (++bulbN); // own gradient id per bulb: a gradient inside a hidden svg would not paint the others
+  return `<svg class="bulb" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${off ? BULB_BODY.replace('url(#bulbG)', '#3a3c40') : (BULB_DEF + BULB_BODY).replace(/bulbG/g, id)}</svg>`;
+}
+Object.assign(MINI, {
+  sprout: `<path d="M20 36 V18" stroke="#4f8a2a" stroke-width="3" stroke-linecap="round"/><path d="M20 22 C10 22 6 15 6 8 C14 8 20 12 20 22z" fill="#7fcf4a"/><path d="M20 18 C20 9 26 4 35 4 C35 13 29 18 20 18z" fill="#9ae060"/><path d="M8 36 h24" stroke="#6a4a2a" stroke-width="3.4" stroke-linecap="round"/>`,
+  seed: `<ellipse cx="13" cy="24" rx="4.6" ry="7" fill="#c89a4a" stroke="#7a5626" stroke-width="1.4" transform="rotate(-25 13 24)"/><ellipse cx="25" cy="20" rx="4.6" ry="7" fill="#d8aa58" stroke="#7a5626" stroke-width="1.4" transform="rotate(20 25 20)"/><ellipse cx="20" cy="31" rx="4" ry="6" fill="#b88a3a" stroke="#7a5626" stroke-width="1.4" transform="rotate(80 20 31)"/><path d="M12 20 q1 4 2 7 M24 16 q1 4 0 8" stroke="#f0d898" stroke-width="1.2" fill="none"/>`,
+});
 const TEA = `<path d="M8 16 h20 v10 a9 9 0 0 1 -9 9 h-2 a9 9 0 0 1 -9 -9z" fill="#c9a35a"/><path d="M28 19 h3 a4 4 0 0 1 0 8 h-3" stroke="#c9a35a" stroke-width="2.6" fill="none"/><path d="M14 12 q-2 -4 1 -7 M20 12 q-2 -4 1 -7" stroke="#8fe36a" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="17" rx="9" ry="2" fill="#6a8f3a"/>`;
 
-export function mini(name: string) { return MINI[name] ? svg(MINI[name]) : ''; }
+export function mini(name: string) { if (name === 'bulb') return bulb(); return MINI[name] ? svg(MINI[name]) : ''; }
 export function skillIcon(w: string) { return svg((SKILL as any)[w] || RAKE); }
 export function comboIcon(c: string) { return svg(COMBO[c] || RAKE); }
 export function fruitIcon(t: string) { return svg((FRUIT as any)[t]); }
+/** field / building art without badges (hex fields, Werkstatt) */
+export function fieldArt(t: string) { return (PLANT as any)[t] ? svg(BED + (PLANT as any)[t]) : svg((FRUIT as any)[t] || MINI.dmg); }
+export function teaArt() { return svg(TEA); }
 /** big card picture */
 export function pic(name: string) {
   const [kind, id] = name.split('_');

@@ -222,6 +222,14 @@ export class GameView {
   // ---------------- build mode ----------------
   /** true: upgrade card (+1 onto a tile of the same type), false: new tile */
   placeStack = false;
+  /** 23.11.2026 hex field from a level-up: the slots it may go on (sim rules: free slot, same type below level 3, chains) */
+  allowed: Set<number> | null = null;
+  setAllowed(list: number[] | null | undefined) {
+    const k = list ? list.join(',') : '';
+    if (k === this.allowedKey) return; this.allowedKey = k;
+    this.allowed = list ? new Set(list) : null;
+  }
+  private allowedKey = '';
   setPlacing(type: FruitType | null, stack = false) {
     if (this.placing === type && this.placeStack === stack) return;
     this.placing = type; this.placeStack = stack; this.hoverSlot = -1;
@@ -270,6 +278,7 @@ export class GameView {
   /** upgrade card: only onto a tile of the same type; new tile: free slot or another type (overbuild with confirmation) */
   canPlaceView(i: number) {
     if (!this.placing || !slotFits(this.cfg, this.slots[i], this.placing)) return false;
+    if (this.allowed) return this.allowed.has(i);
     const f = this.fields.get(i), same = !!f && f.alive && FRUITS[f.type] === this.placing;
     return this.placeStack ? same : !same;
   }
@@ -324,7 +333,8 @@ export class GameView {
       for (const [o, y] of m) if (o !== i && y.t === x.t && hexDist(this.slots[i], this.slots[o]) === 1) b += tileContrib(this.cfg, y.r);
       return b;
     };
-    const rate = (m: Map<number, { t: number; r: number }>, i: number) => { const x = m.get(i); return x ? (br[x.t] ?? 0) * (1 + bonus(m, i)) : 0; };
+    const wb = (t: number) => isBuilding(FRUITS[t]) ? 0 : this.snap?.wb ?? 0; // Brunnen: every crop field +x %
+    const rate = (m: Map<number, { t: number; r: number }>, i: number) => { const x = m.get(i); return x ? (br[x.t] ?? 0) * (1 + bonus(m, i) + wb(x.t)) : 0; };
     return { slot, cur, next, bonus: (i: number) => bonus(cur, i), bonusNext: (i: number) => bonus(next, i), rateNow: (i: number) => rate(cur, i), rateNext: (i: number) => rate(next, i) };
   }
   /** arrows on the shared edges of the hovered slot: saturated green = same type (bonus), yellow-green = goods flow
@@ -388,15 +398,15 @@ export class GameView {
     // level: a gem in the colour of the level with its number; blinks when the next build completes the step
     const completes = same && hov && this.placeStack && prog + 1 >= n;
     const rc = (l: number) => hex(RARITY_COL[Math.min(l, RARITY_COL.length - 1)]);
-    lv.innerHTML = r > 0 || completes ? `<i class="on${completes ? ' nx' : ''}" style="--c:${rc(completes ? r + 1 : r)}"></i><span>${completes ? r + 1 : r}</span>` : '';
+    lv.innerHTML = r > 0 || completes ? `<i class="on${completes ? ' nx' : ''}" style="--c:${rc(completes ? r + 1 : r)}"></i><span>${(completes ? r + 1 : r) + (this.cfg.tiles.maxLevel ? 1 : 0)}</span>` : ''; // 23.11.2026: levels count from 1
     const num = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: v < 1 ? 2 : 1 });
     // items per second; while building: current -> after the build (green up, red down); neighbour bonus as hex chip
     const nbChip = bonus > 0 ? `<em class="nb${bonusUp && !ghost ? ' chg' : ''}"><svg viewBox="0 0 24 20"><path d="M6 1.5l5 2.9v5.8L6 13.1 1 10.2V4.4z M18 6.9l5 2.9v5.8l-5 2.9-5-2.9V9.8z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>+${Math.round(bonus * 100)}%</em>` : '';
     rate.classList.toggle('up', changes && nxt > now); rate.classList.toggle('down', changes && nxt < now);
     rate.innerHTML = `${fruitIcon(outType(this.cfg, ftype))}<span>${ghost ? '' : changes ? num(now) + '<b>→</b>' : ''}${num(ghost || changes ? nxt : now)}/s</span>${nbChip}`;
     // step bar (upgrade card): one segment per tile still needed for the next level
-    bar.hidden = !same || !this.placeStack;
-    if (same && this.placeStack) {
+    bar.hidden = !same || !this.placeStack || r >= (this.cfg.tiles.maxLevel ?? 99) - 1; // level 3 is the top: no step bar
+    if (!bar.hidden) {
       let b = '';
       for (let k = 0; k < n; k++) b += `<i class="${k < prog ? 'on' : ''}${hov && k === prog ? ' nx' : ''}"></i>`;
       bar.innerHTML = b + `<b></b>`; bar.style.setProperty('--c', rc(r + 1)); bar.style.setProperty('--c0', rc(r));
@@ -1342,6 +1352,11 @@ export class GameView {
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
   }
   /** screen position (px) of a point above the local player's head, or null */
+  /** world point -> screen pixels (null behind the camera) */
+  worldScreen(x: number, y: number, z: number): { x: number; y: number } | null {
+    const v = V(x, y, z).project(camera); if (v.z > 1) return null;
+    return { x: (v.x * .5 + .5) * innerWidth, y: (-v.y * .5 + .5) * innerHeight };
+  }
   playerScreen(): { x: number; y: number } | null {
     const me = this.players.get(this.me); if (!me || !me.s.al) return null;
     const v = V(me.x, 1.75, me.z).project(camera);

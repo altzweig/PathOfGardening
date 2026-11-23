@@ -28,15 +28,19 @@ export interface PSnap {
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
-export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string }
+export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string;
+  /** Werkstatt (23.11.2026): heading (upgrade name), price in ideas, bought, golden idea, double upgrade */
+  hd?: string; cost?: number; sold?: 0 | 1; gold?: 0 | 1; x2?: 0 | 1 }
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   sl: number[]; // learned weapons in learn order (SKILLS index)
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
-  pm: 0 | 1; // place mode: 0 new tile, 1 upgrade (+1 onto a tile of the same type)
+  pm: 0 | 1 | 2; // place mode: 0 new tile, 1 upgrade (+1 onto a tile of the same type), 2 hex field (either, 23.11.2026)
   iv: number[]; // bag per FRUITS index (wheat and products)
   nu: number; // collected nuts
   cb: number[]; // per weapon (SKILLS order): combo it became (COMBOS index), -1 none
+  /** Werkstatt (23.11.2026): ideas (light bulbs), the bench of this pause, open; ps: slots the hex field being placed may go on */
+  id?: number; sh?: Offer[] | null; so?: 0 | 1; ps?: number[];
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
@@ -63,7 +67,7 @@ export interface Snap {
   t: number; ph: 'play' | 'lvl' | 'over'; ts: number; lr: number; wv: number; wn: number; dh: number; dc: number; // dh: hour of the day-night cycle (0..dc)
   /** Lager-Truhe: raccoons stealing right now (undefined = no chest) */ ch?: number;
   wp: 0 | 1; won: 0 | 1; wt?: number; // wt: s left of the wave countdown (fight) or of the pause (wp)
-  lv: number; xp: number; nx: number; ki: number; cx: number; n: number; // ts: slow-motion ramp into/out of a pause 0..1
+  lv: number; xp: number; nx: number; ki: number; cx: number; n: number; /** Brunnen: crop bonus now, unlocked */ wb?: number; wo?: 0 | 1; // ts: slow-motion ramp into/out of a pause 0..1
   pl: PSnap[]; en: ESnap[]; fr: FSnap[]; pj: JSnap[]; bo: BSnap[]; /** Spiegeleier: [id, x, y, z, landed, left 0..1, outward angle, lure radius, eaters] */ eg?: number[][]; /** flour clouds: [id, x, z, r, age, life, ignAge (-1 unlit), ix, iz] */ cl?: number[][]; mi: MSnap[]; fi: FiSnap[]; pu: PuSnap[];
   bb: number[][]; // boss berry bombs: [id, x, y, z, armed, frac, rain, radius]
   bs: number;     // boss HP fraction, -1 = no boss

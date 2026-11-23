@@ -145,7 +145,7 @@ export function cardEl(o: Offer) {
 /** card tilts toward the pressed point like a real card and shimmers (mouse hover, touch drag).
  *  Only writes 4 CSS variables per frame; transform + opacity stay on the compositor. */
 const noMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-function tilt(el: HTMLElement) {
+export function tilt(el: HTMLElement) {
   if (noMotion) return;
   let raf = 0, x = 0.5, y = 0.5;
   const apply = () => {

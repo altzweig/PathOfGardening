@@ -332,7 +332,7 @@ skills:
     damage: 1.6            # je Korn (wenig Schaden, dafür 10 Schuss/s)
     range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
     cooldown: 0.1          # s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
-    ammoPerShot: 0.25      # Weizen je Korn (1 Weizen = 4 Körner)
+    ammoPerShot: 1         # Weizen je Korn (Basti 23.11.2026: 1 Weizen = 1 Korn)
     speed: 24              # m/s, schnelle Körner
     heatTime: 3            # s Dauerfeuer bis heiß (Upgrade Feuerdauer +25 %/Stufe); dann gesperrt, bis sie abgekühlt ist
     coolTime: 2            # s von ganz heiß bis kalt

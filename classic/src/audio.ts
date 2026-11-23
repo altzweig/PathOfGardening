@@ -338,7 +338,7 @@ export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn
 
 // ---------------- buildings (Classic, 22.11.2026): synthesized, positional ----------------
 /** seconds between two work sounds while a building runs */
-export const BUILD_SND_EVERY: Record<string, number> = { mill: .9, press: 1.0, bakery: 1.3, well: 1.4, cow: 7, hens: 1.6, dairy: .85, kitchen: 1.2 };
+export const BUILD_SND_EVERY: Record<string, number> = { mill: .9, press: 1.0, bakery: 1.3, well: 1.4, hens: 1.6, kitchen: 1.2 };
 const clicks = (n: number, span: number, f: number, vol: number, q = 4, when = 0) => { for (let i = 0; i < n; i++) noise({ t: .03, vol: vol * rand(.7, 1), type: 'bandpass', f: f * rand(.85, 1.15), q, when: when + i * span / n + rand(0, span / n * .3), at: .002 }); };
 const BSND: Record<string, Record<string, () => void>> = {
   mill: { // rattling wooden gear, millstones grinding, flour trickling

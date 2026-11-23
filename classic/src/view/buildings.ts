@@ -280,7 +280,8 @@ function kitchen(g: THREE.Group, H: number) {
   };
 }
 
-const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean) => void> = { well, mill, press, bakery, hens, cow, dairy, kitchen };
+const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean) => void> = { well, mill, press, bakery, hens, kitchen };
+void cow; void dairy; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Modelle bleiben fürs Wiedereinbauen)
 
 /** Lager-Truhe (23.11.2026): big wooden chest with iron bands on an earth hex in the garden centre; the lid opens a crack
  *  and rattles while raccoons steal from it. Returns the update function (dt, thieves at work). */

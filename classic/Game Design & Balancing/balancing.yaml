@@ -225,12 +225,13 @@ tiles:
 # buffer: so viele Ladungen Zutaten nimmt das Gebäude auf Vorrat. minLevel: ab dieser Spielerstufe als neue Kachel im Angebot.
 buildings:
   well:    { minLevel: 2, interval: 4, makes: water, cropBonus: [0.10, 0.18, 0.24] }    # Brunnen: Wasser; 23.11.2026: alle Anbaufelder (keine Gebäude) +10 % Ertrag, Level 2: 18 %, Level 3: 24 % (der beste Brunnen zählt). Muss in der Werkstatt freigeschaltet werden
-  cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
+  # 23.11.2026 Kuh, Milch, Käserei, Käse vorerst ausgebaut (Basti). Zum Wiedereinbauen: Zeilen aktivieren + BUILDINGS/PRODUCTS in src/config.ts
+  # cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
   mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
   hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
   press:   { minLevel: 4, needsAny: [blue, black, cran], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren -> Saft. 23.11.2026: presst immer die Beere, von der am meisten da ist; Saft wird sofort zu XP (siehe juice)
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
-  dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
+  # dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
   kitchen: { minLevel: 5, needs: { egg: 1 }, time: 3, amount: 3, makes: fegg }      # 23.11.2026 Spiegeleierei (statt Küche): 1 Ei -> 3 Spiegeleier (Munition der Spiegeleischleuder)
 
 # Waren beim Einsammeln: xp (x xp.gain) und heal (Leben) sofort, die Ware landet außerdem im Inventar (zum Einlegen in Gebäude).
@@ -238,11 +239,11 @@ items:
   wheat:  { xp: 1 }
   flour:  { xp: 1 }
   water:  { xp: 0 }
-  milk:   { xp: 3, heal: 4 }
+  # milk:   { xp: 3, heal: 4 }
   egg:    { xp: 4 }
   juice:  { xp: 6, heal: 4 }
   bread:  { xp: 12, heal: 8 }
-  cheese: { xp: 15 }
+  # cheese: { xp: 15 }
   fegg:   { xp: 4, heal: 3 }      # Spiegelei (ohne Schleuder: XP + etwas Leben)
 
 fruit:
@@ -514,7 +515,7 @@ enemies:
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: false        # 23.11.2026 true -> false: wer nicht an der Truhe stiehlt, greift an
-    steals: [blue, black, wheat, flour, water, milk, egg, juice, bread, cheese, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
+    steals: [blue, black, wheat, flour, water, egg, juice, bread, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
     fleeSpeed: 6.2         # (an der Truhe voll beladen: chest.fleeSpeed)
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
@@ -523,7 +524,7 @@ enemies:
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, cheese, fegg]   # ... sonst alle anderen (auch fertige Waren)
+    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]

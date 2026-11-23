@@ -47,10 +47,9 @@ function itemMesh(type: FruitType, g: THREE.Group, mat: THREE.Material) {
       part(g, GEO.cyl, STRING, .045, .03, .045, 0, -.03, 0); return true;
     case 'flour': part(g, GEO.sph, SACK, .09, .1, .08, 0, 0, 0); part(g, GEO.cone, SACK, .05, .06, .05, 0, .11, 0); part(g, GEO.cyl, STRING, .04, .015, .04, 0, .085, 0); part(g, GEO.sph, mat, .05, .02, .05, 0, .14, 0); return true;
     case 'water': part(g, GEO.sph, mat, .07, .07, .07, 0, 0, 0); part(g, GEO.cone, mat, .045, .08, .045, 0, .09, 0); return true;
-    case 'milk': case 'juice': part(g, GEO.cyl, GLASS, .05, .14, .05, 0, 0, 0); part(g, GEO.cyl, mat, .044, .11, .044, 0, -.012, 0); part(g, GEO.cyl, GLASS, .022, .05, .022, 0, .09, 0); part(g, GEO.cyl, CORK, .02, .025, .02, 0, .12, 0); return true;
+    case 'juice': part(g, GEO.cyl, GLASS, .05, .14, .05, 0, 0, 0); part(g, GEO.cyl, mat, .044, .11, .044, 0, -.012, 0); part(g, GEO.cyl, GLASS, .022, .05, .022, 0, .09, 0); part(g, GEO.cyl, CORK, .02, .025, .02, 0, .12, 0); return true;
     case 'egg': for (let i = 0; i < 3; i++) { const a = i / 3 * 7; part(g, GEO.sph, mat, .045, .06, .045, Math.cos(a) * .045, 0, Math.sin(a) * .045); } return true;
     case 'bread': { const b = part(g, GEO.capsule, mat, .07, .1, .07, 0, 0, 0); b.rotation.z = Math.PI / 2; b.scale.y = .1; for (let i = -1; i <= 1; i++) { const c = part(g, GEO.box, SACK, .012, .01, .07, i * .05, .065, 0); c.rotation.y = .5; } return true; }
-    case 'cheese': { const w = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .09, 3, 1, false, 0, Math.PI / 2.2), mat); w.castShadow = true; g.add(w); return true; }
     case 'fegg': { const e = friedEgg(.1); e.position.y = -.07; g.add(e); void BOWL; return true; } // Spiegelei (23.11.2026)
   }
   return false;

@@ -314,3 +314,28 @@ export function addOutline(root: THREE.Object3D, color: number, width = .03, glo
   }
 }
 
+
+// ---------------- one-hand field tools (23.11.2026, Basti): sickle for wheat, hand rake for berries ----------------
+// Both hang in a pivot at the right shoulder (see View.animPlayer); local +z points away from the player, the grip
+// is at the origin of the returned group.
+const TOOL_WOOD = M(0x8a5a32), TOOL_STEEL = M(0xc8ccd2, { m: .6, r: .35 }), TOOL_DARK = M(0x5a3a22);
+/** sickle: short wooden grip, a crescent blade curving to the left (sharp side inside) */
+export function sickleModel() {
+  const g = new THREE.Group();
+  const grip = part(g, GEO.cyl, TOOL_WOOD, .022, .17, .022, 0, 0, .07); grip.rotation.x = Math.PI / 2;
+  part(g, GEO.cyl, TOOL_DARK, .026, .025, .026, 0, 0, .155).rotation.x = Math.PI / 2;
+  const blade = new THREE.Mesh(new THREE.TorusGeometry(.17, .016, 5, 22, Math.PI * 1.15), TOOL_STEEL);
+  blade.scale.set(1, 1, .35); blade.rotation.set(Math.PI / 2, 0, Math.PI * .05); blade.position.set(-.17, 0, .17); blade.castShadow = true; g.add(blade);
+  return g;
+}
+/** small hand rake: short handle, three curved tines */
+export function handRakeModel() {
+  const g = new THREE.Group();
+  const h = part(g, GEO.cyl, TOOL_WOOD, .02, .22, .02, 0, 0, .09); h.rotation.x = Math.PI / 2;
+  part(g, GEO.box, TOOL_STEEL, .13, .02, .03, 0, 0, .21);
+  for (let i = -1; i <= 1; i++) {
+    const t = new THREE.Mesh(new THREE.TorusGeometry(.06, .009, 5, 10, Math.PI * .6), TOOL_STEEL);
+    t.rotation.set(0, Math.PI / 2, -Math.PI * .1); t.position.set(i * .055, -.05, .2); t.castShadow = true; g.add(t);
+  }
+  return g;
+}

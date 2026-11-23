@@ -99,7 +99,7 @@ export function buildBed(H: number, plants: [number, number][]) {
   const earth: Parameters<typeof quads>[0] = [];
   const n = 9 + Math.floor(R(0, 4));
   for (let i = 0; i < n; i++) {
-    const [x, z] = inHex(i < 3 ? .45 : R(.6, .82)); // stays inside the hex, so the tile outline reads clearly
+    const [x, z] = inHex(i < 3 ? .45 : R(.7, 1.05)); // some patches spill over the edge (natural outline)
     earth.push({ x, z, w: EARTH_SIZE, l: EARTH_SIZE, r: R(0, Math.PI * 2), v: Math.floor(R(0, N * N)), y: .012 + i * .0005 });
   }
   const wet = plants.map(([x, z], i) => { const sz = R(1.25, 1.65); return { x: x + R(-.08, .08), z: z + R(-.08, .08), w: sz * R(.85, 1.15), l: sz * R(.85, 1.15), r: R(0, 7), v: Math.floor(R(0, N * N)), y: .02 + i * .0005 }; });
@@ -108,8 +108,8 @@ export function buildBed(H: number, plants: [number, number][]) {
   const hx = new THREE.Mesh(hexGeo(H), hexMat()); hx.position.y = .008; hx.renderOrder = -3; hx.receiveShadow = true;
   g.add(e, w, hx); return g;
 }
-/** 23.11.2026: every bed is a clear hexagon (pointy-top, exactly the slot), so neighbouring fields interlock like a hex grid;
- *  the edge fades a little, leaving a soft seam between two fields */
+/** 23.11.2026: every bed is roughly a hexagon (pointy-top, on the slot), so neighbours sit in the hex grid; the outline is
+ *  irregular and fades out (noise-pushed rings), never an exact hexagon */
 let hexM: THREE.MeshStandardMaterial | null = null;
 function hexMat() {
   if (hexM) return hexM;
@@ -117,13 +117,20 @@ function hexMat() {
   hexM.polygonOffset = true; hexM.polygonOffsetFactor = -1; hexM.polygonOffsetUnits = -1;
   return hexM;
 }
-function hexGeo(H: number) {
-  const pos: number[] = [0, 0, 0], col: number[] = [1, 1, 1, 1], idx: number[] = [];
-  const ring = (r: number, c: number, a: number) => { for (let k = 0; k < 6; k++) { const ang = -Math.PI / 2 + k * Math.PI / 3; pos.push(Math.cos(ang) * r, 0, Math.sin(ang) * r); col.push(c, c, c, a); } };
-  ring(H * .86, 1, 1); ring(H * .97, .8, .85); ring(H * 1.02, .7, 0);
-  for (let k = 0; k < 6; k++) {
-    const n = (k + 1) % 6; idx.push(0, 1 + n, 1 + k);
-    for (let r = 0; r < 2; r++) { const a = 1 + r * 6, b = 1 + (r + 1) * 6; idx.push(a + k, a + n, b + n, a + k, b + n, b + k); }
+export function hexGeo(H: number) {
+  // 23.11.2026 (Basti): no exact hexagon, roughly hex-shaped and fading out irregularly towards the outside
+  const N = 48, seed = Math.random() * 99, pos: number[] = [0, 0, 0], col: number[] = [1, 1, 1, 1], idx: number[] = [];
+  const hexR = (a: number) => { const t = ((a + Math.PI / 2) % (Math.PI / 3) + Math.PI / 3) % (Math.PI / 3) - Math.PI / 6; return Math.cos(Math.PI / 6) / Math.cos(t); };
+  const nz = (a: number, f: number, o: number) => Math.sin(a * f + seed + o) * .5 + Math.sin(a * f * 2.3 + seed * 1.7 + o) * .3 + Math.sin(a * f * 5.1 + seed * .3 + o) * .2;
+  // rings: inner solid, then two fading rings pushed in and out by noise
+  const rings: [number, number, number, number][] = [[.62, .06, 1, 1], [.86, .1, .85, .7], [1.08, .16, .7, 0]];
+  for (const [k, amp, c, al] of rings) for (let i = 0; i < N; i++) {
+    const ang = i / N * Math.PI * 2, r = H * (hexR(ang) * .6 + .4 * .93) * k * (1 + nz(ang, 5 + k * 3, k * 9) * amp);
+    pos.push(Math.cos(ang) * r, 0, Math.sin(ang) * r); col.push(c, c, c, al);
+  }
+  for (let i = 0; i < N; i++) {
+    const n = (i + 1) % N; idx.push(0, 1 + n, 1 + i);
+    for (let r = 0; r < 2; r++) { const a0 = 1 + r * N, b0 = 1 + (r + 1) * N; idx.push(a0 + i, a0 + n, b0 + n, a0 + i, b0 + n, b0 + i); }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));

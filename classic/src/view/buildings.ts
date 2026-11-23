@@ -79,7 +79,7 @@ function mill(g: THREE.Group, H: number) {
   for (let i = 0; i < 2; i++) part(g, GEO.sph, M(0xd8c49a), .14, .17, .12, .55 - i * .25, .15, .3 + i * .15);
   let sp = 0, ang = 0;
   return (dt: number, _n: number, working: boolean, broken: boolean) => {
-    sp += ((broken ? 0 : working ? 2.6 : .25) - sp) * Math.min(1, dt * 1.5); ang += sp * dt; hub.rotation.z = -ang;
+    sp += ((broken ? 0 : working ? 2.6 : 0) - sp) * Math.min(1, dt * 1.5); ang += sp * dt; hub.rotation.z = -ang;
     if (working && Math.random() < dt * 3) PART.spawn(V(g.position.x + .5 + rand(-.1, .1), .3, g.position.z + .35), V(rand(-.15, .15), rand(.2, .5), rand(-.1, .1)), 0xfff4e0, .06, rand(.6, 1.1));
   };
 }

@@ -1,8 +1,9 @@
-// Terrain textures (juliovii, CC BY 4.0, see CREDITS.md) and the materials built from them.
+// Textures (juliovii, CC BY 4.0; ground: FreeStylized, see CREDITS.md) and the materials built from them.
 // Ground: several textures mixed by world-space masks + noise, each sampled with a
 // "no tile" lookup (two randomly offset samples blended by a noise index), so no repeat is visible.
 import * as THREE from 'three';
-import { envU, renderer } from './core';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import { envU, gfx, isTouch, renderer } from './core';
 
 const loader = new THREE.TextureLoader();
 const BASE = import.meta.env.BASE_URL + 'textures/';
@@ -32,49 +33,100 @@ void noTile(sampler2D C, sampler2D N, vec2 uv, float k, inout vec3 col, inout ve
   nor+=(mix(textureGrad(N,uv+oa,dx,dy).rgb, textureGrad(N,uv+ob,dx,dy).rgb, t)*2.-1.)*w;
 }`;
 
-/** world-space ground: lawn (3 textures) around a dirt garden (2 textures), paths + dark rim from the control map */
+// ---------------- ground 23.11.2026: FreeStylized terrain (as in the Hof game), KTX2 2D-array textures ----------------
+// One material, one draw call: meadow everywhere (grass_01 with grass_04 patches), wet dark earth only around and
+// between the fields (control map r, drawn by world.ts). Every layer is sampled twice with a randomly rotated +
+// shifted UV per noise cell, so no tile repeat is visible. Towards the rim the ground dissolves into the fog colour.
+// Layer order in terrain_c_*.ktx2 / terrain_n_1024.ktx2: grass_01, moss_ground_02, ground_02, ground_06, grass_04, cobblestone_01
+const lowTex = () => isTouch || gfx.quality === 'niedrig';
+const TU = { uNorOn: { value: 1 } };
+/** terrain normal maps off on "niedrig" and on phones (uniform, no recompile) */
+export function updateTexQuality() { TU.uNorOn.value = lowTex() ? 0 : 1; }
+let ktx: KTX2Loader | null = null;
+function loadKtx(file: string, done: (t: THREE.CompressedTexture) => void) {
+  ktx ??= new KTX2Loader().setTranscoderPath(import.meta.env.BASE_URL + 'basis/').detectSupport(renderer);
+  ktx.load(BASE + file, t => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+    done(t as THREE.CompressedTexture);
+  }, undefined, e => console.error('ktx2', file, e));
+}
+function flatArray(layers: number, rgb: [number, number, number]) {
+  const d = new Uint8Array(4 * layers); for (let i = 0; i < layers; i++) d.set([...rgb, 255], i * 4);
+  const t = new THREE.DataArrayTexture(d, 1, 1, layers); t.needsUpdate = true; return t;
+}
+const ARR_GLSL = /* glsl */`
+precision highp sampler2DArray;
+void layerS(sampler2DArray C, sampler2DArray N, float L, vec2 uv, float k, inout vec3 col, inout vec3 nor, float w, bool useN){
+  float l = k*6., ia = floor(l), f = fract(l);
+  float ra = tHash(vec2(ia, L*7.1+.3))*6.2832, rb = tHash(vec2(ia+1., L*7.1+.3))*6.2832;
+  mat2 Ra = mat2(cos(ra), sin(ra), -sin(ra), cos(ra)), Rb = mat2(cos(rb), sin(rb), -sin(rb), cos(rb));
+  vec2 oa = sin(vec2(3.,7.)*ia), ob = sin(vec2(3.,7.)*(ia+1.));
+  vec2 dx = dFdx(uv), dy = dFdy(uv);
+  vec3 ca = textureGrad(C, vec3(Ra*uv+oa, L), Ra*dx, Ra*dy).rgb, cb = textureGrad(C, vec3(Rb*uv+ob, L), Rb*dx, Rb*dy).rgb;
+  float t = smoothstep(.2, .8, f - .1*dot(ca-cb, vec3(1.)));
+  col += mix(ca, cb, t)*w;
+  if (useN) {
+    vec3 na = textureGrad(N, vec3(Ra*uv+oa, L), Ra*dx, Ra*dy).rgb*2.-1., nb = textureGrad(N, vec3(Rb*uv+ob, L), Rb*dx, Rb*dy).rgb*2.-1.;
+    na.xy = na.xy*Ra; nb.xy = nb.xy*Rb;
+    nor += mix(na, nb, t)*w;
+  } else nor += vec3(0., 0., 1.)*w;
+}`;
+/** ground tunables (balancing.yaml boden) */
+export const GROUND_U = {
+  uTileG: { value: 3.5 }, uTileE: { value: 2.8 }, uWet: { value: .62 }, uFogR: { value: new THREE.Vector2(12.5, 19) },
+};
+/** control (CanvasTexture over the 64 m ground): r = wet earth, g = brightness falloff */
 export function groundMaterial(control: THREE.Texture) {
-  const T = { grass: pair('grass'), grassdirt: pair('grassdirt'), dry: pair('dry'), dirt: pair('dirt'), pebble: pair('pebble') };
+  const low = lowTex();
+  updateTexQuality();
+  const U = { tCol: { value: flatArray(6, [70, 92, 48]) as THREE.Texture }, tNor: { value: flatArray(6, [128, 128, 255]) as THREE.Texture } };
+  loadKtx(`terrain/terrain_c_${low ? 512 : 1024}.ktx2`, t => { U.tCol.value = t; });
+  if (!low) loadKtx('terrain/terrain_n_1024.ktx2', t => { U.tNor.value = t; });
   const mat = new THREE.MeshStandardMaterial({ map: control, roughness: 1 });
   mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, {
-      tGrass: { value: T.grass.c }, nGrass: { value: T.grass.n }, tGD: { value: T.grassdirt.c }, nGD: { value: T.grassdirt.n },
-      uDay: envU.uDay,
-      tDry: { value: T.dry.c }, nDry: { value: T.dry.n }, tDirt: { value: T.dirt.c }, nDirt: { value: T.dirt.n }, tPeb: { value: T.pebble.c }, nPeb: { value: T.pebble.n },
-    });
+    Object.assign(sh.uniforms, TU, U, GROUND_U, { uDay: envU.uDay, uFogCol: envU.uFogCol });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vWP;
-uniform float uDay;
-uniform sampler2D tGrass, nGrass, tGD, nGD, tDry, nDry, tDirt, nDirt, tPeb, nPeb;
+uniform float uDay, uNorOn, uTileG, uTileE, uWet;
+uniform vec2 uFogR;
+uniform vec3 uFogCol;
+uniform sampler2DArray tCol, tNor;
 vec3 gNor = vec3(0.);
+float gWet = 0.;
 ${NOISE}
+${ARR_GLSL}
 ` + sh.fragmentShader
       .replace('#include <map_fragment>', /* glsl */`
-  vec4 ctl = texture2D(map, vMapUv);           // r: dirt (garden + paths), g: patchiness, b: brightness
+  vec4 ctl = texture2D(map, vMapUv);
   vec2 p = vWP.xz;
   float n1 = tFbm(p*.18), n2 = tFbm(p*.11+13.), n3 = tFbm(p*.6+5.);
-  float k = tNoise(p*.35);                     // no-tile index
-  // dirt vs lawn: soft, ragged border
-  float wDirtAll = smoothstep(.35,.65, ctl.r + (n3-.5)*.55 + (n1-.5)*.25);
-  float wLawn = 1.-wDirtAll;
-  // lawn: grass, worn grass-dirt and dry straw patches
-  float gd = smoothstep(.45,.75, n1*.8 + ctl.g*.35), dr = smoothstep(.55,.8, n2) * (1.-gd);
-  float wGrass = wLawn*(1.-gd)*(1.-dr), wGD = wLawn*gd, wDry = wLawn*dr;
-  // garden dirt with pebbly spots
-  float pb = smoothstep(.55,.78, n2*.7 + n3*.4);
-  float wDirt = wDirtAll*(1.-pb), wPeb = wDirtAll*pb;
+  float k = tNoise(p*.35);
+  // wet earth: control map, frayed by noise so the border to the meadow is ragged
+  float we = smoothstep(.4, .6, ctl.r + (n3-.5)*.5 + (n1-.5)*.3);
+  gWet = we;
+  float g4 = smoothstep(.5, .72, n2) * (1.-we), g1 = (1.-we)*(1.-g4);
+  float e2 = we*smoothstep(.35, .65, n1), e6 = we-e2;
+  bool useN = uNorOn > .5;
   vec3 gc = vec3(0.);
-  if (wGrass>.002) noTile(tGrass, nGrass, p/3.6, k, gc, gNor, wGrass);
-  if (wGD>.002) noTile(tGD, nGD, p/4.1, k, gc, gNor, wGD);
-  if (wDry>.002) noTile(tDry, nDry, p/4.4, k, gc, gNor, wDry);
-  if (wDirt>.002) noTile(tDirt, nDirt, p/3.9, k, gc, gNor, wDirt);
-  if (wPeb>.002) noTile(tPeb, nPeb, p/3.3, k, gc, gNor, wPeb);
-  gc *= (.82 + .36*tFbm(p*.07+2.)) * mix(ctl.b, .45 + .55*ctl.b, uDay) * mix(.42, .78, uDay);     // large-scale light/dark variation + darkness to the rim (softer by day)
+  if (g1>.003) layerS(tCol, tNor, 0., p/uTileG, k, gc, gNor, g1, useN);
+  if (g4>.003) layerS(tCol, tNor, 4., p/(uTileG*1.08), k, gc, gNor, g4, useN);
+  if (e2>.003) layerS(tCol, tNor, 2., p/uTileE, k, gc, gNor, e2, useN);
+  if (e6>.003) layerS(tCol, tNor, 3., p/(uTileE*.93), k, gc, gNor, e6, useN);
+  // wet earth: darker, a little cooler
+  gc *= mix(vec3(1.), vec3(.86, .87, .97)*uWet, we);
+  float lf = tFbm(p*.035+7.), lf2 = tFbm(p*.07+2.);
+  gc *= mix(vec3(.86, .92, 1.02), vec3(1.1, 1.05, .9), lf) * (1. + (lf2-.5)*.36);
+  gc *= mix(ctl.g, .45 + .55*ctl.g, uDay) * mix(.47, .87, uDay);
   diffuseColor.rgb *= gc;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(1., .5, gWet);`)
       .replace('#include <normal_fragment_maps>', /* glsl */`
   { vec3 tn = normalize(vec3(gNor.xy*.9, max(gNor.z, .2)));
-    normal = normalize((viewMatrix * vec4(tn.x, tn.z, tn.y, 0.)).xyz); }`);
+    normal = normalize((viewMatrix * vec4(tn.x, tn.z, -tn.y, 0.)).xyz); }`)
+      .replace('#include <fog_fragment>', `#include <fog_fragment>
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogCol, smoothstep(uFogR.x, uFogR.y, length(vWP.xz) + (tFbm(vWP.xz*.25)-.5)*3.));`);
   };
+  mat.customProgramCacheKey = () => 'ground-fs';
   return mat;
 }
 

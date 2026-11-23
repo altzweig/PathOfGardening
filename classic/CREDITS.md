@@ -4,14 +4,21 @@ Alle Credits stehen auch im Spiel unter *Optionen → Credits* (`src/ui/credits.
 
 ## Texturen
 
+### Boden (seit 23.11.2026)
+
+Von **FreeStylized.com** – https://freestylized.com/ (Credit „Textures: FreeStylized.com“).
+Wie im Hof-Spiel: `public/textures/terrain/terrain_c_512.ktx2`, `terrain_c_1024.ktx2` (Farbe) und `terrain_n_1024.ktx2` (Normalen) als KTX2-Array mit den Ebenen Grass 01, Moss Ground 02, Ground 02, Ground 06, Grass 04, Cobblestone 01 (gebaut mit `tools/build-textures.mjs` im Hauptprojekt). Verwendet: Grass 01 + Grass 04 als Wiese, Ground 02 + Ground 06 als nasse Erde um die Felder. Basis-Transcoder in `public/basis/` (three.js, Apache 2.0).
+
+### Weitere Texturen
+
 Von **juliovii** – https://juliovii.itch.io/
 Lizenz: [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) (laut den itch.io-Seiten).
 Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu als JPEG komprimiert, liegen in `public/textures/`.
 
 | Asset-Paket | Link | Verwendete Texturen | Datei im Spiel | Verwendet für |
 |---|---|---|---|---|
-| FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03, GroundDirt_06 | `grass`, `grassdirt`, `dry` | Rasen rund um den Garten |
-| | | GroundDirt_05, GroundDirt_01 | `dirt`, `pebble` | Gartenboden in der Mitte |
+| FTP Dirt Ground (Materials_Ground_Dirt_01) | https://juliovii.itch.io/ftp-dirt-ground | GroundGrass_01, GroundDirt_03, GroundDirt_06 | `grass`, `grassdirt`, `dry` | Waffen-Vorschau (`grass`, `grassdirt`; früher Rasen rund um den Garten) |
+| | | GroundDirt_05, GroundDirt_01 | `dirt`, `pebble` | Waffen-Vorschau (`dirt`; früher Gartenboden) |
 | | | GroundMud_01 | `mud` | Beete (Felder) |
 | FTP Grass & Dirt (Stylized_GrassAndDirt) | https://juliovii.itch.io/ftpgrass-dirt | Stylized_HandpaintedStones_02 | `rock` | (früher Steine am Gartenrand, derzeit nicht verwendet) |
 | FTP Stylized Mix Stones 01 | https://juliovii.itch.io/ftp-stylized-mix-stones-01 | Stylized_LavaRock_02 (+ Emissive) | `lava` | Chili-Beet |
@@ -20,7 +27,7 @@ Für das Spiel verkleinert (Farbe 1024 px bzw. 512 px, Normalen 512 px) und neu 
 
 Von **Quaternius** – https://quaternius.com/ ([Patreon](https://www.patreon.com/quaternius))
 **Stylized Nature MegaKit** (Standard/Free-Version), Lizenz [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (laut `License_Standard.txt` im Paket).
-Verwendet für Wald (Twisted/Dead/Pine/Common Trees), Büsche, Farne, Pflanzen, Gras, Klee, Blumen, Pilze, Felsen, Kiesel und Trittsteine.
+Verwendet für die Nussbäume (früher auch Wald, Büsche, Farne, Gras, Blumen, Pilze, Felsen; seit 23.11.2026 durch Nebel ersetzt).
 Für das Spiel in `public/nature/nature.glb` zusammengefasst (Rinde/Pilze/Steine mit weniger Polygonen, Meshopt-komprimiert, gebaut mit `tools/build-nature.mjs`); Texturen auf 512 px (Gras 256 px) verkleinert, liegen ebenfalls in `public/nature/`.
 
 ## Effekte

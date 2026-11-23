@@ -2014,7 +2014,8 @@ export class Sim {
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
           : id === 'cab' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.range * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, ammo]
           : [`{dmg} ${nf(st.dmg)}${id === 'cran' ? ' × ' + st.pellets : ''}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
-        prio.push({ key: 'learn_' + id, cat: 'skill', pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
+        // 23.11.2026: unlock card is no longer forced every level-up (it blocked all weapon upgrades while you did not want it): weighted draw instead
+        pool.push({ key: 'learn_' + id, cat: 'skill', w: U.learnWeight ?? 4, pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
       }
     }
     // tile cards: "new tile" (any unlocked crop or building onto a free slot) and "upgrade" (+1 tile onto a tile of the same type)
@@ -2026,7 +2027,7 @@ export class Sim {
       const minL = isBuilding(id) ? this.cfg.buildings[id].minLevel ?? 0 : PL[id]?.minLevel ?? 0;
       const lines = [this.tileLine(id)];
       if (isWeaponFruit(id) && !p.skills[id].learned && !p.skills[id].merged) lines.push(`Unlock: ${N.skills[id]}`);
-      if (free && lvNow >= minL) newPool.push({ key: 'new_' + id, cat: 'field', w: owned.has(id) ? 1 : 3, pic: 'field_' + id, title: N.fields[id] ?? id, lines });
+      if (free && lvNow >= minL) newPool.push({ key: 'new_' + id, cat: 'field', w: owned.has(id) ? 1 : isWeaponFruit(id) ? 3 : (U.newOtherWeight ?? 3), pic: 'field_' + id, title: N.fields[id] ?? id, lines });
       if (owned.has(id)) fieldPool.push({ key: 'up_' + id, cat: 'plant', w: 2, pic: 'up_' + id, title: N.fields[id] ?? id, lines: [`{up} +1 · ${this.tileLine(id)}`] });
     }
     for (const id of SKILLS) {
@@ -2072,7 +2073,7 @@ export class Sim {
       if (id === 'cab' && s.poisLv < (U.cabPoison.maxLevel || 5)) { const b = this.stats('cab', { ...s, poisLv: s.poisLv + 1 }); pool.push({ key: 'cab_pois', cat: 'skill', w: 1, pic: 'skill_cab', title: N.skills.cab, lines: ['Poison Damage', `{poison} ${nf(a.poisonMul * 100)} % [[+${nf((b.poisonMul - a.poisonMul) * 100)} %]]`] }); }
     }
     // starting weapon (rake) upgrades: always available, no limit
-    { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, line: string) => pool.push({ key, cat: 'skill', w: 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] });
+    { const RL = p.rakeLv, RS = this.rakeStats(p), mkR = (key: string, line: string) => pool.push({ key, cat: 'skill', w: p.slots.some(id => p.skills[id as SkillId]?.learned) ? (U.rakeWeight ?? 1) : 1, pic: 'skill_rake', title: N.skills.rake, lines: [line] });
       const nx = { ...p, rakeLv: { ...RL } } as Player;
       nx.rakeLv = { ...RL, dia: RL.dia + 1 }; mkR('rake_dia', `{radius} ${nf(RS.dia * 100)} → ${nf(this.rakeStats(nx).dia * 100)} cm`);
       nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);

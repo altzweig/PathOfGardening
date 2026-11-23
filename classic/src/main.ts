@@ -316,7 +316,7 @@ class Game {
       const key = s.lr + ':' + pr.of.map(o => o.key).join(',');
       if (this.luShownFor !== key) {
         this.luShownFor = key; this.input.releaseAll(); only('#levelup');
-        $('#luTitle').textContent = String(s.lv - 0);
+        $('#luTitle').textContent = pr.of[0]?.key.startsWith('start_') ? '' : String(s.lv - 0); // start field choice: no number
         const box = $('#cards'); box.innerHTML = ''; box.classList.remove('cards-done');
         for (const o of pr.of) {
           const b = cardEl(o);

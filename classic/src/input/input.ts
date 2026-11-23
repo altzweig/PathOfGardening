@@ -15,7 +15,7 @@ export class Input {
   private mouseDown = false;
   private clickLatch = false; // a click shorter than a frame still fires once
   private mode: 'pc' | 'touch';
-  private cycle = 0; private tapSeq = 0; private tapW: Weapon | null = null;
+  private cycle = 0; private berry = 0; private tapSeq = 0; private tapW: Weapon | null = null;
   private move = newStick();
   private aim = newStick();
   private aimW: Weapon | null = null; private aimT0 = 0; private aimEl: HTMLElement | null = null; private aimLong = false;
@@ -37,6 +37,7 @@ export class Input {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       this.keys[e.code] = true; this.setMode('pc');
       if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && this.enabled) this.cycle++; }
+      if (e.code === 'KeyQ' && !e.repeat && this.enabled) this.berry++; // shotgun: next berry
       if (e.code === 'Escape') this.onPause();
       if (e.code === 'KeyE' && !e.repeat) this.onCheat();
     });
@@ -47,6 +48,7 @@ export class Input {
   get isTouch() { return this.mode === 'touch'; }
 
   private down(e: PointerEvent) {
+    if ((e.target as HTMLElement)?.closest?.('.berry') && this.enabled) { this.berry++; e.preventDefault(); return; } // shotgun badge: next berry
     if (e.pointerType === 'mouse') {
       this.setMode('pc'); this.mouse = { x: e.clientX, y: e.clientY };
       if (this.enabled && e.button === 0 && (e.target as HTMLElement).id === 'c') { this.mouseDown = true; this.clickLatch = true; }
@@ -121,7 +123,7 @@ export class Input {
 
   /** builds the intent for this frame; activeWeapon comes from the latest snapshot */
   intent(activeWeapon: Weapon): Intent {
-    const it = emptyIntent(); it.cycle = this.cycle; it.tapSeq = this.tapSeq; it.tapW = this.tapW;
+    const it = emptyIntent(); it.cycle = this.cycle; it.berry = this.berry; it.tapSeq = this.tapSeq; it.tapW = this.tapW;
     this.view.localAim.show = false;
     if (!this.enabled) return it;
     let mx = this.move.x, mz = this.move.y;

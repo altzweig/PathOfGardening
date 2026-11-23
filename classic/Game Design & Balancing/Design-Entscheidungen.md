@@ -443,3 +443,14 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
 - Alle Tiere und die Spielfigur haben eine dunkle Outline (Tinte). Elite-Gegner leuchten nicht mehr, sind nur größer, halten 5x aus (vorher 3x) und haben einen größeren Lebensbalken. Der Boss behält seine violette Outline.
 - Frösche sind blau mit goldenen Augen. Sie sitzen länger (Sprung 1,2 s, davon 35 % in der Luft, Flugtempo = speed / airShare, Durchschnittstempo gleich), springen 2,5x so hoch und machen sich vorher kurz flach.
 - HUD nach Bastis Skizze: Level-Kreis mit blauer XP- und roter HP-Leiste oben links, Pause oben rechts, Rohstoffliste rechts als „Zahl, Symbol, Name“.
+
+## Lager-Truhe, Startwahl und Beeren-Schrotflinte (23.11.2026)
+- In der Mitte steht eine große Holztruhe auf einem Erd-Hexfeld (`chest`). Alle Ressourcen der Spieler (Munition und Beutel) gelten als dort gelagert, auch wenn man sie bei sich aufsammelt.
+- Waschbären stehlen aus der Truhe statt von Feldern. Höchstens 10 gleichzeitig (`chest.maxThieves`), gleichmäßig im Kreis um die Truhe verteilt. Jeder Dieb trägt zu Beginn 5 Früchte, +0,5 pro Welle (`carryStart`, `carryPerWave`). Ist er voll, rennt er schnell weg (`fleeSpeed`). Alle anderen Waschbären greifen den Spieler an. Gestohlenes, das man zurückholt, gibt keine XP.
+- Spielstart: Wahl aus drei Startfeldern, Brombeere, Heidelbeere oder Preiselbeere (`arena.startChoice`). Startwaffe ist immer die Schrotflinte. Sie verschießt die gewählte Beere; Wechsel mit Q bzw. Tippen auf das Beeren-Symbol am Knopf, bei leerer Beere wird automatisch gewechselt. Getötete Tiere lassen die Beere fallen, die die Schrotflinte gerade lädt.
+- Debuffs der Beeren:
+  - Heidelbeere (blau): Freeze 1 s, keine Bewegung und kein Angriff. Physischer Schaden gegen Gefrorene +50 % (`blue.frozenBonus`).
+  - Brombeere (dunkelviolett): Dornenfessel 3 s. Dornen wickeln sich zweimal um das Ziel und einen direkten Nachbarn (einmaliger Versuch beim Auftragen, Umkreis 0,5 m). Beide sind 20 % langsamer und bekommen 1 physischen Schaden/s.
+  - Preiselbeere (blutrot): Bleeding 5 s, Tick alle 0,5 s, 2 Schaden/s (doppelt so viel wie Dornen), nur wenn sich das Tier bewegt (nicht bei Freeze oder Stun).
+- Preiselbeere und Brombeere sind keine eigenen Waffen mehr; Kombis mit der alten Preiselbeer-Waffe sind im normalen Spiel vorerst nicht erreichbar (Testraum weiterhin).
+- Büsche: Brombeere dunkel mit kühl-dunkelgrünen, teils rötlichen Blättern, Dornenranken und einzelnen größeren Beeren aus Steinfrüchtchen. Preiselbeere kompakt mit kleinen, satt grünen Blättern und Trauben aus 3-4 kleinen Beeren. Heidelbeere mit gemischt satt- und dunkelgrünen Blättern und Trauben aus 2-3 etwas größeren Beeren. Alle drei Beerenfelder bringen 1 Beere pro 2 s.

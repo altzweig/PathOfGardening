@@ -13,16 +13,18 @@
 names:
   skills:
     rake: Harke
-    blue: Blaubeer-Schrotflinte
+    blue: Schrotflinte
+    black: Brombeeren
     flour: Mehlsack
     pan: Spiegeleischleuder
     asp: Spargel-Armbrust
-    cran: Preiselbeer-Schrotflinte
+    cran: Preiselbeeren
     cab: Kohlmine
     lemon: Citrateaser
     chili: Flammenwerfer
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
+    black: Brombeerbusch
     asp: Spargel
     cran: Preiselbeeren
     cab: Kohl
@@ -32,6 +34,7 @@ names:
     wheat: Getreide
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
+    black: Brombeerfeld
     asp: Spargelfeld
     cran: Preiselbeerfeld
     cab: Kohlfeld
@@ -49,6 +52,7 @@ names:
     kitchen: Spiegeleierei
   items:             # Waren (Name im Inventar / Vorratsliste rechts oben)
     blue: Blaubeeren
+    black: Brombeeren
     asp: Spargel
     cran: Preiselbeeren
     cab: Kohl
@@ -114,9 +118,10 @@ names:
   effects:
     flour: Mehlwolke · Feuer entzündet sie
     pan: Köder · lockt Tiere an
-    blue: Friert 1 s ein
+    blue: Freeze 1 s
+    black: Dornenfessel 3 s
     asp: 3er-Salve · durchbohrt
-    cran: Blutung · Beeren platzen
+    cran: Bleeding 5 s
     cab: Kontaktmine · Gift
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
@@ -155,7 +160,16 @@ arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
   fieldSize: 2.8           # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster (22.11.2026: 3 -> 2,8, damit 4 Ringe in den Garten passen)
   fieldSlots: 20           # nur ohne tiles.rings: max. Anzahl Feldplätze
-  startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (das erste liegt in der Gartenmitte)
+  startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (nur ohne startChoice)
+  startChoice: [black, blue, cran]   # 23.11.2026: zu Beginn wählt jeder Spieler eins von drei Beeren-Startfeldern (Ring um die Truhe); Schrotflinte immer Startwaffe
+
+chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): alle Ressourcen der Spieler liegen dort, auch was man aufsammelt.
+  radius: 1.25             # m, Kreis um die Truhe, auf dem die diebischen Waschbären stehen
+  maxThieves: 10           # so viele Waschbären stehlen gleichzeitig (gleichmäßig im Kreis); alle weiteren greifen den Spieler an
+  stealInterval: 0.6       # s pro gestohlenem Teil
+  carryStart: 5            # so viel trägt ein Waschbär zu Beginn weg ...
+  carryPerWave: 0.5        # ... + so viel je Welle (Welle 21: 15, Welle 41: 25)
+  fleeSpeed: 7             # m/s, voll beladen rennen sie schnell weg
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
@@ -213,7 +227,7 @@ buildings:
   cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
   mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
   hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
-  press:   { minLevel: 4, needsAny: [blue, cran, lemon], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren/Zitronen -> Saft
+  press:   { minLevel: 4, needsAny: [blue, black, cran, lemon], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren/Zitronen -> Saft
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
   dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
   kitchen: { minLevel: 5, needs: { egg: 1 }, time: 3, amount: 3, makes: fegg }      # 23.11.2026 Spiegeleierei (statt Küche): 1 Ei -> 3 Spiegeleier (Munition der Spiegeleischleuder)
@@ -241,7 +255,8 @@ plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
   blue: { interval: 2 }                 # 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
-  cran: { interval: 5, unlockAt: 0, amount: 4 }   # 3x Ertrag
+  black: { interval: 2 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
+  cran: { interval: 2, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
   cab:  { interval: 15, unlockAt: 0 }
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 2.5, unlockAt: 0, amount: 1, minLevel: 10 } # Chilifeld: 1 Chili alle 2,5 s, wie das Zitronenbäumchen erst ab Level 10
@@ -274,7 +289,7 @@ skills:
     pierce: 1              # durchbohrte Ziele zu Beginn
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
-  blue:                    # 22.11.2026: Blaubeer-Schrotflinte, Startwaffe. Wie die Preiselbeer-Schrotflinte, aber Treffer frieren 1 s ein (keine Blutung, kein Platzen)
+  blue:                    # 23.11.2026: DIE Schrotflinte (Startwaffe). Schießt die gewählte Beere: Blaubeere = Freeze, Brombeere = Dornenfessel, Preiselbeere = Bleeding
     damage: 4              # je Beere
     range: 6.5             # m
     cooldown: 0.625
@@ -282,7 +297,14 @@ skills:
     pellets: 6
     cone: 45
     spreadSigma: 11
-    freeze: 1.0            # s eingefroren bei Treffer (nicht bei Bossen)
+    freeze: 1.0            # s eingefroren bei Treffer (nicht bei Bossen): kann sich weder bewegen noch angreifen
+    frozenBonus: 1.5       # 23.11.2026: physischer Schaden (Harke, Schrot, Bolzen, Dornen) gegen Gefrorene x1,5
+  black:                   # 23.11.2026 Brombeere (Schrot-Munition, dunkelviolett): Dornenfessel
+    duration: 3            # s
+    slow: 0.2              # 20 % langsamer
+    dps: 1                 # physischer Schaden pro s ...
+    tick: 0.5              # ... in Ticks alle 0,5 s
+    radius: 0.5            # m: beim Auftragen einmaliger Versuch, einen direkten Nachbarn mitzufesseln
   pan:                     # 23.11.2026 Spiegeleischleuder (Bratpfanne): Köder, macht keinen Schaden. Munition = Spiegeleier aus der Spiegeleierei
     damage: 0
     range: 5               # m Anziehradius um jedes Spiegelei (Upgrade +rangeStep)
@@ -321,8 +343,9 @@ skills:
     pellets: 6             # Beeren pro Schuss
     cone: 45               # Grad, maximaler Streukegel (±22,5 Grad), nichts fliegt weiter raus (17.11.2026: 80 -> 45, streut weniger)
     spreadSigma: 11        # Grad Standardabweichung (Normalverteilung um die Mitte) -> ca. 2/3 der Beeren in den inneren 22 Grad (17.11.2026: 20 -> 11, passend zum Kegel)
-    bleedDuration: 3       # s
-    bleedDps: 1
+    bleedDuration: 5       # s (23.11.2026: 3 -> 5, Preiselbeere als Schrot-Munition: Bleeding)
+    bleedDps: 2            # 23.11.2026: doppelt so viel wie die Dornen, nur wenn sich das Tier bewegt (nicht gefroren/betäubt)
+    bleedTick: 0.5         # s pro Tick
     splashDelay: 2         # s, verfehlte Beeren bleiben so lange liegen und platzen dann
     splashDamage: 0.25     # Platzschaden = Anteil des Beerenschadens (ohne Blutung); 17.11.2026: 50 -> 25 %, Upgrade bis 100 %
     splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
@@ -478,22 +501,22 @@ enemies:
   # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
   # Gilt für Spieler und Gegner gleich.
   resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
-  raccoon:                 # greift nie an, streunt umher, sammelt 5 XP (Blaubeeren) und haut damit ab
+  raccoon:                 # 23.11.2026: stiehlt aus der Lager-Truhe (siehe chest: max. 10 im Kreis, Beute wächst mit den Wellen), alle weiteren greifen den Spieler an
     hp: 12.6               # 17.11.2026 x1,8 (vorher 7)
     speed: 2.75
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
-    peaceful: true
-    steals: [blue, wheat, flour, water, milk, egg, juice, bread, cheese, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
+    peaceful: false        # 23.11.2026 true -> false: wer nicht an der Truhe stiehlt, greift an
+    steals: [blue, black, wheat, flour, water, milk, egg, juice, bread, cheese, fegg]   # 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
-    fleeSpeed: 6.2
+    fleeSpeed: 6.2         # (an der Truhe voll beladen: chest.fleeSpeed)
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
   panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
     hp: 13.2               # 17.11.2026 +20 % (vorher 11)
     speed: 2.2
     radius: 0.34
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue, juice, bread, cheese, fegg]   # ... sonst alle anderen (auch fertige Waren)
+    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, cheese, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]
@@ -529,7 +552,7 @@ enemies:
     hp: 7.2                # 17.11.2026 +20 % (vorher 6)
     speed: 1.8
     radius: 0.30
-    eats: [blue, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
+    eats: [blue, black, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
     puffEvery: 2           # s pro Aufplustern
     puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
     puffScale: 0.3         # +30 % Größe

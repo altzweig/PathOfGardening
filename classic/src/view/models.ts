@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { lemonWand, rakeHandle, rakeHeadModel } from './arsenal';
 import { friedEgg } from './eggfx';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
 import { ANIMAL_EYE, makeAnimal, type Animal } from './animals';
@@ -11,7 +11,7 @@ import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
 // Fruit lying on the ground glows; fruit still on the bush does not.
 const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, fegg: 0xfff4e0,
   well: 0x7a8a9a, mill: 0xd8c8a8, press: 0x9a5a3a, bakery: 0xd87a3a, hens: 0xe8d8a8, cow: 0xf0f0e8, dairy: 0xf6d860, kitchen: 0xe0a060 };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
+export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, black: 0x5a2a6a, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
 export const FRUIT_COL: Record<FruitType, string> = Object.fromEntries(Object.entries(FRUIT_HEX).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])) as Record<FruitType, string>;
 export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{
   // berries: real berry shape (vertex colours = dark crown), royal blue / raspberry red, glossy instead of milky glow;
@@ -19,6 +19,7 @@ export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknow
   blue: new THREE.MeshStandardMaterial({ color: 0x3358ff, emissive: 0x2440ff, emissiveIntensity: 0, roughness: .3, vertexColors: true }),
   asp: new THREE.MeshStandardMaterial({ color: 0x7fbf45, emissive: 0x4fa01a, emissiveIntensity: .44, roughness: .5 }),
   cran: new THREE.MeshStandardMaterial({ color: 0xc80a48, emissive: 0xe0104a, emissiveIntensity: .06, roughness: .22, vertexColors: true }),
+  black: new THREE.MeshStandardMaterial({ color: 0x3a1f44, emissive: 0x4a1a5a, emissiveIntensity: .06, roughness: .25, vertexColors: true }), // blackberry: dark violet drupelets
   cab: new THREE.MeshStandardMaterial({ color: 0x9ad870, emissive: 0x5aa020, emissiveIntensity: .36, roughness: .6, flatShading: true }),
   lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: .44, roughness: .4 }),
   chili: new THREE.MeshStandardMaterial({ color: 0xe0200c, emissive: 0xff2a08, emissiveIntensity: .48, roughness: .3 }),
@@ -58,7 +59,8 @@ export const NUT_CAP = new THREE.MeshStandardMaterial({ color: 0x6a8a3a, roughne
 export const BUSH_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{
   blue: new THREE.MeshStandardMaterial({ color: 0x2c4ae8, roughness: .32, vertexColors: true }),
   asp: new THREE.MeshStandardMaterial({ color: 0x5f8f35, roughness: .6 }),
-  cran: new THREE.MeshStandardMaterial({ color: 0xc00e46, roughness: .25, vertexColors: true }),
+  cran: new THREE.MeshStandardMaterial({ color: 0xb00a1e, roughness: .25, vertexColors: true }), // blood red (23.11.2026)
+  black: new THREE.MeshStandardMaterial({ color: 0x34193e, roughness: .28, vertexColors: true }),
   cab: new THREE.MeshStandardMaterial({ color: 0x7aa858, roughness: .7, flatShading: true }),
   lemon: new THREE.MeshStandardMaterial({ color: 0xc8b02a, roughness: .45, emissive: 0x8ac0ff, emissiveIntensity: 0 }), // emissive flickers with the harvest lightning
   chili: new THREE.MeshStandardMaterial({ color: 0xc81a0a, roughness: .3, emissive: 0xff2000, emissiveIntensity: .45 }), // chilis glow slightly red, also on the plant
@@ -66,6 +68,7 @@ export const BUSH_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>
   wheat: new THREE.MeshStandardMaterial({ color: 0xd8b050, roughness: .7, flatShading: true }),
 };
 export const CHILI_STEM = new THREE.MeshStandardMaterial({ color: 0x3f7a2a, roughness: .6 });
+const THORN_CANE = new THREE.MeshStandardMaterial({ color: 0x5a2a30, roughness: .7 }), THORN = new THREE.MeshStandardMaterial({ color: 0xc8a890, roughness: .6 });
 export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: .45 });
 export const ASP_TIP_BUSH = new THREE.MeshStandardMaterial({ color: 0x6a3a88, roughness: .6 });
 // projectiles glow clearly brighter than anything lying around
@@ -88,7 +91,20 @@ function berryGeo(crown: number) {
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); return g;
 }
-export const BERRY_GEO = { blue: berryGeo(.2), cran: berryGeo(.1) };
+/** blackberry: many small glossy drupelets on a slightly pointed ellipsoid, each with a lighter highlight (reference picture) */
+function blackberryGeo() {
+  const parts: THREE.BufferGeometry[] = [], N = 26;
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i + .5) / N * 2, rr = Math.sqrt(1 - y * y), a = i * 2.4;
+    const sx = Math.cos(a) * rr * .78, sz = Math.sin(a) * rr * .78, sy = y * (y < 0 ? 1.05 : .92);
+    const d = new THREE.SphereGeometry(.34, 8, 6); d.translate(sx, sy, sz);
+    const p = d.attributes.position, col: number[] = [];
+    for (let k = 0; k < p.count; k++) { const lx = p.getX(k) - sx, ly = p.getY(k) - sy, lz = p.getZ(k) - sz, hi = Math.max(0, (lx * .35 + ly * .8 + lz * .3) / .34); const c = .75 + Math.pow(hi, 6) * 1.6; col.push(c, c * .95, c * 1.08); }
+    d.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); parts.push(d);
+  }
+  const g = mergeGeometries(parts)!; g.scale(1, 1.12, 1); g.computeVertexNormals(); return g;
+}
+export const BERRY_GEO = { blue: berryGeo(.2), cran: berryGeo(.1), black: blackberryGeo() };
 export function fruitMesh(type: FruitType, scale: number, glow = true, proj = false) {
   const g = new THREE.Group();
   const mat = (proj ? (type === 'asp' ? PROJ_ASP : type === 'cran' ? PROJ_CRAN : PROJ_CAB) : glow ? GROUND_MAT[type] : BUSH_MAT[type]) ?? GROUND_MAT[type] ?? GROUND_MAT.wheat;
@@ -107,24 +123,38 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
     part(g, GEO.sph, mat, .075, .07, .075, 0, 0, 0); part(g, GEO.cone, mat, .035, .05, .035, 0, .075, 0);
     part(g, GEO.lo, NUT_CAP, .07, .035, .07, 0, .045, 0, false);
   }
-  else { const r = type === 'blue' ? .085 : .07; const b = part(g, !proj && (type === 'blue' || type === 'cran') ? BERRY_GEO[type as 'blue'] : GEO.sph, mat, r, r, r, 0, 0, 0); b.rotation.set(rand(-.6, .6), rand(0, 7), rand(-.6, .6)); }
+  else { const r = type === 'black' ? .095 : type === 'blue' ? .085 : .07; const b = part(g, !proj && (type === 'blue' || type === 'cran' || type === 'black') ? BERRY_GEO[type as 'blue'] : GEO.sph, mat, r, r, r, 0, 0, 0); b.rotation.set(rand(-.6, .6), rand(0, 7), rand(-.6, .6)); }
   g.scale.setScalar(scale); return g;
 }
 
 export interface PlantMats { leaf: THREE.MeshStandardMaterial; head: THREE.MeshStandardMaterial }
 export function buildPlant(type: FruitType, mats: PlantMats) {
   const g = new THREE.Group(); const fruits: THREE.Mesh[] = [];
-  if (type === 'blue') {
-    for (let i = 0; i < 7; i++) { const a = i / 7 * 7, r = i ? .38 : 0; part(g, GEO.ico, mats.leaf, rand(.32, .42), rand(.3, .4), rand(.32, .42), Math.cos(a) * r, .38 + (i ? 0 : .22), Math.sin(a) * r); }
-    for (let i = 0; i < 16; i++) { const a = rand(0, 7), y = rand(.25, .8), r = .62 - Math.abs(y - .5) * .3; { const b = part(g, BERRY_GEO.blue, BUSH_MAT.blue, .055, .055, .055, Math.cos(a) * r, y, Math.sin(a) * r, false); b.rotation.set(rand(-1.2, 1.2), rand(0, 7), rand(-1.2, 1.2)); fruits.push(b); } }
+  if (type === 'blue') { // 23.11.2026 blueberry bush: mixed saturated and dark green leaves, berries in bunches of 2-3
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 7, r = i ? rand(.28, .42) : 0; part(g, GEO.ico, i % 3 === 1 ? mats.head : mats.leaf, rand(.26, .36), rand(.24, .34), rand(.26, .36), Math.cos(a) * r, .36 + (i ? rand(-.04, .06) : .22), Math.sin(a) * r); }
+    for (let i = 0; i < 7; i++) {
+      const a = rand(0, 7), y = rand(.3, .75), r = .6 - Math.abs(y - .5) * .3, n = 2 + (Math.random() < .5 ? 1 : 0);
+      for (let k = 0; k < n; k++) { const o = k / n * 6.28 + rand(0, 1); const b = part(g, BERRY_GEO.blue, BUSH_MAT.blue, .058, .058, .058, Math.cos(a) * r + Math.cos(o) * .06, y - k * .03, Math.sin(a) * r + Math.sin(o) * .06, false); b.rotation.set(rand(-1.2, 1.2), rand(0, 7), rand(-1.2, 1.2)); fruits.push(b); }
+    }
   } else if (type === 'asp') {
     for (let i = 0; i < 9; i++) {
       const a = rand(0, 7), r = rand(0, .5), h = rand(.4, .8); const st = part(g, GEO.cyl, mats.leaf, .04, h, .04, Math.cos(a) * r, h / 2, Math.sin(a) * r); st.rotation.set(rand(-.15, .15), 0, rand(-.15, .15));
       fruits.push(part(g, GEO.cone, ASP_TIP_BUSH, .055, .12, .055, Math.cos(a) * r, h + .04, Math.sin(a) * r, false));
     }
-  } else if (type === 'cran') {
-    for (let i = 0; i < 8; i++) { const a = i / 8 * 7, r = rand(.15, .5); part(g, GEO.ico, mats.leaf, rand(.22, .3), rand(.14, .2), rand(.22, .3), Math.cos(a) * r, .16, Math.sin(a) * r); }
-    for (let i = 0; i < 22; i++) { const a = rand(0, 7), r = rand(.1, .65); { const b = part(g, BERRY_GEO.cran, BUSH_MAT.cran, .045, .045, .045, Math.cos(a) * r, rand(.2, .36), Math.sin(a) * r, false); b.rotation.set(rand(-1.2, 1.2), rand(0, 7), rand(-1.2, 1.2)); fruits.push(b); } }
+  } else if (type === 'cran') { // 23.11.2026 lingonberry: low, compact, many small saturated green leaves, berries in bunches of 3-4
+    for (let i = 0; i < 16; i++) { const a = rand(0, 7), r = Math.sqrt(Math.random()) * .55; part(g, GEO.ico, mats.leaf, rand(.12, .17), rand(.08, .12), rand(.12, .17), Math.cos(a) * r, rand(.12, .26), Math.sin(a) * r); }
+    for (let i = 0; i < 7; i++) {
+      const a = rand(0, 7), r = rand(.15, .55), y = rand(.24, .34), n = 3 + (Math.random() < .5 ? 1 : 0);
+      for (let k = 0; k < n; k++) { const o = k / n * 6.28 + rand(0, 1); const b = part(g, BERRY_GEO.cran, BUSH_MAT.cran, .042, .042, .042, Math.cos(a) * r + Math.cos(o) * .045, y - (k % 2) * .03, Math.sin(a) * r + Math.sin(o) * .045, false); b.rotation.set(rand(-1.2, 1.2), rand(0, 7), rand(-1.2, 1.2)); fruits.push(b); }
+    }
+  } else if (type === 'black') { // 23.11.2026 blackberry: darker cool green leaves (some reddish), thorny arching canes, single big drupelet berries
+    for (let i = 0; i < 4; i++) { // arching canes with small thorns
+      const a = i / 4 * 6.28 + rand(-.3, .3), cane = new THREE.Group(); cane.rotation.y = -a; g.add(cane);
+      const c = part(cane, GEO.cyl, THORN_CANE, .028, .7, .028, .2, .4, 0); c.rotation.z = -.75;
+      for (let k = 0; k < 5; k++) { const t = .1 + k * .12, th = part(cane, GEO.cone, THORN, .014, .045, .014, .2 + (t - .35) * .68 * 1, .4 + (t - .35) * .73, (k % 2 ? 1 : -1) * .02, false); th.rotation.set((k % 2 ? 1 : -1) * 1.3, 0, -.75 + .8); }
+    }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 7, r = i ? rand(.25, .45) : 0; part(g, GEO.ico, i % 4 === 2 ? mats.head : mats.leaf, rand(.24, .32), rand(.2, .28), rand(.24, .32), Math.cos(a) * r, .34 + (i ? rand(-.05, .08) : .16), Math.sin(a) * r); }
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.28 + rand(-.2, .2), y = rand(.28, .7), r = .58 - Math.abs(y - .48) * .3; const b = part(g, BERRY_GEO.black, BUSH_MAT.black, .075, .075, .075, Math.cos(a) * r, y, Math.sin(a) * r, false); b.rotation.set(rand(-.4, .4), rand(0, 7), rand(-.4, .4)); fruits.push(b); }
   } else if (type === 'lemon') { // small lemon tree: trunk, round crown, lemons on the outside
     part(g, GEO.cyl, mats.head, .06, .7, .06, 0, .35, 0);
     for (let i = 0; i < 5; i++) { const a = i / 5 * 7; part(g, GEO.ico, mats.leaf, rand(.28, .36), rand(.24, .3), rand(.28, .36), Math.cos(a) * .18, .85 + rand(-.05, .1), Math.sin(a) * .18); }

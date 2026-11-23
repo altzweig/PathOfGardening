@@ -4,7 +4,7 @@ import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
 
-export interface BotOpts { old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number }
+export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number }
 export interface RunResult {
   won: boolean; wave: number; level: number; time: number; deaths: number; kills: number;
   lvAtWave: Record<number, number>; deathsAtWave: Record<number, number>; fieldHpAtWave: Record<number, number>;
@@ -18,6 +18,9 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   const second = o.second ?? GUN_FRUITS[Math.floor(Math.random() * GUN_FRUITS.length)];
   const extra: SkillId[] = o.seconds ?? (o.weapons === 2 ? [second] : []);
   const want = new Set<string>(o.old ? [second] : ['blue', ...extra]); const focus = o.focus ?? 'weapons';
+  // 23.11.2026 start field choice: one berry at random (or opts.start); its fruit is shotgun ammo, so the bot wants it
+  const SC = cfg.arena.startChoice ?? [], startB = o.start ?? SC[Math.floor(Math.random() * SC.length)];
+  if (startB) want.add(startB);
   const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [] };
   const dt = o.dt ?? .05, maxT = o.maxTime ?? 3 * 3600; let lastWave = 0, noAmmo = 0, fightT = 0, mineX = 1e9, mineZ = 1e9;
   const slots = (sim as any).slots as { x: number; z: number; q: number; r: number; forest?: boolean }[];
@@ -28,6 +31,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   /** how much a card helps right now (0 = no real advantage, the bot only takes it if nothing else is offered) */
   function score(key: string): number {
     const [a, b] = key.split('_');
+    if (a === 'start') return b === startB ? 100 : 1;
     if (a === 'learn') return want.has(b) ? 100 : 0;
     if (a === 'combo') return 0;
     if (a === 'new' || a === 'field') {

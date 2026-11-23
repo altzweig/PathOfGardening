@@ -4,7 +4,7 @@ import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
 
-export interface BotOpts { old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seedLog?: boolean; dt?: number; maxTime?: number }
+export interface BotOpts { old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number }
 export interface RunResult {
   won: boolean; wave: number; level: number; time: number; deaths: number; kills: number;
   lvAtWave: Record<number, number>; deathsAtWave: Record<number, number>; fieldHpAtWave: Record<number, number>;
@@ -16,8 +16,9 @@ const GUN_FRUITS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
 export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   const sim = new Sim(cfg); const p = sim.players.length ? sim.players[0] : sim.addPlayer(1, 0xffffff);
   const second = o.second ?? GUN_FRUITS[Math.floor(Math.random() * GUN_FRUITS.length)];
-  const want = new Set<string>(o.old ? [second] : ['blue', ...(o.weapons === 2 ? [second] : [])]);
-  const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, second: o.weapons === 2 ? second : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [] };
+  const extra: SkillId[] = o.seconds ?? (o.weapons === 2 ? [second] : []);
+  const want = new Set<string>(o.old ? [second] : ['blue', ...extra]); const focus = o.focus ?? 'weapons';
+  const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [] };
   const dt = o.dt ?? .05, maxT = o.maxTime ?? 3 * 3600; let lastWave = 0, noAmmo = 0, fightT = 0, mineX = 1e9, mineZ = 1e9;
   const slots = (sim as any).slots as { x: number; z: number; q: number; r: number; forest?: boolean }[];
   const hex = (a: { q: number; r: number }, b: { q: number; r: number }) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
@@ -40,12 +41,15 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       }
       return sim.fields.filter(f => f.alive).length < 4 ? 50 : 20; // any other crop: more XP and one more tile the animals have to eat before the garden is lost
     }
+    if (focus === 'fields' && (a === 'up' || a === 'yield')) return want.has(b) ? 70 : 45;
     if (a === 'up') return want.has(b) ? (b === 'blue' ? 30 : 35) : 10;
     if (a === 'yield') return want.has(b) ? 25 : 8;
     if (a === 'care') return 10;
     if (a === 'rake') return b === 'dmg' || b === 'cd' ? 5 : 3;
     if (a === 'tea') return 1;
     if (learned().includes(a as SkillId)) { // weapon upgrade
+      if (focus === 'main' && extra.length && a === 'blue' && learned().includes(extra[0])) return 20; // all-in on the main weapon once it is there
+      if (focus === 'fields') return b === 'dmg' || b === 'cd' ? 40 : 30;
       if (b === 'dmg') return 60; if (b === 'cd') return 58; if (b === 'pel') return 56; if (b === 'rng') return 30; return 40;
     }
     return 0;
@@ -88,7 +92,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const go = (x: number, z: number, stop = .3) => { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); if (l > stop) { it.mx = dx / l; it.mz = dz / l; } };
       const near = (x: number, z: number, r: number) => { let b = null as any, bd = r; for (const e of ens) { const d = Math.hypot(e.x - x, e.z - z); if (d < bd) { bd = d; b = e; } } return b; };
       const weapons = learned().filter(w => sim.isReady(p, w));
-      const sec = weapons.find(w => w !== 'blue'), gun = sec && sec !== 'cab' ? sec : weapons.includes('blue') ? 'blue' : undefined;
+      const sec = weapons.includes('cab') ? 'cab' : weapons.find(w => w !== 'blue'), gun = weapons.find(w => w !== 'blue' && w !== 'cab') ?? (weapons.includes('blue') ? 'blue' : undefined);
       // the enemy that matters most: close to the player, or eating the garden
       let tgt = null as any, td = 1e9;
       for (const e of ens) { const d = Math.hypot(e.x - p.x, e.z - p.z), dc = Math.hypot(e.x, e.z); if (dc > 14 && d > 6) continue; const pr = d + dc * .3 - (e.target?.kind === 'field' ? 5 : 0) - (e.type === 'toad' ? 2 : 0); if (pr < td) { td = pr; tgt = e; } }

@@ -86,6 +86,7 @@ export class Hud {
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
     const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'blue' && t !== 'wheat' && !isBuilding(t as any));
+    if ((pr.sl || []).includes(SKILLS.indexOf('flour'))) have.push('flour'); // Mehlsack: flour is ammo now
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {

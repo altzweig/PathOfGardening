@@ -91,6 +91,20 @@ export const SND: Record<string, (arg?: any) => void> = {
   /** lying cranberry pops: soft wet splat */
   berryPop() { if (can('berryPop', .06)) { noise({ t: .12, vol: .09, type: 'lowpass', f: 1400, f2: 300 }); tone({ f: 260, f2: 90, t: .1, vol: .07 }); } },
   shot() { if (can('shot', .05)) { noise({ t: .22, vol: .28, f: 4000, f2: 300 }); tone({ f: 140, f2: 45, t: .16, vol: .25 }); } },
+  /** Mehlsack: cloth swing whoosh around the body + a powdery hiss that settles */
+  flour() {
+    if (!can('flour', .2)) return;
+    noise({ t: .45, vol: .16, type: 'bandpass', f: 350, f2: 1400, q: 1.4, at: .08 });
+    noise({ t: .9, vol: .09, type: 'highpass', f: 5200, f2: 2600, q: .5, when: .12, at: .15 });
+    for (let i = 0; i < 6; i++) noise({ t: rand(.05, .1), vol: rand(.02, .05), type: 'bandpass', f: rand(5000, 9000), q: 3, when: .15 + rand(0, .6), at: .01 });
+  },
+  /** flour cloud catches fire: deep whoomp, roaring rush that grows and fades, lots of crackle */
+  flourFire() {
+    if (!can('flourFire', .25)) return;
+    tone({ f: 70, f2: 32, t: .7, vol: .34 }); noise({ t: .35, vol: .3, f: 600, f2: 80, at: .01 });
+    noise({ t: 1.6, vol: .2, type: 'bandpass', f: 500, f2: 1800, q: .6, at: .25 });
+    for (let i = 0; i < 26; i++) noise({ t: rand(.02, .05), vol: rand(.04, .11), type: 'bandpass', f: rand(2500, 7000), q: rand(2, 5), when: rand(.05, 1.6), at: .002 });
+  },
   throw() { if (can('throw', .05)) noise({ t: .25, vol: .1, type: 'bandpass', f: 600, f2: 1600, q: 2 }); },
   boom() { if (can('boom', .04)) { noise({ t: .55, vol: .32, f: 900, f2: 90 }); tone({ f: 85, f2: 30, t: .45, vol: .32 }); } },
   boomS() { if (can('boomS', .04)) { noise({ t: .25, vol: .18, f: 900, f2: 90 }); tone({ f: 120, f2: 30, t: .2, vol: .18 }); } },

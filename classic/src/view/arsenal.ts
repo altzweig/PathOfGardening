@@ -551,3 +551,22 @@ export function tintBerries(g: THREE.Object3D, blue: boolean) {
   if (!BLUE_BERRY) { BLUE_BERRY = (K.berry as THREE.MeshStandardMaterial).clone(); BLUE_BERRY.color.set(0x4a64e0); BLUE_BERRY.emissive.set(0x0a1450); }
   g.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; if (blue && m.material === K.berry) m.material = BLUE_BERRY!; else if (!blue && m.material === BLUE_BERRY) m.material = K.berry; });
 }
+
+let BURLAP: THREE.MeshStandardMaterial | null = null, FLOUR_M: THREE.MeshStandardMaterial | null = null;
+/** Mehlsack (23.11.2026): bulging burlap sack, tied neck with twine, open frayed mouth with a heap of flour; origin at the grip (neck) */
+export function flourSack() {
+  const K = kit(), g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  BURLAP ??= std(painted(128, 128, canvasPaint(0xc4a676, 0x6a5232), [3, 2]), { r: .95, bs: 2.2 }) as THREE.MeshStandardMaterial;
+  FLOUR_M ??= new THREE.MeshStandardMaterial({ color: 0xf6f1e6, roughness: 1, flatShading: true });
+  // sack hangs below the hand: profile from the bottom (z = -.3) up to the neck (z = 0) and a flared mouth above
+  const sack = mesh(body, lathe([[0, -.30], [.08, -.295], [.125, -.26], [.14, -.2], [.135, -.12], [.11, -.06], [.06, -.02], [.035, 0], [.04, .02], [.065, .05], [.075, .07]], 22), BURLAP);
+  sack.rotation.x = -Math.PI / 2; // lathe axis z -> up
+  const dent = sack.geometry.attributes.position as THREE.BufferAttribute; // lumpy, saggy cloth
+  for (let i = 0; i < dent.count; i++) { const x = dent.getX(i), y = dent.getY(i), z = dent.getZ(i), n = Math.sin(x * 40 + z * 23) * Math.cos(y * 31) * .008; dent.setXYZ(i, x * (1 + n * 8), y * (1 + n * 8), z); }
+  sack.geometry.computeVertexNormals();
+  for (const ry of [0, .5]) { const t = mesh(body, new THREE.TorusGeometry(.038, .007, 6, 24), K.twine, 0, -.005, 0); t.rotation.set(Math.PI / 2, 0, ry); }
+  mesh(body, new THREE.TorusGeometry(.03, .005, 6, 16), K.twine, .05, -.01, 0).rotation.set(0, Math.PI / 2, .4); // loose end
+  const heap = mesh(body, new THREE.IcosahedronGeometry(.06, 1), FLOUR_M, 0, .065, 0, 1, .5, 1); heap.name = 'flourHeap';
+  for (let i = 0; i < 5; i++) mesh(body, new THREE.IcosahedronGeometry(.018, 0), FLOUR_M, Math.cos(i * 1.3) * .1, -.12 - i * .03, Math.sin(i * 1.3) * .12, 1, .4, 1); // dusty spots
+  return g;
+}

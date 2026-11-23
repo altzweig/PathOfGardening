@@ -43,14 +43,15 @@ import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
-import { aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
+import { FlourFX } from './flourfx';
+import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
 
-interface PView { gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { sack?: THREE.Group; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
@@ -114,6 +115,7 @@ export interface LocalAim { weapon: Weapon | null; x: number; z: number; show: b
 
 export class GameView {
   cfg!: Balancing;
+  private flourFx = new FlourFX();
   me = 0;
   smooth = false; // clients interpolate
   snap: Snap | null = null;
@@ -391,6 +393,7 @@ export class GameView {
     for (const k of ['asp', 'cab']) this.aimInd[k].rotation.x = -Math.PI / 2;
     for (const k in this.aimInd) { const m = this.aimInd[k]; (m.material as THREE.Material).side = THREE.DoubleSide; m.position.y = .045; m.visible = false; scene.add(m); }
     this.aggro.scale.setScalar(cfg.enemies.aggroRadius);
+    this.flourFx.setConfig(cfg);
   }
   reset() {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
@@ -399,12 +402,13 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
-    stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    this.flourFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
   apply(s: Snap) {
     this.snap = s; const id = ++this.frameId;
+    this.flourFx.sync(s.cl);
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -747,6 +751,10 @@ export class GameView {
         break;
       }
       case 'shot': {
+        if (e.w === 'flour') { // spin throw: flour puffs flung out in a ring (the cloud itself is the FlourFX)
+          for (let i = 0; i < 18; i++) { const an = i / 18 * Math.PI * 2; PART.spawn(V(e.x, .7, e.z), V(Math.cos(an) * 3.6, .5, Math.sin(an) * 3.6), 0xf4efe4, .3, .5, { drag: 3 }); }
+          break;
+        }
         const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
         burst(V(e.x, .75, e.z), col, 10, 2.2, .2, .22); PART.spawn(V(e.x, .75, e.z), V(0, 0, 0), col, .9, .12);
         const pv = this.players.get(e.p); if (pv) { pv.recoil = e.w === 'lemon' ? .04 : .12; if (e.w === 'lemon') pv.lemonMat.emissiveIntensity = .55; } // wand: the lemon flares up
@@ -848,7 +856,7 @@ export class GameView {
 
   // ---------------- per frame ----------------
   frame(dt: number) {
-    windU.value += dt;
+    windU.value += dt; this.flourFx.frame(dt);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
     if (s) {
@@ -894,7 +902,8 @@ export class GameView {
     v.g.position.set(v.x, 0, v.z); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(v.x, .035, v.z);
     const swinging = s.sw > 0;
     v.rot = lerpAngle(v.rot, swinging ? s.sd : s.f, swinging ? .55 : .25); // a running stroke turns with the player at once
-    v.g.rotation.y = v.rot;
+    const sp = s.sp || 0; // Mehlsack: one full turn, fast start, soft stop
+    v.g.rotation.y = v.rot + (sp > 0 ? (1 - Math.pow(1 - sp, 2.2)) * Math.PI * 2 : 0);
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
     const stepN = Math.floor(s.wk / Math.PI); if (stepN !== v.stepN) { if (v.stepN !== undefined && s.al) sfx('player.step', v.x, v.z, s.id === this.me ? 1 : .6); v.stepN = stepN; }
     v.recoil = Math.max(0, v.recoil - dt); v.body.position.z = -v.recoil * .6;
@@ -929,7 +938,7 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible || v.sack?.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -957,6 +966,7 @@ export class GameView {
     else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
     else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
+    else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
@@ -982,6 +992,9 @@ export class GameView {
     if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
+    const sackOn = al && aw === 'flour';
+    if (sackOn && !v.sack) { const m = flourSack(); m.position.set(.26, .86, .1); v.g.add(m); v.sack = m; }
+    if (v.sack) { v.sack.visible = sackOn; const sp = v.s.sp || 0; v.sack.rotation.z = sp > 0 ? -Math.sin(sp * Math.PI) * 1.3 : lerp(v.sack.rotation.z, Math.sin(performance.now() / 260) * .06, .2); v.sack.position.x = .26 + (sp > 0 ? Math.sin(sp * Math.PI) * .22 : 0); }
   }
   /** asparagus crossbow in the hand: wooden stock, asparagus bow, string, an asparagus bolt loaded on top */
   private animXbow(v: PView) {

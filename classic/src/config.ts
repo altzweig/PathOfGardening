@@ -1,7 +1,7 @@
 import YAML from 'yaml';
 
 /** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour';
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
@@ -9,10 +9,10 @@ export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'cow'
 export type ProductType = 'flour' | 'water' | 'milk' | 'egg' | 'juice' | 'bread' | 'cheese' | 'meal';
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour'];
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
 export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
-export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili'];
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour'];
 export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'cow', 'dairy', 'kitchen'];
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'milk', 'egg', 'juice', 'bread', 'cheese', 'meal'];
 export const FRUITS: FruitType[] = ['blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
@@ -22,7 +22,9 @@ export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?:
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
-export const isWeaponFruit = (t: FruitType): t is SkillId => (SKILLS as string[]).includes(t);
+export const isWeaponFruit = (t: FruitType): t is SkillId => t !== 'flour' && (SKILLS as string[]).includes(t);
+/** Mehlsack (23.11.2026): flour from the mill is its ammo once the sack is learned */
+export const FLOUR_SACK = 'flour' as const;
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
 export type ComboId = 'jam' | 'cole' | 'sour' | 'lance' | 'cabboom' | 'shock' | 'hot' | 'rocket' | 'kimchi' | 'chilight';
 export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'shock', 'hot', 'rocket', 'kimchi', 'chilight'];
@@ -77,6 +79,8 @@ export interface Balancing {
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
     blue: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; freeze: number };
+    /** Mehlsack: spin throw -> flour cloud (life s, last fade s); fire ignites it -> burn front sweeps outwards at frontSpeed m/s */
+    flour: { damage: number; range: number; cooldown: number; ammoPerShot: number; spin: number; life: number; fade: number; frontSpeed: number; burnTime: number; burnDps: number; maxClouds: number; minLevel?: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
@@ -98,6 +102,8 @@ export interface Balancing {
       rain: { count: number; interval: number; warn: number; radius: number } } } & Record<EnemyType, EnemyCfg>;
   /** day-night cycle: dayWaves day waves, then nightWaves night waves (boss in the last one); night waves bigger/stronger */
   dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
+  /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */
+  fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   weaponSlots?: { max: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
   combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };

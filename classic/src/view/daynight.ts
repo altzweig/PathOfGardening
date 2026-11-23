@@ -68,7 +68,7 @@ function apply(S: DayState) {
   envU.uDay.value = day;
   renderer.toneMappingExposure = 1.05 * night + 1.22 * day;
   // bloom: strong glow in the dark, gentle in daylight (otherwise sunlit surfaces would bloom)
-  bloom.strength = 1.15 * night + .5 * day; bloom.threshold = .72 * night + .9 * day;
+  bloom.strength = .8 * night + .5 * day; bloom.threshold = .97 * night + .9 * day; // 23.11.2026: only really bright things (lanterns, ripe fruit, shots) bloom at night
   // man-made lights only matter in the dark
   const dark = Math.max(night, warm * .4);
   lantern.intensity = 22 * dark; torch.intensity = 3.5 * dark; gardenLight.intensity = 80 * night;

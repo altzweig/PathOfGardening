@@ -34,6 +34,8 @@ export class Hud {
     el.style.opacity = st.op.toFixed(2);
     el.style.transform = `translate(${pos.x}px,${pos.y}px) translate(-50%,-100%)`;
   }
+  /** display names of the goods (balancing names.items) */
+  names: Record<string, string> = {};
   constructor() {
     const box = $('#btns');
     for (const w of WEAPONS) {
@@ -91,7 +93,7 @@ export class Hud {
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
     const key = [...new Set(have)].join(',');
     if (key !== this.resKey) {
-      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="chip${(SKILLS as string[]).includes(t) ? '' : ' bag'}">${fruitIcon(t)}<span data-r="${t}">0</span></div>`).join('');
+      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="ri${(SKILLS as string[]).includes(t) ? '' : ' bag'}"><span data-r="${t}">0</span>${fruitIcon(t)}<b>${this.names[t] ?? ''}</b></div>`).join('');
       for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
     }
     document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const r = el.dataset.r === 'fegg' ? 'pan' : el.dataset.r, i0 = SKILLS.indexOf(r as any), i = i0 >= 0 && (pr.ln[i0] || !['flour', 'pan'].includes(r!)) ? i0 : -1; /* Mehl / Spiegeleier: ammo once their weapon is learned, else in the bag */ const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : i >= 0 ? pr.am[i] : pr.iv?.[FRUITS.indexOf(el.dataset.r as any)] ?? 0); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });

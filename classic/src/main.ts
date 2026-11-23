@@ -165,7 +165,7 @@ class Game {
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
   }
   enterGame() {
-    only(null); show('#hud'); this.hud.reset(); this.view.reset(); this.view.me = this.me;
+    only(null); show('#hud'); this.hud.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
     this.input.enabled = true; this.luShownFor = ''; this.overShown = false;
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     try { (navigator as any).wakeLock?.request('screen').catch(() => {}); } catch { /* ignore */ }

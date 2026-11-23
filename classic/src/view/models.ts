@@ -17,22 +17,22 @@ export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknow
   // berries: real berry shape (vertex colours = dark crown), royal blue / raspberry red, glossy instead of milky glow;
   // blueberries only glow up (gently) as the next level-up approaches, see View.berryGlow
   blue: new THREE.MeshStandardMaterial({ color: 0x3358ff, emissive: 0x2440ff, emissiveIntensity: 0, roughness: .3, vertexColors: true }),
-  asp: new THREE.MeshStandardMaterial({ color: 0x7fbf45, emissive: 0x4fa01a, emissiveIntensity: 1.1, roughness: .5 }),
+  asp: new THREE.MeshStandardMaterial({ color: 0x7fbf45, emissive: 0x4fa01a, emissiveIntensity: .44, roughness: .5 }),
   cran: new THREE.MeshStandardMaterial({ color: 0xc80a48, emissive: 0xe0104a, emissiveIntensity: .06, roughness: .22, vertexColors: true }),
-  cab: new THREE.MeshStandardMaterial({ color: 0x9ad870, emissive: 0x5aa020, emissiveIntensity: .9, roughness: .6, flatShading: true }),
-  lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: 1.1, roughness: .4 }),
-  chili: new THREE.MeshStandardMaterial({ color: 0xe0200c, emissive: 0xff2a08, emissiveIntensity: 1.2, roughness: .3 }),
-  nut: new THREE.MeshStandardMaterial({ color: 0xa8743a, emissive: 0xc07a28, emissiveIntensity: .8, roughness: .5 }), // lying nuts glow warm, so they can be found in the grass
-  // goods from the fields and buildings: glow a little, so they can be found next to the buildings
-  wheat: new THREE.MeshStandardMaterial({ color: 0xe0b85a, emissive: 0xc09030, emissiveIntensity: .7, roughness: .6, flatShading: true }),
-  flour: new THREE.MeshStandardMaterial({ color: 0xf0e8d8, emissive: 0xfff4e0, emissiveIntensity: .35, roughness: .9, flatShading: true }),
-  water: new THREE.MeshStandardMaterial({ color: 0x4aa8ff, emissive: 0x3a90ff, emissiveIntensity: .8, roughness: .15, transparent: true, opacity: .85 }),
-  milk: new THREE.MeshStandardMaterial({ color: 0xf6f6ee, emissive: 0xffffff, emissiveIntensity: .25, roughness: .3 }),
-  egg: new THREE.MeshStandardMaterial({ color: 0xf0dcbc, emissive: 0xffe8c0, emissiveIntensity: .35, roughness: .4 }),
-  juice: new THREE.MeshStandardMaterial({ color: 0xc02850, emissive: 0xe03060, emissiveIntensity: .7, roughness: .2 }),
-  bread: new THREE.MeshStandardMaterial({ color: 0xb87a38, emissive: 0xc07a28, emissiveIntensity: .45, roughness: .7, flatShading: true }),
-  cheese: new THREE.MeshStandardMaterial({ color: 0xf2c630, emissive: 0xf0b820, emissiveIntensity: .55, roughness: .5, flatShading: true }),
-  fegg: new THREE.MeshStandardMaterial({ color: 0xfffaf0, emissive: 0xfff0d0, emissiveIntensity: .3, roughness: .4 }),
+  cab: new THREE.MeshStandardMaterial({ color: 0x9ad870, emissive: 0x5aa020, emissiveIntensity: .36, roughness: .6, flatShading: true }),
+  lemon: new THREE.MeshStandardMaterial({ color: 0xf0d030, emissive: 0xffd020, emissiveIntensity: .44, roughness: .4 }),
+  chili: new THREE.MeshStandardMaterial({ color: 0xe0200c, emissive: 0xff2a08, emissiveIntensity: .48, roughness: .3 }),
+  nut: new THREE.MeshStandardMaterial({ color: 0xa8743a, emissive: 0xc07a28, emissiveIntensity: .32, roughness: .5 }), // lying nuts glow warm, so they can be found in the grass
+  // 23.11.2026: lying goods only glow faintly (40 %), so the night stays clear; goods from the fields and buildings: glow a little, so they can be found next to the buildings
+  wheat: new THREE.MeshStandardMaterial({ color: 0xe0b85a, emissive: 0xc09030, emissiveIntensity: .28, roughness: .6, flatShading: true }),
+  flour: new THREE.MeshStandardMaterial({ color: 0xf0e8d8, emissive: 0xfff4e0, emissiveIntensity: .14, roughness: .9, flatShading: true }),
+  water: new THREE.MeshStandardMaterial({ color: 0x4aa8ff, emissive: 0x3a90ff, emissiveIntensity: .32, roughness: .15, transparent: true, opacity: .85 }),
+  milk: new THREE.MeshStandardMaterial({ color: 0xf6f6ee, emissive: 0xffffff, emissiveIntensity: .1, roughness: .3 }),
+  egg: new THREE.MeshStandardMaterial({ color: 0xf0dcbc, emissive: 0xffe8c0, emissiveIntensity: .14, roughness: .4 }),
+  juice: new THREE.MeshStandardMaterial({ color: 0xc02850, emissive: 0xe03060, emissiveIntensity: .28, roughness: .2 }),
+  bread: new THREE.MeshStandardMaterial({ color: 0xb87a38, emissive: 0xc07a28, emissiveIntensity: .18, roughness: .7, flatShading: true }),
+  cheese: new THREE.MeshStandardMaterial({ color: 0xf2c630, emissive: 0xf0b820, emissiveIntensity: .22, roughness: .5, flatShading: true }),
+  fegg: new THREE.MeshStandardMaterial({ color: 0xfffaf0, emissive: 0xfff0d0, emissiveIntensity: .12, roughness: .4 }),
 };
 const GLASS = new THREE.MeshStandardMaterial({ color: 0xdff0ff, roughness: .1, transparent: true, opacity: .45 });
 const CORK = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: .8 });
@@ -66,7 +66,7 @@ export const BUSH_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>
   wheat: new THREE.MeshStandardMaterial({ color: 0xd8b050, roughness: .7, flatShading: true }),
 };
 export const CHILI_STEM = new THREE.MeshStandardMaterial({ color: 0x3f7a2a, roughness: .6 });
-export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: 1.1 });
+export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: .45 });
 export const ASP_TIP_BUSH = new THREE.MeshStandardMaterial({ color: 0x6a3a88, roughness: .6 });
 // projectiles glow clearly brighter than anything lying around
 export const PROJ_ASP = new THREE.MeshStandardMaterial({ color: 0xb8ff70, emissive: 0x8cff3a, emissiveIntensity: 3.2, roughness: .4 });
@@ -168,6 +168,7 @@ export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
   const body = new THREE.Group(); g.add(body);
   // detailed farmer figure (character editor look), hands follow the weapons via IK (view.animPlayer)
   const rig = buildFarmer(look); body.add(rig.root);
+  addOutline(rig.root, INK, .014, false); // clear dark silhouette (23.11.2026)
   // rake: pivot at the player, head reaches exactly the hit range so the swing matches the cone
   const rake = new THREE.Group(); rake.position.set(0, .62, 0); rake.rotation.order = 'YXZ'; g.add(rake);
   const L = rakeLen - .12;
@@ -183,7 +184,7 @@ export function buildPlayer(look: Look, rakeLen: number, rakeW: number) {
   return { g, body, rake, head, stars, L, wand, wandTip, wandGrip: stick, lemonMat, rig };
 }
 
-// eye colours requested for the darkness: panda orange, raccoon blue, toad green
+// eye colours requested for the darkness: panda orange, raccoon blue, toad golden on blue skin
 export const EYE_COL: Record<EnemyType, number> = ANIMAL_EYE;
 
 const shieldBase = new THREE.ShaderMaterial({
@@ -213,6 +214,8 @@ export function buildEnemy(type: EnemyType, boss = false) {
  *  then the brim from the outside in. uCol = colour, uPulse = emissive blink. */
 /** elite colour per animal (its eye colour; the sheep gets warm gold) */
 export const ELITE_COL: Record<EnemyType, number> = { ...EYE_COL, sheep: 0xffd860 };
+/** dark outline colour of the figure and the animals */
+export const INK = 0x140e0a;
 // Glowing outline: inverted hull of every lit body part, pushed out along smoothed normals by a fixed
 // world width, drawn back-faces only (shows only around the silhouette), HDR colour -> slight bloom.
 const outlineGeo = new Map<string, THREE.BufferGeometry>();
@@ -226,8 +229,8 @@ function smoothGeo(g: THREE.BufferGeometry) {
   return o;
 }
 const outlineMats = new Map<string, THREE.ShaderMaterial>();
-function outlineMat(color: number, width: number) {
-  const key = color + ':' + width; let m = outlineMats.get(key);
+function outlineMat(color: number, width: number, glow = true) {
+  const key = color + ':' + width + ':' + glow; let m = outlineMats.get(key);
   if (!m) {
     m = new THREE.ShaderMaterial({
       uniforms: { uColor: { value: new THREE.Color(color) }, uW: { value: width }, uTime: windU, uDay: envU.uDay },
@@ -244,15 +247,16 @@ function outlineMat(color: number, width: number) {
           #include <skinning_vertex>
           vec4 wp=modelMatrix*vec4(transformed,1.); vec3 n=normalize(mat3(modelMatrix)*objectNormal);
           wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; }`,
-      fragmentShader: `uniform vec3 uColor; uniform float uTime; uniform float uDay; void main(){ gl_FragColor=vec4(uColor*(1.9+.35*sin(uTime*3.)+uDay*.8),1.); }`,
+      fragmentShader: glow ? `uniform vec3 uColor; uniform float uTime; uniform float uDay; void main(){ gl_FragColor=vec4(uColor*(1.9+.35*sin(uTime*3.)+uDay*.8),1.); }`
+        : `uniform vec3 uColor; void main(){ gl_FragColor=vec4(uColor,1.); }`, // plain dark ink line (23.11.2026: clearer silhouettes, no glow)
     });
     outlineMats.set(key, m);
   }
   return m;
 }
 /** add a glowing outline in the given colour around all lit parts below root (eyes, shield, stars stay without) */
-export function addOutline(root: THREE.Object3D, color: number, width = .03) {
-  const mat = outlineMat(color, width), list: THREE.Mesh[] = [];
+export function addOutline(root: THREE.Object3D, color: number, width = .03, glow = true) {
+  const mat = outlineMat(color, width, glow), list: THREE.Mesh[] = [];
   root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && (m.material as THREE.Material).type === 'MeshStandardMaterial') list.push(m); });
   for (const m of list) {
     const sk = m as THREE.SkinnedMesh;

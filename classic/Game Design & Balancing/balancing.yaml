@@ -595,7 +595,7 @@ waves:
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
-  countMultiplier: 0.7     # 23.11.2026 Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
+  countMultiplier: 0.6     # 23.11.2026 0.7 -> 0.6 (Basti: Gegner etwas leichter nach halbierter Beerenmenge; Bot Median wieder ca. Welle 38-40). Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 1.0     # s länger je Welle (23.11.2026 Sim-Balancing: 2.5 -> 1.0, weniger Gruppen in späten Wellen)
   countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier

@@ -92,7 +92,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       }
       continue;
     }
-    // ---- Werkstatt (23.11.2026): buy the best ideas, then leave ----
+    // ---- Werkstatt (opens by itself every werkstatt.everyLevels levels): buy the best ideas, then leave ----
     if (p.shopOpen && p.shop) {
       for (;;) { const c = p.shop.map((x, i) => ({ i, x, s: x.sold || (x.cost ?? 1) > p.ideas ? -1 : x.gold ? 80 : score(x.key) })).filter(c => c.s >= 0).sort((a, b) => b.s - a.s)[0]; if (!c) break; sim.buy(p.id, c.i); res.picks['shop:' + c.x.key] = (res.picks['shop:' + c.x.key] || 0) + 1; }
       sim.closeShop(p.id);
@@ -127,7 +127,6 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
         fightT += dt; noAmmo += dt;
         go(close.x, close.z, .9); it.fire = sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2 ? 'cab' : 'rake'; if (it.fire === 'cab') { mineX = p.x; mineZ = p.z; }
       } else if (fb && fd < 6) go(fb.x, fb.z, .05);
-      else if (sim.wavePause && p.ideas > 0 && !p.shopLock && p.shop && !p.shopOpen) go(0, 0, .3); // to the chest: Werkstatt
       else if (!tgt && press && (p.ammo as any)[p.berry] > 25) { const d = Math.hypot(press.x - p.x, press.z - p.z); if (d > .4) go(press.x, press.z, .2); it.fire = 'rake'; } // press spare berries into XP
       else { // tend the garden: broken building / wilting tile first, else the weapon fields (raking makes ammo)
         let ff = null as any, fs = 1e9;

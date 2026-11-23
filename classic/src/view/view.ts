@@ -30,13 +30,13 @@ import { FireSprites, FlameFx, GroundHeat, makeFlame, updateFlame } from './flam
 import { fruitIcon, mini, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
+  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
-import { buildWorld, setForestClearings, setGardenSlots, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
+import { buildWorld, setEarthSpots, updateGround, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
 import { GROUND_MAT, rakeHead } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
@@ -423,8 +423,6 @@ export class GameView {
     this.rakeW = cfg.rake.diameter;
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
-    setGardenSlots((x, z) => slotAt(cfg, this.slots, x, z) < 0);
-    setForestClearings(this.slots.filter(sl => sl.forest && !cfg.plants.nut?.disabled).map(sl => ({ x: sl.x, z: sl.z, r: hexR(cfg) * 1.25 })));
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
     for (const k in this.aimInd) scene.remove(this.aimInd[k]);
     this.aimInd = {
@@ -507,7 +505,13 @@ export class GameView {
       v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
-    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk !== this.fieldKey) { this.fieldKey = fk; syncTorches([], hexR(this.cfg)); } // no torches at the beds any more
+    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk + (s.ch !== undefined) !== this.fieldKey) {
+      this.fieldKey = fk + (s.ch !== undefined); syncTorches([], hexR(this.cfg)); // no torches at the beds any more
+      // wet earth around and between the fields (and the chest), meadow everywhere else
+      const H = hexR(this.cfg), es = s.fi.map(f => this.slots[f[0]]).filter(Boolean).map(sl => ({ x: sl.x, z: sl.z, r: H * 1.5 }));
+      if (s.ch !== undefined) es.push({ x: 0, z: 0, r: H * 1.5 });
+      setEarthSpots(es);
+    }
     // cabbage poison pools
     this.sync(this.pools, s.pu || [], id, p => p[0], (p) => {
       const m = new THREE.Mesh(GEO.circle, p[5] ? addMat(0xff5a10, .3) : new THREE.MeshBasicMaterial({ color: 0x3f9a22, transparent: true, opacity: .3, depthWrite: false }));
@@ -1015,7 +1019,7 @@ export class GameView {
     this.updateOverlay();
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
-    updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
+    updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day);
     this.night = 1 - dayNow().day;
     this.chestFn?.(dt, this.chestN);
     this.berryGlow(dt);
@@ -1030,8 +1034,11 @@ export class GameView {
     gradePass.uniforms.uHurt.value = meV ? this.hurtT * .7 + (meV.s.al ? 0 : .3) : 0;
     gradePass.uniforms.uLow.value = meV ? this.lowHp : 0;
     (document.getElementById('hurt') as HTMLElement).style.opacity = (this.hurtT * 1.2).toFixed(2);
+    if (this.noRender) return; // Werkstatt open: the world is hidden behind the full-screen shop, nothing to draw
     composer.render();
   }
+  /** true while a full-screen UI covers the world (Werkstatt): skip the 3D render */
+  noRender = false;
   private animPlayer(v: PView, dt: number, k: number) {
     const s = v.s, ox = v.x, oz = v.z;
     v.x = lerp(v.x, s.x, k); v.z = lerp(v.z, s.z, k);
@@ -1366,9 +1373,9 @@ export class GameView {
     }
   }
 
-  /** weapon test room: bare earth, no lantern, player on the left side of the screen */
+  /** weapon test room: bare earth, player on the left side of the screen */
   sandbox = false; sbSheet = false;
-  setSandbox(on: boolean) { this.sandbox = on; setBareRoom(on); lantern.visible = !on; }
+  setSandbox(on: boolean) { this.sandbox = on; setBareRoom(on); }
   private camX = 0; private camZ = 0;
   private updateCamera(dt: number) {
     const portrait = innerHeight > innerWidth;

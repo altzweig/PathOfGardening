@@ -94,7 +94,7 @@ export interface Player {
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack' | 'any';
   /** Werkstatt (23.11.2026): ideas (1 per level-up), the bench of this pause, open, must leave the chest before it opens again, s until it may open */
-  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; shopDelay: number;
+  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; shopDelay: number; shopWant?: boolean;
   /** bag: picked-up goods (wheat and products) to feed into buildings */
   inv: Partial<Record<FruitType, number>>;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
@@ -256,7 +256,7 @@ export class Sim {
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
     this.players.push(p);
-    if (!this.sb && this.wavePause && this.wave >= 1) this.genShop(p); // joined during a pause: the Werkstatt is ready for them too
+    if (!this.sb && this.players.some(q => q !== p && (q.shopOpen || q.shopWant))) { this.genShop(p); p.shopWant = true; } // joined while the others shop
     // 23.11.2026: before the first wave every player picks one of three berry start fields
     if (!this.sb && !this.started && this.wave === 0 && this.cfg.arena.startChoice?.length && (this.phase === 'play' || this.startPick)) {
       this.startPick = true; this.phase = 'lvl'; p.offers = this.startOffers(); p.picked = false;
@@ -2109,7 +2109,6 @@ export class Sim {
         this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
         this.xpHist.push({ w: this.wave, ...this.xpNow, lv: this.level }); this.xpNow = { h: 0, e: 0, j: 0 };
-        for (const p of this.players) { this.genShop(p); p.shopDelay = this.cfg.werkstatt?.openDelay ?? 1; p.shopLock = false; }
       }
     }
     const cap = this.cfg.enemies.maxAlive * this.f(this.cfg.coop.enemyCountExponent);
@@ -2503,19 +2502,24 @@ export class Sim {
     else this.applyOffer(p, o.key);
     this.emit({ k: 'buy', p: p.id, i, g: o.gold ? 1 : 0 });
   }
-  /** close the Werkstatt (it opens again after leaving the chest and coming back) */
-  closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
+  /** close the Werkstatt (until the next werkstatt.everyLevels levels) */
+  closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopWant = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
   /** everyone (alive) at the bench: the world stands still like during a level-up */
   get shopPause() { return !this.sb && this.players.some(p => p.shopOpen) && this.players.every(p => p.shopOpen || !p.alive); }
+  /** shop tiers already opened (one every werkstatt.everyLevels levels) */
+  shopTier = 0;
+  /** 23.11.2026: every werkstatt.everyLevels levels the Werkstatt opens by itself for everyone (after the level-up card) */
   private tickShop(dt: number) {
-    const WS = this.cfg.werkstatt; if (!WS || this.sb || !this.chestOn) return;
-    const can = this.wavePause && this.wave >= 1 && this.phase === 'play' && !this.won;
+    const WS = this.cfg.werkstatt; if (!WS || this.sb) return;
+    const tier = Math.floor(this.level / Math.max(1, WS.everyLevels ?? 5));
+    if (tier > this.shopTier && this.phase === 'play' && !this.won) {
+      this.shopTier = tier;
+      for (const p of this.players) { this.genShop(p); p.shopDelay = WS.openDelay; p.shopWant = true; p.shopLock = false; }
+    }
     for (const p of this.players) {
       p.shopDelay = Math.max(0, p.shopDelay - dt);
-      const inside = p.alive && Math.hypot(p.x, p.z) < WS.radius;
-      if (!can) { p.shopOpen = false; if (!this.wavePause) p.shopLock = false; continue; }
-      if (!inside) { p.shopLock = false; p.shopOpen = false; continue; }
-      if (!p.shopOpen && !p.shopLock && p.shopDelay <= 0 && p.shop) { p.shopOpen = true; this.emit({ k: 'shopOpen', p: p.id }); }
+      if (this.phase !== 'play' || this.won) { if (p.shopOpen) { p.shopOpen = false; p.shopWant = true; } continue; }
+      if (p.shopWant && !p.shopOpen && p.alive && p.shopDelay <= 0 && p.shop) { p.shopOpen = true; this.emit({ k: 'shopOpen', p: p.id }); }
     }
   }
   /** level-up (23.11.2026): three hex fields out of the field pool (chosen start field + fieldPool.types; well once unlocked).

@@ -16,13 +16,15 @@ export function pcControls() {
   ${label(190, 290, 'Laufen')}
   <!-- Esc -->
   ${key(40, 360, 90, 70, 'Esc', true, 24)}${label(150, 405, 'Pause', 'start')}
-  <!-- Space -->
+  <!-- Space: shoot -->
   ${key(330, 400, 330, 70, 'Leertaste', true, 26)}
-  ${label(495, 510, 'Waffe wechseln')}
-  ${icon(skillIcon('rake'), 360, 320, 52)}<text x="425" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('asp'), 445, 320, 52)}<text x="510" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('cran'), 530, 320, 52)}<text x="595" y="355" font-size="30" fill="${MUT}">›</text>
-  ${icon(skillIcon('cab'), 615, 320, 52)}
+  ${label(495, 510, 'Schießen')}
+  ${label(495, 540, '(halten = Dauerfeuer)', 'middle', 22, MUT)}
+  <!-- Tab: next weapon -->
+  ${key(400, 210, 120, 70, 'Tab', true, 26)}${label(460, 310, 'Waffe wechseln')}
+  ${icon(skillIcon('blue'), 380, 130, 46)}<text x="432" y="162" font-size="28" fill="${MUT}">›</text>
+  ${icon(skillIcon('asp'), 445, 130, 46)}<text x="497" y="162" font-size="28" fill="${MUT}">›</text>
+  ${icon(skillIcon('wheat'), 510, 130, 46)}
   <!-- Q: shotgun berry -->
   ${key(40, 460, 80, 70, 'Q', true, 28)}${label(135, 505, 'Beere', 'start', 26)}
   ${icon(fruitIcon('blue'), 215, 470, 40)}${icon(fruitIcon('black'), 255, 470, 40)}${icon(fruitIcon('cran'), 295, 470, 40)}
@@ -34,8 +36,8 @@ export function pcControls() {
     <rect x="66" y="30" width="18" height="40" rx="9" fill="#2b3540" stroke="#3a4550" stroke-width="2"/>
   </g>
   ${arrow(760, 120, 700, 120)}
-  ${label(690, 112, 'Angriff', 'end')}
-  ${label(690, 146, '(halten = Dauerfeuer)', 'end', 22, MUT)}
+  ${label(690, 112, 'Ernten', 'end')}
+  ${icon(skillIcon('rake'), 600, 128, 44)}
   ${arrow(835, 95, 835, 40)}${label(835, 30, 'Mausrad: Zoom')}
   <g transform="translate(835 340)">
     <circle r="40" fill="none" stroke="${GOLD}" stroke-width="3" stroke-dasharray="7 6"/>

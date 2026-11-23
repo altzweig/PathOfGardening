@@ -37,7 +37,7 @@ import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
 import { buildWorld, setEarthSpots, updateGround, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
-import { GROUND_MAT, rakeHead } from './models';
+import { GROUND_MAT, rakeHead, sickleModel, handRakeModel } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
@@ -53,7 +53,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
-interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
@@ -123,7 +123,7 @@ interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant:
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
   /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
-  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number }
+  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number; dryM?: THREE.MeshStandardMaterial; dryH?: THREE.MeshStandardMaterial }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -764,7 +764,14 @@ export class GameView {
       const fr = (c.userData.fr || []) as THREE.Mesh[];
       let gy = 1, gx = 1, fs = 1, show = true, mat: 'ripe' | 'green' | 'dead' = 'ripe';
       c.visible = true;
-      if (st === 1) {
+      // harvest countdown (bushes + wheat): the 6 clumps dry up one after another while the harvest time runs (23.11.2026)
+      const k = v.order!.indexOf(i), gone = st === 0 && !head && t !== 'asp' && v.alive && h * 6 > k + .02;
+      this.dryClump(v, c, gone);
+      if (gone) {
+        mat = 'dead';
+        if (cut) { gy = .8; if (c.userData.bx === undefined) { const a = rand(0, 7), b = rand(.75, 1.05); c.userData.bx = Math.cos(a) * b; c.userData.bz = Math.sin(a) * b; } c.rotation.x += c.userData.bx; c.rotation.z += c.userData.bz; }
+        else fs = .9;
+      } else if (st === 1) {
         mat = 'dead';
         if (cut) { gy = .8; if (c.userData.bx === undefined) { const a = rand(0, 7), b = rand(.75, 1.05); c.userData.bx = Math.cos(a) * b; c.userData.bz = Math.sin(a) * b; } c.rotation.x += c.userData.bx; c.rotation.z += c.userData.bz; }
         else if (head) { gy = gx = .2 + .8 * dk; c.visible = dk > 0; }
@@ -790,6 +797,14 @@ export class GameView {
     // at night ripe fruit glows faintly and pulses slowly (the only bloom on the farm besides the lanterns, 23.11.2026)
     const np = ripe && v.alive ? this.night * (.3 + .4 * (.5 + .5 * Math.sin(now * 2.2 + v.x * 1.7 + v.z))) : 0;
     if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2, np); });
+  }
+  /** one clump dried up on its own (harvest countdown): its leaves / stalks switch to a dry material, back when it grows again */
+  private dryClump(v: FieldView, c: THREE.Object3D, on: boolean) {
+    if (!!c.userData.dry === on) return; c.userData.dry = on;
+    if (on && !v.dryM) { v.dryM = (v.mats.leaf as THREE.MeshStandardMaterial).clone(); v.dryM.color.copy(DRY_COL); v.dryH = (v.mats.head as THREE.MeshStandardMaterial).clone(); v.dryH.color.copy(DRY_HEAD); }
+    c.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return;
+      if (on) { if (m.material === v.mats.leaf) { m.userData.m0 = m.material; m.material = v.dryM!; } else if (m.material === v.mats.head) { m.userData.m0 = m.material; m.material = v.dryH!; } }
+      else if (m.userData.m0) { m.material = m.userData.m0; m.userData.m0 = undefined; } });
   }
   /** crop events: last harvest -> "all picked" sound (dry rustle for bushes), ripe -> chime + golden burst */
   private cropEvent(slot: number, ripe: boolean) {
@@ -1099,6 +1114,13 @@ export class GameView {
   }
   /** true while a full-screen UI covers the world (Werkstatt): skip the 3D render */
   noRender = false;
+  /** tool for the field in front of a player (centre of the rake circle): 1 sickle (wheat), 2 hand rake (berries), 0 rake */
+  private toolFor(v: PView, a: number, centre: number) {
+    const x = v.x + Math.sin(a) * centre, z = v.z + Math.cos(a) * centre;
+    const i = slotAt(this.cfg, this.slots, x, z); if (i < 0) return 0;
+    const f = this.fields.get(i); if (!f || !f.alive) return 0;
+    return f.ftype === 'wheat' ? 1 : f.ftype === 'blue' || f.ftype === 'black' || f.ftype === 'cran' ? 2 : 0;
+  }
   private animPlayer(v: PView, dt: number, k: number) {
     const s = v.s, ox = v.x, oz = v.z;
     v.x = lerp(v.x, s.x, k); v.z = lerp(v.z, s.z, k);
@@ -1118,21 +1140,38 @@ export class GameView {
     if (v.head.userData.w !== rw) { const h = rakeHead(rw); h.position.copy(v.head.position); v.rake.remove(v.head); v.rake.add(h); v.head = h; }
     v.rake.position.z = 0;
     const aimRake = (d: number, y: number) => { v.rake.scale.z = Math.hypot(HY - y, d) / L0; v.rake.rotation.x = Math.atan2(HY - y, d); };
-    if (swinging) { // one stroke, always the same: pull from the front to the left back in one swing, then shove forward
-      // the pull ends at the near edge of the hit circle, the push goes out to the full reach (far edge)
-      const RC = this.cfg.rake, P = RC.pullTime / (RC.pullTime + RC.pushTime), k = s.sw, BACK = 1.75, NEAR = Math.max(.25, reach - rw);
-      let yaw: number, d: number, y: number, lean: number;
-      if (k < P) { // pull: head drags over the ground, sweeps round to the left back and lifts off at the end (swing)
-        const t = k / P, e = t * t * (3 - 2 * t);
-        yaw = BACK * e; d = lerp(reach, NEAR, e); y = .02 + .3 * Math.pow(t, 4); lean = .2 * (1 - e);
-      } else { // push: swings round to the front and shoots forward, accelerating, slams down at the impact
-        const t = (k - P) / (1 - P), e = t * t, r = 1 - Math.pow(1 - Math.min(1, t * 1.5), 2);
-        yaw = BACK * (1 - r); d = lerp(NEAR, reach, e); y = .32 * (1 - e) + .02; lean = .28 * e;
+    // 23.11.2026 (Basti): the tool depends on the field in front (wheat: sickle, berries: hand rake, else the rake);
+    // every stroke (harvest and attack) is the same: one swing forward through ~60°, randomly left->right or right->left
+    const newStroke = swinging && (v.swLast ?? 1) > s.sw;
+    if (!swinging || newStroke) v.toolK = this.toolFor(v, swinging ? s.sd : v.rot, reach - rw / 2); // chosen at the start of every stroke
+    const tk = v.toolK ?? 0;
+    if (tk && !v.tool) {
+      const pivot = new THREE.Group(); pivot.position.set(.16, .95, .05); pivot.rotation.order = 'YXZ'; v.g.add(pivot);
+      const sickle = sickleModel(), hrake = handRakeModel(); for (const t of [sickle, hrake]) { t.position.z = .34; t.scale.setScalar(1.5); pivot.add(t); }
+      const grip = new THREE.Object3D(); grip.position.set(0, 0, .37); pivot.add(grip);
+      v.tool = { pivot, sickle, hrake, grip };
+    }
+    if (newStroke) v.swSide = Math.random() < .5 ? 1 : -1; // a new stroke: pick the side
+    v.swLast = swinging ? s.sw : 1;
+    const side = v.swSide ?? 1, ARC = Math.PI / 6; // ±30° = 60° in front
+    let yaw = 0, lift = 0;
+    if (swinging) { // short wind-up to the start side, then a quick sweep across the front (impact at the end)
+      const k = s.sw, W = .3;
+      if (k < W) { const t = k / W, e = t * t * (3 - 2 * t); yaw = side * ARC * 1.15 * e; lift = .12 * e; }
+      else { const t = (k - W) / (1 - W), e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; yaw = side * ARC * (1.15 - 2.15 * e); lift = .12 * (1 - e); }
+    }
+    if (tk === 0) {
+      if (swinging) { v.rake.rotation.y = yaw; aimRake(reach - .05, .03 + lift); v.body.rotation.x = .12; v.twist = yaw * .45; }
+      else {
+        v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2); v.twist = lerp(v.twist || 0, 0, .2);
+        const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
       }
-      v.rake.rotation.y = yaw; aimRake(d, y); v.body.rotation.x = lean; v.twist = yaw * .3;
     } else {
-      v.rake.rotation.y = lerp(v.rake.rotation.y, -.55, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2); v.twist = lerp(v.twist || 0, 0, .2);
-      const L = reach - .12; v.rake.scale.z = lerp(v.rake.scale.z, L / L0, .2); v.rake.rotation.x = lerp(v.rake.rotation.x, Math.atan2(.5, L), .2);
+      // one-hand tool: arm stretched forward, the blade sweeps flat over the crop; held low at the side when idle
+      const T = v.tool!;
+      T.sickle.visible = tk === 1; T.hrake.visible = tk === 2;
+      if (swinging) { T.pivot.rotation.y = yaw; T.pivot.rotation.x = .55 - lift; v.body.rotation.x = .3; v.twist = yaw * .5; }
+      else { T.pivot.rotation.y = lerp(T.pivot.rotation.y, .35, .2); T.pivot.rotation.x = lerp(T.pivot.rotation.x, 1.05, .2); v.body.rotation.x = lerp(v.body.rotation.x, 0, .2); v.twist = lerp(v.twist || 0, 0, .2); }
     }
     v.head.scale.z = 1 / Math.max(.05, v.rake.scale.z); // the handle stretches with the reach, the head keeps its shape
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
@@ -1143,7 +1182,9 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible));
+    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible);
+    if (v.tool) v.tool.pivot.visible = !!s.rh && !!v.toolK && (s.sw > 0 || !otherHeld);
+    v.rake.visible = !v.toolK && !!s.rh && (s.sw > 0 || !otherHeld);
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -1182,6 +1223,7 @@ export class GameView {
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
     else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
+    else if (v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));

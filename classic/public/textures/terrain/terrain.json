@@ -1,0 +1,146 @@
+[
+ {
+  "id": "grass_01",
+  "label": "Gras",
+  "cat": "Gras",
+  "tile": 3.5
+ },
+ {
+  "id": "moss_ground_02",
+  "label": "Moos",
+  "cat": "Waldboden",
+  "tile": 3
+ },
+ {
+  "id": "ground_02",
+  "label": "Feldboden",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "ground_06",
+  "label": "Pfad",
+  "cat": "Erde",
+  "tile": 2.6
+ },
+ {
+  "id": "grass_04",
+  "label": "Trockenrasen",
+  "cat": "Gras",
+  "tile": 3.8
+ },
+ {
+  "id": "grass_05",
+  "label": "Wiese",
+  "cat": "Gras",
+  "tile": 3.5
+ },
+ {
+  "id": "grass_with_rocks_01",
+  "label": "Gras mit Steinen",
+  "cat": "Gras",
+  "tile": 3.5
+ },
+ {
+  "id": "moss_ground_01",
+  "label": "Moospolster",
+  "cat": "Waldboden",
+  "tile": 3
+ },
+ {
+  "id": "moss_ground_03",
+  "label": "Moos mit Blüten",
+  "cat": "Waldboden",
+  "tile": 3
+ },
+ {
+  "id": "ground_with_roots_01",
+  "label": "Waldboden mit Wurzeln",
+  "cat": "Waldboden",
+  "tile": 3.5
+ },
+ {
+  "id": "ground_03",
+  "label": "Erde",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "ground_05",
+  "label": "Lehm",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "ground_07",
+  "label": "Trockene Erde",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "ground_with_rocks_01",
+  "label": "Erde mit Steinen",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "ground_with_rocks_03",
+  "label": "Geröll",
+  "cat": "Erde",
+  "tile": 3
+ },
+ {
+  "id": "desert_ground_01",
+  "label": "Sand",
+  "cat": "Erde",
+  "tile": 3.5
+ },
+ {
+  "id": "cliff_rocks_02",
+  "label": "Fels bemoost",
+  "cat": "Fels",
+  "tile": 4
+ },
+ {
+  "id": "cliff_rocks_04",
+  "label": "Fels",
+  "cat": "Fels",
+  "tile": 4
+ },
+ {
+  "id": "cliff_rocks_05",
+  "label": "Fels grau",
+  "cat": "Fels",
+  "tile": 4
+ },
+ {
+  "id": "cliff_rocks_08",
+  "label": "Fels hell",
+  "cat": "Fels",
+  "tile": 4
+ },
+ {
+  "id": "rock_01",
+  "label": "Steinboden",
+  "cat": "Fels",
+  "tile": 3
+ },
+ {
+  "id": "rocks_with_water_01",
+  "label": "Bachbett",
+  "cat": "Wasser",
+  "tile": 3
+ },
+ {
+  "id": "water_01",
+  "label": "Wasser",
+  "cat": "Wasser",
+  "tile": 4
+ },
+ {
+  "id": "water_02",
+  "label": "Wasser klar",
+  "cat": "Wasser",
+  "tile": 4
+ }
+]

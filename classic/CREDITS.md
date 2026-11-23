@@ -7,7 +7,8 @@ Alle Credits stehen auch im Spiel unter *Optionen → Credits* (`src/ui/credits.
 ### Boden (seit 23.11.2026)
 
 Von **FreeStylized.com** – https://freestylized.com/ (Credit „Textures: FreeStylized.com“).
-Wie im Hof-Spiel: `public/textures/terrain/terrain_c_512.ktx2`, `terrain_c_1024.ktx2` (Farbe) und `terrain_n_1024.ktx2` (Normalen) als KTX2-Array mit den Ebenen Grass 01, Moss Ground 02, Ground 02, Ground 06, Grass 04, Cobblestone 01 (gebaut mit `tools/build-textures.mjs` im Hauptprojekt). Verwendet: Grass 01 + Grass 04 als Wiese, Ground 02 + Ground 06 als nasse Erde um die Felder. Basis-Transcoder in `public/basis/` (three.js, Apache 2.0).
+Wie im Hof-Spiel: `public/textures/terrain/terrain_c_512.ktx2`, `terrain_c_1024.ktx2` (Farbe) und `terrain_n_1024.ktx2` (Normalen) als KTX2-Array mit den Ebenen Grass 01, Moss Ground 02, Ground 02, Ground 06, Grass 04, Cobblestone 01 (gebaut mit `tools/build-textures.mjs` im Hauptprojekt). Verwendet: Grass 01 + Grass 04 als Wiese, Ground 02 + Ground 06 als nasse Erde um die Felder.
+Boden-Editor (`boden.html`, seit 23.11.2026): alle Natur-Bodentexturen einzeln in `public/textures/terrain/<id>_c_512|1024.ktx2` + `<id>_n_1024.ktx2`, Vorschaubilder in `public/textures/swatch/`, Liste in `terrain.json`: Cliff Rocks 02, Cliff Rocks 04, Cliff Rocks 05, Cliff Rocks 08, Cobblestone 01, Desert Ground 01, Grass 01, Grass 04, Grass 05, Grass With Rocks 01, Ground 02, Ground 03, Ground 05, Ground 06, Ground 07, Ground With Rocks 01, Ground With Rocks 03, Ground With Roots 01, Moss Ground 01, Moss Ground 02, Moss Ground 03, Rock 01, Rocks With Water 01, Water 01, Water 02. Basis-Transcoder in `public/basis/` (three.js, Apache 2.0).
 
 ### Weitere Texturen
 

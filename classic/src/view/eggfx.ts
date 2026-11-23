@@ -5,9 +5,9 @@ import * as THREE from 'three';
 import { GEO, M, PART, V, envU, part, rand, scene } from './core';
 
 // ---------- fried egg ----------
-const EGG_WHITE = new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: .38, vertexColors: true, emissive: 0xfff2dc, emissiveIntensity: .12 });
-const YOLK = new THREE.MeshStandardMaterial({ color: 0xffa21a, roughness: .18, emissive: 0xff7a00, emissiveIntensity: .28 });
-const YOLK_HI = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 });
+const EGG_WHITE = new THREE.MeshLambertMaterial({ color: 0xc4bdad, vertexColors: true });
+const YOLK = new THREE.MeshStandardMaterial({ color: 0xffa21a, roughness: .18, emissive: 0xff7a00, emissiveIntensity: .06 });
+const YOLK_HI = new THREE.MeshBasicMaterial({ color: 0xfff0d8, transparent: true, opacity: .3 });
 
 /** irregular blob of egg white: domed top, thin skirt, golden-brown crispy rim (vertex colours) */
 function whiteGeo(seed: number) {

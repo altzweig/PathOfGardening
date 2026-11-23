@@ -617,7 +617,8 @@ export class Sim {
   }
   /** resistance: enemies take less damage from some weapon fruits */
   resistF(e: Enemy, src?: FruitType) { const R = this.cfg.enemies[e.type].resist; return src && R && R.includes(src) ? 1 - (this.cfg.enemies.resistance ?? .3) : 1; }
-  airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < .5; }
+  airborne(e: Enemy) { return e.type === 'toad' && e.state !== 'windup' && e.stun <= 0 && (e.hop % 1) < this.toadAir; }
+  get toadAir() { return this.cfg.enemies.toad.airShare ?? .5; }
   /** squirrel climbing into its tree (gone soon) */
   inTree(e: Enemy) { return e.state === 'climb'; }
   /** squirrel spawn: a random spot on the far side of the garden (~90 deg opposite its nut tree); it hops in zigzag towards the tree */
@@ -1581,10 +1582,10 @@ export class Sim {
     const FR = hexR(this.cfg) * .7; // enemies walk onto the field to attack it
     const reach = t.kind === 'field' ? FR : t.kind === 'player' ? e.r + .5 : e.r * .6;
     if (e.type === 'toad') {
-      e.hop += dt / D.hopPeriod!; const air = (e.hop % 1) < .5;
+      e.hop += dt / D.hopPeriod!; const A = this.toadAir, air = (e.hop % 1) < A;
       const rng = t.kind === 'field' ? FR + .55 : t.kind === 'player' ? D.tongueRange! : .3;
       const d = dist(e, tp);
-      if (air) { if (d > rng * .8) this.steer(e, tp.x, tp.z, e.speed * 2, dt, rng * .8); else e.face = Math.atan2(tp.x - e.x, tp.z - e.z); }
+      if (air) { if (d > rng * .8) this.steer(e, tp.x, tp.z, e.speed / A, dt, rng * .8); else e.face = Math.atan2(tp.x - e.x, tp.z - e.z); }
       else {
         e.tongueCd -= dt;
         if (d < rng && e.tongueCd <= 0 && (t.kind === 'player' || t.kind === 'field')) {

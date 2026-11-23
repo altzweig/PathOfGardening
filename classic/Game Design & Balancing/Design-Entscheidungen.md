@@ -436,3 +436,10 @@ Zahlen stehen ausschließlich in `balancing.yaml`. Hier stehen die Regeln und da
   - Sound beim letzten Ernten: Weizen Sensen-Rascheln, Spargel/Kohl Knacken, Büsche trockenes Rascheln.
 - In der Pause wachsen junge grüne Sprossen (Weizen, Spargel) bzw. die Köpfe (Kohl) nach, und die Büsche werden wieder grün. Kleine grüne Früchte sind zu sehen.
 - Kurz vor der Erntereife beginnt ein goldener Schimmer. Bei Erntereife schnappen die Früchte schlagartig in ihre Farbe um, mit einem Erntereif-Glockenspiel (für alle Pflanzen gleich). Sounds nur in der Nähe des Spielers.
+
+## Mehr Übersicht (23.11.2026)
+- Gebäude leuchten nicht mehr (Ofenklappen, Glut, Fenster, Wasser/Saft nur noch schwach). Liegende Waren glühen nur noch leicht (40 %).
+- Bloom nachts nur noch für wirklich Helles (Schwelle 0,97, Stärke 0,8): Laternen, Schüsse und erntereife Früchte, die nachts dezent und langsam pulsieren. Glühwürmchen seltener. Spiegeleier matt, damit die Pfanne unter dem Gartenlicht nicht blendet.
+- Alle Tiere und die Spielfigur haben eine dunkle Outline (Tinte). Elite-Gegner leuchten nicht mehr, sind nur größer, halten 5x aus (vorher 3x) und haben einen größeren Lebensbalken. Der Boss behält seine violette Outline.
+- Frösche sind blau mit goldenen Augen. Sie sitzen länger (Sprung 1,2 s, davon 35 % in der Luft, Flugtempo = speed / airShare, Durchschnittstempo gleich), springen 2,5x so hoch und machen sich vorher kurz flach.
+- HUD nach Bastis Skizze: Level-Kreis mit blauer XP- und roter HP-Leiste oben links, Pause oben rechts, Rohstoffliste rechts als „Zahl, Symbol, Name“.

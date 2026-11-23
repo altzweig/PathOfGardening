@@ -47,7 +47,14 @@ names:
     cow: Kuh am Pfahl
     dairy: Käserei
     kitchen: Spiegeleierei
-  items:             # Waren (Name im Inventar)
+  items:             # Waren (Name im Inventar / Vorratsliste rechts oben)
+    blue: Blaubeeren
+    asp: Spargel
+    cran: Preiselbeeren
+    cab: Kohl
+    lemon: Zitronen
+    chili: Chilis
+    nut: Nüsse
     wheat: Weizen
     flour: Mehl
     water: Wasser
@@ -424,13 +431,13 @@ enemies:
     hp:     { growth: 1.0, linear: 0.04 }     # 23.11.2026 Sim-Balancing: linear statt exponentiell. Leben: Welle 10 ≈ 1,4x · Welle 24 ≈ 1,9x · Welle 48 ≈ 2,9x (vorher 1,6x / 2,7x / 5,4x)
     damage: { growth: 1.02, linear: 0.015 }   # Angriff: Welle 10 ≈ 1,3x · Welle 24 ≈ 1,9x · Welle 48 ≈ 3,3x
     # gilt für alle Gegner inkl. Elite und Boss (auch Boss-Bomben), zusätzlich zum Nachtfaktor (dayNight.night)
-  elite:                   # Elite-Gegner: selten, größer, leuchtende Outline in ihrer Farbe (mit leichtem Bloom)
+  elite:                   # Elite-Gegner: selten, größer, dunkle Outline wie alle, größerer Lebensbalken (kein Leuchten mehr, 23.11.2026)
     fromWave: 4            # ab dieser Welle möglich
     chanceStart: 0.01      # Anteil Elite in dieser Welle
     chancePerWave: 0.002   # + je weitere Welle
     chanceMax: 0.05
     scale: 1.5             # Größe
-    hp: 3                  # x Leben
+    hp: 5                  # x Leben (23.11.2026, vorher 3)
     damage: 2              # x Angriffsstärke
     xpMultiplier: 5        # x XP-Drop
   boss:                    # Waschbär-Boss (vorerst der einzige Boss)
@@ -490,11 +497,12 @@ enemies:
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]
-  toad:                    # Frosch: leuchtet am Boden, Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
+  toad:                    # Frosch (blau): sitzt meist am Boden, springt hoch; Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
     hp: 7.2                # 17.11.2026 +20 % (vorher 6)
     speed: 2.1
     radius: 0.30
-    hopPeriod: 1           # s pro Sprung (halbe Zeit in der Luft = unverwundbar)
+    hopPeriod: 1.2         # s pro Sprung (23.11.2026, vorher 1)
+    airShare: 0.35         # Anteil des Sprungs in der Luft (= unverwundbar), Rest am Boden (vorher 0.5); Flugtempo = speed / airShare
     tongueCooldown: 1.5
     tongueRange: 1.5
     poisonTicks: 3

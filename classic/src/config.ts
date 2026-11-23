@@ -40,7 +40,7 @@ interface Lim { step: number; max?: number; maxLevel?: number }
 export interface EnemyCfg {
   hp: number; speed: number; radius: number;
   steals?: FruitType[]; carryMax?: number; fleeSpeed?: number;
-  hopPeriod?: number; tongueCooldown?: number; tongueRange?: number; poisonTicks?: number; poisonInterval?: number; poisonDamage?: number;
+  hopPeriod?: number; airShare?: number; tongueCooldown?: number; tongueRange?: number; poisonTicks?: number; poisonInterval?: number; poisonDamage?: number;
   shield?: number; shieldRegen?: number; chargeRange?: number; windup?: number; chargeSpeed?: number; chargeTime?: number;
   ramDamage?: number; ramStun?: number; knockback?: number; rest?: number; maxAlive?: number;
   /** steals: fruit it picks up (carries away); prefers: those first; eats: fruit it eats on the spot */

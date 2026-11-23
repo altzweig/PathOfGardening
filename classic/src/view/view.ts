@@ -32,7 +32,7 @@ import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, lantern, gardenLight, renderer,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { ASP_TIP_BUSH, BUSH_MAT, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { animate, animateDeath } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
@@ -491,9 +491,12 @@ export class GameView {
       let v = this.enemies.get(e[0]);
       if (!v) {
         const type = ENEMIES[e[1]], b = buildEnemy(type, !!(e[7] & EF.boss)); this.dyn.add(b.g);
-        if (e[7] & EF.elite) { b.g.scale.setScalar(this.cfg.enemies.elite.scale); addOutline(b.P.body, ELITE_COL[type]); } // elite: bigger, outline glowing in its colour
+        // 23.11.2026: every animal gets a clear dark outline; elites only bigger (no glow) with a bigger health bar
+        const elite = !!(e[7] & EF.elite), boss = !!(e[7] & EF.boss);
+        if (!boss) addOutline(b.P.body, INK, elite ? .016 : .022, false);
+        if (elite) b.g.scale.setScalar(this.cfg.enemies.elite.scale); void ELITE_COL;
         if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); addOutline(b.P.body, 0x8a4cff, .04); } // boss: huge, violet outline
-        v = { g: b.g, P: b.P, type, bar: makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
+        v = { g: b.g, P: b.P, type, bar: elite ? makeBar(1, .12, 0xd23a2e) : makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }
       if (!this.smooth) { v.x = e[2]; v.z = e[3]; }
@@ -685,6 +688,7 @@ export class GameView {
   /** crop cycle look: during the harvest the clumps are picked one after another (fruit gone; wheat/asparagus cut to stubble,
    *  bushes dry out to a sepia tint), at the end the stubble disappears; then young green shoots / green fruit grow back and at
    *  ripeness the fruit snaps to its colour with a golden shimmer */
+  private night = 0;
   private animCrop(v: FieldView, dt: number) {
     const h = v.cy ?? 0, t = v.ftype, now = performance.now() / 1000;
     const cut = t === 'wheat' || t === 'asp', head = t === 'cab', bush = !cut && !head;
@@ -716,8 +720,9 @@ export class GameView {
     v.ripeT = Math.max(0, (v.ripeT ?? 0) - dt);
     const pre = !harvest && r > .85 ? (r - .85) / .15 : 0, gold = pre * .6 + v.ripeT * 1.6;
     if (gold > 0 && Math.random() < dt * gold * 30) { const a = rand(0, 7), rr = Math.sqrt(Math.random()) * hexR(this.cfg) * .8; PART.spawn(V(v.x + Math.cos(a) * rr, rand(.15, .55), v.z + Math.sin(a) * rr), V(rand(-.1, .1), rand(.3, .7), rand(-.1, .1)), Math.random() < .5 ? 0xffd860 : 0xfff0a0, rand(.06, .12), rand(.5, .9)); }
-    if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2); });
-    void now;
+    // at night ripe fruit glows faintly and pulses slowly (the only bloom on the farm besides the lanterns, 23.11.2026)
+    const np = harvest && v.alive ? this.night * (.3 + .4 * (.5 + .5 * Math.sin(now * 2.2 + v.x * 1.7 + v.z))) : 0;
+    if (t !== 'lemon') v.bmats.forEach(m => { m.emissive.set(v.ripeT! > 0 ? 0xffc840 : FRUIT_HEX[t]); m.emissiveIntensity = Math.max(m.emissiveIntensity, v.ripeT! * 1.2, np); });
   }
   /** crop events: last harvest -> "all picked" sound (dry rustle for bushes), ripe -> chime + golden burst */
   private cropEvent(slot: number, ripe: boolean) {
@@ -959,10 +964,11 @@ export class GameView {
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
     updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
+    this.night = 1 - dayNow().day;
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     const night = 1 - dayNow().day;
-    if (Math.random() < dt * 5 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
+    if (Math.random() < dt * 2 * night) { const a = rand(0, 7), r = rand(2, 13); PART.spawn(V(Math.cos(a) * r, rand(.3, 1.6), Math.sin(a) * r), V(rand(-.2, .2), rand(-.05, .15), rand(-.2, .2)), Math.random() < .5 ? 0xd8ff70 : 0xffd070, .07, rand(3, 6), { a: .8 }); } // fireflies
     else if (Math.random() < dt * 2.5 * (1 - night)) { const a = rand(0, 7), r = rand(2, 15); PART.spawn(V(Math.cos(a) * r, rand(.4, 2), Math.sin(a) * r), V(rand(.15, .4), rand(-.03, .08), rand(-.1, .1)), 0xfff4d0, .05, rand(4, 7), { a: .35 }); } // pollen drifting in the sun
     this.dtLast = dt; updateComboFx(dt); PART.update(dt); updateFx(dt); updateBolts(dt); this.updateBits(dt); this.updateNums(dt); this.updateFlyers(dt);
     this.updateCamera(dt);
@@ -1151,22 +1157,26 @@ export class GameView {
     const sq = v.type === 'squirrel', hy = sq ? (this.smooth ? lerp(v.g.position.y, e[10], k) : e[10]) : 0;
     v.g.position.set(v.x, hy, v.z);
     v.g.rotation.y = lerpAngle(v.g.rotation.y, e[4], .2);
-    const stun = fl & EF.stun, air = !!(fl & EF.air), H = this.cfg.enemies.hedgehog;
+    const stun = fl & EF.stun, air = !!(fl & EF.air), H = this.cfg.enemies.hedgehog, TA = this.cfg.enemies.toad.airShare ?? .5;
+    // toad crouch: flattens shortly before the jump to gather momentum, short landing squash (23.11.2026)
+    let crouch = 0;
     // hedgehog puff 0..1: jerky puff up, slow contraction
     let puff: number | undefined;
     if (v.type === 'hedgehog') { const up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9], k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up); puff = ph < up ? k2 : k2 * k2; }
     // rig animation (gait, idle, attack, hit, stun) driven by the snapshot
     animate(v.P.a, {
       x: v.x, z: v.z, yaw: v.g.rotation.y, dt, now, stun: !!stun, flee: !!(fl & EF.flee), flash: !!(fl & EF.flash), lunge: !!(fl & EF.lunge), carry: e[8].length,
-      air: v.type === 'toad' ? (air ? clamp(e[9] / .5, 0, 1) : 0) : sq ? e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22) : 0,
+      air: v.type === 'toad' ? (air ? clamp(e[9] / TA, 0, 1) : 0) : sq ? e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22) : 0,
       climb: sq && e[9] === 1, windup: fl & EF.windup ? e[9] : 0, charge: !!(fl & EF.charge), puff,
       tongue: v.type === 'toad' && fl & EF.tongue ? e[10] : 0, rear: fl & EF.boss && e[9] === 1 ? clamp(e[10] * 3, 0, 1) : 0,
     });
     v.P.stars.visible = !!stun; if (stun) v.P.stars.rotation.y += dt * 6;
     if (v.type === 'toad') {
-      v.P.body.position.y += air ? Math.sin(e[9] / .5 * Math.PI) * .55 : 0;
+      const ph = e[9];
+      v.P.body.position.y += air ? Math.sin(ph / TA * Math.PI) * 1.375 : 0; // 2.5x as high as before (.55)
+      if (!air && !stun) { const pre = (ph - .86) / .14, land = (ph - TA) / .08; crouch = pre > 0 ? Math.sin(Math.min(1, pre) * Math.PI / 2) : land > 0 && land < 1 ? Math.sin(land * Math.PI) * .5 : 0; }
       for (const m of v.P.mats) m.opacity = air ? .4 : 1;
-      if (!air && Math.random() < dt * 6) PART.spawn(V(v.x + rand(-.25, .25), rand(.15, .4), v.z + rand(-.25, .25)), V(0, .5, 0), 0xb8ffb0, rand(.06, .1), .5, { a: .8 }); // shimmer while sitting
+      if (!air && Math.random() < dt * 3) PART.spawn(V(v.x + rand(-.25, .25), rand(.15, .4), v.z + rand(-.25, .25)), V(0, .5, 0), 0xb0d4ff, rand(.05, .08), .5, { a: .6 }); // faint shimmer while sitting
     }
     if (v.type === 'hedgehog') { // the spines flash once per puff
       const ph = e[9];
@@ -1190,7 +1200,7 @@ export class GameView {
     }
     // punch squash
     v.squash = Math.max(0, v.squash - dt); const q = v.squash / .14;
-    v.P.body.scale.set(1 + q * .25, 1 - q * .3, 1 + q * .25);
+    v.P.body.scale.set(1 + q * .25 + crouch * .22, 1 - q * .3 - crouch * .38, 1 + q * .25 + crouch * .22);
     const bleedGlow = fl & EF.bleed ? (.5 + .5 * Math.sin(now * 12)) * .9 : 0;
     if (fl & EF.boss && e[9] === 1) { // boss charging: shakes and glows violet
       v.P.body.position.x += Math.sin(now * 45) * .04 * e[10]; for (const m of v.P.mats) m.emissive.setRGB(.25 * e[10], .1 * e[10], .5 * e[10]);
@@ -1198,13 +1208,13 @@ export class GameView {
     }
     const burning = fl & EF.burn, fire = burning ? .5 + .3 * Math.sin(now * 23 + e[0]) + .15 * Math.sin(now * 37) : 0;
     // toad: glows brighter and shimmers while sitting, the glow goes out when it jumps off
-    const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - .5) * 12) : 0;
+    const tg = v.type === 'toad' && !(fl & EF.air) ? (.22 + .1 * Math.sin(now * 17 + e[0]) + .06 * Math.sin(now * 29)) * Math.min(1, (e[9] - TA) * 12) * .5 : 0;
     if (fl & EF.frozen) { // frozen by a blueberry: icy blue, sparkles
       for (const m of v.P.mats) m.emissive.setRGB(.18, .38, .62);
       if (Math.random() < dt * 8) PART.spawn(V(v.x + rand(-.25, .25), rand(.2, .6), v.z + rand(-.25, .25)), V(0, .3, 0), 0xc8f0ff, .07, .5);
       return;
     }
-    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .45, tg, bleedGlow * .05 + tg * .55); }
+    for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .2, tg * .5, bleedGlow * .05 + tg); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
     if (fl & EF.poison) { // poisoned (cabbage): sickly green shimmer and rising bubbles

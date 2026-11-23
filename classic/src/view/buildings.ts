@@ -14,8 +14,8 @@ export interface BuildingView {
 
 const WOOD = M(0x7a5232), WOOD_D = M(0x553620), WOOD_L = M(0x9a7048), STONE = M(0x8a8a86), STONE_D = M(0x6a6a68);
 const PLASTER = M(0xe8dcc0), ROOF = M(0xa8442e), ROOF_D = M(0x7a3424), THATCH = M(0xc8a050), CLOTH = M(0xf0e8d8, { flat: false, r: .95 });
-const IRON = M(0x4a4a50, { m: .4, r: .5 }), WATER = M(0x3a8adf, { e: 0x1a5aaf, ei: .4, r: .1, flat: false });
-const JUICE = M(0xb0204a, { e: 0x801030, ei: .4, r: .2, flat: false }), FIRE = M(0xff8a20, { e: 0xff6a10, ei: 2.2 }), EMBER = M(0xffd060, { e: 0xffb030, ei: 2.6 });
+const IRON = M(0x4a4a50, { m: .4, r: .5 }), WATER = M(0x3a8adf, { e: 0x1a5aaf, ei: .12, r: .1, flat: false });
+const JUICE = M(0xb0204a, { e: 0x801030, ei: .12, r: .2, flat: false }), FIRE = M(0xff8a20, { e: 0xff6a10, ei: .5 }), EMBER = M(0xffd060, { e: 0xffb030, ei: .5 }); // 23.11.2026: buildings no longer glow (no bloom)
 const WHITE = M(0xf4f2ea), BLACK = M(0x2a2622), PINK = M(0xe8a0a0), RED = M(0xd03020), YELLOW = M(0xf0c030), CHEESE = M(0xf2c630, { e: 0x8a6000, ei: .15 }), HORN = M(0xe8dcc0);
 const GROUND = M(0x6a5038), COBBLE = M(0x9a948a);
 
@@ -109,13 +109,13 @@ function bakery(g: THREE.Group, H: number) {
   const chim = part(g, GEO.box, STONE_D, .2, .6, .2, .35, 1.25, -.15);
   const oven = part(g, GEO.box, EMBER, .3, .22, .02, -.25, .22, .46, false);
   part(g, GEO.box, WOOD_D, .2, .45, .02, .3, .23, .46); // door
-  part(g, GEO.box, M(0x88b0d0, { e: 0xffc070, ei: .4 }), .18, .16, .02, .3, .62, .46);
+  part(g, GEO.box, M(0x88b0d0, { e: 0xffc070, ei: .12 }), .18, .16, .02, .3, .62, .46);
   // bread rack
   part(g, GEO.box, WOOD, .5, .04, .25, -.65, .35, .25); for (let i = 0; i < 3; i++) part(g, GEO.capsule, M(0xb87a38), .05, .09, .05, -.8 + i * .15, .41, .25).rotation.z = Math.PI / 2;
   let glow = 0;
   return (dt: number, n: number, working: boolean) => {
     glow += ((working ? 1 : .15) - glow) * Math.min(1, dt * 2);
-    (oven.material as THREE.MeshStandardMaterial).emissiveIntensity = .4 + glow * 2.4 + Math.sin(n * 9) * .2 * glow;
+    (oven.material as THREE.MeshStandardMaterial).emissiveIntensity = .15 + glow * .45 + Math.sin(n * 9) * .06 * glow;
     if (working && Math.random() < dt * 5) PART.spawn(V(g.position.x + .35 + rand(-.05, .05), 1.6, g.position.z - .15), V(rand(-.05, .15), rand(.5, .8), rand(-.05, .05)), 0x9a9490, rand(.12, .2), rand(1.2, 2), { s1: 2.5, a: .35 });
     void chim;
   };
@@ -212,7 +212,7 @@ function dairy(g: THREE.Group, H: number) {
 function kitchen(g: THREE.Group, H: number) {
   pad(g, H);
   const CAST = M(0x34322f, { m: .5, r: .62 }), CAST_D = M(0x24221f, { m: .5, r: .7 }), RUST = M(0x5a3a26, { r: .9 }), STEEL = M(0x8a8a8a, { m: .7, r: .35, flat: false });
-  const GLOW = M(0xff7a20, { e: 0xff5a10, ei: 2.6 }), GLOW_D = M(0xff5a10, { e: 0xff3a00, ei: 1.8 });
+  const GLOW = M(0xff7a20, { e: 0xff5a10, ei: .6 }), GLOW_D = M(0xff5a10, { e: 0xff3a00, ei: .4 });
   const st = new THREE.Group(); st.position.set(-.05, 0, -.05); g.add(st);
   // legs, body, top plate with two hot plates, stove pipe at the back right
   for (const [x, z] of [[-.44, -.26], [.44, -.26], [-.44, .26], [.44, .26]]) part(st, GEO.box, CAST_D, .06, .34, .06, x, .17, z);
@@ -250,8 +250,8 @@ function kitchen(g: THREE.Group, H: number) {
     heat += ((working ? 1 : .35) - heat) * Math.min(1, dt * 1.5);
     // flickering glow through the slits (bloom does the rest)
     const fl = .55 + .25 * Math.sin(n * 11.3) + .15 * Math.sin(n * 23.7 + 1) + .1 * Math.sin(n * 5.1);
-    (GLOW.emissiveIntensity as number) = (1.2 + 2.2 * heat) * fl; GLOW_D.emissiveIntensity = (.8 + 1.6 * heat) * fl;
-    (glow.material as THREE.MeshBasicMaterial).opacity = (.12 + .2 * heat) * fl;
+    (GLOW.emissiveIntensity as number) = (.25 + .4 * heat) * fl; GLOW_D.emissiveIntensity = (.15 + .3 * heat) * fl;
+    (glow.material as THREE.MeshBasicMaterial).opacity = (.05 + .08 * heat) * fl;
     // flames from under the stove: short random bursts
     for (const u of under) {
       if (u.t <= 0 && Math.random() < dt * (.25 + heat * .9)) { u.t = u.d = rand(.25, .6); }

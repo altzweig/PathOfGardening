@@ -324,7 +324,7 @@ function sheep(R: Rig) {
 }
 
 function toad(R: Rig) {
-  const top = C(0x5a6834), dark = C(0x34401e), wart = C(0x8a8a46), belly = C(0xcabe7c), throat = C(0xdccc84);
+  const top = C(0x34589c), dark = C(0x1c2c5c), wart = C(0x5f86c8), belly = C(0xc4d2e6), throat = C(0xd6e2f2); // blue (23.11.2026)
   const skin: Col = (p, d) => {
     if (d.y < -.25) return mul(mix(belly, throat, .3), .92 + .16 * vn(p.x * 40, p.y * 40, p.z * 40));
     const b = vn(p.x * 11, p.y * 11, p.z * 11), w = vn(p.x * 34, p.y * 34, p.z * 34);
@@ -371,7 +371,7 @@ function template(key: string): Template {
   t = { bones: R.bones, geo, eyes, spines, h: R.bones[0].pivot[1], w: Math.max(.08, (bb.max.x - bb.min.x) / 2 * .8) }; TPL.set(key, t); return t;
 }
 
-export const ANIMAL_EYE: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0x6dff3a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070 };
+export const ANIMAL_EYE: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0xffc83a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070 };
 const eyeMats = new Map<number, THREE.MeshBasicMaterial>();
 function eyeMat(c: number) { let m = eyeMats.get(c); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, vertexColors: true, toneMapped: false }); eyeMats.set(c, m); } return m; }
 

@@ -45,14 +45,14 @@ import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
 import { EggFX, fryingPan } from './eggfx';
-import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
+import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
-interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** eggs stacked into the pyramid at the hens: plain upright eggs */
@@ -482,7 +482,7 @@ export class GameView {
       if (!this.smooth || Math.hypot(ps.x - v.x, ps.z - v.z) > 3) { v.x = ps.x; v.z = ps.z; }
       v.s = ps;
     }
-    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); if (v.cbar) barGroup.remove(v.cbar); this.players.delete(pid); }
+    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); if (v.cbar) barGroup.remove(v.cbar); if (v.hbar) barGroup.remove(v.hbar); this.players.delete(pid); }
     // fields
     const slots = this.slots;
     const seenF = new Set<number>();
@@ -877,6 +877,7 @@ export class GameView {
     if (comboEvent(e, this.comboCtx)) return;
     switch (e.k) {
       case 'snd': play(e.n); break;
+      case 'overheat': for (let i = 0; i < 10; i++) PART.spawn(V(e.x + rand(-.2, .2), 1, e.z + rand(-.2, .2)), V(rand(-.2, .2), rand(.6, 1.1), rand(-.2, .2)), 0xd8d4cc, rand(.15, .25), rand(.8, 1.3), { s1: 2, a: .45 }); break; // Körner-MP: steam
       case 'sfx': sfx(e.s, e.x, e.z); break;
       case 'burst': burst(V(e.x, e.y, e.z), e.c, e.n, e.sp, e.sz, e.lf, { g: e.g, a: e.a }); break;
       case 'num': this.floatNum(e.x, e.z, String(Number.isInteger(e.v) ? e.v : e.v.toLocaleString('de-DE', { maximumFractionDigits: 1 })), NUM_COL[e.c] || '#fff', !!e.b); break;
@@ -895,6 +896,11 @@ export class GameView {
         if (e.w === 'pan') { // the eggs leave the pan: a puff of steam and spattering fat (the eggs themselves are the EggFX)
           const pv = this.players.get(e.p); if (pv) pv.panT = performance.now();
           for (let i = 0; i < 6; i++) PART.spawn(V(e.x + rand(-.15, .15), .9, e.z + rand(-.15, .15)), V(rand(-.3, .3), rand(.4, .8), rand(-.3, .3)), 0x6a6864, .18, rand(.6, 1), { s1: .45, a: .5 });
+          break;
+        }
+        if (e.w === 'wheat') { // Körner-MP: tiny muzzle puff of chaff, small recoil
+          if (Math.random() < .5) PART.spawn(V(e.x, .75, e.z), V(rand(-.3, .3), rand(.2, .5), rand(-.3, .3)), 0xe8d090, .07, .3);
+          const pv = this.players.get(e.p); if (pv) pv.recoil = .05;
           break;
         }
         if (e.w === 'flour') { // spin throw: flour puffs flung out in a ring (the cloud itself is the FlourFX)
@@ -1104,7 +1110,7 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible));
+    v.rake.visible = !!s.rh && (s.sw > 0 || !(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible));
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -1117,6 +1123,14 @@ export class GameView {
       fg.color.setHex(full ? 0xeaffb0 : 0x9ad850); if (full) fg.color.multiplyScalar(1 + .35 * (.5 + .5 * Math.sin(performance.now() / 70)));
       v.cbar.visible = true; v.cbar.position.set(v.x, other ? 1.75 : 1.6, v.z); v.cbar.quaternion.copy(camera.quaternion); setBar(v.cbar, ch);
     } else if (v.cbar) v.cbar.visible = false;
+    // Körner-MP heat bar: small, under the HP bar; yellow -> orange -> red, blinks red while overheated
+    const ht = s.ht ?? 0, hot = ht >= 2, hv = hot ? ht - 2 : ht;
+    if (hv > .01 && s.al) {
+      if (!v.hbar) v.hbar = makeBar(.42, .05, 0xffb030);
+      const fg = v.hbar.userData.fg.material as THREE.MeshBasicMaterial;
+      if (hot) fg.color.setHex(Math.sin(performance.now() / 60) > 0 ? 0xff2a10 : 0x8a1a08); else fg.color.setRGB(1, .85 - hv * .65, .25 - hv * .2);
+      v.hbar.visible = true; v.hbar.position.set(v.x, other ? 1.5 : 1.45, v.z); v.hbar.quaternion.copy(camera.quaternion); setBar(v.hbar, hv);
+    } else if (v.hbar) v.hbar.visible = false;
   }
   /** legs walk with the walk phase; hands grip whatever is in use (rake handle, wand, crossbow, flamethrower) via IK */
   private poseFarmer(v: PView, dt: number) {
@@ -1131,6 +1145,7 @@ export class GameView {
     else if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
     else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
     else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
+    else if (v.smg && v.smg.g.visible) { t0 = v.smg.anim.localToWorld(V(0, -.09, -.07)); t1 = v.smg.anim.localToWorld(V(0, -.07, .1)); }
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
     else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
@@ -1157,6 +1172,9 @@ export class GameView {
     if (gunOn && !v.gun) { const m = cranGun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = m; }
     if (v.gun && gunOn) { const kind = aw === 'blue' ? BERRIES[v.s.be ?? 0] : 'cran', gg = v.gun as typeof v.gun & { kind?: string }; if (gg.kind !== kind) { gg.kind = kind; tintBerries(v.gun.g, kind); } }
     if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
+    const smgOn = al && aw === 'wheat';
+    if (smgOn && !v.smg) { const m = grainSmg(); m.g.position.set(.2, .8, .22); v.g.add(m.g); v.smg = m; }
+    if (v.smg) { v.smg.g.visible = smgOn; v.smg.anim.position.z = -v.recoil * .4; v.smg.anim.rotation.x = -v.recoil * .8 + (smgOn && v.recoil > 0 ? Math.sin(performance.now() / 18) * .015 : 0); }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
     const sackOn = al && aw === 'flour';
@@ -1376,7 +1394,7 @@ export class GameView {
       const m = this.aimInd[w === 'blue' ? 'cran' : w], r = w === 'rake' ? (priv?.rr || this.cfg.rake.range) : rng(w);
       if (w === 'rake') return; // no marker: the scratches of the stroke show where the rake worked
       m.visible = true; m.scale.set(r, 1, r); m.position.set(px, .045, pz); m.rotation.y = ang;
-    } else if (w === 'asp' || w === 'lemon') {
+    } else if (w === 'asp' || w === 'lemon' || w === 'wheat') {
       const m = this.aimInd.asp, r = rng(w);
       m.visible = true; m.scale.set(.12, r, 1); m.position.set(px + a.x * r / 2, .045, pz + a.z * r / 2); m.rotation.set(-Math.PI / 2, 0, ang + Math.PI);
     } else if (w === 'chili') { // whole swept area (sweep + flame width), a full circle once it spins

@@ -87,7 +87,7 @@ export class Hud {
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
-    const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'wheat' && !isBuilding(t as any)); // 23.11.2026: blueberries are shotgun ammo too
+    const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => !isBuilding(t as any)); // 23.11.2026 wheat = Körner-MP ammo too // 23.11.2026: blueberries are shotgun ammo too
     if ((pr.sl || []).includes(SKILLS.indexOf('flour'))) have.push('flour'); // Mehlsack: flour is ammo now
     if ((pr.sl || []).includes(SKILLS.indexOf('pan'))) have.push('fegg'); // Spiegeleischleuder: fried eggs are ammo now
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });

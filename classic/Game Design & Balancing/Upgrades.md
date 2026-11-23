@@ -103,6 +103,13 @@ Keine Abklingzeit-Karte (fester Verbrauch 8 Chilis/s). Schaden-Karte: +20 % auf 
 | Kohlgas | Kohl-Treffer legen den Debuff „Kohlgas“ (so lange wie das Gift). Stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis von 1 m; Karte: „Kohlgas“, alter Wert, goldenes +10 % | 5 Stufen | `upgrades.cabGas`, `skills.cab.gasRadius` |
 | Poison Damage | Gift-Tickschaden des Kohls +50 % je Stufe (100 → 350 %), auch Mini-Kohl und Kohlgas; Karte: „Poison Damage“, alter Wert, goldenes +50 % | 5 Stufen | `upgrades.cabPoison` |
 
+### Körner-MP (23.11.2026)
+Keine Abklingzeit-Karte (fest 10 Körner/s). Schaden und Reichweite wie üblich.
+
+| Karte | Effekt | Max. | Parameter |
+|---|---|---|---|
+| Feuerdauer | +25 % Dauerfeuer bis die MP heiß läuft (3 → 3,75 → 4,5 s …) | 5 | `upgrades.wheatDuration`, `skills.wheat.heatTime` |
+
 ## 4. Pflanzen
 
 | Karte | Effekt | Max. | Parameter |

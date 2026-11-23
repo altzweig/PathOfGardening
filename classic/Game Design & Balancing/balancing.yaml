@@ -22,6 +22,7 @@ names:
     cab: Kohlmine
     lemon: Citrateaser
     chili: Flammenwerfer
+    wheat: Körner-MP
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
     black: Brombeerbusch
@@ -98,6 +99,7 @@ names:
     rng: Reichweite
     cab_rng: Radius
     cd: Abklingzeit
+    wheat_dur: Feuerdauer bis heiß
     arc: Kegelbreite
     wid: Breite
     pierce: Durchbohren
@@ -125,6 +127,7 @@ names:
     cab: Kontaktmine · Gift
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
+    wheat: 10 Körner/s · läuft heiß
 
 player:
   hp: 100
@@ -325,6 +328,17 @@ skills:
     eatStep: 1             # s mehr je Nährwert-Upgrade
     maxLife: 20            # s, unberührte Eier verschwinden danach
     boss: false            # Bosse lassen sich nicht ablenken
+  wheat:                   # 23.11.2026 Körner-MP aus Holz: Munition = Weizen (Getreidefeld), Freischalt-Karte wie die anderen Feldwaffen
+    damage: 1.6            # je Korn (wenig Schaden, dafür 10 Schuss/s)
+    range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
+    cooldown: 0.1          # s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
+    ammoPerShot: 0.25      # Weizen je Korn (1 Weizen = 4 Körner)
+    speed: 24              # m/s, schnelle Körner
+    heatTime: 3            # s Dauerfeuer bis heiß (Upgrade Feuerdauer +25 %/Stufe); dann gesperrt, bis sie abgekühlt ist
+    coolTime: 2            # s von ganz heiß bis kalt
+    coolDelay: 0.3         # s nach dem letzten Korn beginnt sie abzukühlen
+    spreadMin: 1           # Grad Streuung kalt (sehr genau)
+    spreadMax: 14          # Grad Streuung kurz vor heiß (wächst quadratisch mit der Hitze)
   flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
     damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
     range: 1.04            # m, Radius der Mehlwolke um den Spieler (23.11.2026: 2/5 von 2,6; Reichweite-Upgrade vergrößert sie)
@@ -433,6 +447,7 @@ upgrades:
   cranSplash:     { step: 0.15, maxLevel: 5 }  # +15 Prozentpunkte Platzschaden liegender Beeren: 25 -> 40/55/70/85/100 % (17.11.2026)
   cabMini:        { step: 1,    maxLevel: 5 }
   cabPoison:      { step: 0.50, maxLevel: 5 }  # Poison Damage: Gift-Tickschaden des Kohls +50 % je Stufe (additiv, 100 -> 350 %), gilt auch für Mini-Kohl und Kohlgas (17.11.2026)
+  wheatDuration:  { step: 0.25, maxLevel: 5 }  # Körner-MP Feuerdauer: +25 % Zeit bis zum Heißlaufen je Stufe (23.11.2026)
   cabGas:         { step: 0.10, maxLevel: 5 }  # Kohlgas: Kohl-Treffer legen Debuff "Kohlgas" (so lange wie das Gift); stirbt der Gegner damit, platzt er mit 10/20/30/40/50 % Chance und vergiftet alle Gegner im Umkreis cab.gasRadius (17.11.2026)
   doubleHarvest:  { step: 0.25, maxLevel: 4 }  # max 100 %
   # Kartenregeln pro Level-up (3 Karten):

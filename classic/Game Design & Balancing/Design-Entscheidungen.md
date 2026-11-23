@@ -498,3 +498,9 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Boden = FreeStylized-Texturen wie im Hof-Spiel (KTX2-Array, ein Draw Call, Handy 512 px ohne Normalen). Überall Wiese (Grass 01 mit Grass 04-Flecken), nasse dunkle Erde (Ground 02/06, glänzender) nur um und zwischen Feldern, Gebäuden und der Truhe. Neue Felder: die Wiese dort und drumherum wird in ~1,5 s zu nasser Erde.
 - Jedes Feld ist ein klar sichtbares Hexagon (spitze Seite oben, genau der Hex-Platz), Nachbarfelder greifen wie ein Hexgrid ineinander, mit weicher Fuge dazwischen. Die nasse Erde drumherum ist ebenfalls ein etwas größeres Hexagon je Feld (Basti, 23.11.2026: "nicht wie Schachbrett").
 - Gebäude bewegen sich nur, solange jemand dort arbeitet (harkt): Mühlenflügel stehen sonst still, Brunnenkurbel, Presse, Backofen-Rauch ebenso (Basti, 23.11.2026). Der Brunnen liefert sein Wasser weiterhin passiv.
+
+## Körner-MP (23.11.2026)
+- Getreide bekommt eine eigene Waffe: eine Maschinenpistole aus Holz (Eschenschaft, Walnussgriffe, Holzlauf im gelochten Messingmantel, Trommelmagazin mit Sichtfenster voller Körner, Weizenähre am Schaft). Freischalt-Karte wie bei den anderen Feldwaffen, sobald ein Getreidefeld steht. Weizen ist damit Munition (liegt weiter in der Truhe und kann wie bisher in Gebäude).
+- 10 Körner pro Sekunde, wenig Schaden (1,6 je Korn, physisch), schnelle Körner (24 m/s), Reichweite 7,5 m (Schrotflinte 6,5 m). 1 Weizen = 4 Körner.
+- Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
+- Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.

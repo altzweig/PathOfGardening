@@ -137,6 +137,9 @@ weapons:
   chiliStart: { files: [flame_start_1, flame_start_2, flame_start_3, flame_start_4], vol: 0.45, pitch: [0.9, 1.1], gap: 0.15 }
   chiliLoop:  { file: flame_loop, vol: 0.32, pitch: [0.95, 1.05], fade: 0.15 }
   chiliEnd:   { files: [flame_end_1, flame_end_2], vol: 0.35, pitch: [0.95, 1.1], gap: 0.15 }
+  grain:      { files: [wood_1, wood_3, wood_5], vol: 0.16, pitch: [2.1, 2.6], gap: 0.06 }      # Körner-MP: hölzernes Tackern, 10 Schuss/s
+  overheat:   { files: [flame_end_1, flame_end_2], vol: 0.3, pitch: [1.5, 1.8], gap: 0.5 }      # Körner-MP läuft heiß: zischt und blockiert
+  cooled:     { files: [wood_2, wood_4], vol: 0.25, pitch: [1.6, 1.8], gap: 0.5 }               # wieder abgekühlt: Klack
 
 boss:
   spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben

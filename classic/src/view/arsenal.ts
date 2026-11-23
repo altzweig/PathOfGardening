@@ -395,6 +395,34 @@ export function cranGun() {
   wrapZ(a, K.leather, .037, -.05, .0, 0, -.005).scale.set(1, .8, 1);
   return { g, anim: a };
 }
+/** Körner-MP (23.11.2026): wooden submachine gun that shoots wheat grains. Ash stock and body, walnut pistol grip and fore grip,
+ *  turned wooden barrel in a perforated brass shroud, a drum magazine of grain with a glass window, a wheat ear tied to the stock. */
+export function grainSmg() {
+  const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
+  // stock + body in one piece (z forward, y up)
+  mesh(a, profile([[-.34, -.005], [-.33, .03], [-.2, .028], [-.1, .04], [.12, .04], [.14, .028], [.14, -.022], [-.02, -.024], [-.1, -.022], [-.2, -.035], [-.33, -.065], [-.345, -.04]], .05, .008), K.ash);
+  // pistol grip and fore grip (walnut)
+  mesh(a, profile([[-.075, -.02], [-.035, -.02], [-.05, -.12], [-.06, -.13], [-.09, -.125], [-.085, -.105]], .04, .007), K.walnut);
+  mesh(a, profile([[.09, -.02], [.115, -.02], [.112, -.09], [.098, -.098], [.088, -.09]], .032, .006), K.walnut);
+  const tg = mesh(a, new THREE.TorusGeometry(.024, .004, 8, 18, Math.PI), K.brass, 0, -.03, -.005); tg.rotation.set(Math.PI, Math.PI / 2, 0); // trigger guard
+  // barrel: turned wood, brass shroud with holes (dark dots), muzzle ring
+  mesh(a, lathe([[.014, .12], [.014, .38], [.018, .385], [.018, .4], [.008, .4]], 16), K.darkWoodT, 0, .015, 0);
+  mesh(a, lathe([[.026, .13], [.026, .3], [.02, .315]], 20), K.brass, 0, .015, 0);
+  for (let i = 0; i < 4; i++) for (let k = 0; k < 6; k++) { const an = k / 6 * Math.PI * 2; mesh(a, sph(8, 6), K.soot, Math.cos(an) * .025, .015 + Math.sin(an) * .025, .15 + i * .04, .006, .006, .006); }
+  for (const z of [.13, .3, .39]) band(a, K.brass, .028, .012, z, 0, .015);
+  // drum magazine of grain under the body: brass rims, wooden drum, glass window full of grains
+  const drum = new THREE.Group(); drum.position.set(0, -.075, .03); a.add(drum);
+  const d = mesh(drum, new THREE.CylinderGeometry(.06, .06, .045, 24), K.walnut); d.rotation.z = Math.PI / 2;
+  for (const x of [-.024, .024]) { const r = mesh(drum, new THREE.TorusGeometry(.058, .005, 6, 24), K.brass, x, 0, 0); r.rotation.y = Math.PI / 2; }
+  const win = mesh(drum, new THREE.CylinderGeometry(.045, .045, .004, 20), K.glass, .025, 0, 0); win.rotation.z = Math.PI / 2;
+  for (let i = 0; i < 14; i++) { const an = R(0, 6.28), rr = R(0, .038); const gr = mesh(drum, sph(8, 6), K.chiliGold, .021, Math.sin(an) * rr, Math.cos(an) * rr, .006, .006, .011); gr.rotation.set(R(0, 3), R(0, 3), R(0, 3)); }
+  // a wheat ear tied to the stock with twine
+  const ear = new THREE.Group(); ear.position.set(.03, .03, -.22); ear.rotation.set(-.15, 0, -.3); a.add(ear);
+  mesh(ear, new THREE.CylinderGeometry(.002, .002, .14, 5), K.chiliGold, 0, 0, 0).rotation.x = Math.PI / 2;
+  for (let i = 0; i < 8; i++) mesh(ear, sph(8, 6), K.chiliGold, (i % 2 ? 1 : -1) * .005, 0, .04 + i * .009, .005, .005, .009);
+  wrapZ(a, K.twine, .036, -.24, -.2, 0, -.01).scale.set(.95, .9, 1);
+  return { g, anim: a };
+}
 /** cabbage bomb held in the hand: tied with twine, a short wooden pull handle */
 export function cabHeld() {
   const K = kit(), g = new THREE.Group();

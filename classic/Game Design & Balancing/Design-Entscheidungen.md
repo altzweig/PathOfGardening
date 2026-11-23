@@ -504,6 +504,8 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - 10 Körner pro Sekunde, wenig Schaden (1,6 je Korn, physisch), schnelle Körner (24 m/s), Reichweite 7,5 m (Schrotflinte 6,5 m). 1 Weizen = 1 Korn.
 - Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
 - Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.
+- Ernte als Countdown (23.11.2026): Bei allen Büschen und beim Getreide vertrocknen während der Erntezeit die 6 Büschel nacheinander (braune Blätter/Halme, braune Beeren bzw. Ähren, Getreide knickt ab). Ist das letzte Büschel durch, ist die Ernte vorbei. Die Früchte fallen weiter zufällig vom ganzen Feld.
+
 
 ## Werkzeuge je Feld, Handmühle, Werkstatt-Tisch (23.11.2026)
 - Das Werkzeug richtet sich nach dem Feld vor der Figur (Mitte des Trefferkreises, gewählt zu Beginn jedes Schlags): Weizen = einhändige Sichel, Beerenfelder (Blau-, Brom-, Preiselbeere) = kleiner Handrechen, sonst die Harke.

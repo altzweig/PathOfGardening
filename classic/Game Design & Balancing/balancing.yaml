@@ -214,6 +214,7 @@ tiles:
   upgradeStepGrowth: 0.01
   costFirst: 1             # Kacheln, die für die nächste Stufe draufgebaut werden müssen: 1, 2, 3, 4 ... (insgesamt 2, 4, 7, 11 ...)
   costGrowth: 1
+  maxLevel: 3              # 23.11.2026 Werkstatt-Regeln: Kacheln starten auf Level 1, höchstens Level 3 (Level 2 = +1 Kachel, Level 3 = +2 weitere, insgesamt 4)
   hpPerLevel: 0.5          # +50 % max. Leben je Stufe (Feld wird beim Aufstieg voll geheilt)
   buildingHp: 150          # Leben eines Gebäudes; bei 0 steht es still, bis es mit der Harke ganz repariert ist
   repairPerStroke: 0.12    # Harkenzug auf ein beschädigtes Gebäude repariert 12 % seiner Leben (voller Treffer)
@@ -223,7 +224,7 @@ tiles:
 # Gebäude: interval = Quelle (macht alle x s eine Ware von selbst), sonst Verarbeitung: needs (alles) oder needsAny (count beliebige davon) -> makes in time s.
 # buffer: so viele Ladungen Zutaten nimmt das Gebäude auf Vorrat. minLevel: ab dieser Spielerstufe als neue Kachel im Angebot.
 buildings:
-  well:    { minLevel: 2, interval: 4, makes: water }                                   # Brunnen: Wasser
+  well:    { minLevel: 2, interval: 4, makes: water, cropBonus: [0.10, 0.18, 0.24] }    # Brunnen: Wasser; 23.11.2026: alle Anbaufelder (keine Gebäude) +10 % Ertrag, Level 2: 18 %, Level 3: 24 % (der beste Brunnen zählt). Muss in der Werkstatt freigeschaltet werden
   cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
   mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
   hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
@@ -630,6 +631,59 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
     size: 1.15             # x Gegner pro Gruppe (23.11.2026 Sim-Balancing: 1.4 -> 1.15, die erste Nacht war eine harte Wand)
     hp: 1.3                # x Leben
     damage: 1.25           # x Angriffsstärke
+
+# ---------------------------------------------------------------------
+#  23.11.2026 Werkstatt & Feldregeln (Thread "Werkstatt-Shop mit Ideen und Feldregeln")
+#  Level-up im Kampf: 1 Idee (Glühbirne) + Wahl aus 3 Hexfeldern. Ein Hexfeld wird als neues Feld (Level 1)
+#  oder als Ausbau eines gleichen Feldes gesetzt (Level 2 = +1, Level 3 = +2 weitere, max. Level 3).
+#  Im Pool: das gewählte Startfeld + diese Typen. Die anderen beiden Startbeeren tauchen nicht mehr auf.
+# ---------------------------------------------------------------------
+fieldPool:
+  types: [wheat, mill, bakery, well]   # well nur, wenn in der Werkstatt freigeschaltet
+  offers: 3                            # Hexfelder pro Level-up (fehlen Typen, füllt Kräutertee auf)
+  weights: { start: 1, wheat: 1, mill: 1.6, bakery: 1.6, well: 1.3 }
+
+# Verarbeitung: jedes Level-3-Feld von "from" schaltet 1 Kachel frei (neu oder Ausbau).
+# Mühle Level 3 = 4 Kacheln = 4 Weizenfelder auf Level 3. Stufe 2 (Bäckerei): je Level-3-Mühle 1 Kachel, neue Bäckerei nur neben einem Brunnen.
+chains:
+  mill:   { from: wheat, stage: 1 }
+  bakery: { from: mill, stage: 2, nextTo: well }
+
+werkstatt:                 # nach jeder Welle an der Truhe in der Mitte: Ideen ausbrüten
+  radius: 1.9              # m um die Truhe: hineinlaufen öffnet die Werkstatt (in der Pause zwischen den Wellen)
+  openDelay: 1.2           # s nach Wellenende, bevor sie für jemanden öffnet, der schon an der Truhe steht
+  slots: 6                 # normale Ideen auf der Werkbank (Waffen-Upgrades)
+  cost: 1                  # Glühbirnen je normaler Idee
+  goldenCost: 2            # Glühbirnen für die goldene Idee
+  golden: [well, learn]    # goldene Ideen: Brunnen freischalten, Waffe lernen (Mehlsack, sobald eine Mühle steht); sonst doppeltes Upgrade
+  maxBulbs: 10             # so viele Glühbirnen nebeneinander im HUD, darüber mit Zahl
+  names:                   # Überschriften der Ideen-Karten
+    dmg: Schaden
+    rng: Reichweite
+    cd: Tempo
+    pel: Schrot
+    pierce: Durchschlag
+    dia: Harkenbreite
+    eat: Fressdauer
+    mine: Platzschaden
+    sweep: Schwenk
+    tick: Brandtempo
+    pb: Durchbohrschaden
+    size: Bolzengröße
+    salvo: Salve
+    tgt: Kettenziele
+    xfer: Rückblitz
+    eff: Effizienz
+    mini: Mini-Kohl
+    gas: Kohlgas
+    pois: Gift
+    well: Brunnen
+    learn: Neue Waffe
+    x2: Meisterstück
+    seed: Saat             # Hexfelder beim Level-up: Ausgangsprodukt eines Anbaufeldes
+    herbs: Kräuter
+    yield: Ertrag
+    stock: Vorrat          # Liste rechts in der Werkstatt
 
 weaponSlots:               # Waffen neben der Harke
   max: 4                   # 22.11.2026 3 -> 4 (Blaubeer-Schrotflinte zählt jetzt mit); höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up

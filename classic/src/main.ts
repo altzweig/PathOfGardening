@@ -6,10 +6,11 @@ import { GameView } from './view/view';
 import { applyQuality, gfx, isTouch } from './view/core';
 import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
-import { comboIcon, mini, pic, skillIcon } from './ui/icons';
+import { Bulbs, WerkstattUI, hexEl } from './ui/werkstatt';
+import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { creditsHtml } from './ui/credits';
-import { ambient, audio, initAudio, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
+import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
 import { StartMenu } from './ui/startmenu';
 import { Look, loadLook } from './look';
@@ -32,6 +33,8 @@ class Game {
   view = new GameView();
   input: Input;
   hud = new Hud();
+  bulbs = new Bulbs();
+  shop = new WerkstattUI(this.bulbs);
   private frozen = false; // pause / level-up state, for the slow-down + speed-up sounds
   me = 0;
   private netAcc = 0; private inAcc = 0; private netEvents: Ev[] = [];
@@ -45,8 +48,16 @@ class Game {
 
   constructor() {
     this.input = new Input(this.view, isTouch);
-    this.input.onPause = () => this.togglePause();
-    this.view.onEvent = e => { if (e.k === 'pdie' && e.p === this.me) this.input.releaseAll(); };
+    this.view.onEvent = e => {
+      if (e.k === 'pdie' && e.p === this.me) this.input.releaseAll();
+      else if (e.k === 'idea') play('idea');
+      else if (e.k === 'shopOpen' && e.p === this.me) { this.input.releaseAll(); play('shop'); }
+      else if (e.k === 'buy' && e.p === this.me) play('buy', !!e.g);
+    };
+    this.input.onPause = () => { if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
+    this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
+    this.shop.onClose = () => this.closeShop();
+    this.shop.onDeny = () => play('deny');
   }
   async boot() {
     try { this.cfg = await loadBalancing(); }
@@ -141,6 +152,7 @@ class Game {
     this.updateOptLabels();
   }
   private touchSel = -1;
+  closeShop() { initAudio(); sfx('ui.click'); if (this.mode === 'client') this.client?.send({ t: 'shopClose' }); else this.sim?.closeShop(this.me); }
   private doPlace(slot: number) {
     if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
     sfx('ui.confirm');
@@ -165,7 +177,7 @@ class Game {
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
   }
   enterGame() {
-    only(null); show('#hud'); this.hud.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
+    only(null); show('#hud'); this.hud.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
     this.input.enabled = true; this.luShownFor = ''; this.overShown = false;
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     try { (navigator as any).wakeLock?.request('screen').catch(() => {}); } catch { /* ignore */ }
@@ -189,6 +201,8 @@ class Game {
     h.onIntent = (id, it) => this.sim?.setIntent(id, it);
     h.onPick = (id, key) => this.sim?.pick(id, key);
     h.onPlace = (id, slot) => this.sim?.place(id, slot);
+    h.onBuy = (id, i) => this.sim?.buy(id, i);
+    h.onShopClose = id => this.sim?.closeShop(id);
     h.onJoin = p => { if (this.mode === 'host' && this.sim) this.sim.addPlayer(p.id, p.color); };
     h.onLeave = id => { if (this.mode === 'host' && this.sim) this.sim.removePlayer(id); };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');
@@ -264,7 +278,7 @@ class Game {
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
     const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden || this.sbOpen;
-    this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl';
+    this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open;
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
     } else if (this.mode === 'solo' || this.mode === 'host') {
@@ -288,26 +302,42 @@ class Game {
     if (headless) return;
     const s = this.view.snap;
     // soft sound when the game eases into a pause (level-up, menu) and out of it again
-    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden);
+    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || (this.shop.open && s.ts < 1));
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); }
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
     else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);
+  }
+  /** Werkstatt: bulbs next to the XP bar, the bench while open, the marker above the chest in the pause */
+  private syncShop(s: Snap) {
+    const pr = s.me[this.me], W = this.view.cfg.werkstatt;
+    this.bulbs.set(pr?.id ?? 0, innerWidth < 560 ? Math.min(4, W?.maxBulbs ?? 10) : W?.maxBulbs ?? 10); // narrow phones: fewer bulbs, then the number
+    this.shop.update(s, this.me, this.view.cfg);
+    const mk = $('#shopMark'), want = !!W && !!pr?.sh && !pr.so && !!s.wp && s.wv >= 1 && s.ph === 'play';
+    mk.hidden = !want;
+    if (want) {
+      const p = this.view.worldScreen(0, 1.2, 0);
+      if (!p) { mk.hidden = true; return; }
+      const n = pr!.id ?? 0, k = `${n}`;
+      if (mk.dataset.k !== k) { mk.dataset.k = k; mk.innerHTML = bulb() + (n > 0 ? `<b>${n}</b>` : ''); mk.classList.toggle('dim', n === 0); }
+      mk.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
+    }
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];
     // build mode: card chosen, now pick a spot in the top-down view
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
-    const stack = !!placing && pr?.pm === 1;
+    const stack = !!placing && (pr?.pm ?? 0) >= 1; // 2 = hex field: new tile or the next tile of the same type
+    this.view.setAllowed(placing ? pr?.ps : null);
     this.view.setPlacing(placing, stack);
     if (!placing) this.touchSel = -1;
     show('#placeBar', !!placing);
     if (!placing && this.view.confirmSlot >= 0) { this.view.confirmSlot = -1; show('#placeConfirm', false); }
     if (placing) {
       show('#levelup', false);
-      if (this.placeShown !== placing + stack) { this.placeShown = placing + stack; $('#placeBar').innerHTML = `<div class="pic">${pic((stack ? 'up_' : 'field_') + placing)}</div>`; }
+      if (this.placeShown !== placing + stack) { this.placeShown = placing + stack; $('#placeBar').innerHTML = `<div class="pic">${pic((stack && pr?.pm !== 2 ? 'up_' : 'field_') + placing)}</div>`; }
       return;
     }
     this.placeShown = null;
@@ -318,8 +348,12 @@ class Game {
         this.luShownFor = key; this.input.releaseAll(); only('#levelup');
         $('#luTitle').textContent = pr.of[0]?.key.startsWith('start_') ? '' : String(s.lv - 0); // start field choice: no number
         const box = $('#cards'); box.innerHTML = ''; box.classList.remove('cards-done');
-        for (const o of pr.of) {
-          const b = cardEl(o);
+        const hexes = pr.of.every(o => /^(tile|tea|start)_/.test(o.key)); // 23.11.2026: fields come as hexagons
+        box.classList.toggle('hexes', hexes);
+        $('#levelup').classList.toggle('hexMode', hexes);
+        if (hexes && !pr.of[0]?.key.startsWith('start_')) $('#luTitle').innerHTML = `<span class="luLv">${s.lv}</span><span class="luBulb">${bulb()}</span>`;
+        pr.of.forEach((o, oi) => {
+          const b = hexes ? hexEl(o, this.view.cfg, oi) : cardEl(o);
           b.addEventListener('pointerenter', () => { if (!box.classList.contains('cards-done')) sfx('ui.hover'); });
           b.addEventListener('click', () => {
             if (box.classList.contains('cards-done')) return;
@@ -327,7 +361,7 @@ class Game {
             if (this.mode === 'client') this.client?.send({ t: 'pick', key: o.key }); else this.sim?.pick(this.me, o.key);
           });
           box.appendChild(b);
-        }
+        });
       }
       $('#luWait').innerHTML = s.pl.length > 1 ? s.pl.map(p => `<span class="${s.me[p.id]?.pk ? 'ok' : ''}" style="background:${PLAYER_CSS[p.c % 4]};color:${PLAYER_CSS[p.c % 4]}"></span>`).join('') : '';
     } else if ($('#levelup').hidden === false && s.ph !== 'lvl') { show('#levelup', false); this.luShownFor = ''; }

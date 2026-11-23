@@ -89,7 +89,9 @@ export interface Player {
   stun: number; stunMax: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; rakeHit: boolean; walk: number; flash: number; tillT: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
-  offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack';
+  offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack' | 'any';
+  /** Werkstatt (23.11.2026): ideas (1 per level-up), the bench of this pause, open, must leave the chest before it opens again, s until it may open */
+  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; shopDelay: number;
   /** bag: picked-up goods (wheat and products) to feed into buildings */
   inv: Partial<Record<FruitType, number>>;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
@@ -200,6 +202,8 @@ export class Sim {
   sb: Sandbox | null = null;
   /** start-field choice running (23.11.2026) / done */
   startPick = false; started = false;
+  /** Werkstatt: the well was unlocked (golden idea) -> it joins the field pool; start fields chosen by the players */
+  wellOpen = false; startTypes = new Set<FruitType>();
 
   constructor(cfg: Balancing, opts: { sandbox?: boolean } = {}) {
     this.cfg = cfg;
@@ -233,11 +237,12 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk() }, berry: 'blue', lastBerry: 0,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
     this.players.push(p);
+    if (!this.sb && this.wavePause && this.wave >= 1) this.genShop(p); // joined during a pause: the Werkstatt is ready for them too
     // 23.11.2026: before the first wave every player picks one of three berry start fields
     if (!this.sb && !this.started && this.wave === 0 && this.cfg.arena.startChoice?.length && (this.phase === 'play' || this.startPick)) {
       this.startPick = true; this.phase = 'lvl'; p.offers = this.startOffers(); p.picked = false;
@@ -267,6 +272,7 @@ export class Sim {
     const F = this.cfg.fields, T = this.cfg.tiles; let f = this.fieldAt(slot);
     const hp0 = isBuilding(type) ? (this.cfg.buildings[type].hp ?? T.buildingHp) : F.hp;
     if (f && f.type === type && f.alive) {
+      if (f.rarity >= this.maxR) return f; // 23.11.2026: level 3 is the top
       f.prog++;
       if (f.prog >= tileCost(this.cfg, f.rarity)) { f.rarity++; f.prog = 0; f.maxHp = hp0 * (1 + T.hpPerLevel * f.rarity); this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.emit({ k: 'sfx', s: 'ui.rarity' }); }
       f.hp = f.maxHp; f.broken = false;
@@ -290,7 +296,35 @@ export class Sim {
     return b;
   }
   /** production multiplier = 1 + neighbour bonus */
-  prodMult(f: Field) { return 1 + this.tileBonus(f); }
+  prodMult(f: Field) { return 1 + this.tileBonus(f) + (isBuilding(f.type) || this.isForest(f) ? 0 : this.wellBonus()); }
+  // ---------- 23.11.2026 tile rules: level 1..3, processing chains, well ----------
+  /** highest rarity index (tiles.maxLevel 3 -> rarity 0..2) */
+  get maxR() { return Math.max(0, (this.cfg.tiles.maxLevel ?? 99) - 1); }
+  /** tiles that went into a field: 1 + all steps of reached levels + progress (level 3 = 4 tiles) */
+  tilesOf(f: Field) { let n = 1 + f.prog; for (let k = 0; k < f.rarity; k++) n += tileCost(this.cfg, k); return n; }
+  /** processing chain: tiles of type t that may still be built (Infinity = no chain) */
+  chainLeft(t: FruitType) {
+    const C = this.cfg.chains?.[t]; if (!C) return Infinity;
+    const top = this.fields.filter(f => f.alive && f.type === C.from && f.rarity >= this.maxR).length;
+    const used = this.fields.filter(f => f.alive && f.type === t).reduce((a, f) => a + this.tilesOf(f), 0);
+    return top - used;
+  }
+  /** can a tile of type t go onto this slot: free slot = new level-1 tile, same type below the top = next tile of it; never over another type */
+  slotOK(t: FruitType, slot: number) {
+    const s = this.slots[slot]; if (!slotFits(this.cfg, s, t)) return false;
+    if (this.chainLeft(t) <= 0) return false;
+    const f = this.fieldAt(slot);
+    if (f) return f.alive && f.type === t && f.rarity < this.maxR;
+    const nx = this.cfg.chains?.[t]?.nextTo; // stage 2 (Bäckerei): new tile only next to its secondary building (Brunnen)
+    return !nx || this.fields.some(o => o.alive && o.type === nx && hexDist(s, this.slots[o.slot]) === 1);
+  }
+  placeSlots(t: FruitType) { const out: number[] = []; for (let i = 0; i < this.slots.length; i++) if (this.slotOK(t, i)) out.push(i); return out; }
+  /** Brunnen: production bonus for every crop field, by the level of the best working well */
+  wellBonus() {
+    const B = this.cfg.buildings.well?.cropBonus; if (!B?.length) return 0;
+    let r = -1; for (const f of this.fields) if (f.alive && f.type === 'well' && !f.broken) r = Math.max(r, f.rarity);
+    return r < 0 ? 0 : B[Math.min(r, B.length - 1)];
+  }
   /** crops produce in proportion to their HP; buildings run fully until they are broken (0 HP), then stand still until repaired */
   hpF(f: Field) { if (isBuilding(f.type)) return f.broken ? 0 : 1; return f.maxHp > 0 ? clamp(f.hp / f.maxHp, 0, 1) : 0; }
   /** average items per second of a tile (bonus, double harvest, coop blueberries, HP; without tilling); buildings: at full input */
@@ -308,6 +342,7 @@ export class Sim {
   /** can this player's current build card go on that slot? new tile: free slot or another type (overbuild); upgrade: a tile of that type */
   canPlace(p: Player, slot: number) {
     if (!p.placing || !slotFits(this.cfg, this.slots[slot], p.placing)) return false;
+    if (p.placeMode === 'any') return this.slotOK(p.placing, slot);
     const f = this.fieldAt(slot), same = !!f && f.alive && f.type === p.placing;
     return p.placeMode === 'stack' ? same : !same;
   }
@@ -537,7 +572,7 @@ export class Sim {
   addXP(v: number) {
     if (this.sb) return;
     this.xp += v;
-    while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.level++; this.pendingLv++; }
+    while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.level++; this.pendingLv++; for (const p of this.players) p.ideas++; this.emit({ k: 'idea' }); } // 23.11.2026: every level-up = 1 idea (light bulb) per player
     if (this.pendingLv > 0 && this.phase === 'play') this.openLevelUp();
   }
   openLevelUp() {
@@ -573,7 +608,7 @@ export class Sim {
     const ring = this.slots.map((sl, i) => i).filter(i => !this.slots[i].forest && !this.slots[i].chest && !this.fieldAt(i)).sort((a, b) => Math.hypot(this.slots[a].x, this.slots[a].z) - Math.hypot(this.slots[b].x, this.slots[b].z));
     const i = ring[0]; if (i === undefined) return;
     const f = this.placeField(i, t); if (f) f.starter = true;
-    p.berry = t;
+    p.berry = t; this.startTypes.add(t);
   }
   get chestOn() { return !!this.cfg.chest && !this.sb; }
   // ---------- skill stats ----------
@@ -2015,6 +2050,7 @@ export class Sim {
         for (const e of this.enemies) if (!e.boss && !e.dead && !e.leave) { this.dropCarry(e); e.fleeing = false; e.leave = W.leaveTime ?? 3; e.target = null; }
         this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
+        for (const p of this.players) { this.genShop(p); p.shopDelay = this.cfg.werkstatt?.openDelay ?? 1; p.shopLock = false; }
       }
     }
     const cap = this.cfg.enemies.maxAlive * this.f(this.cfg.coop.enemyCountExponent);
@@ -2118,7 +2154,8 @@ export class Sim {
   // ---------- main update ----------
   update(rdt: number) {
     // pauses are eased: the game slows to a stop / speeds up again instead of jumping
-    const want = this.phase === 'play' && !this.paused ? 1 : 0, T = Math.max(.01, this.cfg.transitions?.slow ?? .5);
+    this.tickShop(rdt);
+    const want = this.phase === 'play' && !this.paused && !this.shopPause ? 1 : 0, T = Math.max(.01, this.cfg.transitions?.slow ?? .5);
     this.ramp = want ? Math.min(1, this.ramp + rdt / T) : Math.max(0, this.ramp - rdt / T);
     const scale = this.ramp * this.ramp * (3 - 2 * this.ramp);
     if (scale <= 0) return;
@@ -2286,9 +2323,10 @@ export class Sim {
     for (const o of out) if (!o.wp) { const [k0, k1] = o.key.split('_'); const h = H[o.key] ?? H[k1] ?? H[k0]; if (h) o.hint = h; }
     return out;
   }
-  private drawOffers(p: Player): Offer[] {
+  /** Werkstatt pool (23.11.2026): weapon upgrades (normal ideas) and weapon unlocks / combos (golden ideas) */
+  upgradePool(p: Player): { normal: (Offer & { w: number })[]; golden: Offer[] } {
     const N = this.cfg.names, U = this.cfg.upgrades, PL = this.cfg.plants;
-    const pool: (Offer & { w: number })[] = [], prio: Offer[] = [];
+    const pool: (Offer & { w: number })[] = [], prio: Offer[] = [], learn: (Offer & { w: number })[] = [];
     // guaranteed openers: 1st level-up = new field, 2nd level-up = its weapon (or rake upgrades)
     const first = !!U.firstUpgradeNewField && this.lvRound === 1, second = !!U.secondUpgradeWeapon && this.lvRound === 2;
     const nf = (n: number, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -2309,20 +2347,8 @@ export class Sim {
           : id === 'pan' ? [`{range} ${nf(C.pan.throw, 1)} m`, `{radius} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, `${nf(st.eat, 1)} s / {fegg}`, `${nf(st.cost)} {fegg}`]
           : [`{dmg} ${nf(st.dmg)}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
         // 23.11.2026: unlock card is no longer forced every level-up (it blocked all weapon upgrades while you did not want it): weighted draw instead
-        pool.push({ key: 'learn_' + id, cat: 'skill', w: U.learnWeight ?? 4, pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
+        learn.push({ key: 'learn_' + id, cat: 'skill', w: U.learnWeight ?? 4, pic: 'skill_' + id, title: N.skills[id], lines, wp: id, fx: N.effects?.[id] });
       }
-    }
-    // tile cards: "new tile" (any unlocked crop or building onto a free slot) and "upgrade" (+1 tile onto a tile of the same type)
-    const lvNow = this.level - this.pendingLv + 1, owned = new Set(this.fields.filter(f => f.alive).map(f => f.type));
-    const newPool: (Offer & { w: number })[] = [], fieldPool: (Offer & { w: number })[] = [];
-    const free = this.slots.some((sl, i) => !sl.forest && !this.fieldAt(i));
-    for (const id of TILE_TYPES) {
-      if (this.closedType(p, id) || (!isBuilding(id) && PL[id]?.disabled)) continue; // disabled: field type switched off for now (nut tree)
-      const minL = isBuilding(id) ? this.cfg.buildings[id].minLevel ?? 0 : PL[id]?.minLevel ?? 0;
-      const lines = [this.tileLine(id)];
-      if (isWeaponFruit(id) && !isBerry(id) && !p.skills[id].learned && !p.skills[id].merged) lines.push(`Unlock: ${N.skills[id]}`);
-      if (free && lvNow >= minL) newPool.push({ key: 'new_' + id, cat: 'field', w: owned.has(id) ? 1 : isWeaponFruit(id) ? 3 : (U.newOtherWeight ?? 3), pic: 'field_' + id, title: N.fields[id] ?? id, lines });
-      if (owned.has(id)) fieldPool.push({ key: 'up_' + id, cat: 'plant', w: 2, pic: 'up_' + id, title: N.fields[id] ?? id, lines: [`{up} +1 · ${this.tileLine(id)}`] });
     }
     for (const id of SKILLS) {
       const s = p.skills[id]; if (!s.learned) continue;
@@ -2379,30 +2405,76 @@ export class Sim {
       nx.rakeLv = { ...RL, rng: RL.rng + 1 }; mkR('rake_rng', `{range} ${nf(RS.range * 100)} → ${nf(this.rakeStats(nx).range * 100)} cm`);
       nx.rakeLv = { ...RL, dmg: RL.dmg + 1 }; mkR('rake_dmg', `{dmg} ${nf(RS.dmg, 1)} → ${nf(this.rakeStats(nx).dmg, 1)}`);
       nx.rakeLv = { ...RL, cd: RL.cd + 1 }; if (U.rakeSpeed) mkR('rake_cd', `{cd} ${nf(RS.cd, 2)} → ${nf(this.rakeStats(nx).cd, 2)} s`); }
-    // field care: tilling heals the tilled field
-    if (this.tillHealLv < (U.tillHeal.maxLevel || 5)) { const st = U.tillHeal.step; fieldPool.push({ key: 'care_till', cat: 'plant', w: U.tillHeal.weight ?? 1, pic: 'care', title: N.care, lines: [`{rake} {fieldhp} ${nf(this.tillHealLv * st)} → ${nf((this.tillHealLv + 1) * st)} /s`] }); }
-    for (const f of FRUITS) if (!isBuilding(f) && PL[f] && this.fieldOf(f) && !this.closedType(p, f) && this.yieldLv[f] < (U.doubleHarvest.maxLevel || 6)) {
-      const lv = this.yieldLv[f], st = U.doubleHarvest.step;
-      fieldPool.push({ key: 'yield_' + f, cat: 'plant', w: 1, pic: 'plant_' + f, title: N.plants[f] ?? f, lines: [`{x2} ${nf(lv * st * 100)} → ${nf((lv + 1) * st * 100)} %`] });
-    }
-    // cards you already took come up a bit more often
-    for (const o of [...pool, ...fieldPool]) o.w *= 1 + U.repeatWeight * (p.taken[o.key] || 0);
-    void nf;
+    for (const o of pool) o.w *= 1 + U.repeatWeight * (p.taken[o.key] || 0);
+    void first; void second; void PL;
+    return { normal: pool, golden: [...prio, ...learn.map(({ w, ...o }) => { void w; return o; })] };
+  }
+  // ---------- Werkstatt (23.11.2026) ----------
+  /** the bench of one pause: werkstatt.slots normal ideas (weapon upgrades, cost 1) + one golden idea (cost 2):
+   *  unlock the well, learn a weapon (Mehlsack once a mill stands), else a double upgrade ("Meisterstück") */
+  genShop(p: Player) {
+    const WS = this.cfg.werkstatt; if (!WS) { p.shop = null; return; }
+    const N = this.cfg.names, H = WS.names || {}, { normal, golden } = this.upgradePool(p), out: Offer[] = [];
     const draw = (from: (Offer & { w: number })[]): Offer | null => {
       if (!from.length) return null;
       const tot = from.reduce((a, o) => a + o.w, 0); let r = Math.random() * tot, k = 0;
-      for (; k < from.length; k++) { r -= from[k].w; if (r <= 0) break; }
-      const { w, ...o } = from.splice(Math.min(k, from.length - 1), 1)[0]; void w; return o;
+      for (; k < from.length - 1; k++) { r -= from[k].w; if (r <= 0) break; }
+      const { w, ...o } = from.splice(k, 1)[0]; void w; return o;
     };
-    // every level-up: 1 tile bonus (upgrade / double harvest / field care) + 1 new tile + 1 weapon (unlock first, else an upgrade)
-    void first; void second;
-    const out: Offer[] = [];
-    const bonus = draw(fieldPool); if (bonus) out.push(bonus);
-    const nt = draw(newPool); if (nt) out.push(nt);
-    const wp = prio[0] ?? draw(pool); if (wp) out.push(wp);
-    while (out.length < U.offersPerLevel) { const o = draw(pool) ?? draw(fieldPool) ?? draw(newPool); if (!o) break; out.push(o); }
-    const T = U.herbalTea;
-    while (out.length < U.offersPerLevel) out.push({ key: 'tea_' + out.length, cat: 'misc', pic: 'tea', title: N.tea, lines: [`{heart} +${T.playerHeal} · {fieldhp} +${T.fieldHeal}`] });
+    const head = (key: string) => { const [a, b] = key.split('_'); return a === 'learn' ? H.learn ?? '' : H[b] ?? H[a] ?? ''; };
+    for (let k = 0; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
+    const gold: Offer[] = [];
+    if (WS.golden.includes('well') && !this.wellOpen && this.cfg.buildings.well?.cropBonus) {
+      const B = this.cfg.buildings.well.cropBonus!;
+      gold.push({ key: 'gold_well', cat: 'field', pic: 'field_well', title: N.fields.well ?? 'Brunnen', hd: H.well ?? '', lines: [`{sprout} +${Math.round(B[0] * 100)} %`, B.map(b => Math.round(b * 100)).join(' · ') + ' %'] });
+    }
+    if (WS.golden.includes('learn')) for (const o of golden) gold.push({ ...o, hd: head(o.key) });
+    let g: Offer | null = gold.length ? gold[Math.floor(Math.random() * gold.length)] : null;
+    if (!g) { const o = draw(normal); if (o) g = { ...o, key: 'x2_' + o.key, hd: H.x2 ?? '', x2: 1 }; }
+    if (g) out.push({ ...g, cost: WS.goldenCost, gold: 1 });
+    p.shop = out;
+  }
+  /** buy idea i of the bench (only while the Werkstatt is open) */
+  buy(id: number, i: number) {
+    const p = this.player(id); if (!p || !p.shopOpen || !p.shop) return;
+    const o = p.shop[i], cost = o?.cost ?? 1; if (!o || o.sold || p.ideas < cost) return;
+    p.ideas -= cost; o.sold = 1; p.taken[o.key] = (p.taken[o.key] || 0) + 1;
+    if (o.key === 'gold_well') this.wellOpen = true;
+    else if (o.key.startsWith('x2_')) { this.applyOffer(p, o.key.slice(3)); this.applyOffer(p, o.key.slice(3)); }
+    else this.applyOffer(p, o.key);
+    this.emit({ k: 'buy', p: p.id, i, g: o.gold ? 1 : 0 });
+  }
+  /** close the Werkstatt (it opens again after leaving the chest and coming back) */
+  closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
+  /** everyone (alive) at the bench: the world stands still like during a level-up */
+  get shopPause() { return !this.sb && this.players.some(p => p.shopOpen) && this.players.every(p => p.shopOpen || !p.alive); }
+  private tickShop(dt: number) {
+    const WS = this.cfg.werkstatt; if (!WS || this.sb || !this.chestOn) return;
+    const can = this.wavePause && this.wave >= 1 && this.phase === 'play' && !this.won;
+    for (const p of this.players) {
+      p.shopDelay = Math.max(0, p.shopDelay - dt);
+      const inside = p.alive && Math.hypot(p.x, p.z) < WS.radius;
+      if (!can) { p.shopOpen = false; if (!this.wavePause) p.shopLock = false; continue; }
+      if (!inside) { p.shopLock = false; p.shopOpen = false; continue; }
+      if (!p.shopOpen && !p.shopLock && p.shopDelay <= 0 && p.shop) { p.shopOpen = true; this.emit({ k: 'shopOpen', p: p.id }); }
+    }
+  }
+  /** level-up (23.11.2026): three hex fields out of the field pool (chosen start field + fieldPool.types; well once unlocked).
+   *  Only types that can be built somewhere right now (free slot or a tile of that type below level 3, chain rules) */
+  private drawOffers(p: Player): Offer[] {
+    const FP = this.cfg.fieldPool, N = this.cfg.names, W = FP?.weights || {};
+    const types: FruitType[] = [...this.startTypes, ...(FP?.types || [])].filter((t, i, a) => a.indexOf(t) === i && (t !== 'well' || this.wellOpen));
+    const pool = types.filter(t => this.placeSlots(t).length > 0).map(t => ({ t, w: (this.startTypes.has(t) ? W.start : W[t]) ?? 1 }));
+    const out: Offer[] = [], n = FP?.offers ?? 3;
+    while (out.length < n && pool.length) {
+      const tot = pool.reduce((a, o) => a + o.w, 0); let r = Math.random() * tot, k = 0;
+      for (; k < pool.length - 1; k++) { r -= pool[k].w; if (r <= 0) break; }
+      const { t } = pool.splice(k, 1)[0];
+      out.push({ key: 'tile_' + t, cat: 'field', pic: 'field_' + t, title: N.fields[t] ?? t, lines: [] });
+    }
+    const T = this.cfg.upgrades.herbalTea;
+    while (out.length < n) out.push({ key: 'tea_' + out.length, cat: 'misc', pic: 'tea', title: N.tea, lines: [`{heart} +${T.playerHeal} · {fieldhp} +${T.fieldHeal}`] });
+    void p;
     return out;
   }
   /** level-up cards of a combo weapon: damage / range / cooldown of the combo + the special upgrades it keeps */
@@ -2435,6 +2507,7 @@ export class Sim {
     const tea = () => { p.hp = Math.min(this.cfg.player.hp, p.hp + U.herbalTea.playerHeal); this.fields.forEach(f => f.alive && (f.hp = Math.min(f.maxHp, f.hp + U.herbalTea.fieldHeal))); };
     if (a === 'learn') { this.learn(p, b as SkillId); return; }
     if (a === 'combo') { this.mergeCombo(p, b as ComboId); return; }
+    if (a === 'tile') { p.placing = b as FruitType; p.placeMode = 'any'; if (!this.placeSlots(p.placing).length) { p.placing = null; tea(); } return; }
     if (a === 'field' || a === 'new') { p.placing = b as FruitType; p.placeMode = 'new'; return; }
     if (a === 'up') { p.placing = b as FruitType; p.placeMode = 'stack'; return; }
     if (a === 'yield') { if (this.yieldLv[b as FruitType] < (U.doubleHarvest.maxLevel || 6)) this.yieldLv[b as FruitType]++; else tea(); return; }
@@ -2485,13 +2558,14 @@ export class Sim {
         am: SKILLS.map(id => p.ammo[id]), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
-        of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
+        of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'any' ? 2 : p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
+        id: p.ideas, sh: p.shop, so: p.shopOpen ? 1 : 0, ps: p.placing && p.placeMode === 'any' ? this.placeSlots(p.placing) : undefined,
         cb: SKILLS.map(id => p.skills[id].combo ? COMBOS.indexOf(p.skills[id].combo as ComboId) : -1),
       };
     }
     return {
       ch: this.chestOn ? this.enemies.filter(e => !e.dead && e.cs >= 0 && !e.fleeing && Math.hypot(e.x - this.thiefPos(e.cs)[0], e.z - this.thiefPos(e.cs)[1]) < .2).length : undefined,
-      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n,
+      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),

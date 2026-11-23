@@ -23,7 +23,7 @@ export const PRODUCTS: ProductType[] = ['flour', 'water', 'milk', 'egg', 'juice'
 export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
 export const isBuilding = (t: FruitType | null | undefined): t is BuildingType => !!t && (BUILDINGS as string[]).includes(t);
 /** one building: source (interval: makes one item every x s by itself) or processor (needs/needsAny -> makes, time s) */
-export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; /** items per finished batch (Spiegeleierei: 3) */ amount?: number; /** hens: eggs are stacked into a square pyramid of so many layers next to the coop (instead of lying scattered) */ stack?: number; buffer?: number; hp?: number }
+export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; /** items per finished batch (Spiegeleierei: 3) */ amount?: number; /** hens: eggs are stacked into a square pyramid of so many layers next to the coop (instead of lying scattered) */ stack?: number; buffer?: number; hp?: number; /** Brunnen (23.11.2026): production bonus of every crop field per well level 1/2/3 (best well counts) */ cropBonus?: number[] }
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
@@ -80,7 +80,7 @@ export interface Balancing {
   buildings: Record<BuildingType, BuildingCfg>;
   items: Partial<Record<FruitType, ItemCfg>>;
   /** tile levels: same-type neighbour bonus, upgrade cost/bonus, interaction (feeding/repair) */
-  tiles: { bonusBase: number; upgradeFirst: number; upgradeStep: number; upgradeStepGrowth: number; costFirst: number; costGrowth: number; hpPerLevel: number; rings: number; feedPerStroke: number; workPerStroke: number; repairPerStroke: number; buildingHp: number };
+  tiles: { bonusBase: number; upgradeFirst: number; upgradeStep: number; upgradeStepGrowth: number; costFirst: number; costGrowth: number; hpPerLevel: number; rings: number; /** 23.11.2026: highest tile level (start level 1) */ maxLevel?: number; feedPerStroke: number; workPerStroke: number; repairPerStroke: number; buildingHp: number };
   rake: { damage: number; range: number; diameter: number; cooldown: number; pullTime: number; pushTime: number; stun: number; knockback: number };
   skills: {
     readySeconds: number;
@@ -119,6 +119,12 @@ export interface Balancing {
   /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   weaponSlots?: { max: number };
+  /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
+  fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
+  /** processing chains: every level-3 tile of "from" unlocks one tile of this type; stage 2 also needs a "nextTo" neighbour */
+  chains?: Partial<Record<FruitType, { from: FruitType; stage: number; nextTo?: FruitType }>>;
+  /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
+  werkstatt?: { radius: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
   combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };

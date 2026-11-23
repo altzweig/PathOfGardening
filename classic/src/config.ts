@@ -107,6 +107,7 @@ export interface Balancing {
     fieldCardsPerLevel: number; weaponCardsMax: number; newFieldTypeEvery: number; newFieldTypeChoices: number; firstUpgradeNewField?: boolean; secondUpgradeWeapon?: boolean; repeatWeight: number; learnWeight?: number; rakeWeight?: number; newOtherWeight?: number; herbalTea: { playerHeal: number; fieldHeal: number };
   };
   enemies: { aggroRadius: number; maxAlive: number; meleeDamage: number; meleeInterval: number; xpDrop: number; resistance: number;
+    /** 23.11.2026: XP of dropped berries x (base * growth^(w-1) + linear*(w-1)) */ xpScale?: { base?: number; growth: number; linear: number };
     /** per-wave growth of enemy HP / attack: growth^(w-1) + linear*(w-1) */
     scaling?: { hp: { growth: number; linear: number }; damage: { growth: number; linear: number } };
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
@@ -122,7 +123,9 @@ export interface Balancing {
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
   fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
   /** processing chains: every level-3 tile of "from" unlocks one tile of this type; stage 2 also needs a "nextTo" neighbour */
-  chains?: Partial<Record<FruitType, { from: FruitType; stage: number; nextTo?: FruitType }>>;
+  chains?: Partial<Record<FruitType, { from: FruitType | FruitType[]; stage: number; nextTo?: FruitType }>>;
+  /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */
+  juice?: { xpFactor: number; fill: number; step: number; names?: Partial<Record<Berry, string>> };
   /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
   werkstatt?: { radius: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */

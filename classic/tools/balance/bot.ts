@@ -8,7 +8,7 @@ export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; wea
 export interface RunResult {
   won: boolean; wave: number; level: number; time: number; deaths: number; kills: number;
   lvAtWave: Record<number, number>; deathsAtWave: Record<number, number>; fieldHpAtWave: Record<number, number>;
-  picks: Record<string, number>; wasted: number; second: string; noAmmoShare: number; peakAlive: number; bossEnd: boolean; bossAt: number[];
+  picks: Record<string, number>; wasted: number; /** XP per wave: harvest (incl. buildings), animals, juice */ xpHist: { w: number; h: number; e: number; j: number; lv: number }[]; second: string; noAmmoShare: number; peakAlive: number; bossEnd: boolean; bossAt: number[];
 }
 
 const GUN_FRUITS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili'];
@@ -21,7 +21,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   // 23.11.2026 start field choice: one berry at random (or opts.start); its fruit is shotgun ammo, so the bot wants it
   const SC = cfg.arena.startChoice ?? [], startB = o.start ?? SC[Math.floor(Math.random() * SC.length)];
   if (startB) want.add(startB);
-  const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [] };
+  const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, xpHist: [], second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [] };
   const dt = o.dt ?? .05, maxT = o.maxTime ?? 3 * 3600; let lastWave = 0, noAmmo = 0, fightT = 0, mineX = 1e9, mineZ = 1e9;
   const slots = (sim as any).slots as { x: number; z: number; q: number; r: number; forest?: boolean }[];
   const hex = (a: { q: number; r: number }, b: { q: number; r: number }) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
@@ -32,6 +32,10 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   function score(key: string): number {
     const [a, b] = key.split('_');
     if (a === 'start') return b === startB ? 100 : 1;
+    if (a === 'tile') { // 23.11.2026 hex fields: berry field first (ammo), then the press (XP), processors as they open up
+      if (b === 'press') return 62; if (b === startB) return 60; if (b === 'well') return 45; if (b === 'mill') return 40; if (b === 'bakery') return 35; if (b === 'wheat') return 30; return 20;
+    }
+    if (a === 'gold') return 80; if (a === 'x2') return 70;
     if (a === 'learn') return want.has(b) ? 100 : 0;
     if (a === 'combo') return 0;
     if (a === 'new' || a === 'field') {
@@ -66,7 +70,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const f = sim.fieldAt(i);
       if ((p as any).placeMode === 'stack') s += (f!.rarity * 10 + f!.prog) + 5;
       else {
-        if (f) s -= 50; // never overbuild
+        if (f) s += f.alive && f.type === t ? 20 + f.rarity * 5 : -50; // 23.11.2026: level up a field of the same type first (max level 3), never overbuild
         for (const g of sim.fields) if (g.alive && hex(slots[g.slot], sl) === 1) {
           if (g.type === t) s += 3;
           if (isBuilding(t as any)) { const B = cfg.buildings[t as keyof typeof cfg.buildings]; if ((B.needs && g.type in B.needs) || B.needsAny?.includes(g.type as any)) s += 5; }
@@ -88,6 +92,11 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       }
       continue;
     }
+    // ---- Werkstatt (23.11.2026): buy the best ideas, then leave ----
+    if (p.shopOpen && p.shop) {
+      for (;;) { const c = p.shop.map((x, i) => ({ i, x, s: x.sold || (x.cost ?? 1) > p.ideas ? -1 : x.gold ? 80 : score(x.key) })).filter(c => c.s >= 0).sort((a, b) => b.s - a.s)[0]; if (!c) break; sim.buy(p.id, c.i); res.picks['shop:' + c.x.key] = (res.picks['shop:' + c.x.key] || 0) + 1; }
+      sim.closeShop(p.id);
+    }
     // ---- decide movement / fire ----
     if (o.infAmmo) for (const k of Object.keys(p.ammo) as SkillId[]) p.ammo[k] = 999;
     const it = { ...emptyIntent(), tapSeq: p.lastTap, cycle: p.lastCycle } as any;
@@ -103,6 +112,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const fr = sim.fruits.filter(f => f.state === 'ground' || f.state === 'fly');
       let fb = null as any, fd = 1e9; for (const f of fr) { const d = Math.hypot(f.x - p.x, f.z - p.z) - (want.has(f.type) ? 2 : 0); if (d < fd) { fd = d; fb = f; } }
       const close = near(p.x, p.z, 2.2);
+      const press = sim.fields.find(f => f.alive && f.type === 'press' && !f.broken);
       // no passive harvest (23.11.2026): with little ammo left, go and rake a ripe weapon field
       const ripe = (f: any) => f.alive && !isBuilding(f.type) && (f as any).cyc === 0;
       const low = gun && (p.ammo as any)[gun === 'blue' ? p.berry : gun] < 12;
@@ -117,6 +127,8 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
         fightT += dt; noAmmo += dt;
         go(close.x, close.z, .9); it.fire = sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2 ? 'cab' : 'rake'; if (it.fire === 'cab') { mineX = p.x; mineZ = p.z; }
       } else if (fb && fd < 6) go(fb.x, fb.z, .05);
+      else if (sim.wavePause && p.ideas > 0 && !p.shopLock && p.shop && !p.shopOpen) go(0, 0, .3); // to the chest: Werkstatt
+      else if (!tgt && press && (p.ammo as any)[p.berry] > 25) { const d = Math.hypot(press.x - p.x, press.z - p.z); if (d > .4) go(press.x, press.z, .2); it.fire = 'rake'; } // press spare berries into XP
       else { // tend the garden: broken building / wilting tile first, else the weapon fields (raking makes ammo)
         let ff = null as any, fs = 1e9;
         for (const f of sim.fields) { if (!f.alive) continue; const s = (f.broken ? -5 : 0) + f.hp / f.maxHp * 2 + (ripe(f) ? -2 : 0) + (want.has(f.type) ? (gun ? -1 : -3) : 0) + Math.hypot(f.x - p.x, f.z - p.z) * .05; if (s < fs) { fs = s; ff = f; } }
@@ -132,6 +144,6 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     if (sim.wave !== lastWave) { lastWave = sim.wave; res.lvAtWave[sim.wave] = sim.level; const g = sim.fields.filter(f => !f.starter || true); res.fieldHpAtWave[sim.wave] = Math.round(100 * g.reduce((a, f) => a + f.hp, 0) / Math.max(1, g.reduce((a, f) => a + f.maxHp, 0))); }
   }
   res.bossEnd = sim.enemies.some(e => (e as any).boss && !e.dead);
-  res.won = sim.won; res.wave = sim.wave; res.level = sim.level; res.time = Math.round(sim.time); res.kills = sim.kills; res.noAmmoShare = fightT ? +(noAmmo / fightT).toFixed(2) : 0;
+  res.xpHist = sim.xpHist; res.won = sim.won; res.wave = sim.wave; res.level = sim.level; res.time = Math.round(sim.time); res.kills = sim.kills; res.noAmmoShare = fightT ? +(noAmmo / fightT).toFixed(2) : 0;
   return res;
 }

@@ -110,6 +110,7 @@ export interface Player {
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
   inb: Partial<Record<FruitType, number>>; work: number; broken: boolean; boost: number;
+  /** Saftpresse: berry of the batch being pressed */ jb?: Berry;
   /** crop cycle (23.11.2026): cyc 0 = being harvested (harvest s), 1 = resting / growing back (rest s); ct = s into the phase */
   cyc: number; ct: number }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number }
@@ -121,6 +122,7 @@ interface Fruit {
   ct: number; fx: number; fz: number; fy: number; collector: Player | null; tx: number; tz: number; mt: number;
   /** egg pyramid at the hens (23.11.2026): slot index in the stack, height it rests at */ sk?: number; gy?: number;
   /** loot a raccoon stole from the chest: gives no XP when picked up again */ nx?: boolean;
+  /** 23.11.2026: XP multiplier of a berry dropped by an animal (enemy XP grows with the wave) */ xm?: number;
 }
 type Target = { kind: 'player'; p: Player } | { kind: 'fruit'; fr: Fruit } | { kind: 'field'; f: Field } | { kind: 'flee' } | { kind: 'wander'; x: number; z: number } | { kind: 'chest' } | null;
 interface Enemy {
@@ -204,6 +206,14 @@ export class Sim {
   startPick = false; started = false;
   /** Werkstatt: the well was unlocked (golden idea) -> it joins the field pool; start fields chosen by the players */
   wellOpen = false; startTypes = new Set<FruitType>();
+  /** Saftpresse (23.11.2026): per berry s of active pressing towards the next fill (w) and fills so far (lv): each fill = +juice.step debuff duration */
+  juice: Record<Berry, { w: number; lv: number }> = { blue: { w: 0, lv: 0 }, black: { w: 0, lv: 0 }, cran: { w: 0, lv: 0 } };
+  /** debuff duration factor of a berry (Freeze / Dornen / Bleeding) */
+  juiceF(b: Berry) { return 1 + (this.cfg.juice?.step ?? 0) * this.juice[b].lv; }
+  /** XP sources of the current wave (harvest, animals, juice) and of every wave so far (balancing) */
+  xpNow = { h: 0, e: 0, j: 0 }; xpHist: { w: number; h: number; e: number; j: number; lv: number }[] = [];
+  /** XP factor of berries dropped by animals in wave w: base * growth^(w-1) + linear*(w-1) */
+  enemyXpMul(w = this.wave) { const S = this.cfg.enemies.xpScale; const k = Math.max(0, w - 1); return S ? (S.base ?? 1) * Math.pow(S.growth, k) + S.linear * k : 1; }
 
   constructor(cfg: Balancing, opts: { sandbox?: boolean } = {}) {
     this.cfg = cfg;
@@ -305,7 +315,8 @@ export class Sim {
   /** processing chain: tiles of type t that may still be built (Infinity = no chain) */
   chainLeft(t: FruitType) {
     const C = this.cfg.chains?.[t]; if (!C) return Infinity;
-    const top = this.fields.filter(f => f.alive && f.type === C.from && f.rarity >= this.maxR).length;
+    const from = Array.isArray(C.from) ? C.from : [C.from];
+    const top = this.fields.filter(f => f.alive && from.includes(f.type) && f.rarity >= this.maxR).length;
     const used = this.fields.filter(f => f.alive && f.type === t).reduce((a, f) => a + this.tilesOf(f), 0);
     return top - used;
   }
@@ -474,6 +485,11 @@ export class Sim {
       return true;
     }
     const list = B.needsAny || [], need = B.count ?? 1;
+    if (f.type === 'press') { // Saftpresse (23.11.2026): one berry per batch, the one with the largest stock, until it runs out
+      const k = list.filter(x => (f.inb[x] || 0) >= need).sort((a, b) => (f.inb[b] || 0) - (f.inb[a] || 0))[0];
+      if (!k) return false;
+      f.inb[k]! -= need; f.jb = k as Berry; return true;
+    }
     if (list.reduce((a, k) => a + (f.inb[k] || 0), 0) < need) return false;
     for (let i = 0; i < need; i++) { const k = list.reduce((m, x) => (f.inb[x] || 0) > (f.inb[m] || 0) ? x : m, list[0]); f.inb[k]!--; } // a bit of everything: largest stock first
     return true;
@@ -482,6 +498,12 @@ export class Sim {
   buildingOut(f: Field) {
     const B = this.cfg.buildings[f.type as BuildingType], item = B.makes;
     this.emit({ k: 'bdone', s: f.slot, b: BUILDINGS.indexOf(f.type as BuildingType) });
+    if (f.type === 'press' && this.cfg.juice) { // juice is drunk right away: XP, twice the XP rate of a crop field while pressing (faster with the press level)
+      const J = this.cfg.juice, xv = J.xpFactor * (this.cfg.xp.fieldPerSecond ?? .5) * (B.time ?? 1) * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent);
+      this.xpNow.j += xv; this.addXP(xv);
+      this.emit({ k: 'juice', s: f.slot, b: BERRIES.indexOf(f.jb ?? 'blue'), v: Math.round(xv * 10) / 10 });
+      return;
+    }
     for (let n = Math.max(1, B.amount ?? 1); n > 0; n--) this.putOut(f, item, B);
   }
   /** one finished item: to an adjacent building that wants it, onto the egg pyramid (hens), else down in front of the building */
@@ -511,9 +533,24 @@ export class Sim {
       if (f.work <= 1e-6) { f.work = 0; this.buildingOut(f); }
     }
   }
+  /** 23.11.2026 (Basti): processing buildings only work while someone works at them (raking keeps them going for tillDuration s)
+   *  and has the ingredients; sources (well, cow) keep running by themselves */
   tickBuilding(f: Field, dt: number) {
     if (!f.alive || f.broken) return;
+    const B = this.cfg.buildings[f.type as BuildingType];
+    if (!B.interval && f.tilledT <= 0) return;
+    const pressing = f.type === 'press' && (f.work > 0 || this.batchReady(f));
     this.workBuilding(f, dt * this.prodMult(f));
+    if (pressing && f.jb && this.cfg.juice) { // bar of this berry fills with active pressing time; each fill: +1 % debuff duration
+      const J = this.juice[f.jb]; J.w += dt;
+      if (J.w >= this.cfg.juice.fill) { J.w -= this.cfg.juice.fill; J.lv++; this.emit({ k: 'juiceUp', s: f.slot, b: BERRIES.indexOf(f.jb), lv: J.lv }); }
+    }
+  }
+  /** a processor has the inputs for its next batch */
+  batchReady(f: Field) {
+    const B = this.cfg.buildings[f.type as BuildingType];
+    if (B.needs) return Object.entries(B.needs).every(([k, v]) => (f.inb[k as FruitType] || 0) >= v!);
+    const need = B.count ?? 1; return f.type === 'press' ? (B.needsAny || []).some(x => (f.inb[x] || 0) >= need) : (B.needsAny || []).reduce((a, k) => a + (f.inb[k] || 0), 0) >= need;
   }
   /** items in a player's bag (weapon fruit = their ammo) */
   bagCount(p: Player, t: FruitType) { return isWeaponFruit(t) ? p.ammo[t] : p.inv[t] || 0; }
@@ -528,14 +565,17 @@ export class Sim {
     }
     const B = this.cfg.buildings[f.type as BuildingType];
     let fed = 0;
-    for (const it of [...Object.keys(B.needs || {}), ...(B.needsAny || [])] as FruitType[]) {
+    let feedList = [...Object.keys(B.needs || {}), ...(B.needsAny || [])] as FruitType[];
+    if (f.type === 'press') feedList = [...feedList].sort((a, b) => this.bagCount(p, b) - this.bagCount(p, a)); // the berry there is most of first
+    for (const it of feedList) {
+      if (f.type === 'press' && fed > 0) break; // one berry at a time
       while (fed < T.feedPerStroke && this.bagCount(p, it) >= 1 && this.roomFor(f, it)) {
         if (isWeaponFruit(it)) p.ammo[it]--; else p.inv[it]!--;
         f.inb[it] = (f.inb[it] || 0) + 1; fed++;
         this.emit({ k: 'feed', s: -1, p: p.id, b: f.slot, t: FRUITS.indexOf(it) });
       }
     }
-    this.workBuilding(f, T.workPerStroke * k * this.prodMult(f));
+    void k; // 23.11.2026: no extra work per stroke any more - the building runs in real time while it is being worked (tickBuilding)
   }
   /** XP of one item: crops are balanced so every field gives the same XP per minute (xp.fieldPerSecond / items per second
    *  of a common field of that type); goods from buildings have their own value (items.<type>.xp) */
@@ -545,8 +585,8 @@ export class Sim {
     return I?.xp ?? 0;
   }
   collectFruit(fr: Fruit, p: Player) {
-    const v = fr.val, xp = fr.nx ? 0 : this.itemXP(fr.type);
-    if (xp > 0) { const xv = v * xp * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v * xp; this.addXP(xv); }
+    const v = fr.val, xp = fr.nx ? 0 : this.itemXP(fr.type) * (fr.xm ?? 1);
+    if (xp > 0) { const xv = v * xp * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v * xp; if (fr.src === -1) this.xpNow.e += xv; else this.xpNow.h += xv; this.addXP(xv); }
     if (fr.type === 'nut') p.nuts += v;
     else if (SKILLS.some(k => AMMO_OF[k] === fr.type && p.skills[k].learned)) { const k = SKILLS.find(k => AMMO_OF[k] === fr.type && p.skills[k].learned)!; p.ammo[k] += v; p.collected[k] += v; } // Mehl / Spiegeleier: ammo once their weapon is learned
     else if (isWeaponFruit(fr.type)) { const o = this.comboOwner(p, fr.type); if (o) p.ammo[o.id] += v * o.f; else p.ammo[fr.type] += v; p.collected[fr.type] += v; } // merged sub weapon: its fruit feeds the combo
@@ -775,7 +815,7 @@ export class Sim {
     if (!o.dot) { e.flash = .1; this.num(e.x, e.z, dmg, o.color || 'w', dmg >= 10); } // damage over time: no flash, numbers summed up by the caller
     if (o.punch) this.emit({ k: 'punch', x: r2(e.x), z: r2(e.z), e: e.id });
     else if (!o.silent) this.snd('hit');
-    if (o.bleed) e.bleed = this.cfg.skills.cran.bleedDuration;
+    if (o.bleed) e.bleed = this.cfg.skills.cran.bleedDuration * this.juiceF('cran');
     if (o.stun) this.applyStun(e, o.stun);
     if (e.hp <= 0) this.killEnemy(e);
     else { const fb = this.cfg.enemies[e.type].fleeBelow; if (fb && !e.boss && !e.fleeing && e.hp < e.maxHp * fb) { e.fleeing = true; e.target = { kind: 'flee' }; e.laughT = rand(.3, .8); this.sfx(e.type + '.flee', e.x, e.z); } }
@@ -799,7 +839,8 @@ export class Sim {
     // 23.11.2026: the drop is the berry the nearest player's shotgun is loaded with (was always blueberries), so all three start berries are equal
     let np: Player | null = null, nd = 1e9; for (const p of this.players) { const d = dist(p, e); if (d < nd) { nd = d; np = p; } }
     const drop: FruitType = np?.berry ?? 'blue';
-    for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit(drop, 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1); }
+    const xm = this.enemyXpMul();
+    for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit(drop, 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1).xm = xm; }
     this.removeEnemy(e);
   }
   removeEnemy(e: Enemy) { e.dead = true; const i = this.enemies.indexOf(e); if (i >= 0) this.enemies.splice(i, 1); for (const fr of e.carry) { const j = this.fruits.indexOf(fr); if (j >= 0) this.fruits.splice(j, 1); } e.carry = []; }
@@ -1616,11 +1657,12 @@ export class Sim {
   /** thorns wrap around the animal and (one attempt) around its nearest neighbour within radius m */
   thornBind(e: Enemy) {
     const K = this.cfg.skills.black, fresh = e.thorn <= 0;
-    e.thorn = K.duration; if (fresh) e.thornT = K.tick;
+    const dur = K.duration * this.juiceF('black');
+    e.thorn = dur; if (fresh) e.thornT = K.tick;
     if (!fresh) return;
     let nb: Enemy | null = null, bd = K.radius;
     for (const o of this.enemies) { if (o === e || o.dead || this.airborne(o)) continue; const d = Math.hypot(o.x - e.x, o.z - e.z) - e.r - o.r; if (d < bd) { bd = d; nb = o; } }
-    if (nb) { if (nb.thorn <= 0) nb.thornT = K.tick; nb.thorn = K.duration; this.emit({ k: 'thornLink', a: e.id, b: nb.id }); }
+    if (nb) { if (nb.thorn <= 0) nb.thornT = K.tick; nb.thorn = dur; this.emit({ k: 'thornLink', a: e.id, b: nb.id }); }
   }
   steer(e: Enemy, tx: number, tz: number, speed: number, dt: number, stop = 0) {
     speed *= this.slowF(e);
@@ -2050,6 +2092,7 @@ export class Sim {
         for (const e of this.enemies) if (!e.boss && !e.dead && !e.leave) { this.dropCarry(e); e.fleeing = false; e.leave = W.leaveTime ?? 3; e.target = null; }
         this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
+        this.xpHist.push({ w: this.wave, ...this.xpNow, lv: this.level }); this.xpNow = { h: 0, e: 0, j: 0 };
         for (const p of this.players) { this.genShop(p); p.shopDelay = this.cfg.werkstatt?.openDelay ?? 1; p.shopLock = false; }
       }
     }
@@ -2258,7 +2301,7 @@ export class Sim {
           done = true; break;
         } else if (pr.kind === 'blue') { // blueberry: freezes the animal solid for a moment (no bleeding, no popping)
           this.hurtEnemy(e, pr.dmg, { color: 'p', src: 'blue', phys: true });
-          if (!e.boss) { e.frz = Math.max(e.frz, this.cfg.skills.blue.freeze); this.emit({ k: 'freeze', x: r2(e.x), z: r2(e.z) }); }
+          if (!e.boss) { e.frz = Math.max(e.frz, this.cfg.skills.blue.freeze * this.juiceF('blue')); this.emit({ k: 'freeze', x: r2(e.x), z: r2(e.z) }); }
           this.burst(e.x, .4, e.z, 0x9ad8ff, 8, 1.6, .1, .4); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: 1 });
           if (pr.pierceLeft > 0) { pr.pierceLeft--; continue; }
           done = true; break;
@@ -2565,7 +2608,7 @@ export class Sim {
     }
     return {
       ch: this.chestOn ? this.enemies.filter(e => !e.dead && e.cs >= 0 && !e.fleeing && Math.hypot(e.x - this.thiefPos(e.cs)[0], e.z - this.thiefPos(e.cs)[1]) < .2).length : undefined,
-      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0,
+      t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0, jc: this.cfg.juice ? BERRIES.flatMap(b => [Math.round(this.juice[b].w / this.cfg.juice!.fill * 1000) / 1000, this.juice[b].lv]) : undefined,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),

@@ -173,6 +173,12 @@ export const SND: Record<string, (arg?: any) => void> = {
     (gold ? [784, 988, 1175, 1568, 1976] : [880, 1175, 1568]).forEach((f, i) => tone({ type: 'triangle', f, t: .4, vol: gold ? .07 : .06, when: .04 + i * .055 }));
     noise({ t: .5, vol: gold ? .04 : .025, type: 'highpass', f: 6500, when: .08, at: .15 });
   },
+  /** Saftpresse (23.11.2026): a berry bar ran full - juicy bubbling pop + small rising sparkle */
+  juiceUp() {
+    if (!can('juiceUp', .3)) return;
+    for (let i = 0; i < 4; i++) tone({ type: 'sine', f: 380 + i * 140, f2: 720 + i * 180, t: .07, vol: .05, when: i * .045 });
+    [1047, 1319, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .35, vol: .045, when: .18 + i * .05 }));
+  },
   /** not enough ideas: dull double thud */
   deny() { if (!can('deny', .2)) return; tone({ type: 'triangle', f: 220, f2: 160, t: .09, vol: .1 }); tone({ type: 'triangle', f: 180, f2: 130, t: .1, vol: .09, when: .1 }); },
   /** Werkstatt opens: chest lid creak + soft workshop chord */

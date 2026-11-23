@@ -23,6 +23,7 @@ function hexInfo(o: Offer, cfg: Balancing): { art: string; top: string; ins: Sid
   if (!isBuilding(t)) return { art: fieldArt(t), top: fruitIcon(t), ins: [seed], out: item(t), fx: o.key.startsWith('start_') ? N.effects?.[t as 'blue'] : undefined };
   const B = cfg.buildings[t];
   if (B.cropBonus?.length) return { art: fieldArt(t), top: fruitIcon(B.makes), ins: [item(B.makes)], out: { icon: mini('sprout'), name: `+${Math.round(B.cropBonus[0] * 100)} % ${W.yield ?? ''}` } };
+  if (t === 'press') return { art: fieldArt(t), top: fruitIcon(B.makes), ins: [{ icon: `<span class="hsMulti">${(B.needsAny ?? []).map(k => fruitIcon(k)).join('')}</span>`, name: W.berries ?? '' }], out: { icon: fruitIcon(B.makes), name: W.xp ?? 'XP' } }; // 23.11.2026: juice is drunk right away = XP
   const ins = B.needs ? Object.keys(B.needs).map(k => item(k)) : (B.needsAny ?? []).slice(0, 2).map(k => item(k));
   return { art: fieldArt(t), top: fruitIcon(B.makes), ins, out: item(B.makes) };
 }

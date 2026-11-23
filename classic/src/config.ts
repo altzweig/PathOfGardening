@@ -76,7 +76,7 @@ export interface Balancing {
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number } };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Partial<Record<FruitType, { interval: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
+  plants: Partial<Record<FruitType, { interval: number; /** crop cycle s of this plant (else fields.cycle) */ grow?: number; harvest?: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
   buildings: Record<BuildingType, BuildingCfg>;
   items: Partial<Record<FruitType, ItemCfg>>;
   /** tile levels: same-type neighbour bonus, upgrade cost/bonus, interaction (feeding/repair) */

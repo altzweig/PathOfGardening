@@ -436,14 +436,16 @@ export class Sim {
    *  The harvest time only runs while the field is being raked (pauses allowed), up to harvest s in total; then it grows again.
    *  Raking while it grows speeds the growth up (rakeGrow x, 8 s -> 4 s). Trees (forest) keep producing steadily. */
   get cycle() { return this.cfg.fields.cycle; }
+  /** grow / harvest s of a crop: per plant (plants.x.grow / harvest), else the default of fields.cycle */
+  cycOf(f: Field) { const C = this.cycle!, P = this.cfg.plants[f.type]; return { grow: P?.grow ?? C.grow, harvest: P?.harvest ?? C.harvest }; }
   growField(f: Field, k: number, dt: number) {
     const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
     if (!C || this.isForest(f)) { f.t -= k; while (f.t <= 0) { f.t += iv; this.produce(f); } return; }
     if (f.cyc === 0) {
       if (f.tilledT <= 0) return; // ripe: waits for the rake
       f.ct += dt;
-      if (f.ct >= C.harvest) { f.cyc = 1; f.ct = 0; this.emit({ k: 'cropDone', s: f.slot }); }
-    } else { f.ct += k * (f.tilledT > 0 ? C.rakeGrow ?? 1 : 1); if (f.ct >= C.grow) { f.cyc = 0; f.ct = 0; f.t = Math.min(f.t, iv * .25); this.emit({ k: 'cropRipe', s: f.slot }); } }
+      if (f.ct >= this.cycOf(f).harvest) { f.cyc = 1; f.ct = 0; this.emit({ k: 'cropDone', s: f.slot }); }
+    } else { f.ct += k * (f.tilledT > 0 ? C.rakeGrow ?? 1 : 1); if (f.ct >= this.cycOf(f).grow) { f.cyc = 0; f.ct = 0; f.t = Math.min(f.t, iv * .25); this.emit({ k: 'cropRipe', s: f.slot }); } }
   }
   /** rake stroke on a crop: the only way to harvest; while the field grows, raking only speeds the growth up (growField) */
   tillGrow(f: Field, s: number, tri: number[]) {
@@ -2663,7 +2665,7 @@ export class Sim {
         const pr = B ? (B.interval ? 1 - f.t / B.interval : f.work > 0 ? 1 - f.work / (B.time ?? 1) : 0) : 1 - f.t / this.cfg.plants[f.type]!.interval;
         const fl = (f.broken ? 1 : 0) | (B && !f.broken && (B.interval || f.work > 0) ? 2 : 0);
         const st = B ? Object.entries(f.inb).filter(([, n]) => n! > 0).map(([k, n]) => FRUITS.indexOf(k as FruitType) + ':' + n).join(',') : '';
-        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st, B || !this.cycle || this.isForest(f) ? 0 : r2(f.cyc === 0 ? Math.min(1, f.ct / this.cycle.harvest) : 1 + Math.min(1, f.ct / this.cycle.grow))] as FiSnap;
+        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st, B || !this.cycle || this.isForest(f) ? 0 : r2(f.cyc === 0 ? Math.min(1, f.ct / this.cycOf(f).harvest) : 1 + Math.min(1, f.ct / this.cycOf(f).grow))] as FiSnap;
       }),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / p.dur)), p.fire ? 1 : 0]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),

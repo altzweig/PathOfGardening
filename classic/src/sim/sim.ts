@@ -2178,7 +2178,9 @@ export class Sim {
     }
     // active weapon: auto-switch when empty, cycle on request
     if (p.active !== 'rake' && this.isEmpty(p, p.active)) p.active = this.nextAvailable(p, p.active, true);
-    if (it.cycle !== p.lastCycle) { p.lastCycle = it.cycle; p.active = this.nextAvailable(p, p.active, false); this.emit({ k: 'cycle', p: p.id }); }
+    // 23.11.2026: the rake has its own button (left click), so the active weapon is always a shooting weapon when there is one
+    if (p.active === 'rake') { const n = this.nextAvailable(p, 'rake', true); if (n !== 'rake' && this.canFire(p, n as SkillId)) p.active = n; }
+    if (it.cycle !== p.lastCycle) { p.lastCycle = it.cycle; p.active = this.nextAvailable(p, p.active, true); this.emit({ k: 'cycle', p: p.id }); }
     // shotgun berry: switch on request, and by itself when the selected berry is used up
     if ((it.berry ?? 0) !== p.lastBerry) { p.lastBerry = it.berry ?? 0; this.nextBerry(p); }
     else if (p.ammo[p.berry] < this.stats('blue', p.skills.blue).cost) this.nextBerry(p);

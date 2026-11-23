@@ -1,4 +1,4 @@
-// PC (WASD + mouse + Space) and touch (twin sticks + skill buttons) both produce the same Intent.
+// PC (WASD + mouse: left click rakes, Space shoots, Tab switches weapon) and touch (twin sticks + skill buttons) both produce the same Intent.
 import { WEAPONS, Weapon } from '../config';
 import { Intent, emptyIntent } from '../sim/snap';
 import type { GameView } from '../view/view';
@@ -36,7 +36,8 @@ export class Input {
     addEventListener('keydown', e => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       this.keys[e.code] = true; this.setMode('pc');
-      if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && this.enabled) this.cycle++; }
+      if (e.code === 'Space') e.preventDefault(); // shoot (held = continuous fire), see intent()
+      if (e.code === 'Tab') { e.preventDefault(); if (!e.repeat && this.enabled) this.cycle++; } // next weapon
       if (e.code === 'KeyQ' && !e.repeat && this.enabled) this.berry++; // shotgun: next berry
       if (e.code === 'Escape') this.onPause();
       if (e.code === 'KeyE' && !e.repeat) this.onCheat();
@@ -135,7 +136,8 @@ export class Input {
     if (this.mode === 'pc') {
       const d = this.mouse ? this.view.groundDir(this.mouse.x, this.mouse.y) : null;
       if (d) { it.ax = d[0]; it.az = d[1]; it.aim = true; Object.assign(this.view.localAim, { weapon: activeWeapon, x: d[0], z: d[1], show: true }); }
-      if (this.mouseDown || this.clickLatch) it.fire = 'active';
+      // 23.11.2026 (Basti): Space shoots the active weapon, left click rakes / harvests, Tab switches the weapon
+      if (k.Space) it.fire = 'active'; else if (this.mouseDown || this.clickLatch) it.fire = 'rake';
       this.clickLatch = false;
     } else if (this.aimW) {
       const long = performance.now() - this.aimT0 > 140 || this.aim.mag > .25;

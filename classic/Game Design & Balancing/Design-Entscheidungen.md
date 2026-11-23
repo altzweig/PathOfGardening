@@ -505,3 +505,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Hitze: Dauerfeuer heizt sie auf, nach 3 s ist sie heiß und blockiert (Dampf, Zischen), bis sie ganz abgekühlt ist (2 s von heiß bis kalt, Abkühlen beginnt 0,3 s nach dem letzten Korn). Kalt schießt sie sehr genau (1°), je heißer, desto mehr Streuung (bis 14°). Kleine Hitzeleiste unter der Figur: gelb → orange → rot, blinkt rot, solange sie blockiert.
 - Upgrades: Schaden, Reichweite, Feuerdauer (+25 % Zeit bis heiß je Stufe, `upgrades.wheatDuration`). Kein Abklingzeit-Upgrade.
 - Ernte als Countdown (23.11.2026): Bei allen Büschen und beim Getreide vertrocknen während der Erntezeit die 6 Büschel nacheinander (braune Blätter/Halme, braune Beeren bzw. Ähren, Getreide knickt ab). Ist das letzte Büschel durch, ist die Ernte vorbei. Die Früchte fallen weiter zufällig vom ganzen Feld.
+
+## PC-Steuerung (23.11.2026)
+- Linksklick = Harke (ernten, auch gegen Tiere), Leertaste = mit der aktiven Waffe schießen (halten = Dauerfeuer), Tab = nächste Waffe. Q wechselt weiter die Beere der Schrotflinte.
+- Die aktive Waffe ist immer eine Schusswaffe, sobald eine geladen ist (die Harke hat ihren eigenen Knopf). Steuerungsseite in den Optionen angepasst.

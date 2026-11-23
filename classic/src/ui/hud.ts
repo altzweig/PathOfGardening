@@ -1,4 +1,4 @@
-import { COMBOS, FRUITS, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { BERRIES, COMBOS, FRUITS, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -40,7 +40,7 @@ export class Hud {
     const box = $('#btns');
     for (const w of WEAPONS) {
       const b = document.createElement('div'); b.className = 'skill' + (w === 'rake' ? '' : ' grey'); b.dataset.skill = w;
-      b.innerHTML = `<div class="charge"></div><div class="face">${skillIcon(w)}</div><div class="kn"></div>${w === 'rake' ? '' : '<span class="ammo">0</span>'}`;
+      b.innerHTML = `<div class="charge"></div><div class="face">${skillIcon(w)}</div><div class="kn"></div>${w === 'rake' ? '' : '<span class="ammo">0</span>'}${w === 'blue' ? '<div class="berry"></div>' : ''}`; // shotgun: selected berry, tap = next berry
       if (w !== 'rake') b.hidden = true;
       box.appendChild(b); this.btn[w] = b;
     }
@@ -87,7 +87,7 @@ export class Hud {
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
-    const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'blue' && t !== 'wheat' && !isBuilding(t as any));
+    const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => t !== 'wheat' && !isBuilding(t as any)); // 23.11.2026: blueberries are shotgun ammo too
     if ((pr.sl || []).includes(SKILLS.indexOf('flour'))) have.push('flour'); // Mehlsack: flour is ammo now
     if ((pr.sl || []).includes(SKILLS.indexOf('pan'))) have.push('fegg'); // Spiegeleischleuder: fried eggs are ammo now
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
@@ -110,18 +110,21 @@ export class Hud {
     // learned weapons fill the positions around the rake in the order they were learned
     const slots = (pr.sl || []).map(i => SKILLS[i]);
     SKILLS.forEach((id, i) => {
-      const b = this.btn[id]; const slot = slots.indexOf(id);
+      const b = this.btn[id]; if (!b) return; // berries without a weapon of their own (Brombeere)
+      const slot = slots.indexOf(id);
       const pos = pr.ln[i] ? slot : -1;
       b.hidden = pos < 0; if (pos < 0) { this.wasReady[id] = false; return; }
       if (b.dataset.pos !== String(pos)) b.dataset.pos = String(pos);
       const cb = pr.cb?.[i] ?? -1, fk = cb >= 0 ? COMBOS[cb] : id; // combo weapon: its own icon on the main weapon's button
       if (b.dataset.face !== fk) { b.dataset.face = fk; b.querySelector('.face')!.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); b.classList.toggle('combo', cb >= 0); }
-      const ready = slot >= 0 && pr.am[i] >= pr.nd[i], usable = slot >= 0 && pr.am[i] >= pr.co[i] && (ready || active === id);
+      const ai = id === 'blue' ? SKILLS.indexOf(BERRIES[ps.be ?? 0]) : i; // shotgun: ammo of the selected berry
+      if (id === 'blue') { const bk = BERRIES[ps.be ?? 0], el = b.querySelector<HTMLElement>('.berry')!; if (el.dataset.b !== bk) { el.dataset.b = bk; el.innerHTML = fruitIcon(bk); } }
+      const ready = slot >= 0 && pr.am[ai] >= pr.nd[i], usable = slot >= 0 && pr.am[ai] >= pr.co[i] && (ready || active === id);
       b.classList.toggle('grey', !usable); b.classList.toggle('ready', ready);
       if (ready && !this.wasReady[id] && s.ph === 'play') { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); sfx('ui.weaponReady'); setTimeout(() => b.classList.remove('pulse'), 1500); }
       this.wasReady[id] = ready;
-      b.style.setProperty('--cd', String(pr.cd[i])); b.style.setProperty('--ch', Math.min(1, pr.am[i] / pr.nd[i]).toFixed(3));
-      const t = `${pr.am[i]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
+      b.style.setProperty('--cd', String(pr.cd[i])); b.style.setProperty('--ch', Math.min(1, pr.am[ai] / pr.nd[i]).toFixed(3));
+      const t = `${pr.am[ai]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
     });
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
   }

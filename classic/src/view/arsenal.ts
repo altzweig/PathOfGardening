@@ -544,12 +544,12 @@ export function comboModel(cid: ComboId, a: THREE.Group): ComboModel {
   return { t0, t1, muzzle, base, loaded };
 }
 
-let BLUE_BERRY: THREE.MeshStandardMaterial | null = null;
-/** swap the gun's berry material between cranberry red and blueberry blue */
-export function tintBerries(g: THREE.Object3D, blue: boolean) {
-  const K = kit();
-  if (!BLUE_BERRY) { BLUE_BERRY = (K.berry as THREE.MeshStandardMaterial).clone(); BLUE_BERRY.color.set(0x4a64e0); BLUE_BERRY.emissive.set(0x0a1450); }
-  g.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; if (blue && m.material === K.berry) m.material = BLUE_BERRY!; else if (!blue && m.material === BLUE_BERRY) m.material = K.berry; });
+const BERRY_TINT: Record<string, THREE.MeshStandardMaterial> = {};
+/** berries on the held shotgun take the colour of the selected ammo (23.11.2026: blue / black / cran) */
+export function tintBerries(g: THREE.Object3D, kind: string) {
+  const K = kit(), base = K.berry as THREE.MeshStandardMaterial;
+  const mat = kind === 'cran' ? base : (BERRY_TINT[kind] ??= (() => { const m = base.clone(); if (kind === 'blue') { m.color.set(0x4a64e0); m.emissive.set(0x0a1450); } else { m.color.set(0x3a1f44); m.emissive.set(0x1a0a22); } return m; })());
+  g.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; if (m.material === base || Object.values(BERRY_TINT).includes(m.material as THREE.MeshStandardMaterial)) m.material = mat; });
 }
 
 let BURLAP: THREE.MeshStandardMaterial | null = null, FLOUR_M: THREE.MeshStandardMaterial | null = null;

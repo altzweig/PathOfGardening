@@ -1,8 +1,8 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
-import { buildBuilding, type BuildingView } from './buildings';
+import { Balancing, BERRIES, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { buildBuilding, chestModel, type BuildingView } from './buildings';
 import { Slot, accepts, cornerAngle, hexDist, hexR, outType, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
@@ -50,7 +50,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
-const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040' };
+const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
 interface PView { sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
@@ -60,8 +60,23 @@ const EGG_STACK = new THREE.MeshStandardMaterial({ color: 0xf2e0c0, roughness: .
 /** crop cycle: sepia tint of dried-out plants, green unripe fruit (23.11.2026) */
 const DRY_COL = new THREE.Color(0x7a6438);
 const UNRIPE: Partial<Record<FruitType, THREE.Material>> = {
-  blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
+  blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), black: M(0x9a3a34, { r: .4 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
 };
+const THORN_VINE = M(0x4a2a2a, { r: .7 }), THORN_SPIKE = M(0xd8c0a8, { r: .5 }), THORN_LEAF = M(0x2a4a30, { r: .7 });
+let THORN_GEO: { vine: THREE.BufferGeometry; spikes: [number, number, number, number, number][] } | null = null;
+/** helix of a thorny bramble: 2 turns around a unit cylinder, spikes pointing outwards, a few small leaves */
+function thornWrap() {
+  if (!THORN_GEO) {
+    const pts: THREE.Vector3[] = []; for (let i = 0; i <= 64; i++) { const t = i / 64, a = t * Math.PI * 4; pts.push(V(Math.cos(a), t, Math.sin(a))); }
+    const spikes: [number, number, number, number, number][] = []; for (let i = 0; i < 22; i++) { const t = (i + .5) / 22, a = t * Math.PI * 4; spikes.push([Math.cos(a), t, Math.sin(a), a, i % 2 ? .4 : -.4]); }
+    THORN_GEO = { vine: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, .07, 6, false), spikes };
+  }
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  inner.add(new THREE.Mesh(THORN_GEO.vine, THORN_VINE));
+  for (const [x, y, z, a, tilt] of THORN_GEO.spikes) { const c = part(inner, GEO.cone, THORN_SPIKE, .07, .2, .07, x * 1.06, y, z * 1.04, false); c.rotation.set(0, -a, -Math.PI / 2 + tilt); }
+  for (let i = 0; i < 5; i++) { const t = (i + .3) / 5, a = t * Math.PI * 4; const l = part(inner, GEO.lo, THORN_LEAF, .16, .05, .1, Math.cos(a) * 1.08, t, Math.sin(a) * 1.08, false); l.rotation.y = -a; }
+  return g;
+}
 interface FView { g: THREE.Group; tier: number; type: FruitType; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number; st?: boolean }
 interface JView { m: THREE.Object3D; kind: number; x: number; y: number; z: number; tx: number; ty: number; tz: number; seen: number }
 /** nature-pack broadleaf tree (about 7 units tall) scaled to a ~3.5 m nut tree */
@@ -416,6 +431,7 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
+    this.chest = null; this.chestFn = null;
     this.flourFx.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
@@ -423,6 +439,11 @@ export class GameView {
   apply(s: Snap) {
     this.snap = s; const id = ++this.frameId;
     this.flourFx.sync(s.cl); this.eggFx.sync(s.eg);
+    // Lager-Truhe in the centre on its own earth hex
+    if (s.ch !== undefined && !this.chest) {
+      const g = new THREE.Group(), H = hexR(this.cfg), bed = buildBed(H, []); g.add(bed); this.chestFn = chestModel(g); this.dyn.add(g); this.chest = g;
+    }
+    this.chestN = s.ch ?? 0;
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -601,7 +622,7 @@ export class GameView {
     }
     // rim kept only as data holder for the rarity colour (no visible UI line any more)
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
-    const mats = { leaf: M(type === 'blue' ? 0x2f5a34 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x335a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
+    const mats = { leaf: M(type === 'blue' ? 0x264a2c : type === 'black' ? 0x1f3a32 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x3f8a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'blue' ? 0x3f8a3a : type === 'black' ? 0x3c3a2c : type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     if (type === 'nut') { // one broadleaf tree from the nature pack in the middle (loaded async), nuts hanging in its crown
       const tree = new THREE.Group(); tree.rotation.y = rand(0, 7); plant.add(tree);
@@ -689,13 +710,14 @@ export class GameView {
    *  bushes dry out to a sepia tint), at the end the stubble disappears; then young green shoots / green fruit grow back and at
    *  ripeness the fruit snaps to its colour with a golden shimmer */
   private night = 0;
+  private chest: THREE.Group | null = null; private chestFn: ((dt: number, n: number) => void) | null = null; private chestN = 0;
   private animCrop(v: FieldView, dt: number) {
     const h = v.cy ?? 0, t = v.ftype, now = performance.now() / 1000;
     const cut = t === 'wheat' || t === 'asp', head = t === 'cab', bush = !cut && !head;
     const harvest = h < 1, r = harvest ? 0 : h - 1;
     // field-wide dryness: bushes fade to sepia while picked, grow green again while resting
     const dry = !v.alive ? 0 : harvest ? (bush ? Math.min(1, h * 1.3) * .55 : h * .3) : Math.max(0, 1 - r * 1.6) * (bush ? .55 : .3);
-    v.mats.leaf.color.copy(v.leafC!).lerp(DRY_COL, dry); if (head || t === 'lemon' || t === 'chili') v.mats.head.color.copy(v.headC!).lerp(DRY_COL, dry * .8);
+    v.mats.leaf.color.copy(v.leafC!).lerp(DRY_COL, dry); if (head || t === 'lemon' || t === 'chili' || t === 'blue' || t === 'black') v.mats.head.color.copy(v.headC!).lerp(DRY_COL, dry * .8);
     v.plant.children.forEach((c, i) => {
       const k = v.order!.indexOf(i), picked = harvest && h * 6 > k + .3, fr = (c.userData.fr || []) as THREE.Mesh[];
       let gy = 1, gx = 1, fs = 1, show = true, green = false;
@@ -800,7 +822,7 @@ export class GameView {
   }
   private setCarry(v: EView, carry: string) {
     v.carry = carry; const c = v.P.carry; for (const ch of [...c.children]) c.remove(ch);
-    const cs = carry ? carry.split(',') : []; for (let i = 0; i < cs.length; i++) { const m = fruitMesh(FRUITS[+cs[i]], .8); m.position.set(rand(-.12, .12), .62 + i * .08, rand(-.2, 0)); c.add(m); }
+    const cs = carry ? carry.split(',') : []; for (let i = 0; i < cs.length; i++) { const m = fruitMesh(FRUITS[+cs[i]], .8), a = i * 2.4, r = i % 5 ? .1 : 0; m.position.set(Math.cos(a) * r, .62 + Math.floor(i / 5) * .08 + (i % 5 ? 0 : .03), -.1 + Math.sin(a) * r * .8); c.add(m); } // a heap on the back (loot can be 25+ items)
   }
 
   // ---------------- events ----------------
@@ -965,6 +987,7 @@ export class GameView {
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
     updateEyes(dt); updateFog(dt); updateTorches(dt); setArsenalLight(dayNow().day);
     this.night = 1 - dayNow().day;
+    this.chestFn?.(dt, this.chestN);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     const night = 1 - dayNow().day;
@@ -1074,7 +1097,7 @@ export class GameView {
     const aw = v.s.aw ? WEAPONS[v.s.aw] : 'rake', al = !!v.s.al;
     const gunOn = al && (aw === 'cran' || aw === 'blue'), cabOn = al && aw === 'cab';
     if (gunOn && !v.gun) { const m = cranGun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.gun = m; }
-    if (v.gun && gunOn) { const blue = aw === 'blue', gg = v.gun as typeof v.gun & { blue?: boolean }; if (gg.blue !== blue) { gg.blue = blue; tintBerries(v.gun.g, blue); } }
+    if (v.gun && gunOn) { const kind = aw === 'blue' ? BERRIES[v.s.be ?? 0] : 'cran', gg = v.gun as typeof v.gun & { kind?: string }; if (gg.kind !== kind) { gg.kind = kind; tintBerries(v.gun.g, kind); } }
     if (v.gun) { v.gun.g.visible = gunOn; v.gun.anim.position.z = -v.recoil * .5; v.gun.anim.rotation.x = -v.recoil * 2; }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
@@ -1171,6 +1194,11 @@ export class GameView {
       tongue: v.type === 'toad' && fl & EF.tongue ? e[10] : 0, rear: fl & EF.boss && e[9] === 1 ? clamp(e[10] * 3, 0, 1) : 0,
     });
     v.P.stars.visible = !!stun; if (stun) v.P.stars.rotation.y += dt * 6;
+    { // Dornenfessel: a thorny vine wraps twice around the animal (23.11.2026)
+      const u = v as any, on = !!(fl & EF.thorn);
+      if (on && !u.thorn) { u.thorn = thornWrap(); const R = this.cfg.enemies[v.type as EnemyType].radius; u.thorn.scale.set(R * 1.25, R * 1.7, R * 1.25); u.thorn.position.y = R * .35; v.g.add(u.thorn); u.thornK = 0; }
+      if (u.thorn) { u.thornK = clamp(u.thornK + (on ? dt * 5 : -dt * 3), 0, 1); u.thorn.visible = u.thornK > 0; u.thorn.rotation.y += dt * .6; const k = u.thornK; u.thorn.children[0].scale.set(1, k, 1); }
+    }
     if (v.type === 'toad') {
       const ph = e[9];
       v.P.body.position.y += air ? Math.sin(ph / TA * Math.PI) * 1.375 : 0; // 2.5x as high as before (.55)

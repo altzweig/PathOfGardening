@@ -282,6 +282,32 @@ function kitchen(g: THREE.Group, H: number) {
 
 const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean) => void> = { well, mill, press, bakery, hens, cow, dairy, kitchen };
 
+/** Lager-Truhe (23.11.2026): big wooden chest with iron bands on an earth hex in the garden centre; the lid opens a crack
+ *  and rattles while raccoons steal from it. Returns the update function (dt, thieves at work). */
+export function chestModel(g: THREE.Group) {
+  const B = M(0x7a5232), BD = M(0x4f331d), BAND = M(0x3a3a40, { m: .5, r: .5 }), GOLD = M(0xc8a040, { m: .6, r: .35 });
+  const ch = new THREE.Group(); ch.rotation.y = .3; g.add(ch);
+  const W = 1.15, D = .7, Hb = .52;
+  part(ch, GEO.box, BD, W, .06, D, 0, .03, 0);
+  for (let i = 0; i < 4; i++) part(ch, GEO.box, i % 2 ? B : M(0x86603c), W - .02, Hb / 4 - .01, D - .02, 0, .06 + Hb / 8 + i * Hb / 4, 0); // planks
+  for (const x of [-W / 2 + .12, 0, W / 2 - .12]) part(ch, GEO.box, BAND, .07, Hb + .02, D + .03, x, .06 + Hb / 2, 0); // iron bands
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(ch, GEO.box, BAND, .09, .09, .09, sx * (W / 2 - .02), .07, sz * (D / 2 - .02)); // corner shoes
+  // lid: hinged at the back edge, rounded (half cylinder)
+  const hinge = new THREE.Group(); hinge.position.set(0, .06 + Hb, -D / 2); ch.add(hinge);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 14, 1, false, 0, Math.PI), B); lid.rotation.set(0, 0, Math.PI / 2); lid.rotation.order = 'ZYX'; lid.position.set(0, 0, D / 2); lid.castShadow = true; hinge.add(lid);
+  for (const x of [-W / 2 + .12, 0, W / 2 - .12]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(D / 2 + .015, D / 2 + .015, .075, 14, 1, true, 0, Math.PI), BAND); b.rotation.copy(lid.rotation); b.position.set(x, 0, D / 2); hinge.add(b); }
+  part(hinge, GEO.box, GOLD, .14, .16, .04, 0, -.02, D + .01); // lock plate
+  part(ch, GEO.box, GOLD, .1, .1, .03, 0, .06 + Hb - .08, D / 2 + .02);
+  // a few things peeking out of the gap
+  const loot = new THREE.Group(); ch.add(loot);
+  for (let i = 0; i < 6; i++) part(loot, GEO.sph, [M(0x3550e0), M(0xb00a1e), M(0x3a1f44), M(0xe0b85a)][i % 4], .07, .07, .07, rand(-.4, .4), .06 + Hb - .04, rand(-.2, .2), false);
+  let open = 0, t = 0;
+  return (dt: number, thieves: number) => {
+    t += dt; open += ((thieves > 0 ? .28 + Math.min(.25, thieves * .04) : 0) - open) * Math.min(1, dt * 6);
+    hinge.rotation.x = -open - (thieves > 0 ? Math.abs(Math.sin(t * 13)) * .06 : 0);
+    loot.visible = open > .05;
+  };
+}
 export function buildBuilding(type: BuildingType, H: number): BuildingView {
   const root = new THREE.Group(), g = new THREE.Group(); root.add(g);
   const anim = MAKERS[type](g, H);

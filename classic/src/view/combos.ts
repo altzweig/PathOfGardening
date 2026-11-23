@@ -25,6 +25,7 @@ function seg(g: THREE.Object3D, mat: THREE.Material, r: number, a: number[], b: 
   const d = V(b[0] - a[0], b[1] - a[1], b[2] - a[2]), m = part(g, GEO.cyl, mat, r, d.length(), r, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, false);
   m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); return m;
 }
+const PEL_BLUE = glow(0x5a74ff, 0x2a40d0, .5, .3), PEL_BLACK = glow(0x4a2858, 0x2a0a3a, .3, .3);
 function berry(g: THREE.Object3D, mat: THREE.Material, r: number, x: number, y: number, z: number) { const b = part(g, BERRY_GEO.cran, mat, r, r, r, x, y, z, false); b.rotation.set(rand(-.5, .5), rand(0, 7), rand(-.5, .5)); return b; }
 function chiliPod(g: THREE.Object3D, mat: THREE.Material, s: number, x: number, y: number, z: number, ry = 0, rx = 0) {
   const c = new THREE.Group(); c.position.set(x, y, z); c.rotation.set(rx, ry, 0); g.add(c);
@@ -98,6 +99,8 @@ export function projMesh(kind: number): THREE.Object3D {
       for (let i = 0; i < 4; i++) { const d = V(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); seg(arcs, ADD(0xfffbe0, .9), .006, [0, 0, 0], [d.x * .12, d.y * .12, d.z * .12]); }
       g.userData.arcs = arcs; g.userData.pulse = true; break;
     }
+    case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .07, .07, .07, 0, 0, 0, false); break; // blueberry pellet
+    case 11: part(g, BERRY_GEO.black, PEL_BLACK, .075, .075, .075, 0, 0, 0, false); break; // blackberry pellet
     default: part(g, GEO.sph, PROJ_CRAN, .07, .07, .07, 0, 0, 0, false);
   }
   return g;

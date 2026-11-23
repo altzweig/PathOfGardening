@@ -8,6 +8,6 @@ const set = (o: any, path: string, v: any) => { const ks = path.split('.'); let 
 const out = [];
 for (let i = 0; i < job.runs; i++) {
   const cfg = structuredClone(base); for (const [k, v] of Object.entries(job.overrides || {})) set(cfg, k, v);
-  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime }));
+  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime, start: job.start }));
 }
 process.stdout.write(JSON.stringify(out));

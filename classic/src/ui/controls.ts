@@ -1,5 +1,5 @@
 // Visual controls page (the only place in the game that explains input).
-import { skillIcon } from './icons';
+import { fruitIcon, skillIcon } from './icons';
 
 const GOLD = '#e3b964', TXT = '#efe3c8', MUT = '#a59a86';
 const key = (x: number, y: number, w: number, h: number, label: string, hot = true, fs = 28) =>
@@ -23,6 +23,9 @@ export function pcControls() {
   ${icon(skillIcon('asp'), 445, 320, 52)}<text x="510" y="355" font-size="30" fill="${MUT}">›</text>
   ${icon(skillIcon('cran'), 530, 320, 52)}<text x="595" y="355" font-size="30" fill="${MUT}">›</text>
   ${icon(skillIcon('cab'), 615, 320, 52)}
+  <!-- Q: shotgun berry -->
+  ${key(40, 460, 80, 70, 'Q', true, 28)}${label(135, 505, 'Beere', 'start', 26)}
+  ${icon(fruitIcon('blue'), 215, 470, 40)}${icon(fruitIcon('black'), 255, 470, 40)}${icon(fruitIcon('cran'), 295, 470, 40)}
   <!-- mouse -->
   <g transform="translate(760 70)">
     <rect x="0" y="0" width="150" height="230" rx="75" fill="#1a2027" stroke="#3a4550" stroke-width="3"/>
@@ -61,7 +64,9 @@ export function mobileControls() {
     <circle r="58" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(skillIcon('rake'), -36, -36, 72)}
   </g>
   <g transform="translate(735 445)"><circle r="40" fill="#1d252d" stroke="#8fe36a" stroke-width="4"/>${icon(skillIcon('asp'), -26, -26, 52)}</g>
-  <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('cran'), -26, -26, 52)}</g>
+  <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('blue'), -26, -26, 52)}
+    <circle cx="34" cy="-34" r="17" fill="#0b1016" stroke="${GOLD}" stroke-width="2"/>${icon(fruitIcon('black'), 21, -47, 26)}</g>
+  <path d="M800 290 q30 -40 70 -40" stroke="${MUT}" stroke-width="2" stroke-dasharray="5 5" fill="none"/>${label(610, 300, 'Tippen = Beere wechseln', 'middle', 20, MUT)}
   <g transform="translate(870 290)"><circle r="40" fill="#1d252d" stroke="#b8f070" stroke-width="4"/>${icon(skillIcon('cab'), -26, -26, 52)}</g>
   ${label(905, 240, 'Tippen = automatisch zielen', 'end', 22, TXT)}
   ${label(905, 212, 'Halten + ziehen = zielen', 'end', 22, TXT)}

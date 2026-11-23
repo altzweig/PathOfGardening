@@ -65,6 +65,9 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 .skill .ammo{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);padding:0 7px;border-radius:999px;background:#0b1016e6;border:1px solid #ffffff22;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .skill .kn{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#fff3;border:2px solid #fff8;display:none}
 .skill.held .kn{display:block}
+.skill .berry{position:absolute;right:-10px;top:-10px;width:30px;height:30px;border-radius:50%;background:#0b1016e6;border:1.5px solid var(--gold-dim);display:grid;place-items:center;pointer-events:auto;cursor:pointer}
+.skill .berry svg{width:80%;height:80%}
+.skill[hidden] .berry{display:none}
 .skill.grey .face{filter:grayscale(1) brightness(.5)}
 .skill.grey .charge{opacity:.6}
 .skill.ready .face{box-shadow:0 0 16px 3px var(--glow),inset 0 0 12px var(--glow);border-color:var(--glow)}

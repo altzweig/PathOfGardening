@@ -42,6 +42,7 @@ import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
+import { carryApply, carryRestore } from './carry';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
 import { EggFX, fryingPan } from './eggfx';
@@ -54,7 +55,7 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 const EGG_BK = BK.indexOf('egg');
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', y: '#ffe23a', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
-interface PView { tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s.dk */ dk?: number; chiliH?: THREE.Group; tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
@@ -1197,12 +1198,17 @@ export class GameView {
     v.wand.visible = !!s.lw && !!s.al; v.lemonMat.emissiveIntensity = Math.max(0, v.lemonMat.emissiveIntensity - dt * 3);
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.lowHpWarn(v, s.hp / s.mhp);
+    { // weapon back <-> hand: follows the sim at the draw speed (smooth between network snapshots)
+      const tgt = s.dk ?? 0, r = dt / Math.max(.01, this.cfg.player.drawTime ?? .28) * 1.3;
+      v.dk = v.dk === undefined ? tgt : v.dk + clamp(tgt - v.dk, -r, r);
+    }
+    carryRestore(this.carried(v)); // hand pose for the weapon animations below (the back pose is applied in poseFarmer)
     this.animFlame(v, dt);
     this.animXbow(v);
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible || v.sling?.g.visible);
+    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible || v.sling?.g.visible || v.chiliH?.visible);
     if (v.tool) v.tool.pivot.visible = !!s.rh && !!v.toolK && (s.sw > 0 || !otherHeld);
     v.rake.visible = !v.toolK && !!s.rh && (s.sw > 0 || !otherHeld);
     this.poseFarmer(v, dt);
@@ -1226,6 +1232,8 @@ export class GameView {
       v.hbar.visible = true; v.hbar.position.set(v.x, other ? 1.5 : 1.45, v.z); v.hbar.quaternion.copy(camera.quaternion); setBar(v.hbar, hv);
     } else if (v.hbar) v.hbar.visible = false;
   }
+  /** held weapon models that hang on the back while the weapon is put away (24.11.2026) */
+  private carried(v: PView) { return [v.cw?.g, v.gun?.g, v.smg?.g, v.cabH, v.sack, v.pan?.g, v.sling?.g, v.xbow?.g, v.chiliH]; }
   /** legs walk with the walk phase; hands grip whatever is in use (rake handle, wand, crossbow, flamethrower) via IK */
   private poseFarmer(v: PView, dt: number) {
     if (!v.g.visible) return;
@@ -1233,19 +1241,25 @@ export class GameView {
     animateLegs(R, dt, s.wk, v.walk);
     R.torso.rotation.y += v.twist || 0; // rake stroke: upper body turns with the swing
     v.g.updateMatrixWorld(true);
+    const back = 1 - (v.dk ?? 0), held = this.carried(v);
+    if (held.some(o => o?.visible)) { carryApply(held, back, v.g, R.torso); v.g.updateMatrixWorld(true); }
     let t0: THREE.Vector3 | null = null, t1: THREE.Vector3 | null = null; // t0: hand on the +x side, t1: -x side
     const F = v.flame;
-    if (v.cw && v.cw.g.visible) { v.cw.anim.updateMatrixWorld(true); t0 = v.cw.anim.localToWorld(v.cw.t0.clone()); t1 = v.cw.anim.localToWorld(v.cw.t1.clone()); }
-    else if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
-    else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
-    else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
-    else if (v.smg && v.smg.g.visible) { t0 = v.smg.anim.localToWorld(V(0, -.09, -.07)); t1 = v.smg.anim.localToWorld(V(0, -.07, .1)); }
-    else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
-    else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
-    else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
-    else if (v.sling && v.sling.g.visible) { v.sling.g.updateMatrixWorld(true); t0 = v.sling.anim.localToWorld(V(0, -.05, 0)); t1 = v.sling.pouch.localToWorld(V(0, 0, -.02)); } // grip + the hand drawing the band
-    else if (v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
-    else if (v.rake.visible) {
+    if (back < .999) { // weapon in the hand or on its way: the +x hand holds the grip, the other one joins at the end of the draw
+      if (v.cw && v.cw.g.visible) { v.cw.anim.updateMatrixWorld(true); t0 = v.cw.anim.localToWorld(v.cw.t0.clone()); t1 = v.cw.anim.localToWorld(v.cw.t1.clone()); }
+      else if (F && F.gun.visible) { F.gun.updateMatrixWorld(true); t0 = F.gun.localToWorld(V(.02, -.035, -.1)); t1 = F.gun.localToWorld(V(-.02, -.04, .07)); }
+      else if (v.chiliH && v.chiliH.visible) { t0 = v.chiliH.localToWorld(V(.02, -.035, -.1)); t1 = v.chiliH.localToWorld(V(-.02, -.04, .07)); }
+      else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
+      else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
+      else if (v.smg && v.smg.g.visible) { t0 = v.smg.anim.localToWorld(V(0, -.09, -.07)); t1 = v.smg.anim.localToWorld(V(0, -.07, .1)); }
+      else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
+      else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
+      else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
+      else if (v.sling && v.sling.g.visible) { v.sling.g.updateMatrixWorld(true); t0 = v.sling.anim.localToWorld(V(0, -.05, 0)); t1 = v.sling.pouch.localToWorld(V(0, 0, -.02)); } // grip + the hand drawing the band
+      if (back > .25) t1 = null;
+    }
+    if (!t0 && v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
+    else if (!t0 && v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
     }
@@ -1286,6 +1300,9 @@ export class GameView {
       v.pan.eggs.visible = now - (v.panT ?? 0) > 1400 || (sp > 0 && sp < .9); // fresh ones are back in the pan after a moment
       v.pan.eggs.children.forEach((c, i) => { c.position.y = .01 + Math.abs(Math.sin(now / 90 + i * 2)) * .004; }); // sizzling
     }
+    const chiliOn = al && aw === 'chili' && !v.flame?.gun.visible; // 24.11.2026: the flamethrower also hangs on the back / in the hand while it does not burn
+    if (chiliOn && !v.chiliH) { const m = chiliThrower(); m.position.set(.2, .74, .3); v.g.add(m); v.chiliH = m; }
+    if (v.chiliH) v.chiliH.visible = chiliOn;
     const slingOn = al && aw === 'sling';
     if (slingOn && !v.sling) { const m = eggSling(); m.g.position.set(.16, .98, .3); v.g.add(m.g); v.sling = m; }
     if (v.sling) {

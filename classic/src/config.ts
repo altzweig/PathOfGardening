@@ -66,7 +66,7 @@ export interface EnemyCfg {
 }
 export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
-  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
+  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[] };

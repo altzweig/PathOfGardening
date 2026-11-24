@@ -601,13 +601,40 @@ body.shopOn #res,body.shopOn #btns,body.shopOn .stick,body.shopOn #wcd,body.shop
 .wsCard.gold{grid-column:4;grid-row:2;width:112%;margin-top:-14%;justify-self:center;z-index:1}
 .wsCard.gold .wsPaper{aspect-ratio:1/1.0;padding:11% 8% 8%;clip-path:none;border-radius:6px;
   background:radial-gradient(ellipse at 30% 18%,#fffbe8 0,#fbefc4 45%,#f0d88a 100%);
-  box-shadow:0 0 0 3px #f0c040,0 0 0 5px #8a5a10,0 0 26px 6px #ffcc4080,0 10px 16px #0007}
+  box-shadow:0 0 0 4px var(--wc,#f0c040),0 0 0 6px #8a5a10,0 0 26px 6px #ffcc4080,0 10px 16px #0007}
 .wsCard.gold .wsPaper::before{content:"";position:absolute;top:-30%;left:-60%;width:36%;height:160%;background:linear-gradient(90deg,#fff0,#ffffffaa,#fff0);transform:rotate(18deg);animation:gloss 3.2s ease-in-out infinite;pointer-events:none}
 .wsCard.gold .wsHd{color:#8a5a08;font-size:clamp(14px,1.6vw,19px)}
 .wsCard.gold .wsPic{width:46%}
 .wsCard.gold .pin{background:radial-gradient(circle at 35% 35%,#fff6c0,#e3a820 60%,#6a4400)}
 .wsCard.gold .wsCost{font-size:clamp(20px,2.2vw,28px)}
 .wsCard.gold.sold .wsPaper{box-shadow:0 0 0 3px #b8a070,0 6px 10px #0006}
+/* 24.11.2026 card layout: frame in the weapon colour; weapon strip on top, upgrade name big, old -> NEW value */
+.wsCard{--wc:#8a7a60}
+.wsCard:not(.gold) .wsPaper{padding:0 0 9%;justify-content:flex-start;gap:4px;box-shadow:inset 0 0 0 3px var(--wc),0 1px 0 #fff8 inset,0 7px 10px #0006,0 2px 2px #0005}
+.wsWho{align-self:stretch;display:flex;align-items:center;justify-content:center;gap:6px;padding:9% 8% 5%;background:linear-gradient(180deg,color-mix(in srgb,var(--wc) 85%,#000),var(--wc));color:#fff;text-shadow:0 1px 1px #0008}
+.wsWho i{width:clamp(22px,2.4vw,30px);height:clamp(22px,2.4vw,30px);flex:none;display:grid;place-items:center;background:#fff8;border-radius:50%;box-shadow:0 0 0 1.5px #0004}
+.wsWho i svg{width:82%;height:82%}
+.wsWho b{font:700 clamp(11px,1.15vw,14px) var(--f-body);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wsCard .pin{z-index:1}
+.wsCard:not(.gold) .pin{top:5px;left:auto;right:6px;margin:0}
+.wsCard:not(.gold) .wsHd{font-size:clamp(15px,1.7vw,21px);margin-top:8%;color:#3a2410}
+.wsCard:not(.gold) .wsLines{margin:0;gap:4px}
+.wsBig{width:clamp(34px,3.6vw,48px);aspect-ratio:1;display:grid;place-items:center;border-radius:50%;background:#3a2814;box-shadow:0 0 0 3px color-mix(in srgb,var(--wc) 70%,#fff),0 3px 6px #0005;margin:auto 0 4px}
+.wsBig svg{width:68%;height:68%}
+.wsLines .main{font-size:clamp(14px,1.55vw,19px);gap:5px}
+.wsLines .main .ic{width:24px;height:24px}
+.wsLines .sub{font-size:clamp(11px,1.1vw,13px);color:#6a4a2a}
+.wsLines s{text-decoration:none;color:#8a6a48;font-size:.8em}
+.wsLines .arr{font-style:normal;color:#8a6a48;font-size:.85em}
+.wsLines .nv{color:#1f6a1a;font-size:1.12em}
+.wsCard.x2 .wsX2{position:static;font-size:.9em}
+/* big card (new weapon, well): label, picture, name, short effect, all stats as chips */
+.wsTag{font:700 clamp(11px,1.1vw,13px) var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:#fff;background:var(--wc);padding:3px 10px;border-radius:10px;box-shadow:0 1px 2px #0005;text-shadow:0 1px 1px #0007}
+.wsCard.big .wsName{font:700 clamp(15px,1.7vw,21px) var(--f-display);color:#3a2410}
+.wsFx{font:600 clamp(11px,1.1vw,13px) var(--f-body);color:#7a4a18;text-align:center;font-style:italic}
+.wsStats{display:grid;grid-template-columns:repeat(2,auto);gap:6px 14px;justify-content:center;margin-top:2px}
+.wsStats>span{display:flex;align-items:center;gap:4px;font:700 clamp(12px,1.3vw,16px) var(--f-body);font-variant-numeric:tabular-nums;white-space:nowrap;color:#2a1a08}
+.wsStats .ic{width:22px;height:22px;padding:2px;box-sizing:border-box;border-radius:50%;background:#3a2814}
 /* stock list on the right */
 #wsList{flex:none;width:clamp(150px,17vw,210px);align-self:flex-start;max-height:100%;overflow:auto;box-sizing:border-box;padding:12px 12px 14px;border-radius:4px;color:#2a1a0c;
   background:linear-gradient(180deg,#fbf6ea,#efe5cc);box-shadow:0 0 0 2px #4a3a26,0 10px 20px #0009,inset 0 0 20px #c8b08a40;transform:rotate(.6deg)}
@@ -632,7 +659,15 @@ body.shopOn #res,body.shopOn #btns,body.shopOn .stick,body.shopOn #wcd,body.shop
   .wsCard.gold .wsPic{width:36px}
   .wsCard{gap:2px}.wsCost{font-size:16px}.wsCost svg{width:12px;height:17px}
   .wsCard.gold{margin-top:-6%;width:106%}
-  .wsCard.gold .wsPaper{aspect-ratio:auto;height:clamp(100px,34vh,156px)}
+  .wsCard.gold .wsPaper{aspect-ratio:auto;height:auto;min-height:clamp(100px,34vh,156px)}
+  .wsCard:not(.gold) .wsPaper{height:auto;min-height:0;padding:0 0 5px;gap:2px}
+  .wsWho{padding:4px 6px 3px}.wsWho i{width:18px;height:18px}.wsWho b{font-size:11px}
+  .wsCard:not(.gold) .wsHd{margin-top:3px;font-size:12px}
+  .wsBig{width:24px;margin:1px 0;box-shadow:0 0 0 2px color-mix(in srgb,var(--wc) 70%,#fff)}
+  .wsLines .main{font-size:12px}.wsLines .main .ic{width:16px;height:16px}.wsLines .sub{font-size:10px}
+  .wsCard.gold .wsPaper{min-height:0;padding:8px 8px 6px;gap:2px}
+  .wsCard.big .wsPic{width:30px}.wsCard.big .wsName{font-size:13px}.wsTag{font-size:9px;padding:1px 8px;margin-top:8px}.wsFx{font-size:10px}
+  .wsStats{gap:1px 8px}.wsStats>span{font-size:11px}.wsStats .ic{width:15px;height:15px}
   .wsLegs{display:none}
   #wsList{width:clamp(120px,19vw,170px);padding:8px}
   .wsRow{font-size:12px;padding:1px 0}.wsRow i{width:16px;height:16px}
@@ -649,7 +684,16 @@ body.shopOn #res,body.shopOn #btns,body.shopOn .stick,body.shopOn #wcd,body.shop
   .wsRow{border:0;padding:0;font-size:13px}
   #wsGrid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto}
   .wsCard.gold{grid-column:1/-1;grid-row:auto;width:62%;margin-top:4px}
-  .wsCard.gold .wsPaper{aspect-ratio:1.5/1}
+  .wsCard.gold .wsPaper{aspect-ratio:auto;padding:14px 12px 12px}
+  .wsCard.gold{width:80%}
+  .wsPaper{aspect-ratio:auto}
+  .wsCard:not(.gold) .wsPaper{min-height:100%;padding:0 0 8px}
+  .wsWho{padding:8px 4px 5px;gap:4px}.wsWho b{font-size:12px}.wsWho i{width:22px;height:22px}
+  .wsCard:not(.gold) .wsHd{font-size:clamp(10px,3.1vw,14px);margin-top:8px;letter-spacing:0;max-width:96%;overflow-wrap:anywhere}
+  .wsBig{width:clamp(30px,9vw,40px);margin:6px 0 4px}
+  .wsLines>span{flex-wrap:wrap;justify-content:center;white-space:normal}
+  .wsLines .main{font-size:13px}.wsLines .main .ic{width:18px;height:18px}.wsLines .sub{font-size:11px}
+  .wsCard.big .wsPic{width:56px}
   .wsDeco{display:none}
   .wsTop{transform:none;padding:12px}
   .wsLegs{height:16px}

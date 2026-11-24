@@ -2535,17 +2535,19 @@ export class Sim {
       const { w, ...o } = from.splice(k, 1)[0]; void w; return o;
     };
     const head = (key: string) => { const [a, b] = key.split('_'); return a === 'learn' ? H.learn ?? '' : H[b] ?? H[a] ?? ''; };
-    // 24.11.2026 (Basti): first Werkstatt (Level 5): Flammenwerfer + Kohlmine lie on the bench as the first ideas (price of a golden idea)
-    const early = this.shopTier <= 1 ? golden.filter(o => (WS.firstLearn ?? []).some(id => o.key === 'learn_' + id)) : [];
-    for (const o of early) { golden.splice(golden.indexOf(o), 1); out.push({ ...o, hd: head(o.key), cost: WS.goldenCost }); }
-    for (let k = early.length; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
+    // 24.11.2026 (Basti): the bench holds only upgrades of weapons the player already has (cost 1); at most ONE weapon,
+    // always on the golden spot (cost 2). First Werkstatt (Level 5): that weapon is Flammenwerfer or Kohlmine (firstLearn).
+    for (let k = 0; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
+    const pickOne = <T,>(a: T[]) => a.length ? a[Math.floor(Math.random() * a.length)] : null;
+    const first = this.shopTier <= 1 ? golden.filter(o => (WS.firstLearn ?? []).some(id => o.key === 'learn_' + id)) : [];
     const gold: Offer[] = [];
-    if (WS.golden.includes('well') && !this.wellOpen && this.cfg.buildings.well?.cropBonus) {
+    if (!first.length && WS.golden.includes('well') && !this.wellOpen && this.cfg.buildings.well?.cropBonus) {
       const B = this.cfg.buildings.well.cropBonus!;
       gold.push({ key: 'gold_well', cat: 'field', pic: 'field_well', title: N.fields.well ?? 'Brunnen', hd: H.well ?? '', lines: [`{sprout} +${Math.round(B[0] * 100)} %`, B.map(b => Math.round(b * 100)).join(' · ') + ' %'] });
     }
-    if (WS.golden.includes('learn')) for (const o of golden) gold.push({ ...o, hd: head(o.key) });
-    let g: Offer | null = gold.length ? gold[Math.floor(Math.random() * gold.length)] : null;
+    if (WS.golden.includes('learn')) for (const o of (first.length ? first : golden)) gold.push({ ...o, hd: head(o.key) });
+    let g: Offer | null = pickOne(gold);
+    if (g) g = { ...g, hd: head(g.key) || g.hd };
     if (!g) { const o = draw(normal); if (o) g = { ...o, key: 'x2_' + o.key, hd: H.x2 ?? '', x2: 1 }; }
     if (g) out.push({ ...g, cost: WS.goldenCost, gold: 1 });
     p.shop = out;

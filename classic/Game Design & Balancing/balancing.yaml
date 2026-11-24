@@ -688,11 +688,11 @@ juice:
 werkstatt:                 # Shop: öffnet sich alle paar Level von selbst für alle (nach der Level-up-Karte), die Welt steht still
   everyLevels: 5           # alle 5 Level (Level 5, 10, 15 ...)
   openDelay: 0.6           # s nach der Level-up-Karte, bevor der Shop aufgeht
-  slots: 6                 # normale Ideen auf der Werkbank (Waffen-Upgrades)
+  slots: 6                 # normale Ideen auf der Werkbank: nur Upgrades von Waffen, die man schon hat (inkl. Harke)
   cost: 1                  # Glühbirnen je normaler Idee
   goldenCost: 2            # Glühbirnen für die goldene Idee
   golden: [well, learn]    # goldene Ideen: Brunnen freischalten, Waffe lernen (Mehlsack, sobald eine Mühle steht); sonst doppeltes Upgrade
-  firstLearn: [chili, cab] # 24.11.2026 (Basti): Flammenwerfer + Kohlmine liegen in der ersten Werkstatt (Level 5) als erste Ideen auf der Werkbank (Preis wie goldene Idee), danach als goldene Idee, bis gelernt
+  firstLearn: [chili, cab] # erste Werkstatt (Level 5): eine davon auf dem goldenen Platz (24.11.2026: höchstens 1 Waffe pro Werkstatt, immer golden, kostet goldenCost); danach als goldene Idee, bis gelernt
   maxBulbs: 10             # so viele Glühbirnen nebeneinander im HUD, darüber mit Zahl
   names:                   # Überschriften der Ideen-Karten
     dmg: Schaden

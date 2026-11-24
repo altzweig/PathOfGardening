@@ -529,3 +529,10 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - XP: xp.perPlant (2) je geernteter Pflanze und Schlag, auf ihre Früchte verteilt. Jeder Schlag auf ein reifes Feld ist gleich viel wert.
 - Körner-MP überhitzt nicht mehr, streut nur mit der Zeit mehr; Körner 1,6x größer, 2 Schaden. Flammenwerfer: Brandschaden je Stapel und Tick 0,5 -> 1. Mühle 3 -> 1,5 s. Mehlsäcke 2,3x größer, fliegen hörbar aus der Mühle neben den Spieler, dann einsammeln.
 - Folge laut Bot-Sim: das Spiel ist leichter geworden (nur Schrotflinte: Welle 29 -> 36; Schrotflinte + Flammenwerfer 41, + Kohlmine 44 mit 50 % Siegen), vor allem durch den schnelleren Harken-Takt.
+
+## Werkstatt-Karten (24.11.2026)
+- Auf der Werkbank liegen nur Upgrades von Waffen, die man schon hat (inkl. Harke).
+- Höchstens eine neue Waffe pro Werkstatt, immer auf dem goldenen Platz, kostet immer 2 Birnen.
+- Jede Karte ist in der Farbe ihrer Waffe umrandet.
+- Upgrade-Karte: oben Waffe (Icon + Name), darunter Upgrade-Name groß, großes Werte-Icon, unten alter Wert → neuer Wert (neu grün hervorgehoben).
+- Waffen-Karte: Schild „Neue Waffe“, Bild, Name, Kurzbeschreibung, Werte im Raster.

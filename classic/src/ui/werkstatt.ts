@@ -68,6 +68,18 @@ export class Bulbs {
 }
 
 // ---------------- workbench ----------------
+/** frame colour per weapon (24.11.2026): the colour of its fruit / material */
+const WCOL: Record<string, string> = { rake: '#b07a3e', blue: '#4a6cf0', black: '#8a4aa8', cran: '#e0305a', asp: '#6fbf3a', cab: '#86c83e', lemon: '#e8c020', chili: '#ff5a1a',
+  wheat: '#d8a83a', flour: '#c8b898', pan: '#f09a3a', well: '#4a9ad8' };
+/** which weapon a card belongs to: combo/learn cards name it, upgrades carry it in their picture key */
+function weaponKey(o: Offer) {
+  if (o.key === 'gold_well') return 'well';
+  if (o.wp) return o.wp;
+  const m = /^skill_(\w+)/.exec(o.pic); return m ? m[1] : o.key.replace(/^x2_/, '').split('_')[0];
+}
+/** "a → b" becomes old value small, arrow, new value big */
+function change(html: string) { return html.replace(/(\S+(?:\s?(?:s|m|cm|%|°))?)\s*→\s*(.+)$/, '<s>$1</s><em class="arr">→</em><b class="nv">$2</b>'); }
+
 export class WerkstattUI {
   private key = '';
   private cards: HTMLElement[] = [];
@@ -104,15 +116,35 @@ export class WerkstattUI {
       b.className = 'wsCard' + (o.gold ? ' gold' : '') + (o.x2 ? ' x2' : '');
       b.style.setProperty('--rot', ((Math.sin(i * 12.9898 + o.key.length) * 43758.5453 % 1) * 2.4 - 1.2).toFixed(2) + 'deg');
       b.style.setProperty('--d', (i * .05).toFixed(2) + 's');
+      // 24.11.2026 (Basti): every card framed in its weapon's colour; who (weapon) on top, what (upgrade) big, the change as old -> NEW
+      const wk = weaponKey(o), col = WCOL[wk] ?? '#8a7a60', weap = o.key === 'gold_well' ? '' : (cfg.names.skills as Record<string, string>)[wk] ?? o.title;
+      b.style.setProperty('--wc', col);
+      const learn = o.key.startsWith('learn_') || o.key.startsWith('combo_');
       const art = o.key === 'gold_well' ? fieldArt('well') : pic(o.pic);
-      b.innerHTML = `<span class="wsPaper"><i class="pin"></i>
-          <span class="wsHd">${esc(o.hd ?? '')}</span>
-          <span class="wsPic">${art}${o.x2 ? '<em class="wsX2">×2</em>' : ''}</span>
-          <span class="wsName">${esc(o.title)}</span>
-          <span class="wsLines">${o.lines.slice(0, 2).map(l => `<span>${iconText(l)}</span>`).join('')}</span>
-          <i class="shine"></i><i class="stamp"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/><path d="M12 21 l6 6 l11 -13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></i>
-        </span>
-        <span class="wsCost"><b>${o.cost ?? 1}</b>${bulb()}</span>`;
+      const stamp = `<i class="stamp"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/><path d="M12 21 l6 6 l11 -13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></i>`;
+      if (learn || o.key === 'gold_well') {
+        b.classList.add('big');
+        b.innerHTML = `<span class="wsPaper"><i class="pin"></i>
+            <span class="wsTag">${esc(o.hd ?? '')}</span>
+            <span class="wsPic">${art}</span>
+            <span class="wsName">${esc(o.title)}</span>
+            ${o.fx ? `<span class="wsFx">${esc(o.fx)}</span>` : ''}
+            <span class="wsStats">${o.lines.slice(0, 6).map(l => `<span>${iconText(l)}</span>`).join('')}</span>
+            <i class="shine"></i>${stamp}
+          </span>`;
+      } else {
+        // the stat's icon big in the middle (what gets better), the value line below without it
+        const lines = o.lines.slice(0, 2), m0 = /^\{(\w+)\}\s*/.exec(lines[0] ?? ''), big = m0?.[1];
+        if (m0) lines[0] = lines[0].slice(m0[0].length);
+        b.innerHTML = `<span class="wsPaper"><i class="pin"></i>
+            <span class="wsWho"><i>${pic(o.pic)}</i><b>${esc(weap)}</b></span>
+            <span class="wsHd">${esc(o.hd ?? '')}${o.x2 ? ' <em class="wsX2">×2</em>' : ''}</span>
+            ${big ? `<span class="wsBig">${mini(big)}</span>` : ''}
+            <span class="wsLines">${lines.map((l, k) => `<span class="${k ? 'sub' : 'main'}">${change(iconText(l))}</span>`).join('')}</span>
+            <i class="shine"></i>${stamp}
+        </span>`;
+      }
+      b.insertAdjacentHTML('beforeend', `<span class="wsCost"><b>${o.cost ?? 1}</b>${bulb()}</span>`);
       b.addEventListener('click', () => {
         if (b.classList.contains('sold')) return;
         if (b.classList.contains('poor')) { b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); this.bulbs.flash(); this.onDeny(); return; }

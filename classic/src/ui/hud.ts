@@ -50,7 +50,12 @@ export class Hud {
     const c = document.createElement('div'); c.id = 'cycBtn'; c.hidden = true;
     c.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     box.appendChild(c);
+    // PC weapon bar (24.11.2026 Basti): bottom centre between the orbs, every learned weapon, ammo fruit + count above it
+    const bar = document.createElement('div'); bar.id = 'wbar'; $('#hud').appendChild(bar); this.wbar = bar;
   }
+  private wbar!: HTMLElement;
+  private wbarKey = '';
+  private wslot: Record<string, HTMLElement> = {};
   // wave countdown + announcement
   private cd = { sec: -1, ann: -1, wp: -1 };
   updateWave(s: Snap, W: { announce?: number; tickFrom?: number; redFrom?: number }, dayWaves = 0) {
@@ -144,6 +149,30 @@ export class Hud {
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
     const n = SKILLS.filter((id, i) => this.btn[id] && pr.ln[i] && slots.includes(id)).length;
     const cyc = $('#cycBtn'); if (cyc.hidden !== n < 2) cyc.hidden = n < 2;
+    this.updateBar(pr, ps, slots, active);
+  }
+  /** PC weapon bar: slots in learning order, thin grey frame, the selected (Tab) one thick and golden */
+  private updateBar(pr: any, ps: any, slots: SkillId[], active: Weapon) {
+    const list = slots.filter(id => this.btn[id] && pr.ln[SKILLS.indexOf(id)]), key = list.join(',');
+    if (key !== this.wbarKey) {
+      this.wbarKey = key; this.wbar.innerHTML = ''; this.wslot = {};
+      for (const id of list) {
+        const el = document.createElement('div'); el.className = 'ws'; el.dataset.skill = id;
+        el.innerHTML = `<div class="wa"><span>0</span><i></i></div><div class="wf"></div>`;
+        this.wbar.appendChild(el); this.wslot[id] = el;
+      }
+    }
+    for (const id of list) {
+      const el = this.wslot[id], i = SKILLS.indexOf(id);
+      const ai = id === 'blue' ? SKILLS.indexOf(BERRIES[ps.be ?? 0]) : i;
+      const ft = id === 'blue' ? BERRIES[ps.be ?? 0] : AMMO_OF[id] ?? id; // shotgun: selected berry; Mehlsack / Pfanne / Schleuder: their goods
+      const cb = pr.cb?.[i] ?? -1, fk = cb >= 0 ? COMBOS[cb] : id;
+      const f = el.querySelector<HTMLElement>('.wf')!; if (f.dataset.k !== fk) { f.dataset.k = fk; f.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); }
+      const ic = el.querySelector<HTMLElement>('.wa i')!; if (ic.dataset.k !== ft) { ic.dataset.k = ft; ic.innerHTML = fruitIcon(ft); }
+      const n = String(pr.am[ai]), sp = el.querySelector('.wa span')!; if (sp.textContent !== n) sp.textContent = n;
+      el.classList.toggle('sel', id === active);
+      el.classList.toggle('empty', pr.am[ai] < pr.co[i]);
+    }
   }
 }
 

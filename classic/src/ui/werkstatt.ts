@@ -3,6 +3,7 @@ import { AMMO_OF, Balancing, FRUITS, FruitType, SKILLS, isBuilding } from '../co
 import type { Offer, Snap } from '../sim/snap';
 import { bulb, fieldArt, fruitIcon, iconText, mini, pic, teaArt } from './icons';
 import { tilt } from './hud';
+import { tileContrib, tileCost } from '../sim/sim';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const esc = (t: string) => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -27,11 +28,51 @@ function hexInfo(o: Offer, cfg: Balancing): { art: string; top: string; ins: Sid
   const ins = B.needs ? Object.keys(B.needs).map(k => item(k)) : (B.needsAny ?? []).slice(0, 2).map(k => item(k));
   return { art: fieldArt(t), top: fruitIcon(B.makes), ins, out: item(B.makes) };
 }
+// ---------------- hex sheet (24.11.2026): stats + what levels 2 and 3 bring ----------------
+const nfmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toLocaleString('de-DE');
+const pct = (n: number) => nfmt(n * 100, 0) + ' %';
+/** types whose tiles this type unlocks at its top level (processing chains: Weizen -> Mühle, Beeren -> Saftpresse, Mühle -> Bäckerei) */
+function unlocksOf(t: FruitType, cfg: Balancing) {
+  return Object.entries(cfg.chains ?? {}).filter(([k, c]) => c && (Array.isArray(c.from) ? c.from : [c.from]).includes(t) && cfg.buildings[k as FruitType]).map(([k]) => k as FruitType);
+}
+/** Steckbrief under a hex field: three key numbers, then a small table level 1..3 (bonus, life, unlocks) */
+function hexSheet(t: FruitType, cfg: Balancing) {
+  const W = cfg.werkstatt?.names ?? {}, T = cfg.tiles, top = Math.max(1, T.maxLevel ?? 3);
+  const stat = (icon: string, val: string, label = '') => `<span class="st"><i>${icon}</i><b>${val}</b>${label ? `<small>${esc(label)}</small>` : ''}</span>`;
+  const bld = isBuilding(t), B = bld ? cfg.buildings[t] : null;
+  let stats = '', col: { icon: string; name: string; v: (r: number) => number; nb: boolean };
+  if (!bld) {
+    const P = cfg.plants[t] ?? { interval: 1 }, C = cfg.fields.cycle, n = C?.plants ?? 6;
+    const grow = P.grow ?? C?.grow ?? P.interval, harvest = n * (P.strokes ?? 1) * cfg.rake.cooldown;
+    stats = stat(mini('cd'), nfmt(grow) + ' s', W.grow) + stat(mini('rake'), nfmt(harvest) + ' s', W.harvest) + stat(fruitIcon(t), String(n * (P.amount ?? 1)), W.yield);
+    col = { icon: mini('x2'), name: W.chance ?? '×2', v: r => tileContrib(cfg, r), nb: true };
+  } else {
+    const it = (k: string, x = 1) => `<span class="fi">${fruitIcon(k)}${x > 1 ? `<em>${x}</em>` : ''}</span>`;
+    const ins = B!.needs ? Object.entries(B!.needs).map(([k, x]) => it(k, x as number)).join('<u>+</u>')
+      : B!.needsAny ? `<span class="fi multi">${B!.needsAny.map(k => fruitIcon(k)).join('')}<em>${B!.count ?? 1}</em></span>` : '';
+    const out = t === 'press' ? `<span class="fi xp">${esc(W.xp ?? 'XP')}</span>` : it(B!.makes, B!.amount ?? 1) + (ins ? '' : `<b class="src">${esc(cfg.names.items?.[B!.makes as 'water'] ?? '')}</b>`);
+    const arrow = `<svg class="hexArrow" viewBox="0 0 24 14"><path d="M1 7h18M14 1.8l7 5.2-7 5.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    stats = `<span class="st flow">${ins ? ins + arrow : ''}${out}</span>` + stat(mini('cd'), nfmt(B!.interval ?? B!.time ?? 1) + ' s', W.time);
+    col = B!.cropBonus?.length
+      ? { icon: mini('sprout'), name: W.crops ?? '', v: r => B!.cropBonus![Math.min(r, B!.cropBonus!.length - 1)], nb: false }
+      : { icon: mini('cd'), name: W.speed ?? '', v: r => tileContrib(cfg, r), nb: true };
+  }
+  const hp0 = bld ? (B!.hp ?? T.buildingHp) : cfg.fields.hp, un = unlocksOf(t, cfg), F = cfg.names.fields;
+  const pips = (r: number) => r === 0 ? '' : `<span class="pips">+${Array.from({ length: tileCost(cfg, r - 1) }, () => '<s></s>').join('')}</span>`;
+  let rows = '';
+  for (let r = 0; r < top; r++) {
+    rows += `<span class="lv r${r}"><span class="lvB"><b>${r + 1}</b>${pips(r)}</span><span class="lvV">${r ? '+' : ''}${pct(col.v(r))}</span><span class="lvV hp">${nfmt(hp0 * (1 + T.hpPerLevel * r), 0)}</span></span>`;
+  }
+  const unl = un.length ? `<span class="shUn"><span class="lvB"><b>${top}</b></span><i class="lk">${mini('unlock')}</i>${un.map(k => `<i class="ua">${fieldArt(k)}</i><b>${esc((F as any)[k] ?? k)}</b>`).join('')}</span>` : '';
+  return `<span class="hexSheet"><span class="shStats">${stats}</span>
+    <span class="shLv"><span class="lv hd"><span>${esc(W.level ?? '')}</span><span><i>${col.icon}</i>${esc(col.name)}</span><span><i>${mini('heart')}</i>${esc(W.life ?? '')}</span></span>${rows}</span>${unl}
+    ${col.nb ? `<span class="shNb"><i>${mini('nb')}</i>${esc(W.neighbours ?? '')}</span>` : ''}</span>`;
+}
 /** one hex field button: big building/field, product floating above, input -> output underneath */
 export function hexEl(o: Offer, cfg: Balancing, i: number) {
   const h = hexInfo(o, cfg), b = document.createElement('button');
   const t = o.key.replace(/^(tile|start|tea)_/, '');
-  b.className = 'hex' + (o.key.startsWith('tea_') ? ' tea' : isBuilding(t as FruitType) ? ' bld' : ' crop'); b.dataset.key = o.key;
+  b.className = 'hex' + (o.key.startsWith('tea_') ? ' tea' : ' sheet') + (o.key.startsWith('tea_') ? '' : isBuilding(t as FruitType) ? ' bld' : ' crop'); b.dataset.key = o.key;
   b.style.setProperty('--d', (i * .09).toFixed(2) + 's');
   const side = (s: Side) => `<span class="hs"><i>${s.icon}</i><b>${esc(s.name)}</b></span>`;
   b.innerHTML = `<span class="hexRim"></span><span class="hexIn">
@@ -39,7 +80,7 @@ export function hexEl(o: Offer, cfg: Balancing, i: number) {
       <span class="hexArt">${h.art}</span>
       <span class="hexName">${esc(o.title)}</span>
       ${h.fx ? `<span class="hexFx">${esc(h.fx)}</span>` : ''}
-      <span class="hexFlow">${h.ins.map(side).join('<em>+</em>')}<svg class="hexArrow" viewBox="0 0 24 14"><path d="M1 7h18M14 1.8l7 5.2-7 5.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>${side(h.out)}</span>
+      ${o.key.startsWith('tea_') ? `<span class="hexFlow">${h.ins.map(side).join('<em>+</em>')}<svg class="hexArrow" viewBox="0 0 24 14"><path d="M1 7h18M14 1.8l7 5.2-7 5.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>${side(h.out)}</span>` : hexSheet(t as FruitType, cfg)}
     </span><i class="shine"></i>`;
   tilt(b);
   return b;

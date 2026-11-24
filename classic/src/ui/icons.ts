@@ -114,6 +114,8 @@ export function bulb(off = false) {
   return `<svg class="bulb" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${off ? BULB_BODY.replace('url(#bulbG)', '#3a3c40') : (BULB_DEF + BULB_BODY).replace(/bulbG/g, id)}</svg>`;
 }
 Object.assign(MINI, {
+  // 24.11.2026 hex sheet: a tile and its same-type neighbours (bonus counts for them too)
+  nb: `<path d="M20 12 l7 4 v8 l-7 4 l-7 -4 v-8 z" fill="#e3b964" stroke="#6a4a22" stroke-width="1.6"/><path d="M8 4 l6 3.5 v7 l-6 3.5 l-6 -3.5 v-7 z M32 4 l6 3.5 v7 l-6 3.5 l-6 -3.5 v-7 z M20 26 l6 3.5 v7 l-6 3.5 l-6 -3.5 v-7 z" fill="none" stroke="#8a6a3a" stroke-width="1.6" stroke-dasharray="2.4 1.6"/>`,
   // debuffs of the three shotgun berries (23.11.2026, Saftpresse bars)
   bleed: `<path d="M15 4 C10 13 6 18 6 23 a9 9 0 0 0 18 0 C24 18 20 13 15 4z" fill="#e8243c" stroke="#5a0610" stroke-width="1.4"/><path d="M28 18 C25.5 23 24 25.5 24 28 a4.5 4.5 0 0 0 9 0 C33 25.5 31.5 23 28 18z" fill="#ff4d5e" stroke="#5a0610" stroke-width="1.2"/><path d="M10 22 a5 5 0 0 0 3 5" stroke="#ffb0b8" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
   freeze: `<g stroke="#bfe8ff" stroke-width="2.6" stroke-linecap="round"><path d="M20 4 V36 M6.2 12 L33.8 28 M6.2 28 L33.8 12"/><path d="M15.5 6.5 L20 10 L24.5 6.5 M15.5 33.5 L20 30 L24.5 33.5 M6.5 18 L11 15 L8.5 9.5 M33.5 22 L29 25 L31.5 30.5 M6.5 22 L11 25 L8.5 30.5 M33.5 18 L29 15 L31.5 9.5" fill="none"/></g><circle cx="20" cy="20" r="3.4" fill="#ffffff"/>`,

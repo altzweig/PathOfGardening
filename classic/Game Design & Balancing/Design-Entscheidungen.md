@@ -558,7 +558,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 
 ## Waffe auf dem Rücken (24.11.2026)
 - Die aktive Waffe hängt schräg auf dem Rücken, mittig fixiert (Griff oben an der rechten Schulter, Lauf zur anderen Hüfte), flach anliegend; sie dreht sich immer um ihre eigene Mitte.
-- Leertaste (Handy: Schießen-Knopf) zieht sie über die Schulter nach vorne, erst die Harke (Linksklick / Ernten-Knopf) steckt sie wieder weg. Dauer jeweils player.drawTime = 0,28 s (Basti: 0,2-0,35 s).
+- Leertaste (Handy: Schießen-Knopf) zieht sie über die Schulter nach vorne, erst die Harke (Linksklick / Ernten-Knopf) steckt sie wieder weg. Dauer jeweils player.drawTime = 0,1 s (zuerst 0,28 s, am 24.11.2026 abends auf 0,1 s verkürzt).
 - Schießen bzw. Harken erst nach Animationsende. Ein Druck während der Animation wird gemerkt und danach ausgeführt (Tippen = genau 1 Schuss bzw. 1 Harkenschlag).
 - Tab tauscht nur das Modell: die neue Waffe übernimmt den Stand der laufenden Animation (eigene Rückenlage je Waffe aus ihrer Form), der gemerkte Schuss kommt aus der neuen Waffe.
 

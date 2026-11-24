@@ -1277,7 +1277,7 @@ export class GameView {
     v.stars.visible = !!s.st; v.stars.rotation.y += dt * 6;
     this.lowHpWarn(v, s.hp / s.mhp);
     { // weapon back <-> hand: follows the sim at the draw speed (smooth between network snapshots)
-      const tgt = s.dk ?? 0, r = dt / Math.max(.01, this.cfg.player.drawTime ?? .28) * 1.3;
+      const tgt = s.dk ?? 0, r = dt / Math.max(.01, this.cfg.player.drawTime ?? .1) * 1.3;
       v.dk = v.dk === undefined ? tgt : v.dk + clamp(tgt - v.dk, -r, r);
     }
     carryRestore(this.carried(v)); // hand pose for the weapon animations below (the back pose is applied in poseFarmer)

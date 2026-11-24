@@ -399,6 +399,18 @@ body.sandbox #topbar{justify-content:flex-end}
 .mo.sw{background:var(--c)}
 .mo.out{border-radius:9px;width:40px}
 .mo:hover{transform:translateY(-2px);border-color:#e3b96488}
+.mTabs{display:flex;gap:4px;justify-content:center;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid #e3b96422;width:100%}
+.mTab{pointer-events:auto;width:40px;height:32px;padding:0;border:0;border-radius:9px;background:none;color:#8f8672;display:grid;place-items:center;cursor:pointer;transition:color .15s,background .15s}
+.mTab svg{width:24px;height:24px}.mTab:hover{color:#e8d8b0}.mTab.on{background:#e3b96422;color:#f3d58f;box-shadow:inset 0 -2px 0 #f0cf86}
+.mPane{display:flex;flex-direction:column;gap:6px;align-items:center;min-height:126px;justify-content:center}
+.mo.sw .eye{display:block;width:44%;height:44%;margin:auto;border-radius:50%;background:#0a0806;box-shadow:0 0 0 3px #fff3}
+.mo.met{background:radial-gradient(circle at 35% 30%,#fff,var(--c) 45%,#0006 110%)}
+.mo.sw:not([style*="--c"]){background-clip:padding-box}
+#mNameParts{display:flex;gap:6px;justify-content:center;width:100%;margin-top:-4px}
+.mNp{display:flex;align-items:center;gap:2px;min-width:0;flex:1 1 0}
+.mNp select{pointer-events:auto;min-width:0;flex:1;appearance:none;-webkit-appearance:none;background:#0c1218b8;border:1px solid #e3b96433;border-radius:8px;color:#e6d3a2;font:600 13px var(--f-body);padding:4px 6px;text-align:center;text-overflow:ellipsis;cursor:pointer}
+.mNp select:focus{outline:none;border-color:#e3b964}
+.mNd{pointer-events:auto;width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:none;color:#d9bc78;display:grid;place-items:center;cursor:pointer}.mNd svg{width:20px;height:20px}.mNd:hover{color:#fff0c4}
 .mo.on{border-color:#f0cf86;box-shadow:0 0 0 2px #e3b96440,0 0 14px #e3b96477;color:#f3d58f}
 @media (prefers-reduced-motion:reduce){#menu .rise,#menu.intro .rise,#menu.intro #mNav .mi{animation:none;opacity:1}#mMotes{display:none}#menu h1::after{animation:none}}
 
@@ -410,6 +422,7 @@ body.sandbox #topbar{justify-content:flex-end}
   #mOpts{padding:5px 8px;gap:4px}.mRow{gap:6px}
   .mo{width:30px;height:30px}.mo.ico,.mo.out{width:34px}.mo.ico svg{width:24px;height:24px}
   #mDice{width:36px;height:36px}
+  #mStage{height:38vh}.mPane{min-height:0;gap:4px}.mTabs{padding-bottom:3px}.mTab{height:26px}#mNameParts{margin-top:-2px}.mNp select{padding:2px 6px;font-size:12px}
   #mMain{gap:10px}
   .mi{padding:3px 30px 3px 14px}
 }

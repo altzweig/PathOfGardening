@@ -487,6 +487,10 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
   - Reif und während der Ernte: volle Pflanzen, große farbige Früchte, Weizen golden-gelb. Was die Harke abschüttelt, wächst sofort sichtbar nach.
   - Ernte vorbei: der Strauch vertrocknet sofort, die Beeren werden braun. Weizen- und Spargelhalme welken und knicken ab. Kohl verdorrt, schrumpft und verweht als Staub.
   - Nach gut einem Drittel der Wachstumszeit: klein und grün (kleine grüne Früchte, grüne Halme). Bei Reife sofort groß und farbig.
+- **Update 24.11.2026 (alle Pflanzen außer Weizen, Weizen bleibt wie oben):**
+  - Wachstum in 2 Stufen: erste Hälfte ganz klein (ohne Früchte), zweite Hälfte klein mit kleinen grünen Früchten.
+  - Erntereif: auf einen Schlag volle Größe, Früchte größer als vorher (Beeren am deutlichsten). Beerensträucher (Blau-, Brom-, Preiselbeere) haben reif etwas entsättigtere, leicht bräunliche Blätter.
+  - Jede geerntete Pflanze ist sofort wieder ganz klein und grün. Keine Verwelkt-Phase mehr (kein Vertrocknen, kein Kohl-Staub).
 - Hühner ohne Stall und Zaun: 5 Hühner laufen frei auf dem Feld herum und picken. Wenn nicht gearbeitet wird, setzen sie sich hin und schlafen.
 - Gegner etwas leichter: `waves.countMultiplier` 0,7 -> 0,6 (Beerenmenge und Beeren-XP bleiben).
 
@@ -565,3 +569,9 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Die Pause nach einer Händlerwelle = Anfahrt + 15 s Handelszeit (merchant.stay). Danach dreht er um und geht zügig zurück an den Rand, die Plane kommt wieder.
 - Beim Auftauchen: Glöckchen (Handglocke, keine Kirchenglocke) + kurze Einblendung "Der Händler kommt!". Unterwegs quietschen die Räder, Staub wirbelt hinter ihm auf.
 - Modell: prozedural in Three.js (classic/src/view/merchant.ts), Low Poly, je Material zu einem Mesh zusammengefasst, unter 10.000 Dreiecke.
+
+## Spielfigur = Tier (24.11.2026)
+- Kein Mensch mehr: Classic nutzt denselben Charakter-Editor wie das Hof-Spiel (Waschbär, Roter Panda, Fuchs, Hund, Katze, je 5 Fellvarianten, Latzhose, Hüte, Brillen, Schmuck).
+- Name = Vorname + Nachname aus Bastis Namenslisten, beide einzeln würfel- oder wählbar.
+- Alte Classic-Figuren (Mensch) werden beim ersten Start zu einem zufälligen Tier, der Name bleibt.
+- Waffe auf dem Rücken, Werkzeuge je Feld und alle Hand-Animationen laufen über dieselben Gelenke (Torso/Arme) wie vorher.

@@ -556,3 +556,12 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Leertaste (Handy: Schießen-Knopf) zieht sie über die Schulter nach vorne, erst die Harke (Linksklick / Ernten-Knopf) steckt sie wieder weg. Dauer jeweils player.drawTime = 0,28 s (Basti: 0,2-0,35 s).
 - Schießen bzw. Harken erst nach Animationsende. Ein Druck während der Animation wird gemerkt und danach ausgeführt (Tippen = genau 1 Schuss bzw. 1 Harkenschlag).
 - Tab tauscht nur das Modell: die neue Waffe übernimmt den Stand der laufenden Animation (eigene Rückenlage je Waffe aus ihrer Form), der gemerkte Schuss kommt aus der neuen Waffe.
+
+## Händler mit Holzwagen statt Werkstatt (24.11.2026)
+- Der Shop öffnet nicht mehr alle 5 Level von selbst. Nach je 5 Wellen (merchant.everyWaves) kommt nach dem Wellenende, wenn die Tiere weglaufen, ein Händler mit einem mittelalterlichen Holzwagen vom Gartenrand (oben im Bild) bis kurz vor das erste Beet.
+- Er ist beim Kommen und Gehen nicht ansprechbar, schiebt Spieler und Tiere weg und lässt sich nicht aufhalten.
+- Angekommen geht ein goldener Lichtstreifen durch Händler und Wagen, die Plane über den Waren löst sich auf (Dissolve-Shader), die Farben werden satt (unterwegs blasser), goldene Funken und ein goldener Kreis (2 m) am Boden zeigen: handelsbereit.
+- Wer in den 2-m-Kreis läuft, bekommt den Händlerscreen von links eingeblendet, das Spiel pausiert (Koop: wenn alle Lebenden dort sind). Inhalt wie die bisherige Werkstatt (Glühbirnen-Ideen, goldene Idee). Nach "Weiter" läuft die Restpause weiter; erneut öffnen erst nach Weggehen und Wiederkommen.
+- Die Pause nach einer Händlerwelle = Anfahrt + 15 s Handelszeit (merchant.stay). Danach dreht er um und geht zügig zurück an den Rand, die Plane kommt wieder.
+- Beim Auftauchen: Glöckchen (Handglocke, keine Kirchenglocke) + kurze Einblendung "Der Händler kommt!". Unterwegs quietschen die Räder, Staub wirbelt hinter ihm auf.
+- Modell: prozedural in Three.js (classic/src/view/merchant.ts), Low Poly, je Material zu einem Mesh zusammengefasst, unter 10.000 Dreiecke.

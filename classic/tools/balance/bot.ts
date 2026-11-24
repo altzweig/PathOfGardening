@@ -96,7 +96,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       }
       continue;
     }
-    // ---- Werkstatt (opens by itself every werkstatt.everyLevels levels): buy the best ideas, then leave ----
+    // ---- Händler (bench opens next to the merchant): buy the best ideas, then leave ----
     if (p.shopOpen && p.shop) {
       for (;;) { const c = p.shop.map((x, i) => ({ i, x, s: x.sold || (x.cost ?? 1) > p.ideas ? -1 : (cfg.werkstatt?.firstLearn ?? []).some(k => x.key === 'learn_' + k) ? (want.has(x.key.slice(6)) ? 100 : -1) : x.gold ? 80 : score(x.key) })).filter(c => c.s >= 0).sort((a, b) => b.s - a.s)[0]; if (!c) break; sim.buy(p.id, c.i); res.picks['shop:' + c.x.key] = (res.picks['shop:' + c.x.key] || 0) + 1; }
       sim.closeShop(p.id);
@@ -128,7 +128,10 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const ammoT = o.solo && o.solo !== 'blue' ? o.solo : gun === 'blue' ? p.berry : gun;
       const low = (gun || o.solo) && (p.ammo as any)[ammoT!] < 12;
       let rf = null as any; if (low) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && want.has(f.type)) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rf = f; } } }
-      if (rf && !close) { const d = Math.hypot(rf.x - p.x, rf.z - p.z); if (d > .4) go(rf.x, rf.z, .2); it.fire = 'rake'; }
+      // 24.11.2026: the merchant is ready -> walk up to him while there is something to buy
+      const mc = sim.merchant, visit = !!mc && mc.st === 1 && !p.shopLock && !!p.shop && p.shop.some(x => !x.sold && (x.cost ?? 1) <= p.ideas);
+      if (visit) go(mc!.x, mc!.z, 1);
+      else if (rf && !close) { const d = Math.hypot(rf.x - p.x, rf.z - p.z); if (d > .4) go(rf.x, rf.z, .2); it.fire = 'rake'; }
       else if (gun && tgt) { // shoot
         fightT += dt; const d = Math.hypot(tgt.x - p.x, tgt.z - p.z), R = sim.stats(gun as SkillId, p.skills[gun as SkillId]).range;
         if (gun === 'cab') { if (d > 2.5) go(tgt.x, tgt.z); else { it.mx = (p.x - tgt.x) / d; it.mz = (p.z - tgt.z) / d; } } // mine: walk up, then back off and leave a trail of mines

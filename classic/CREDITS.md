@@ -48,4 +48,6 @@ Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
 | bb_collect_1–4, bb_drop_1–4 | „blueberry“ (aus Bastis Sound-Sammlung, `sfx/collect/blueberry.mp3`; geschnitten, tiefpassgefiltert, tiefer) | – | CC0 |
 | amb_day | „calm birds“ (Freesound, aus Bastis Sound-Sammlung, Ausschnitt als Loop) | – | CC0 |
 
+Händler (24.11.2026): Handglocke, Räderquietschen und Rollgeräusch des Wagens sind im Code erzeugt (WebAudio, `src/audio.ts`: merchBell, cartSqueak, cartRoll), keine fremden Dateien. Das Händler-Modell ist ebenfalls prozedural (`src/view/merchantModel.ts`, Vorschau `haendler.html`).
+
 (Nicht verwendet: [Flamethrower weapon long bursts](https://freesound.org/s/395039/) von aslakhostaker.)

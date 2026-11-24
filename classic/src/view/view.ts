@@ -41,6 +41,7 @@ import { GROUND_MAT, rakeHead, sickleModel, handRakeModel } from './models';
 import { dayNow, updateDayNight } from './daynight';
 import { lavaBedMaterial } from './textures';
 import { buildBed } from './beds';
+import { MerchantFx, merchantReset, merchantWarm } from './merchant';
 import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { carryApply, carryRestore } from './carry';
 import { Look, cleanLook, lookKey } from '../look';
@@ -240,6 +241,10 @@ export class GameView {
     setArsenalEnv(new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture); // reflections for the weapon props
     this.heat = new GroundHeat(scene); this.fire = new FireSprites(scene);
     scene.add(this.dyn); scene.add(flameLight); // shared flamethrower light, always there (see flame.ts)
+    // Händler (24.11.2026): squeaks and rumble follow the cart, quieter far from the own player
+    const near = (x: number, z: number) => { const me = this.players.get(this.me); const d = me ? Math.hypot(x - me.x, z - me.z) : 8; return Math.max(0, Math.min(1, 1 - (d - 4) / 20)) ** 2; };
+    this.merchant.onSqueak = (x, z, v) => { const a = near(x, z) * v; if (a > .02) play('cartSqueak', a); };
+    this.merchant.onRoll = (x, z, v) => { const a = near(x, z) * v; if (a > .02) play('cartRoll', a); };
     this.aggro = new THREE.Mesh(GEO.ring, addMat(0xe3b964, .006)); this.aggro.rotation.x = -Math.PI / 2; this.aggro.position.y = .03; scene.add(this.aggro);
   }
   // ---------------- build mode ----------------
@@ -437,8 +442,10 @@ export class GameView {
   }
 
   private rakeW = 0;
+  /** Händler (24.11.2026) with his cart */
+  private merchant = new MerchantFx(scene);
   setConfig(cfg: Balancing) {
-    this.rakeW = cfg.rake.diameter;
+    this.rakeW = cfg.rake.diameter; this.merchant.setTalk(cfg.merchant?.talkRadius ?? 2);
     this.cfg = cfg;
     this.slots = slotPositions(cfg);
     if (!this.slotOverlay.parent) scene.add(this.slotOverlay);
@@ -463,7 +470,7 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
-    this.chest = null; this.chestFn = null;
+    this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset();
     this.flourFx.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
@@ -1079,6 +1086,7 @@ export class GameView {
       add(fruitMesh('cab', 1, false, true)); add(fruitMesh('cab', .6, false, false)); add(nodeMesh()); add(mineObj(false)); add(mineObj(true));
       for (const f of FRUITS) add(fruitMesh(f, 1));
       for (const e of ENEMIES) { add(buildEnemy(e).g); add(buildEnemy(e, true).g); }
+      add(merchantWarm()); // Händler: paled colours, golden sweep, tarp dissolve
     } catch (e) { console.warn('prewarm', e); }
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
@@ -1088,7 +1096,7 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.flourFx.clear();
+    scene.remove(G); this.flourFx.clear(); merchantReset();
   }
   frame(dt: number) {
     resetFlameLight();
@@ -1111,6 +1119,7 @@ export class GameView {
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
     }
+    this.merchant.sync(s?.mc, dt, pxScale);
     this.animVanish(dt);
     this.updateOverlay();
     this.updateAim();

@@ -1,4 +1,4 @@
-// Werkstatt (23.11.2026): ideas (light bulbs) next to the XP bar, hex fields on level-up, the workbench at the chest.
+// Werkstatt (23.11.2026): ideas (light bulbs) next to the XP bar, hex fields on level-up; since 24.11.2026 the bench is the merchant's screen.
 import { AMMO_OF, Balancing, FRUITS, FruitType, SKILLS, isBuilding } from '../config';
 import type { Offer, Snap } from '../sim/snap';
 import { bulb, fieldArt, fruitIcon, iconText, mini, pic, teaArt } from './icons';
@@ -205,9 +205,9 @@ export class WerkstattUI {
       if (!o.gold) tilt(b);
       grid.appendChild(b); this.cards.push(b);
     });
-    // decoration in the free corner of the bench: hammer, pencil and a few nails
+    // decoration in the free corner of the board (24.11.2026 Händler): his brass hand bell and a stuffed coin purse
     const deco = document.createElement('div'); deco.className = 'wsDeco'; deco.setAttribute('aria-hidden', 'true');
-    deco.innerHTML = `<svg viewBox="0 0 120 70"><g transform="rotate(-18 60 35)"><rect x="18" y="31" width="70" height="7" rx="3" fill="#8a5a32" stroke="#2a1a0c" stroke-width="1.6"/><rect x="80" y="20" width="16" height="29" rx="3" fill="#7b8189" stroke="#1a1c20" stroke-width="1.6"/><path d="M96 22 q10 4 12 12" stroke="#7b8189" stroke-width="5" fill="none" stroke-linecap="round"/></g><g transform="rotate(12 60 55)"><rect x="20" y="52" width="58" height="5" rx="1" fill="#e8b840" stroke="#2a1a0c" stroke-width="1.2"/><path d="M78 52 l9 2.5 l-9 2.5z" fill="#f0d8a8" stroke="#2a1a0c" stroke-width="1"/><path d="M85 54.5 l2 0" stroke="#222" stroke-width="1.6"/><rect x="17" y="52" width="5" height="5" fill="#e88a9a" stroke="#2a1a0c" stroke-width="1"/></g><g fill="#9aa0a6" stroke="#2a2c30" stroke-width=".8"><path d="M14 12 l3 10 l1.4 -.4 l-2 -10z"/><circle cx="15" cy="11.5" r="2.2"/><path d="M30 8 l-1 10 l1.4 .2 l1 -10z"/><circle cx="30.4" cy="7.6" r="2"/></g></svg>`;
+    deco.innerHTML = `<svg viewBox="0 0 120 80"><g transform="rotate(-16 40 40)"><rect x="35" y="6" width="9" height="24" rx="3" fill="#6a4024" stroke="#2a1a0c" stroke-width="1.6"/><path d="M24 58c0-18 6-28 15.5-28S55 40 55 58z" fill="#d8a83a" stroke="#4a3008" stroke-width="2"/><path d="M30 44c2-6 5-9 9-10" stroke="#fff3b0" stroke-width="2.5" fill="none" stroke-linecap="round"/><rect x="20" y="56" width="39" height="6" rx="3" fill="#b8862a" stroke="#4a3008" stroke-width="1.6"/><circle cx="39.5" cy="66" r="4" fill="#5a4a2a" stroke="#2a1a0c" stroke-width="1.4"/></g><g transform="translate(66 30)"><path d="M6 40c-6-14 2-28 12-30l-4-6h20l-4 6c10 2 18 16 12 30z" fill="#8a5a34" stroke="#2a1a0c" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h20" stroke="#c8a060" stroke-width="3"/><circle cx="34" cy="41" r="5" fill="#e3b94a" stroke="#6a4a08" stroke-width="1.4"/><circle cx="43" cy="39" r="4.4" fill="#e3b94a" stroke="#6a4a08" stroke-width="1.4"/></g></svg>`;
     grid.appendChild(deco);
   }
   private markSold(c: HTMLElement, animate: boolean) {

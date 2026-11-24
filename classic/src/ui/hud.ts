@@ -77,7 +77,16 @@ export class Hud {
     }
     el.classList.toggle('pause', !!s.wp); el.classList.toggle('red', red);
   }
-  reset() { this.cd = { sec: -1, ann: -1, wp: -1 }; ($('#wann')).hidden = true; this.cache = {}; this.wasReady = {}; this.resKey = ''; }
+  /** short notification sliding down under the top bar (24.11.2026: "Der Händler kommt!") */
+  private toastT = 0;
+  toast(text: string, kind = '') {
+    const el = $('#toast'); if (!text) return;
+    el.className = kind; el.innerHTML = (kind === 'merch' ? `<i><svg viewBox="0 0 64 40"><path d="M30 3c4 0 7 3 9 9l5 14H18l6-15c1-4 3-8 6-8z" fill="#3a2f4a" stroke="#120c18" stroke-width="2.4" stroke-linejoin="round"/><path d="M19 22h26" stroke="#c0943a" stroke-width="4"/><ellipse cx="32" cy="28" rx="30" ry="7" fill="#3a2f4a" stroke="#120c18" stroke-width="2.4"/></svg></i>` : '') + `<span></span>`;
+    el.querySelector('span')!.textContent = text;
+    el.hidden = false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+    clearTimeout(this.toastT); this.toastT = window.setTimeout(() => { el.classList.remove('in'); el.classList.add('out'); this.toastT = window.setTimeout(() => { el.hidden = true; }, 450); }, 3600);
+  }
+  reset() { clearTimeout(this.toastT); ($('#toast')).hidden = true; this.cd = { sec: -1, ann: -1, wp: -1 }; ($('#wann')).hidden = true; this.cache = {}; this.wasReady = {}; this.resKey = ''; }
   private set(id: string, key: string, v: string, html = false) {
     if (this.cache[key] === v) return; this.cache[key] = v; const el = $(id); if (html) el.innerHTML = v; else el.textContent = v;
   }

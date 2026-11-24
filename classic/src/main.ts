@@ -53,6 +53,8 @@ class Game {
       else if (e.k === 'idea') play('idea');
       else if (e.k === 'shopOpen' && e.p === this.me) { this.input.releaseAll(); play('shop'); }
       else if (e.k === 'buy' && e.p === this.me) play('buy', !!e.g);
+      else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
+      else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
     };
     this.input.onPause = () => { if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
     this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
@@ -312,13 +314,11 @@ class Game {
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);
   }
-  /** Werkstatt: bulbs next to the XP bar, the bench while open (every werkstatt.everyLevels levels) */
+  /** bulbs next to the XP bar, the merchant's bench while open (next to the ready merchant) */
   private syncShop(s: Snap) {
     const pr = s.me[this.me], W = this.view.cfg.werkstatt;
     this.bulbs.set(pr?.id ?? 0, innerWidth < 560 ? Math.min(4, W?.maxBulbs ?? 10) : W?.maxBulbs ?? 10); // narrow phones: fewer bulbs, then the number
-    this.shop.update(s, this.me, this.view.cfg);
-    // the shop covers the whole screen: no need to draw the world behind it
-    this.view.noRender = !!pr?.so && !!pr.sh && s.ph === 'play';
+    this.shop.update(s, this.me, this.view.cfg); // 24.11.2026: the merchant screen leaves the frozen world visible on the right
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];

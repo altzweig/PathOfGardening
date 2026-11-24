@@ -11,6 +11,7 @@
 # =====================================================================
 
 names:
+  merchant: Der Händler kommt!   # 24.11.2026 kurze Einblendung, wenn der Händler am Rand auftaucht (einziger Text dazu)
   skills:
     rake: Harke
     blue: Schrotflinte
@@ -708,14 +709,30 @@ juice:
   step: 0.01           # je voller Balken: +1 % Wirkungsdauer des passenden Effekts (Preiselbeere Bleeding, Blaubeere Freeze, Brombeere Thorns)
   names: { cran: Bleeding, blue: Freeze, black: Thorns }
 
-werkstatt:                 # Shop: öffnet sich alle paar Level von selbst für alle (nach der Level-up-Karte), die Welt steht still
-  everyLevels: 5           # alle 5 Level (Level 5, 10, 15 ...)
-  openDelay: 0.6           # s nach der Level-up-Karte, bevor der Shop aufgeht
+# 24.11.2026 (Basti): HÄNDLER statt automatischem Werkstatt-Shop. Nach je everyWaves Wellen kommt nach dem Wellenende
+# (die Tiere laufen weg) ein Händler mit Holzwagen vom Gartenrand bis kurz vor das erste Beet. Beim Ankommen und Gehen ist er
+# nicht ansprechbar. Ist er da, löst sich die Plane auf (goldener Effekt) und er bleibt stay s = die Pause. Wer in talkRadius m
+# an ihn herangeht, bekommt den Händlerscreen (von links), das Spiel pausiert (Koop: wenn alle dort sind). Nach dem Schließen
+# läuft die Restpause weiter; nach der Pause geht er zügig zurück an den Rand. Er schiebt Spieler und Tiere weg.
+merchant:
+  everyWaves: 5            # nach Welle 5, 10, 15 ...
+  delay: 1.0               # s nach Wellenende, bevor er losfährt (Tiere laufen weg)
+  reveal: 1.8              # s Effekt beim Ankommen (Plane löst sich auf), erst danach geht der Händlerscreen auf (zählt zu stay)
+  stay: 15                 # s handelsbereit (= Pause; läuft nicht, solange der Händlerscreen offen ist)
+  talkRadius: 2            # m um den Händler: Händlerscreen geht auf
+  speed: 2.4               # m/s beim Kommen (zieht den Karren)
+  leaveSpeed: 4.2          # m/s beim Gehen ("zügig")
+  turn: 1.2                # s zum Umdrehen vor dem Gehen
+  spawnRadius: 21          # m vom Zentrum: hier erscheint er (im Wald hinter dem Gartenrand) und hier verschwindet er
+  gap: 1.0                 # m Abstand zum ersten Beet
+  arc: 120                 # Grad: aus welchem Bereich (oben im Bild) er kommt
+
+werkstatt:                 # Angebot des Händlers (Ideen = Glühbirnen, 1 pro Level-up)
   slots: 6                 # normale Ideen auf der Werkbank: nur Upgrades von Waffen, die man schon hat (inkl. Harke)
   cost: 1                  # Glühbirnen je normaler Idee
   goldenCost: 2            # Glühbirnen für die goldene Idee
   golden: [well, learn]    # goldene Ideen: Brunnen freischalten, Waffe lernen (Mehlsack, sobald eine Mühle steht); sonst doppeltes Upgrade
-  firstLearn: [chili, cab] # erste Werkstatt (Level 5), nur wenn ihr Feld steht (weaponNeeds): eine davon auf dem goldenen Platz (24.11.2026: höchstens 1 Waffe pro Werkstatt, immer golden, kostet goldenCost); danach als goldene Idee, bis gelernt
+  firstLearn: [chili, cab] # erster Händlerbesuch (früher: erste Werkstatt Level 5), nur wenn ihr Feld steht (weaponNeeds): eine davon auf dem goldenen Platz (24.11.2026: höchstens 1 Waffe pro Werkstatt, immer golden, kostet goldenCost); danach als goldene Idee, bis gelernt
   maxBulbs: 10             # so viele Glühbirnen nebeneinander im HUD, darüber mit Zahl
   names:                   # Überschriften der Ideen-Karten
     dmg: Schaden

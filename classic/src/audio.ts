@@ -197,6 +197,29 @@ export const SND: Record<string, (arg?: any) => void> = {
     noise({ t: .35, vol: .05, type: 'bandpass', f: 700, f2: 1100, q: 6, at: .05 });
     [392, 494, 587].forEach((f, i) => tone({ type: 'triangle', f, t: .7, vol: .045, when: .12 + i * .04 }));
   },
+  /** Händler (24.11.2026): a small brass hand bell rung by a swinging hand (ding-ding ding-ding), inharmonic bell partials, no church bell */
+  merchBell(v = 1) {
+    if (!can('merchBell', 1)) return;
+    const hits = [0, .21, .5, .7, 1.02], P = [[1, 1, 1.1], [2.02, .45, .7], [2.74, .32, .5], [3.9, .2, .32], [5.36, .12, .22], [7.1, .06, .14]];
+    hits.forEach((w, h) => {
+      const f0 = 1320 * (h % 2 ? 1.005 : 1), a = (h % 2 ? .75 : 1) * v;
+      noise({ t: .015, vol: .05 * a, type: 'highpass', f: 5000, when: w, at: .001 }); // clapper
+      for (const [r, g, t] of P) tone({ type: 'sine', f: f0 * r, t: t * (h === hits.length - 1 ? 1.8 : 1), vol: .055 * g * a, when: w, at: .003, vib: f0 * r * .002, vibF: 5.5 });
+    });
+  },
+  /** dry wooden wheel squeak on its axle (rising, wobbling whine) */
+  cartSqueak(v = 1) {
+    if (!can('cartSqueak', .15)) return;
+    const f = rand(620, 760);
+    tone({ type: 'sawtooth', f, f2: f * rand(1.25, 1.45), t: rand(.18, .28), vol: .022 * v, at: .04, vib: 35, vibF: rand(24, 34), filt: { type: 'bandpass', f: f * 2.2, q: 3 } });
+    tone({ type: 'triangle', f: f * 2, f2: f * 2.6, t: .2, vol: .012 * v, at: .05, when: .02 });
+  },
+  /** wheels rolling over the meadow: soft low rumble with a small wooden knock now and then */
+  cartRoll(v = 1) {
+    if (!can('cartRoll', .1)) return;
+    noise({ t: .3, vol: .05 * v, type: 'lowpass', f: 320, f2: 180, at: .08 });
+    if (Math.random() < .35) { tone({ f: rand(140, 190), f2: 80, t: .07, vol: .05 * v }); noise({ t: .04, vol: .04 * v, type: 'bandpass', f: 900, q: 2, at: .002 }); }
+  },
   pauseIn() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 520, f2: 260, t: .5, vol: .045, at: .06, filt: { type: 'lowpass', f: 1400 } }); noise({ t: .5, vol: .035, type: 'lowpass', f: 1600, f2: 260, at: .08 }); },
   /** the reverse: gentle upward sweep as the game speeds up again */
   pauseOut() { if (!can('pause', .2)) return; tone({ type: 'sine', f: 260, f2: 520, t: .5, vol: .04, at: .12, filt: { type: 'lowpass', f: 1600 } }); noise({ t: .45, vol: .03, type: 'lowpass', f: 300, f2: 1800, at: .15 }); },

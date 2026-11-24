@@ -709,13 +709,15 @@ juice:
   step: 0.01           # je voller Balken: +1 % Wirkungsdauer des passenden Effekts (Preiselbeere Bleeding, Blaubeere Freeze, Brombeere Thorns)
   names: { cran: Bleeding, blue: Freeze, black: Thorns }
 
-# 24.11.2026 (Basti): HÄNDLER statt automatischem Werkstatt-Shop. Nach je everyWaves Wellen kommt nach dem Wellenende
+# 24.11.2026 (Basti): HÄNDLER statt automatischem Werkstatt-Shop. Alle everyLevels Level kommt nach dem Wellenende
 # (die Tiere laufen weg) ein Händler mit Holzwagen vom Gartenrand bis kurz vor das erste Beet. Beim Ankommen und Gehen ist er
 # nicht ansprechbar. Ist er da, löst sich die Plane auf (goldener Effekt) und er bleibt stay s = die Pause. Wer in talkRadius m
 # an ihn herangeht, bekommt den Händlerscreen (von links), das Spiel pausiert (Koop: wenn alle dort sind). Nach dem Schließen
 # läuft die Restpause weiter; nach der Pause geht er zügig zurück an den Rand. Er schiebt Spieler und Tiere weg.
 merchant:
-  everyWaves: 5            # nach Welle 5, 10, 15 ...
+  everyLevels: 4           # 24.11.2026 (Basti): alle 4 Level (Level 4, 8, 12 ...) kommt er nach dem Ende der laufenden Welle
+  rerollCost: 1            # Neu würfeln: kostet erst 1 Idee ...
+  rerollStep: 1            # ... und jedes weitere Mal 1 Idee mehr (pro Händlerbesuch wieder ab rerollCost); gekaufte Karten bleiben liegen
   delay: 1.0               # s nach Wellenende, bevor er losfährt (Tiere laufen weg)
   reveal: 1.8              # s Effekt beim Ankommen (Plane löst sich auf), erst danach geht der Händlerscreen auf (zählt zu stay)
   stay: 15                 # s handelsbereit (= Pause; läuft nicht, solange der Händlerscreen offen ist)

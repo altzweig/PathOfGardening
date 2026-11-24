@@ -1012,3 +1012,15 @@ body.sandbox .ws .wa{visibility:hidden}
   #wsGrid .wsCard.gold .wsHexT{width:30%}
   #wsGrid .wsCard.gold .wsPaper{padding:16% 8% 9%}
 }
+
+/* 24.11.2026 Händler: reroll button (dice + price in ideas) next to "Weiter" */
+.mkPanel .mkBtns{display:flex;gap:12px;align-self:flex-end;margin-top:auto;align-items:center}
+.mkPanel .mkBtns #shopGo{margin:0}
+#shopReroll{display:flex;align-items:center;gap:8px;padding:8px 14px}
+#shopReroll svg{width:30px;height:30px;filter:drop-shadow(0 1px 1px #000a)}
+#shopReroll .rrCost{display:flex;align-items:center;gap:2px;font:700 20px var(--f-display)}
+#shopReroll .rrCost svg{width:14px;height:20px;filter:drop-shadow(0 0 4px #ffd84a)}
+#shopReroll.poor{filter:grayscale(.8) brightness(.75)}
+#shopReroll.nope{animation:wsNope .4s ease}
+@media (max-height:500px){.mkPanel .mkBtns{margin-top:6px}#shopReroll{padding:5px 10px}#shopReroll svg{width:24px;height:24px}#shopReroll .rrCost{font-size:16px}}
+@media (orientation:portrait) and (max-width:760px){.mkPanel .mkBtns{align-self:center;margin:14px 0 6px}}

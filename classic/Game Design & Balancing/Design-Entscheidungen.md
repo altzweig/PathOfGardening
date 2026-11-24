@@ -588,3 +588,7 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Am PC zeigen zwei Kugeln wie bei Path of Exile / Diablo Leben (rot, unten links) und Erfahrung (goldgelb, unten rechts). Keine Zahlen, nur die Füllhöhe. Die Levelzahl sitzt als kleines Abzeichen oben auf der XP-Kugel.
 - Die Grafik ist vorgerendert (`tools/orbs/render_orbs.py`): leere Glaskugel, Flüssigkeit als ganze Kugel (milchig, Gold mit Schwebeteilchen) und darüber Glanz, Unebenheiten, ein Ring aus geflochtenen Ästen und Dornenranken, die die Kugel am äußeren Rand etwas verdecken. Im Spiel wird nur die Flüssigkeit auf die Füllhöhe zugeschnitten, mit leicht schwappender Oberfläche.
 - Handy bleibt unverändert (Balken oben links).
+
+### Händler alle 4 Level + Neu würfeln (24.11.2026)
+- Der Händler kommt nicht mehr nach je 5 Wellen, sondern alle 4 Level (merchant.everyLevels): Ist seit dem letzten Besuch eine neue 4er-Stufe erreicht (Level 4, 8, 12 ...), kommt er am Ende der laufenden Welle. Mehrere Stufen auf einmal = ein Besuch.
+- Neu-würfeln-Knopf (Würfel + Preis) neben "Weiter": ersetzt alle noch nicht gekauften Karten. Kostet erst 1 Idee, jedes weitere Mal 1 mehr (rerollCost/rerollStep); pro Händlerbesuch wieder ab 1. Gekaufte Karten bleiben liegen.

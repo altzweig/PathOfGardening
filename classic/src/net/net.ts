@@ -10,7 +10,7 @@ const PREFIX = 'pathofgardening-v1-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from({ length: 5 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join('');
 
-export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello'; look?: Look } | { t: 'buy'; i: number } | { t: 'shopClose' };
+export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello'; look?: Look } | { t: 'buy'; i: number } | { t: 'shopClose' } | { t: 'reroll' };
 export type ToClient =
   | { t: 'welcome'; id: number; color: number; cfg: Balancing }
   | { t: 'lobby'; players: { id: number; color: number; look?: Look }[] }
@@ -29,6 +29,7 @@ export class Host {
   onPlace: (id: number, slot: number) => void = () => {};
   onBuy: (id: number, i: number) => void = () => {};
   onShopClose: (id: number) => void = () => {};
+  onReroll: (id: number) => void = () => {};
   onJoin: (p: LobbyPlayer) => void = () => {};
   onLeave: (id: number) => void = () => {};
   onError: (msg: string) => void = () => {};
@@ -67,6 +68,7 @@ export class Host {
         else if (m.t === 'place') this.onPlace(p.id, m.slot);
         else if (m.t === 'buy') this.onBuy(p.id, m.i);
         else if (m.t === 'shopClose') this.onShopClose(p.id);
+        else if (m.t === 'reroll') this.onReroll(p.id);
         else if (m.t === 'hello' && m.look) { p.look = cleanLook(m.look); this.broadcastLobby(); this.onChange(); }
       });
       const gone = () => {

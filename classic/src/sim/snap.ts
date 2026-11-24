@@ -43,6 +43,7 @@ export interface Priv {
   cb: number[]; // per weapon (SKILLS order): combo it became (COMBOS index), -1 none
   /** Werkstatt (23.11.2026): ideas (light bulbs), the bench of this pause, open; ps: slots the hex field being placed may go on */
   id?: number; sh?: Offer[] | null; so?: 0 | 1; ps?: number[];
+  /** Händler reroll: price of the next one, rerolls so far this visit (24.11.2026) */ rc?: number; rn?: number;
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];

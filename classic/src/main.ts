@@ -55,12 +55,14 @@ class Game {
       else if (e.k === 'idea') play('idea');
       else if (e.k === 'shopOpen' && e.p === this.me) { this.input.releaseAll(); play('shop'); }
       else if (e.k === 'buy' && e.p === this.me) play('buy', !!e.g);
+      else if (e.k === 'reroll' && e.p === this.me) play('reroll');
       else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
       else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
     };
     this.input.onPause = () => { if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
     this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
     this.shop.onClose = () => this.closeShop();
+    this.shop.onReroll = () => { initAudio(); if (this.mode === 'client') this.client?.send({ t: 'reroll' }); else this.sim?.reroll(this.me); };
     this.shop.onDeny = () => play('deny');
   }
   async boot() {
@@ -221,6 +223,7 @@ class Game {
     h.onPlace = (id, slot) => this.sim?.place(id, slot);
     h.onBuy = (id, i) => this.sim?.buy(id, i);
     h.onShopClose = id => this.sim?.closeShop(id);
+    h.onReroll = id => this.sim?.reroll(id);
     h.onJoin = p => { if (this.mode === 'host' && this.sim) this.sim.addPlayer(p.id, p.color); };
     h.onLeave = id => { if (this.mode === 'host' && this.sim) this.sim.removePlayer(id); };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');

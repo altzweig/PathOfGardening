@@ -99,7 +99,7 @@ export interface Player {
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack' | 'any';
   /** Werkstatt (23.11.2026): ideas (1 per level-up), the merchant's bench of this visit, open, must walk away from the merchant before it opens again */
-  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean;
+  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; /** rerolls this visit (cost = rerollCost + rerolls * rerollStep) */ rerolls: number;
   /** bag: picked-up goods (wheat and products) to feed into buildings */
   inv: Partial<Record<FruitType, number>>;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
@@ -261,7 +261,7 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, rerolls: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
@@ -2222,8 +2222,8 @@ export class Sim {
         this.waveGroups.length = 0; this.spawnQueue.length = 0;
         for (const e of this.enemies) if (!e.boss && !e.dead && !e.leave) { this.dropCarry(e); e.fleeing = false; e.leave = W.leaveTime ?? 3; e.target = null; }
         this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1);
-        const MC = this.cfg.merchant; // 24.11.2026: after every everyWaves waves the merchant comes; his stay is the pause
-        if (MC && !this.sb && this.wave % MC.everyWaves === 0 && this.wave < W.total) this.waveT = this.pauseLen = this.merchArrive();
+        const MC = this.cfg.merchant; // 24.11.2026 (Basti): every everyLevels levels the merchant comes after the wave; his stay is the pause
+        if (MC && !this.sb && Math.floor(this.level / Math.max(1, MC.everyLevels)) > this.shopTier && this.wave < W.total) this.waveT = this.pauseLen = this.merchArrive();
         this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
         this.xpHist.push({ w: this.wave, ...this.xpNow, lv: this.level }); this.xpNow = { h: 0, e: 0, j: 0 };
@@ -2657,6 +2657,17 @@ export class Sim {
     if (g) out.push({ ...g, cost: WS.goldenCost, gold: 1 });
     p.shop = out;
   }
+  /** price of the next reroll (24.11.2026: 1 idea, +1 for every reroll during this visit) */
+  rerollCost(p: Player) { const M = this.cfg.merchant; return (M?.rerollCost ?? 1) + p.rerolls * (M?.rerollStep ?? 1); }
+  /** new offers for every card not bought yet (bought cards stay) */
+  reroll(id: number) {
+    const p = this.player(id); if (!p || !p.shopOpen || !p.shop) return;
+    const c = this.rerollCost(p); if (p.ideas < c || !p.shop.some(o => !o.sold)) return;
+    const old = p.shop; this.genShop(p); const nw = p.shop!;
+    p.shop = nw.map((o, i) => old[i]?.sold ? old[i] : o);
+    p.ideas -= c; p.rerolls++;
+    this.emit({ k: 'reroll', p: p.id });
+  }
   /** buy idea i of the bench (only while the Werkstatt is open) */
   buy(id: number, i: number) {
     const p = this.player(id); if (!p || !p.shopOpen || !p.shop) return;
@@ -2710,7 +2721,8 @@ export class Sim {
     const R = M.spawnRadius, r = this.merchStop(best.a), ux = Math.cos(best.a), uz = Math.sin(best.a);
     this.merchant = { st: 0, x: ux * R, z: uz * R, face: Math.atan2(-ux, -uz), t: 0, sx: ux * R, sz: uz * R, tx: ux * r, tz: uz * r, from: R, to: r };
     for (const p of this.players) { this.genShop(p); p.shopLock = false; }
-    this.shopTier++;
+    this.shopTier = Math.floor(this.level / Math.max(1, M.everyLevels)); // several levels at once: still one visit
+    for (const p of this.players) p.rerolls = 0;
     this.emit({ k: 'merchCome' });
     return M.delay + (R - r) / M.speed + M.stay;
   }
@@ -2845,7 +2857,7 @@ export class Sim {
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
         ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'any' ? 2 : p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
-        id: p.ideas, sh: p.shop, so: p.shopOpen ? 1 : 0, ps: p.placing && p.placeMode === 'any' ? this.placeSlots(p.placing) : undefined,
+        id: p.ideas, sh: p.shop, so: p.shopOpen ? 1 : 0, rc: this.rerollCost(p), rn: p.rerolls, ps: p.placing && p.placeMode === 'any' ? this.placeSlots(p.placing) : undefined,
         cb: SKILLS.map(id => p.skills[id].combo ? COMBOS.indexOf(p.skills[id].combo as ComboId) : -1),
       };
     }

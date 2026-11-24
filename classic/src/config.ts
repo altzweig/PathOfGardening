@@ -138,8 +138,8 @@ export interface Balancing {
   juice?: { xpFactor: number; fill: number; step: number; names?: Partial<Record<Berry, string>> };
   /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
   werkstatt?: { slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number; /** weapons offered on the bench from the first Werkstatt on (first bench: as ideas of their own) */ firstLearn?: SkillId[] };
-  /** 24.11.2026 Händler: comes after every everyWaves waves with his cart, ready for stay s, talk radius m */
-  merchant?: { everyWaves: number; delay: number; stay: number; reveal: number; talkRadius: number; speed: number; leaveSpeed: number; spawnRadius: number; gap: number; turn: number; arc: number };
+  /** 24.11.2026 Händler: comes every everyLevels levels (after the running wave) with his cart; reroll price rerollCost + rerollStep per reroll, ready for stay s, talk radius m */
+  merchant?: { everyLevels: number; rerollCost?: number; rerollStep?: number; delay: number; stay: number; reveal: number; talkRadius: number; speed: number; leaveSpeed: number; spawnRadius: number; gap: number; turn: number; arc: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
   combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };

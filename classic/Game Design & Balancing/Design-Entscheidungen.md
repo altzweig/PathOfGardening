@@ -542,3 +542,11 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Das Ei fliegt in flachem Bogen auf das Tier, das der Zielrichtung am nächsten ist (bis 30° daneben, bis 6,5 m), sonst auf volle Weite, und platzt beim Aufkommen: Explosionsschaden in 0,7 m Radius + Kohl-Gift (gleiche Werte wie die Kohlmine), aber schwefelgelb (Ring, Dotterfleck, Schalensplitter, gelbe Giftblasen, gelbe Schadenszahlen).
 - Abklingzeit wie die Beeren-Schrotflinte (0,625 s). Upgrades: Schaden, Tempo, Radius (+0,1 m). Alle Werte unter skills.sling in balancing.yaml.
 - Eier im Beutel werden beim Lernen zu Munition; Gebäude (Spiegeleierei) können weiter aus diesem Vorrat gefüttert werden.
+
+## Steckbrief unter den Hexfeldern (24.11.2026)
+- Beim Level-up (und bei der Startwahl) hängt unter jedem Hexfeld ein dunkler Steckbrief statt der Saat→Frucht-Zeile.
+- Anbaufeld: drei Kennzahlen Wachstum (s), Ernte (s = 6 Pflanzen × Schläge × Harkentakt), Ertrag (6 × plants.x.amount).
+- Gebäude: Zutaten → Produkt (mit Mengen) und Dauer (time bzw. interval).
+- Darunter Tabelle Stufe 1-3: Bonus (Anbaufeld = Chance auf doppelten Ertrag, Gebäude = Tempo, Brunnen = Bonus für alle Felder aus cropBonus), Leben (hpPerLevel), kleine Kachel-Symbole = so viele weitere Karten braucht die Stufe.
+- Stufe 3 zeigt, was sie freischaltet (chains: Weizen → Mühle, Beeren → Saftpresse, Mühle → Bäckerei). Hinweis „+ gleiche Nachbarn“: der Bonus gilt auch für angrenzende Kacheln gleichen Typs.
+- Alle Werte kommen aus balancing.yaml, Beschriftungen unter werkstatt.names. Handy hochkant: Hexfeld links, Steckbrief rechts; quer: kleines Hexfeld, Steckbrief darunter.

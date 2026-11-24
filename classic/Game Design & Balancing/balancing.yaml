@@ -17,6 +17,7 @@ names:
     black: Brombeeren
     flour: Mehlsack
     pan: Spiegeleischleuder
+    sling: Eierschleuder
     asp: Spargel-Armbrust
     cran: Preiselbeeren
     cab: Kohlmine
@@ -120,6 +121,7 @@ names:
   effects:
     flour: Mehlwolke · Feuer entzündet sie
     pan: Köder · lockt Tiere an
+    sling: Explosion · Schwefelgift
     blue: Freeze 0,8 s
     black: Dornenfessel 4 s
     asp: 3er-Salve · durchbohrt
@@ -331,6 +333,15 @@ skills:
     eatStep: 1             # s mehr je Nährwert-Upgrade
     maxLife: 20            # s, unberührte Eier verschwinden danach
     boss: false            # Bosse lassen sich nicht ablenken
+  sling:                   # 24.11.2026 Eierschleuder (Holz-Zwille mit Lederband): Munition = rohe Eier aus dem Hühnergehege (Freischalt-Karte, sobald ein Hühnergehege steht)
+    damage: 10             # Explosionsschaden je Ei (Upgrade: +damagePerLevel)
+    radius: 0.7            # m Explosionsradius
+    radiusStep: 0.1        # m mehr Radius je Upgrade
+    range: 6.5             # m maximale Wurfweite (wie die Schrotflinte); trifft das Tier, das der Zielrichtung am nächsten ist
+    aimCone: 30            # Grad: Tiere bis so weit neben der Zielrichtung werden angepeilt, sonst landet das Ei auf voller Weite
+    cooldown: 0.625        # s = blue.cooldown (Basti: gleiche Abklingzeit wie die Beeren-Schrotflinte). Upgrade: x (1 - cooldownPerLevel)
+    ammoPerShot: 1         # Eier je Schuss
+    # Debuff = Kohl-Gift (cab.poisonDuration / poisonTick / poisonTickDamage / poisonSlow), nur in Schwefelgelb
   wheat:                   # 23.11.2026 Körner-MP aus Holz: Munition = Weizen (Getreidefeld), Freischalt-Karte wie die anderen Feldwaffen
     damage: 2.0            # 24.11.2026: 1,6 -> 2. je Korn (wenig Schaden, dafür 10 Schuss/s)
     range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
@@ -714,6 +725,7 @@ werkstatt:                 # Shop: öffnet sich alle paar Level von selbst für 
     mini: Mini-Kohl
     gas: Kohlgas
     pois: Gift
+    rad: Radius
     well: Brunnen
     learn: Neue Waffe
     x2: Meisterstück

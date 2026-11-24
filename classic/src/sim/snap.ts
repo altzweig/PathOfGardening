@@ -60,7 +60,7 @@ export type PuSnap = [number, number, number, number, number, number]; // + burn
 /** + flags (1 broken, 2 working), input stock of a building "typeIndex:n,..." */
 export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, string, number?]; // [13] crop cycle: 0..1 being harvested, 1..2 growing back
 
-export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768, frozen: 65536, thorn: 131072 } as const;
+export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768, frozen: 65536, thorn: 131072, sulfur: 262144 } as const;
 
 export type Ev = { k: string; [key: string]: any };
 

@@ -141,6 +141,7 @@ interface Enemy {
   burn: number; burnT: number; burnTick: number; burnDmg: number; burnLeft: number; burnSum: number; burnNum: number; // flamethrower fire: stacks, s to next tick, tick interval, damage multiplier
   shock: number; shockT: number; shockDmg: number; shockR: number; shockTk: number; // combo "unter Strom": s left, s to next tick, damage per tick, neighbour radius, tick interval
   pois: number; poisT: number; poisDmg: number; // cabbage poison: ticks left, s to next tick, damage per tick
+  /** poison came from an egg (Eierschleuder): same debuff, sulphur yellow */ poisY?: boolean;
   gasT: number; gasCh: number; gasDmg: number; // "Kohlgas" debuff: s left, chance to burst on death, blast damage for the poison it spreads
   puff: number; // hedgehog: s into the current puff cycle
   /** squirrel: home tree, where it started climbing, height above the ground (hops, climbing) */
@@ -161,7 +162,7 @@ interface Proj { id: number; kind: ProjKind; x: number; y: number; z: number; dx
   r?: number; b?: number; burn?: number; tick?: number; dmgPct?: number; shk?: number; cs?: ComboStats;
   /** lemon ball lightning: s to the next zap tick, chain targets, chance per chain target to jump back to the main target */
   zt?: number; ch?: number; rc?: number; cd?: number; tr?: number }
-export const BK = ['cab', 'cole', 'cabboom', 'kimchi'] as const;
+export const BK = ['cab', 'cole', 'cabboom', 'kimchi', 'egg'] as const; // egg = Eierschleuder (24.11.2026)
 /** Mehlsack flour cloud (23.11.2026): hangs life s (fades the last fade s); fire ignites it at (ix, iz) -> burn front grows at frontSpeed */
 /** Spiegelei bait (23.11.2026): waits delay s in the pan (spin), flies fl s from (sx, sz) to (x, z), then lures every animal within r m.
  *  left = s of eating left (all eaters together eat it up: 3 animals on 3 eggs 3 s, 9 animals 1 s); out = angle pointing away from the centre of the 3 */
@@ -181,7 +182,7 @@ export interface ComboStats { cid: ComboId; dmg: number; dmgPct: number; range: 
 interface PendingSpawn { at: number; type: EnemyType; angle: number }
 interface PlannedWave { dirs: number[]; groups: EnemyType[][] }
 
-export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number; /** Spiegelei: s of eating per egg */ eat: number; /** Körner-MP: s of fire until it overheats */ dur: number;
+export interface SkillStats { dmg: number; dmgPct: number; range: number; cd: number; cost: number; need: number; shots: number; gap: number; pierce: number; pf: number; pellets: number; cranPierce: number; gas: number; poisonMul: number; chains: number; chainReturn: number; chainDmg: number; ballR: number; tickR: number; splash: number; minis: number; throwDist: number; width: number; size: number; /** Spiegelei: s of eating per egg */ eat: number; /** Körner-MP: s of fire until it overheats */ dur: number; /** Eierschleuder: burst radius m */ blast: number;
   cone: number; sweep: number; circle: boolean; spin: number; tick: number; sweepMax: boolean } // flamethrower: cone/sweep deg, spin deg/s, fire tick s
 
 export interface Sandbox { rate: number; type: EnemyType | 'random'; acc: number; hour: number; W: number; D: number; weapon: string; freeze: boolean }
@@ -253,7 +254,7 @@ export class Sim {
       id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
-      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk() }, berry: 'blue', lastBerry: 0,
+      ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
@@ -593,7 +594,9 @@ export class Sim {
     const need = B.count ?? 1; return f.type === 'press' ? (B.needsAny || []).some(x => (f.inb[x] || 0) >= need) : (B.needsAny || []).reduce((a, k) => a + (f.inb[k] || 0), 0) >= need;
   }
   /** items in a player's bag (weapon fruit = their ammo) */
-  bagCount(p: Player, t: FruitType) { return isWeaponFruit(t) ? p.ammo[t] : p.inv[t] || 0; }
+  bagCount(p: Player, t: FruitType) { const k = this.ammoKey(p, t); return k ? p.ammo[k] : p.inv[t] || 0; }
+  /** ammo pool holding this item: weapon fruit, or goods that are a learned weapon's ammo (flour, eggs, fried eggs) */
+  ammoKey(p: Player, t: FruitType): SkillId | null { return isWeaponFruit(t) ? t : SKILLS.find(k => AMMO_OF[k] === t && p.skills[k].learned) ?? null; }
   /** a rake stroke on a building: repair it if damaged, otherwise put matching goods from the bag in and speed up the work */
   tillBuilding(p: Player, f: Field, k: number) {
     const T = this.cfg.tiles;
@@ -610,7 +613,7 @@ export class Sim {
     for (const it of feedList) {
       if (f.type === 'press' && fed > 0) break; // one berry at a time
       while (fed < T.feedPerStroke && this.bagCount(p, it) >= 1 && this.roomFor(f, it)) {
-        if (isWeaponFruit(it)) p.ammo[it]--; else p.inv[it]!--;
+        const ak = this.ammoKey(p, it); if (ak) p.ammo[ak]--; else p.inv[it]!--;
         f.inb[it] = (f.inb[it] || 0) + 1; fed++;
         this.emit({ k: 'feed', s: -1, p: p.id, b: f.slot, t: FRUITS.indexOf(it) });
       }
@@ -712,7 +715,7 @@ export class Sim {
     const S = this.cfg.skills, U = this.cfg.upgrades;
     const B = S[id] as any;
     const dm = 1 + U.damagePerLevel * s.lvDmg, rm = 1 + U.rangePerLevel * s.lvRange, cd = B.cooldown * Math.pow(1 - (id === 'pan' ? S.pan.cdStep : U.cooldownPerLevel), s.lvCd);
-    const range = id === 'pan' ? B.range + S.pan.rangeStep * s.lvRange : id === 'lemon' ? B.range : (id === 'cab' ? S.cab.radius : B.range) * rm; // pan: lure radius +1 m per level // lemon: the range upgrade grows the ball instead (ballR)
+    const range = id === 'pan' ? B.range + S.pan.rangeStep * s.lvRange : id === 'lemon' || id === 'sling' ? B.range : (id === 'cab' ? S.cab.radius : B.range) * rm; // pan: lure radius +1 m per level // lemon: the range upgrade grows the ball instead (ballR)
     // crossbow: cd = one whole salvo; the salvo upgrade adds bolts that fit into the time the base salvo takes
     const shots0 = id === 'asp' ? Math.max(1, S.asp.burstShots || 1) : 1, shots = id === 'asp' && s.salvoLv > 0 ? U.aspSalvo.shots[Math.min(s.salvoLv, U.aspSalvo.shots.length) - 1] : shots0;
     const size = 1 + U.aspSize.step * s.sizeLv;
@@ -726,6 +729,7 @@ export class Sim {
       pellets: (id === 'blue' ? S.blue.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
       minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv),
       eat: id === 'pan' ? S.pan.eat + S.pan.eatStep * s.lvDmg : 0,
+      blast: id === 'sling' ? S.sling.radius + S.sling.radiusStep * s.lvRange : 0,
       chainDmg: Math.min(1, S.lemon.chainDamage + U.lemonEfficiency.step * s.effLv), ballR: S.lemon.ballRadius * rm, tickR: S.lemon.tickRadius * rm, poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
     };
   }
@@ -749,7 +753,7 @@ export class Sim {
   /** at most weaponSlots.max weapons besides the rake; once reached, no other weapons, their fields or upgrades are offered */
   get maxWeapons() { return this.cfg.weaponSlots?.max ?? 3; }
   equipped(p: Player, id: SkillId) { return p.skills[id].learned; }
-  private learn(p: Player, id: SkillId) { p.skills[id].learned = true; if (!p.slots.includes(id)) p.slots.push(id); }
+  private learn(p: Player, id: SkillId) { p.skills[id].learned = true; if (!p.slots.includes(id)) p.slots.push(id); const t = AMMO_OF[id]; if (t && p.inv[t]) { p.ammo[id] += p.inv[t]!; p.inv[t] = 0; } } // goods already in the bag become its ammo
   /** fruit type whose weapon this player can no longer take (weapon limit reached) */
   private closedType(p: Player, t: FruitType) { return isWeaponFruit(t) && !isBerry(t) && !p.skills[t].learned && !p.skills[t].merged && SKILLS.filter(id => p.skills[id].learned).length >= this.maxWeapons; }
   /** ammo pool a weapon draws from: the shotgun uses the selected berry */
@@ -1121,7 +1125,7 @@ export class Sim {
     for (const sid of SKILLS) {
       const s = p.skills[sid], g = N.skills[sid];
       rows.push([`${sid}.learned`, g, 'Freigeschaltet', s.learned ? 1 : 0], [`${sid}.ammo`, g, 'Munition (±25)', p.ammo[sid]],
-        [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
+        [`${sid}.lvDmg`, g, 'Schaden', s.lvDmg], [`${sid}.lvRange`, g, sid === 'cab' || sid === 'sling' ? 'Radius' : 'Reichweite', s.lvRange], [`${sid}.lvCd`, g, 'Abklingzeit', s.lvCd]);
       if (sid === 'asp') rows.push(['asp.pierce', g, 'Durchbohren (Ziele)', s.pierce], ['asp.pierceBonus', g, 'Durchbohr-Schaden', s.pierceBonus], ['asp.sizeLv', g, 'Geschossgröße', s.sizeLv], ['asp.salvoLv', g, 'Salve', s.salvoLv]);
       if (sid === 'cran') rows.push(['cran.extraPel', g, '+Projektile', s.extraPel], ['cran.cranPierceLv', g, 'Durchbohr-Chance', s.cranPierceLv], ['cran.mineLv', g, 'Beeren-Platzschaden', s.mineLv]);
       if (sid === 'cab') rows.push(['cab.minis', g, 'Mini-Kohl', s.minis], ['cab.gasLv', g, 'Kohlgas', s.gasLv], ['cab.poisLv', g, 'Giftschaden', s.poisLv]);
@@ -1211,6 +1215,8 @@ export class Sim {
       this.flourThrow(p, st);
     } else if (id === 'pan') {
       this.panThrow(p, dx, dz, st);
+    } else if (id === 'sling') {
+      this.slingShot(p, dx, dz, st);
     } else { // cabbage: contact mine put down right where the player stands (see canLayMine)
       this.snd('throw');
       const b = this.spawnBomb(p.x, .5, p.z, p.x, p.z, st.range, st.dmg, st.minis, false, st.gas, st.poisonMul);
@@ -1218,6 +1224,28 @@ export class Sim {
       const mines = this.bombs.filter(x => x.mine), max = S.cab.maxMines ?? 15;
       if (mines.length > max) { const old = mines[0]; this.bombs.splice(this.bombs.indexOf(old), 1); this.burst(old.x, .2, old.z, 0x6fbf3a, 8, 1, .1, .4); }
     }
+  }
+  /** Eierschleuder (24.11.2026): the egg flies in a flat arc onto the animal closest to the aim (within aimCone deg and range m),
+   *  else range m straight ahead, and bursts where it lands (eggBurst) */
+  slingShot(p: Player, dx: number, dz: number, st: SkillStats) {
+    const L = this.cfg.skills.sling, cone = (L.aimCone ?? 30) * Math.PI / 180, a0 = Math.atan2(dx, dz);
+    let best: Enemy | null = null, bd = st.range + .5;
+    for (const e of this.enemies) {
+      if (e.dead || this.inTree(e)) continue;
+      const ex = e.x - p.x, ez = e.z - p.z, d = Math.hypot(ex, ez); if (d >= bd) continue;
+      let da = Math.abs(Math.atan2(ex, ez) - a0); if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da <= cone) { best = e; bd = d; }
+    }
+    const [tx, tz] = this.clampArena(best ? best.x : p.x + dx * st.range, best ? best.z : p.z + dz * st.range);
+    const fx = p.x + dx * .4, fz = p.z + dz * .4, d = Math.hypot(tx - fx, tz - fz), flight = clamp(.18 + d * .045, .2, .5);
+    this.bombs.push({ id: this.nid++, fx, fy: 1, fz, tx, tz, x: fx, y: 1, z: fz, t: 0, flight, fuse: flight, radius: st.blast, dmg: st.dmg, minis: 0, mini: false, kind: 'egg', gen: 0 });
+    this.snd('sling');
+  }
+  /** raw egg bursts: blast damage + the cabbage poison debuff (shown sulphur yellow) on everything within the radius */
+  eggBurst(b: Bomb) {
+    this.snd('eggBoom');
+    this.emit({ k: 'eggBoom', x: r2(b.tx), z: r2(b.tz), r: r2(b.radius) });
+    for (const e of [...this.enemies]) if (!e.dead && !this.inTree(e) && Math.hypot(e.x - b.tx, e.z - b.tz) < b.radius + e.r * .5) { this.poisonEnemy(e, b.dmg, true); this.hurtEnemy(e, b.dmg, { color: 'y' }); }
   }
   /** Spiegeleischleuder: one fast turn with the pan, abrupt stop, then the fried eggs fly out sizzling to a point throw m ahead:
    *  each 0.2-0.3 m from that point, 120 deg (+-spreadJitter) apart, so their scent drifts outwards in three directions */
@@ -1362,8 +1390,9 @@ export class Sim {
     }
   }
   /** cabbage poison debuff: a new hit restarts it (the stronger tick damage counts) */
-  poisonEnemy(e: Enemy, blastDmg: number) {
+  poisonEnemy(e: Enemy, blastDmg: number, egg = false) {
     const C = this.cfg.skills.cab; if (e.dead || !C.poisonDuration) return;
+    e.poisY = egg; // the last hit decides the colour (egg: sulphur yellow, cabbage: green)
     const iv = Math.max(.05, C.poisonTick), d = blastDmg * C.poisonTickDamage;
     if (e.pois <= 0) { e.poisT = iv; e.poisDmg = d; } else e.poisDmg = Math.max(e.poisDmg, d);
     e.pois = Math.max(1, Math.round(C.poisonDuration / iv));
@@ -1383,7 +1412,7 @@ export class Sim {
     if (e.gasT > 0) { e.gasT -= dt; if (e.gasT <= 0) { e.gasCh = 0; e.gasDmg = 0; } }
     if (e.pois <= 0) return;
     e.poisT -= dt;
-    while (e.poisT <= 1e-6 && e.pois > 0 && !e.dead) { e.poisT += Math.max(.05, this.cfg.skills.cab.poisonTick); e.pois--; this.hurtEnemy(e, e.poisDmg, { color: 'v', silent: true, dot: true, src: 'cab' }); }
+    while (e.poisT <= 1e-6 && e.pois > 0 && !e.dead) { e.poisT += Math.max(.05, this.cfg.skills.cab.poisonTick); e.pois--; this.hurtEnemy(e, e.poisDmg, { color: e.poisY ? 'y' : 'v', silent: true, dot: true, src: e.poisY ? undefined : 'cab' }); }
   }
   // ---------- combo weapons ----------
   get CB() { return this.cfg.combos!; }
@@ -2098,7 +2127,7 @@ export class Sim {
     for (const sid of ids) {
       const s = p.skills[sid], add = (k: string, label: string, lv: number, max: number, cap = 0) => out.push({ key: `${sid}.${k}`, w: sid, label, lv, max, cap });
       add('lvDmg', 'Schaden', s.lvDmg, 0);
-      add('lvRange', sid === 'cab' ? 'Radius' : sid === 'lemon' ? 'Kugelgröße' : 'Reichweite', s.lvRange, 0);
+      add('lvRange', sid === 'cab' || sid === 'sling' ? 'Radius' : sid === 'lemon' ? 'Kugelgröße' : 'Reichweite', s.lvRange, 0);
       if (sid !== 'chili') add('lvCd', 'Abklingzeit', s.lvCd, 0); // flamethrower: fixed rate, no cooldown card
       if (sid === 'asp') { add('pierce', 'Durchbohren', this.pierceLv(s), pierceN, pierceN); add('pierceBonus', 'Durchbohr-Schaden', s.pierceBonus, U.aspPierceBonus.maxLevel || 5, U.aspPierceBonus.maxLevel || 5); add('sizeLv', 'Geschossgröße', s.sizeLv, U.aspSize.maxLevel || 4); add('salvoLv', 'Salve', s.salvoLv, U.aspSalvo.shots.length, U.aspSalvo.shots.length); }
       if (sid === 'cran') { add('extraPel', 'Projektile', s.extraPel, U.cranPellets.maxLevel || 5); add('cranPierceLv', 'Durchbohr-Chance', s.cranPierceLv, U.cranPierce.maxLevel || 5, Math.ceil(1 / U.cranPierce.step - 1e-9)); add('mineLv', 'Platzschaden', s.mineLv, U.cranSplash.maxLevel || 5, Math.ceil((1 - this.cfg.skills.cran.splashDamage) / U.cranSplash.step - 1e-9)); }
@@ -2398,7 +2427,7 @@ export class Sim {
     }
     for (let i = this.bombs.length - 1; i >= 0; i--) {
       const b = this.bombs[i]; b.t += dt; const k = Math.min(1, b.t / b.flight);
-      b.x = b.fx + (b.tx - b.fx) * k; b.z = b.fz + (b.tz - b.fz) * k; b.y = b.fy + (.14 - b.fy) * k + Math.sin(k * Math.PI) * (b.mini ? .6 : 1.4);
+      b.x = b.fx + (b.tx - b.fx) * k; b.z = b.fz + (b.tz - b.fz) * k; b.y = b.fy + (.14 - b.fy) * k + Math.sin(k * Math.PI) * (b.kind === 'egg' ? .55 : b.mini ? .6 : 1.4);
       if (b.kind === 'cole' && b.t >= b.flight) { // time bomb: ticks faster and faster
         b.tickT = (b.tickT ?? 0) - dt;
         if (b.tickT <= 0) { const k = clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1); b.tickT = .34 * (1 - k) + .05; this.emit({ k: 'tick', x: r2(b.tx), z: r2(b.tz), f: r2(k) }); }
@@ -2408,7 +2437,7 @@ export class Sim {
         if (this.enemies.some(e => !e.dead && !this.airborne(e) && !this.inTree(e) && dist(e, b) < R + e.r)) { this.bombs.splice(i, 1); this.explode(b); }
         continue;
       }
-      if (b.t >= b.fuse) { this.bombs.splice(i, 1); if (b.kind === 'cab') this.explode(b); else this.comboExplode(b); }
+      if (b.t >= b.fuse) { this.bombs.splice(i, 1); if (b.kind === 'cab') this.explode(b); else if (b.kind === 'egg') this.eggBurst(b); else this.comboExplode(b); }
     }
     for (let i = this.mines.length - 1; i >= 0; i--) {
       const mn = this.mines[i];
@@ -2456,6 +2485,7 @@ export class Sim {
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
           : id === 'cab' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.range * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, ammo]
+          : id === 'sling' ? [`{dmg} ${nf(st.dmg)}`, `{radius} ${nf(st.blast * 100)} cm`, `{cd} ${nf(st.cd, 2)} s`, `{range} ${nf(st.range, 1)} m`, `${nf(st.cost)} {egg}`]
           : id === 'pan' ? [`{range} ${nf(C.pan.throw, 1)} m`, `{radius} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, `${nf(st.eat, 1)} s / {fegg}`, `${nf(st.cost)} {fegg}`]
           : [`{dmg} ${nf(st.dmg)}`, `{range} ${nf(st.range, 1)} m`, `{cd} ${nf(st.cd, 2)} s`, ammo, ...(id === 'asp' ? [`{pierce} ${st.pierce}`] : id === 'lemon' ? [`{chain} ${nf(C.lemon.chainRadius, 1)} m`] : [])];
         // 23.11.2026: unlock card is no longer forced every level-up (it blocked all weapon upgrades while you did not want it): weighted draw instead
@@ -2474,6 +2504,12 @@ export class Sim {
         mk('pan_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`);
         mk('pan_rng', x => x.lvRange++, b => `{radius} ${nf(a.range, 1)} → ${nf(b.range, 1)} m`);
         mk('pan_eat', x => x.lvDmg++, b => `{fegg} ${nf(a.eat, 1)} → ${nf(b.eat, 1)} s`);
+        continue;
+      }
+      if (id === 'sling') { // Eierschleuder: damage, cooldown, burst radius
+        mk('sling_dmg', x => x.lvDmg++, b => `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
+        mk('sling_cd', x => x.lvCd++, b => `{cd} ${nf(a.cd, 2)} → ${nf(b.cd, 2)} s`);
+        mk('sling_rad', x => x.lvRange++, b => `{radius} ${nf(a.blast * 100)} → ${nf(b.blast * 100)} cm`);
         continue;
       }
       mk(id + '_dmg', x => x.lvDmg++, b => id === 'chili' ? `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)} · {fire} ${nf(this.cfg.skills.chili.burnDamage * a.dmgPct, 1)} → ${nf(this.cfg.skills.chili.burnDamage * b.dmgPct, 1)}` : `{dmg} ${nf(a.dmg, 1)} → ${nf(b.dmg, 1)}`);
@@ -2648,6 +2684,9 @@ export class Sim {
       case 'flour_rng': s.lvRange++; break;
       case 'flour_cd': s.lvCd++; break;
       case 'pan_cd': s.lvCd++; break;
+      case 'sling_dmg': s.lvDmg++; break;
+      case 'sling_cd': s.lvCd++; break;
+      case 'sling_rad': s.lvRange++; break;
       case 'pan_rng': s.lvRange++; break;
       case 'pan_eat': s.lvDmg++; break;
       case 'lemon_tgt': s.tgtLv++; break;
@@ -2707,7 +2746,7 @@ export class Sim {
         if (e.stun > 0) fl |= EF.stun; if (e.bleed > 0) fl |= EF.bleed; if (e.burn > 0) fl |= EF.burn; if (e.flash > 0) fl |= EF.flash;
         if (this.airborne(e)) fl |= EF.air; if (e.fleeing) fl |= EF.flee; if (e.lunge > 0) fl |= EF.lunge; if (e.leave > 0) { fl |= EF.leave; fl &= ~EF.flee; } if (e.elite) fl |= EF.elite;
         if (e.boss) { fl |= EF.boss; aux = e.boss.st === 'collect' ? 0 : e.boss.st === 'charge' ? 1 : 2; aux2 = e.boss.st === 'charge' ? r2(1 - e.boss.t / this.cfg.enemies.boss.chargeTime) : e.boss.atk; }
-        if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock; if (e.pois > 0) fl |= EF.poison; if (e.frz > 0) fl |= EF.frozen; if (e.thorn > 0) fl |= EF.thorn;
+        if (e.hurtOnce || (e.shieldMax && e.shield < e.shieldMax)) fl |= EF.bar; if (e.shock > 0) fl |= EF.shock; if (e.pois > 0) { fl |= EF.poison; if (e.poisY) fl |= EF.sulfur; } if (e.frz > 0) fl |= EF.frozen; if (e.thorn > 0) fl |= EF.thorn;
         if (e.type === 'toad') { aux = r2(e.hop % 1); if (e.tongueT > 0) { fl |= EF.tongue; aux2 = r2(Math.sin(clamp(e.tongueT / .35, 0, 1) * Math.PI) * e.tongueLen); } }
         if (e.type === 'hedgehog') aux = r2(e.puff / (this.cfg.enemies.hedgehog.puffEvery || 2));
         if (e.type === 'squirrel') { aux = e.state === 'climb' ? 1 : 0; aux2 = r2(e.y); }

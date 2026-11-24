@@ -536,3 +536,9 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Jede Karte ist in der Farbe ihrer Waffe umrandet.
 - Upgrade-Karte: oben Waffe (Icon + Name), darunter Upgrade-Name groß, großes Werte-Icon, unten nur die Wertänderung in Grün (z. B. −0,08 s, +1,3 m), nicht alt → neu.
 - Waffen-Karte: Schild „Neue Waffe“, Bild, Name, Kurzbeschreibung, Werte im Raster.
+
+## Eierschleuder (24.11.2026)
+- Neue Waffe: Holz-Zwille mit Lederband, ein rohes Ei ist eingespannt (sichtbar). Munition = Eier aus dem Hühnergehege. Freischaltung wie Mehlsack/Spiegeleischleuder als neue Waffe in der Werkstatt, sobald ein Hühnergehege steht.
+- Das Ei fliegt in flachem Bogen auf das Tier, das der Zielrichtung am nächsten ist (bis 30° daneben, bis 6,5 m), sonst auf volle Weite, und platzt beim Aufkommen: Explosionsschaden in 0,7 m Radius + Kohl-Gift (gleiche Werte wie die Kohlmine), aber schwefelgelb (Ring, Dotterfleck, Schalensplitter, gelbe Giftblasen, gelbe Schadenszahlen).
+- Abklingzeit wie die Beeren-Schrotflinte (0,625 s). Upgrades: Schaden, Tempo, Radius (+0,1 m). Alle Werte unter skills.sling in balancing.yaml.
+- Eier im Beutel werden beim Lernen zu Munition; Gebäude (Spiegeleierei) können weiter aus diesem Vorrat gefüttert werden.

@@ -1,7 +1,7 @@
 import YAML from 'yaml';
 
 /** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat' | 'sling';
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
@@ -9,7 +9,7 @@ export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitc
 export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat'];
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat', 'sling']; // 24.11.2026 sling = Eierschleuder (appended: snapshot indices)
 /** 23.11.2026: one shotgun (skill 'blue', the start weapon) fires whichever berry is selected; the berries are only its ammo
  *  (cran and black are no weapons of their own any more): blue = freeze, black = thorn bind, cran = bleeding */
 export type Berry = 'blue' | 'black' | 'cran';
@@ -17,7 +17,7 @@ export const BERRIES: Berry[] = ['blue', 'black', 'cran'];
 export const isBerry = (t: string): t is Berry => t === 'blue' || t === 'black' || t === 'cran';
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
 export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
-export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat'];
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling'];
 export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen'];
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'egg', 'juice', 'bread', 'fegg'];
 export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
@@ -27,12 +27,12 @@ export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?:
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
-export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan'> => t !== 'flour' && (SKILLS as string[]).includes(t);
+export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan' | 'sling'> => t !== 'flour' && (SKILLS as string[]).includes(t);
 /** Mehlsack (23.11.2026): flour from the mill is its ammo once the sack is learned */
 export const FLOUR_SACK = 'flour' as const;
 /** weapons whose ammo is a product (not a fruit of their own): Mehlsack = flour (mill), Spiegeleischleuder = fried eggs (Spiegeleierei) */
-export const AMMO_OF: Partial<Record<SkillId, FruitType>> = { flour: 'flour', pan: 'fegg' };
-export const SOURCE_OF: Partial<Record<SkillId, BuildingType>> = { flour: 'mill', pan: 'kitchen' };
+export const AMMO_OF: Partial<Record<SkillId, FruitType>> = { flour: 'flour', pan: 'fegg', sling: 'egg' };
+export const SOURCE_OF: Partial<Record<SkillId, BuildingType>> = { flour: 'mill', pan: 'kitchen', sling: 'hens' };
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
 export type ComboId = 'jam' | 'cole' | 'sour' | 'lance' | 'cabboom' | 'shock' | 'hot' | 'rocket' | 'kimchi' | 'chilight';
 export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'shock', 'hot', 'rocket', 'kimchi', 'chilight'];
@@ -98,6 +98,9 @@ export interface Balancing {
     /** Körner-MP (23.11.2026): wooden SMG firing wheat grains; heats up (full after heatTime s of firing, then locked until cooled,
      *  coolTime s from full), spread grows with heat from spreadMin to spreadMax deg */
     wheat: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; heatTime: number; coolTime: number; coolDelay: number; spreadMin: number; spreadMax: number; /** m grain hit width (24.11.2026) */ width?: number };
+    /** Eierschleuder (24.11.2026): wooden slingshot, raw eggs (hens) as ammo; the egg bursts where it lands (radius m, +radiusStep per
+     *  upgrade) and gives everything hit the cabbage poison debuff (cab.poison*), sulphur yellow; range = max throw distance m */
+    sling: { damage: number; range: number; radius: number; radiusStep: number; cooldown: number; ammoPerShot: number; aimCone?: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {

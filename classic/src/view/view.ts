@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Balancing, BERRIES, COMBOS, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { buildBuilding, chestModel, type BuildingView } from './buildings';
-import { Slot, accepts, cornerAngle, hexDist, hexR, outType, plantOrder, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
+import { BK, Slot, accepts, cornerAngle, hexDist, hexR, outType, plantOrder, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -45,15 +45,16 @@ import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
 import { EggFX, fryingPan } from './eggfx';
-import { friedEgg } from './eggfx';
-import { flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
+import { friedEgg, rawEgg } from './eggfx';
+import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
 
-const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
+const EGG_BK = BK.indexOf('egg');
+const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', y: '#ffe23a', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
-interface PView { tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
@@ -598,8 +599,9 @@ export class GameView {
     });
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], p => projObj(p[1]), (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
-    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
+    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] === EGG_BK ? rawEgg() : b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
+      if (b[6] === EGG_BK) { v.m.rotation.x += .32; v.m.rotation.y = Math.atan2(v.tx - v.x, v.tz - v.z); if (Math.random() < .3) PART.spawn(V(v.x, v.y, v.z), V(0, .1, 0), 0xfff4d8, .03, .18, { a: .6 }); return; } // raw egg tumbling end over end
       if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
       if (b[9] && b[5]) { // contact mine lying on the ground: settled, slowly breathing, fuse spark now and then
         v.ty = .14; v.m.rotation.x = lerp(v.m.rotation.x % (Math.PI * 2), .35, .2); v.m.scale.setScalar(.85 * (1 + Math.sin(performance.now() / 420 + b[0]) * .04));
@@ -918,6 +920,11 @@ export class GameView {
           for (let i = 0; i < 6; i++) PART.spawn(V(e.x + rand(-.15, .15), .9, e.z + rand(-.15, .15)), V(rand(-.3, .3), rand(.4, .8), rand(-.3, .3)), 0x6a6864, .18, rand(.6, 1), { s1: .45, a: .5 });
           break;
         }
+        if (e.w === 'sling') { // Eierschleuder: the band snaps forward, a puff of leather dust, the egg is on its way (bombs)
+          const pv = this.players.get(e.p); if (pv) pv.slingT = performance.now();
+          for (let i = 0; i < 4; i++) PART.spawn(V(e.x, .95, e.z), V(rand(-.4, .4), rand(.1, .4), rand(-.4, .4)), 0x8a6a48, .04, .25, { a: .6 });
+          break;
+        }
         if (e.w === 'wheat') { // Körner-MP: tiny muzzle puff of chaff, small recoil
           if (Math.random() < .5) PART.spawn(V(e.x, .75, e.z), V(rand(-.3, .3), rand(.2, .5), rand(-.3, .3)), 0xe8d090, .07, .3);
           const pv = this.players.get(e.p); if (pv) pv.recoil = .05;
@@ -939,6 +946,18 @@ export class GameView {
         for (let i = 0; i < (mini ? 14 : 34); i++) { const a = rand(0, 7), sp = rand(.4, 1.6) * r * 1.3; PART.spawn(V(e.x, rand(.1, .5), e.z), V(Math.cos(a) * sp, rand(.2, 1), Math.sin(a) * sp), i % 3 ? 0x5fb030 : 0xb8f070, rand(.35, .7) * (mini ? .6 : 1), rand(.8, 1.4), { drag: 2.5, a: .35, s1: .9 }); }
         burst(V(e.x, .3, e.z), 0xd8ff90, 12, 3, .12, .4);
         this.shake = Math.min(.25, this.shake + (mini ? .03 : .08));
+        break;
+      }
+      case 'eggBoom': { // raw egg bursts: sulphur-yellow flash ring, yolk splat, shell bits, a yellow puff (additive colours without blue, so they stay yellow when they pile up)
+        const r = e.r;
+        decal(e.x, e.z, 0xe0b000, .15, .4, { ring: true, add: true, grow: r, op: .7 });
+        decal(e.x, e.z, 0xc8a010, r * .8, 4, { op: .55 });
+        decal(e.x + rand(-.05, .05), e.z + rand(-.05, .05), 0xf0a000, r * .3, 4, { op: .85 });
+        for (let k = 0; k < 4; k++) decal(e.x + rand(-1, 1) * r * .7, e.z + rand(-1, 1) * r * .7, 0xf4ecd0, rand(.04, .07), 3.5, { op: .75 });
+        for (let i = 0; i < 12; i++) { const a = rand(0, 7), sp = rand(.4, 1.4) * r * 1.6; PART.spawn(V(e.x, rand(.1, .4), e.z), V(Math.cos(a) * sp, rand(.3, 1), Math.sin(a) * sp), i % 3 ? 0x5a4800 : 0x8a7000, rand(.25, .45), rand(.9, 1.5), { drag: 2.5, a: .5, s1: 1 }); }
+        for (let i = 0; i < 8; i++) { const a = rand(0, 7), sp = rand(1, 2.2); PART.spawn(V(e.x, .3, e.z), V(Math.cos(a) * sp, rand(1, 2), Math.sin(a) * sp), 0x9a9070, rand(.03, .05), rand(.4, .6), { g: 6 }); }
+        burst(V(e.x, .3, e.z), 0xa08000, 8, 2.4, .1, .35);
+        this.shake = Math.min(.25, this.shake + .04);
         break;
       }
       case 'decal': decal(e.x, e.z, e.c, e.r, e.l, { op: e.op, ring: !!e.ring, add: !!e.add, grow: e.grow }); break;
@@ -1050,7 +1069,7 @@ export class GameView {
     const G = new THREE.Group(), add = (o: THREE.Object3D) => { G.add(o); return o; }, cfg = this.cfg;
     try {
       add(buildPlayer(this.lookFor(-1, 0), cfg.rake.range, cfg.rake.diameter).g); // wand, rake, stars ... (all made visible below)
-      add(flourSack()); add(fryingPan().g); add(cabHeld()); add(aspCrossbow().g); add(chiliThrower()); add(friedEgg(.13));
+      add(flourSack()); add(fryingPan().g); add(eggSling().g); add(rawEgg()); add(cabHeld()); add(aspCrossbow().g); add(chiliThrower()); add(friedEgg(.13));
       for (const k of ['cran', ...BERRIES]) { const gun = cranGun(); tintBerries(gun.g, k); add(gun.g); }
       const fl = makeFlame(); add(fl.g); fl.power = 1; updateFlame(fl, 0, 30, 3.5, true, 0);
       for (const cid of COMBOS) add(buildHeld(cid).g);
@@ -1183,7 +1202,7 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible);
+    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible || v.sling?.g.visible);
     if (v.tool) v.tool.pivot.visible = !!s.rh && !!v.toolK && (s.sw > 0 || !otherHeld);
     v.rake.visible = !v.toolK && !!s.rh && (s.sw > 0 || !otherHeld);
     this.poseFarmer(v, dt);
@@ -1224,6 +1243,7 @@ export class GameView {
     else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
     else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
     else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
+    else if (v.sling && v.sling.g.visible) { v.sling.g.updateMatrixWorld(true); t0 = v.sling.anim.localToWorld(V(0, -.05, 0)); t1 = v.sling.pouch.localToWorld(V(0, 0, -.02)); } // grip + the hand drawing the band
     else if (v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
     else if (v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
@@ -1265,6 +1285,18 @@ export class GameView {
       v.pan.g.rotation.y = sp > 0 ? -.6 : lerp(v.pan.g.rotation.y, 0, .25);
       v.pan.eggs.visible = now - (v.panT ?? 0) > 1400 || (sp > 0 && sp < .9); // fresh ones are back in the pan after a moment
       v.pan.eggs.children.forEach((c, i) => { c.position.y = .01 + Math.abs(Math.sin(now / 90 + i * 2)) * .004; }); // sizzling
+    }
+    const slingOn = al && aw === 'sling';
+    if (slingOn && !v.sling) { const m = eggSling(); m.g.position.set(.16, .98, .3); v.g.add(m.g); v.sling = m; }
+    if (v.sling) {
+      v.sling.g.visible = slingOn;
+      // shot: the band snaps forward (egg gone), wobbles between the tips, then a new egg goes in and is drawn back
+      const k = (performance.now() - (v.slingT ?? -1e4)) / 1000, S = v.sling;
+      if (k < .07) { S.setPull(1 - k / .07); S.egg.visible = false; }
+      else if (k < .35) { S.setPull(0, Math.sin(k * 60) * (1 - k / .35)); S.egg.visible = false; }
+      else if (k < .6) { S.setPull((k - .35) / .25); S.egg.visible = true; }
+      else { S.setPull(1); S.egg.visible = true; }
+      S.anim.rotation.x = k < .3 ? -Math.sin(k / .3 * Math.PI) * .15 : 0; // little kick of the fork
     }
     if (v.sack) { v.sack.visible = sackOn; const sp = v.s.sp || 0; v.sack.rotation.z = sp > 0 ? -Math.sin(sp * Math.PI) * 1.3 : lerp(v.sack.rotation.z, Math.sin(performance.now() / 260) * .06, .2); v.sack.position.x = .26 + (sp > 0 ? Math.sin(sp * Math.PI) * .22 : 0); }
   }
@@ -1397,10 +1429,10 @@ export class GameView {
     for (const m of v.P.mats) { if (fl & EF.flash) m.emissive.setRGB(.42, .42, .42); else if (burning) m.emissive.setRGB(fire * .55, fire * .16, 0); else m.emissive.setRGB(bleedGlow + tg * .2, tg * .5, bleedGlow * .05 + tg); }
     if (burning && Math.random() < dt * 9) { const sc = v.g.scale.x; this.fire.burn(v.x, .35 * sc, v.z, sc); }
     if (burning && Math.random() < dt * 14) { const sc = v.g.scale.x; PART.spawn(V(v.x + rand(-.2, .2) * sc, rand(.3, .6) * sc, v.z + rand(-.2, .2) * sc), V(rand(-.15, .15), rand(1, 1.8), rand(-.15, .15)), Math.random() < .5 ? 0xff7a18 : 0xffc040, rand(.16, .26) * sc, rand(.3, .5), { s1: .05, a: .9 }); }
-    if (fl & EF.poison) { // poisoned (cabbage): sickly green shimmer and rising bubbles
-      const sc = v.g.scale.x, pg = .18 + .1 * Math.sin(now * 9 + e[0]);
-      if (!burning && !(fl & EF.flash)) for (const m of v.P.mats) m.emissive.setRGB(pg * .35, pg, pg * .1);
-      if (Math.random() < dt * 10) PART.spawn(V(v.x + rand(-.22, .22) * sc, rand(.25, .65) * sc, v.z + rand(-.22, .22) * sc), V(rand(-.1, .1), rand(.4, .8), rand(-.1, .1)), Math.random() < .6 ? 0x7dff4a : 0xb8f070, rand(.06, .12) * sc, rand(.4, .7), { a: .8 });
+    if (fl & EF.poison) { // poisoned: cabbage = sickly green, egg (Eierschleuder) = sulphur yellow; shimmer and rising bubbles
+      const sc = v.g.scale.x, pg = .18 + .1 * Math.sin(now * 9 + e[0]), y = !!(fl & EF.sulfur);
+      if (!burning && !(fl & EF.flash)) for (const m of v.P.mats) y ? m.emissive.setRGB(pg, pg * .85, 0) : m.emissive.setRGB(pg * .35, pg, pg * .1);
+      if (Math.random() < dt * 10) PART.spawn(V(v.x + rand(-.22, .22) * sc, rand(.25, .65) * sc, v.z + rand(-.22, .22) * sc), V(rand(-.1, .1), rand(.4, .8), rand(-.1, .1)), Math.random() < .6 ? (y ? 0xffd000 : 0x7dff4a) : (y ? 0xc8a800 : 0xb8f070), rand(.06, .12) * sc, rand(.4, .7), { a: .8 });
     }
     if (fl & EF.shock) { // under current: white-yellow crackle around the body
       const sc = v.g.scale.x; if (Math.random() < dt * 22) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.2, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-1.2, 1.2), rand(-.2, 1.2), rand(-1.2, 1.2)), Math.random() < .5 ? 0xfff6c0 : 0x9fd0ff, rand(.04, .08), rand(.08, .16), { a: 1 });

@@ -5,10 +5,12 @@ import type { Weapon } from '../config';
 export interface Intent {
   mx: number; mz: number;           // movement, length <= 1
   ax: number; az: number; aim: boolean; // aim direction (world xz), aim=false -> auto-aim
-  fire: Weapon | 'active' | null;   // weapon held down ('active' = the player's selected weapon, PC)
+  fire: Weapon | 'active' | 'prim' | 'sec' | null; // weapon held down ('active' = selected weapon (touch); PC 24.11.2026: 'prim' = left click, 'sec' = right click)
   tapSeq: number; tapW: Weapon | null; // one-shot fire with auto-aim (quick tap on touch)
   cycle: number;                    // increments on every "switch skill" press
   berry?: number;                   // increments on every "switch berry" press (shotgun ammo, 23.11.2026)
+  /** PC 10-slot bar (24.11.2026): pick = counter per slot key press, pickS = that slot 0..9; cycP / cycS = next primary / secondary (Q / E) */
+  pick?: number; pickS?: number; cycP?: number; cycS?: number;
   sprint?: boolean;                 // Shift held (24.11.2026)
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: false, fire: null, tapSeq: 0, tapW: null, cycle: 0, berry: 0 });
@@ -38,6 +40,8 @@ export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc';
 export interface Priv {
   am: number[]; ln: number[]; nd: number[]; co: number[]; cd: number[]; cs: number[]; rg: number[]; ac: number; rk: number; rr: number;
   sl: number[]; // learned weapons in learn order (SKILLS index)
+  /** 10-slot bar (24.11.2026): SKILLS index per slot (-1 empty), slots 0-4 primary, 5-9 secondary; pa / sa = selected primary / secondary (WEAPONS index) */
+  gs?: number[]; pa?: number; sa?: number;
   of: Offer[] | null; pk: 0 | 1; pc: number; // pc: fruit type index the player is placing, -1 none
   pm: 0 | 1 | 2; // place mode: 0 new tile, 1 upgrade (+1 onto a tile of the same type), 2 hex field (either, 23.11.2026)
   iv: number[]; // bag per FRUITS index (wheat and products)

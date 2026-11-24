@@ -181,6 +181,10 @@ body[data-input=pc] .skill:not(.active){opacity:.72}
 #ctrlView{width:min(1100px,96vw);max-height:72vh;display:flex;justify-content:center}
 #ctrlView svg{width:100%;height:auto;max-height:72vh}
 #ctrlView text{font-family:var(--f-body);font-weight:700}
+#ctrlView .kbind:hover rect:nth-child(2){fill:#36424f}
+#ctrlView .kbind.wait .kwait{animation:kwait .8s ease-in-out infinite}
+@keyframes kwait{0%,100%{opacity:.15}50%{opacity:1}}
+#controls>.row{display:flex;gap:12px;justify-content:center}
 @media (orientation:portrait){.card{touch-action:pan-y}} /* stacked cards must stay scrollable */
 @media (prefers-reduced-motion:reduce){.skill.pulse::before,.card.wpn::before{animation:none}}
 @media (max-height:430px){.ov h1{font-size:30px}.ov{gap:8px;justify-content:flex-start}.card .pic,.card.wpn .pic{width:64px;height:64px}.card{padding:8px 10px}.card.wpn .stats span{font-size:13px}.btn{padding:9px 22px;font-size:16px}.col{gap:8px}}
@@ -942,20 +946,30 @@ body.sandbox #orbXp{display:none!important}
 body.shopOn .orb{visibility:hidden}
 
 /* PC weapon bar between the orbs (24.11.2026 Basti): learned weapons, ammo fruit + count above, selected = thick gold frame */
-#wbar{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));gap:10px;align-items:flex-end;pointer-events:none;
-  --ws:clamp(48px,6.4vh,64px)}
+#wbar{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));gap:calc(var(--ws) * .55);align-items:flex-end;pointer-events:none;
+  --ws:clamp(40px,min(6.4vh,4.3vw),64px)}
 body[data-input=pc] #wbar{display:flex}
 body[data-input=pc] #btns{display:none}
 body.shopOn #wbar{visibility:hidden}
-.ws{display:flex;flex-direction:column;align-items:center;gap:4px;width:var(--ws)}
-.ws .wa{display:flex;align-items:center;gap:3px;font:700 calc(var(--ws) * .27)/1 var(--f-body);font-variant-numeric:tabular-nums;color:#f2ead8;text-shadow:0 1px 2px #000,0 0 6px #000a;white-space:nowrap}
+/* 24.11.2026: 2 groups of 5 slots (1-5 primary / left click, 6-0 secondary / right click), Alt shows keys + mouse button */
+.wg{display:flex;gap:calc(var(--ws) * .14);align-items:flex-end}
+.wm{display:none;width:calc(var(--ws) * .4);align-self:center;margin-top:calc(var(--ws) * .5)}
+.wm svg{width:100%;display:block;filter:drop-shadow(0 1px 2px #000)}
+body.showKeys .wm{display:block}
+.ws{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:var(--ws)}
+.ws .wa{display:flex;align-items:center;gap:3px;min-height:calc(var(--ws) * .36);font:700 calc(var(--ws) * .27)/1 var(--f-body);font-variant-numeric:tabular-nums;color:#f2ead8;text-shadow:0 1px 2px #000,0 0 6px #000a;white-space:nowrap}
 .ws .wa i{display:block;width:calc(var(--ws) * .36);height:calc(var(--ws) * .36);filter:drop-shadow(0 1px 2px #000)}
+.ws .wa i:empty{display:none}
 .ws .wa i svg{width:100%;height:100%;display:block}
 .ws .wf{box-sizing:border-box;width:var(--ws);height:var(--ws);border-radius:6px;border:1.5px solid #8a8f96aa;background:radial-gradient(circle at 45% 35%,#2c333b,#0d1217 80%);box-shadow:0 3px 10px #000a;display:grid;place-items:center;transition:border-color .12s,box-shadow .12s}
 .ws .wf svg{width:78%;height:78%;filter:drop-shadow(0 2px 2px #000)}
+.ws.none .wf{border:1.5px dashed #8a8f9655;background:#0d121755;box-shadow:none}
 .ws.sel .wf{border:4px solid #e8b840;box-shadow:0 0 0 1px #6a4a10,0 0 16px 2px #ffc84a77,0 3px 10px #000a}
 .ws.empty .wf svg{filter:grayscale(1) brightness(.55)}
 .ws.empty .wa{color:#ffb08a}
+.ws .wk{display:none;position:absolute;left:50%;bottom:calc(var(--ws) * -.16);transform:translateX(-50%);min-width:calc(var(--ws) * .34);padding:1px 4px;box-sizing:border-box;border-radius:4px;
+  background:#1a2027;border:1.5px solid #e3b964;color:#efe3c8;font:700 calc(var(--ws) * .22)/1.15 var(--f-body);text-align:center;white-space:nowrap;box-shadow:0 2px 4px #000a}
+body.showKeys .ws .wk{display:block}
 body.sandbox .ws .wa{visibility:hidden}
 
 /* ================= 24.11.2026 (Basti): Händler cards in the level-up card style: dark card, hex poking out of the top ================= */
@@ -1025,3 +1039,11 @@ body.sandbox .ws .wa{visibility:hidden}
 #shopReroll.nope{animation:wsNope .4s ease}
 @media (max-height:500px){.mkPanel .mkBtns{margin-top:6px}#shopReroll{padding:5px 10px}#shopReroll svg{width:24px;height:24px}#shopReroll .rrCost{font-size:16px}}
 @media (orientation:portrait) and (max-width:760px){.mkPanel .mkBtns{align-self:center;margin:14px 0 6px}}
+
+/* 24.11.2026 (Basti): tutorial hint above the weapon bar (PC), key caps as <kbd> */
+#tut{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px) + clamp(40px,min(6.4vh,4.3vw),64px) * 2.1);transform:translate(-50%,10px);opacity:0;pointer-events:none;
+  max-width:min(900px,80vw);padding:12px 22px;border-radius:14px;background:#0d1217d9;border:1.5px solid #e3b96488;box-shadow:0 6px 24px #000a;
+  font:700 clamp(16px,2.2vh,22px)/1.5 var(--f-body);color:#f2ead8;text-align:center;text-shadow:0 1px 2px #000;transition:opacity .35s,transform .35s}
+#tut.on{opacity:1;transform:translate(-50%,0)}
+#tut kbd{display:inline-block;min-width:1.4em;padding:0 .45em;margin:0 .1em;border-radius:6px;background:#2b3540;border:2px solid #e3b964;box-shadow:0 3px 0 #0a0d10;color:#efe3c8;font:inherit;line-height:1.35}
+body[data-input=touch] #tut,body.shopOn #tut{display:none}

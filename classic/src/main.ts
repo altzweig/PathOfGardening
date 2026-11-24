@@ -9,6 +9,8 @@ import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { Bulbs, WerkstattUI, hexEl } from './ui/werkstatt';
 import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
+import { Act, bind as bindKey, resetKeys } from './input/keys';
+import { Tutorial } from './ui/tutorial';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
@@ -35,6 +37,7 @@ class Game {
   view = new GameView();
   input: Input;
   hud = new Hud();
+  tut!: Tutorial;
   bulbs = new Bulbs();
   shop = new WerkstattUI(this.bulbs);
   private frozen = false; // pause / level-up state, for the slow-down + speed-up sounds
@@ -111,13 +114,16 @@ class Game {
     click('#cheatBtn', () => this.toggleCheat());
     click('#cheatClose', () => this.toggleCheat());
     this.input.onCheat = () => this.toggleCheat();
+    this.input.onKeysToggle = () => this.hud.toggleKeys();
+    this.tut = new Tutorial(this.input);
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
     click('#optBack', () => only(this.backTo === '#pause' ? '#pause' : '#menu'));
     click('#ctrlBtn', () => this.openControls('#options'));
     click('#pCtrlBtn', () => this.openControls('#pause'));
-    click('#ctrlBack', () => only(this.backTo));
+    click('#ctrlBack', () => { this.input.capture = null; only(this.backTo); });
+    click('#keyReset', () => { resetKeys(); this.ctrlTab('pc'); });
     click('#credBtn', () => { $('#credView').innerHTML = creditsHtml(); only('#credits'); });
     click('#credBack', () => only('#options'));
     click('#cheatOptBtn', () => this.openCheatOpt('#options'));
@@ -193,11 +199,20 @@ class Game {
   private openControls(back: string) { this.backTo = back; only('#controls'); this.ctrlTab(this.input.isTouch ? 'mobile' : 'pc'); }
   private ctrlTab(t: string) {
     document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    this.input.capture = null;
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
+    $('#keyReset').hidden = t !== 'pc';
+    // 24.11.2026 (Basti): every key on the PC page can be changed: click it, press the new key (Esc = keep)
+    if (t === 'pc') $('#ctrlView').querySelectorAll<SVGGElement>('.kbind').forEach(g => g.addEventListener('click', () => {
+      sfx('ui.click');
+      $('#ctrlView').querySelectorAll('.kbind.wait').forEach(o => o.classList.remove('wait'));
+      g.classList.add('wait');
+      this.input.capture = code => { this.input.capture = null; if (code) bindKey(g.dataset.act as Act, code); this.ctrlTab('pc'); };
+    }));
   }
   enterGame() {
     this.exitBuild(); this.startCheats = false;
-    only(null); show('#hud'); this.hud.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
+    only(null); show('#hud'); this.hud.reset(); this.tut.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
     this.input.enabled = true; this.luShownFor = ''; this.overShown = false; this.syncBuildBtn();
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     try { (navigator as any).wakeLock?.request('screen').catch(() => {}); } catch { /* ignore */ }
@@ -420,7 +435,7 @@ class Game {
     const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1));
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.tut.update(s, this.me, this.view.cfg); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
     else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
     if (this.building) this.measureBuildInset();
     this.view.frame(dt);

@@ -97,6 +97,8 @@ export interface Player {
   stun: number; stunMax: number; kb: { dx: number; dz: number; left: number } | null; poison: Poison[]; swing: number; swingDir: number; rakeHit: boolean; walk: number; flash: number; tillT: number;
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
+  /** PC 10-slot bar (24.11.2026): selected primary (left click) / secondary (right click), 'rake' = none; last seen intent counters */
+  prim: Weapon; sec: Weapon; lastPick: number; lastCycP: number; lastCycS: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack' | 'any';
   /** Werkstatt (23.11.2026): ideas (1 per level-up), the merchant's bench of this visit, open, must walk away from the merchant before it opens again */
   ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; /** rerolls this visit (cost = rerollCost + rerolls * rerollStep) */ rerolls: number;
@@ -266,7 +268,7 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, rerolls: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, prim: 'rake', sec: 'rake', lastPick: 0, lastCycP: 0, lastCycS: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, rerolls: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
       sta: 1, staT: 0, staX: false, sprint: false, sh: P.shield?.hp ?? 0, shT: 99,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
@@ -288,7 +290,7 @@ export class Sim {
   player(id: number) { return this.players.find(p => p.id === id); }
   setIntent(id: number, it: Intent) {
     const p = this.player(id); if (!p) return;
-    if (p.fresh) { p.fresh = false; p.lastTap = it.tapSeq; p.lastCycle = it.cycle; p.lastBerry = it.berry ?? 0; } // counters from a previous round are not presses
+    if (p.fresh) { p.fresh = false; p.lastTap = it.tapSeq; p.lastCycle = it.cycle; p.lastBerry = it.berry ?? 0; p.lastPick = it.pick ?? 0; p.lastCycP = it.cycP ?? 0; p.lastCycS = it.cycS ?? 0; } // counters from a previous round are not presses
     p.intent = it;
   }
 
@@ -2322,7 +2324,22 @@ export class Sim {
     // shotgun berry: switch on request, and by itself when the selected berry is used up
     if ((it.berry ?? 0) !== p.lastBerry) { p.lastBerry = it.berry ?? 0; this.nextBerry(p); }
     else if (p.ammo[p.berry] < this.stats('blue', p.skills.blue).cost) this.nextBerry(p);
-    let fw: Weapon | null = it.fire === 'active' ? p.active : it.fire;
+    // 24.11.2026 (Basti) PC: 10-slot bar, slot keys pick, Q / E next primary / secondary, left click fires the primary, right click the secondary
+    const G = this.slotGroups(p);
+    for (const [k, g] of [['prim', G.slice(0, 5)], ['sec', G.slice(5)]] as const) {
+      const list = g.filter((w): w is SkillId => !!w);
+      if (!list.includes(p[k] as SkillId)) p[k] = list.find(w => !this.isEmpty(p, w)) ?? list[0] ?? 'rake';
+      else if (this.isEmpty(p, p[k] as SkillId)) { const n = this.nextInGroup(p, list, p[k]); if (n) p[k] = n; }
+    }
+    if ((it.pick ?? 0) !== p.lastPick) {
+      p.lastPick = it.pick ?? 0; const k = it.pickS ?? -1, w = G[k];
+      if (w) { if (k < 5) p.prim = w; else p.sec = w; p.active = w; this.emit({ k: 'cycle', p: p.id }); }
+    }
+    if ((it.cycP ?? 0) !== p.lastCycP) { p.lastCycP = it.cycP ?? 0; const n = this.nextInGroup(p, G.slice(0, 5).filter((w): w is SkillId => !!w), p.prim); if (n) { p.prim = n; p.active = n; this.emit({ k: 'cycle', p: p.id }); } }
+    if ((it.cycS ?? 0) !== p.lastCycS) { p.lastCycS = it.cycS ?? 0; const n = this.nextInGroup(p, G.slice(5).filter((w): w is SkillId => !!w), p.sec); if (n) { p.sec = n; p.active = n; this.emit({ k: 'cycle', p: p.id }); } }
+    let fw: Weapon | null = it.fire === 'active' ? p.active : it.fire === 'prim' ? p.prim : it.fire === 'sec' ? p.sec : it.fire;
+    if ((it.fire === 'prim' || it.fire === 'sec') && fw !== 'rake') p.active = fw!; // the fired weapon is the one in the hand (model swap like a switch)
+    if (fw === 'rake' && (it.fire === 'prim' || it.fire === 'sec')) fw = null; // empty group: nothing to fire
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
     if (p.swing > 0 || p.rakeHit) { // running stroke: turns with the player at once, impact at the end of the push
@@ -2369,6 +2386,21 @@ export class Sim {
       if (w === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range, false); this.rakeAttack(p, d[0], d[1]); } }
       else if (w) { const s = this.stats(w, p.skills[w]); this.tryFire(p, w, this.aimDir(p, this.thrown(p.skills[w], w) ? s.throwDist : s.range, false)); }
     }
+  }
+  /** PC 10-slot bar (24.11.2026): 10 entries, 0-4 primary group, 5-9 secondary (balancing weaponSlots.primary / secondary);
+   *  learned weapons fill their group in learn order, a full group spills into free slots of the other one */
+  slotGroups(p: Player): (SkillId | null)[] {
+    const W = this.cfg.weaponSlots, sec = new Set(W?.secondary ?? []), out: (SkillId | null)[] = Array(10).fill(null), spill: SkillId[] = [];
+    const put = (w: SkillId, a: number) => { for (let i = a; i < a + 5; i++) if (!out[i]) { out[i] = w; return true; } return false; };
+    for (const w of p.slots) { if (!p.skills[w].learned) continue; if (!put(w, sec.has(w) ? 5 : 0)) spill.push(w); }
+    for (const w of spill) put(w, sec.has(w) ? 0 : 5);
+    return out;
+  }
+  /** next weapon after "from" in a group that has ammo for a shot (null if no other one) */
+  private nextInGroup(p: Player, list: SkillId[], from: Weapon): SkillId | null {
+    const i0 = list.indexOf(from as SkillId);
+    for (let k = 1; k <= list.length; k++) { const w = list[(i0 + k + list.length) % list.length]; if (w !== from && !this.isEmpty(p, w)) return w; }
+    return null;
   }
   /** next weapon in order rake → asp → cran → cab that is available (skills: ready). */
   nextAvailable(p: Player, from: Weapon, skipRake: boolean): Weapon {
@@ -2885,7 +2917,7 @@ export class Sim {
       me[p.id] = {
         am: SKILLS.map(id => Math.floor(p.ammo[id] + 1e-6)), ln: SKILLS.map(id => p.skills[id].learned ? 1 : 0),
         nd: st.map(s => s.need), co: st.map(s => s.cost), rg: st.map(s => r2(s.range)), cs: st.map(s => r2(s.cd / s.shots)), cd: SKILLS.map((id, i) => r2(p.skills[id].cdT / st[i].cd)),
-        ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
+        ac: WEAPONS.indexOf(p.active), sl: p.slots.map(w => SKILLS.indexOf(w)), gs: this.slotGroups(p).map(w => w ? SKILLS.indexOf(w) : -1), pa: WEAPONS.indexOf(p.prim), sa: WEAPONS.indexOf(p.sec), rk: r2(Math.max(0, p.rakeCd / this.rakeStats(p).cd)), rr: r2(this.rakeStats(p).range),
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'any' ? 2 : p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
         id: p.ideas, sh: p.shop, so: p.shopOpen ? 1 : 0, rc: this.rerollCost(p), rn: p.rerolls, ps: p.placing && p.placeMode === 'any' ? this.placeSlots(p.placing) : undefined,
         cb: SKILLS.map(id => p.skills[id].combo ? COMBOS.indexOf(p.skills[id].combo as ComboId) : -1),

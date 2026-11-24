@@ -65,7 +65,7 @@ export interface EnemyCfg {
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
-  names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
+  names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
@@ -135,7 +135,9 @@ export interface Balancing {
   /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */
   juice?: { xpFactor: number; fill: number; step: number; names?: Partial<Record<Berry, string>> };
   /** Werkstatt at the chest between waves: ideas (1 per level-up) buy upgrades */
-  werkstatt?: { everyLevels?: number; openDelay: number; slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number; /** weapons offered on the bench from the first Werkstatt on (first bench: as ideas of their own) */ firstLearn?: SkillId[] };
+  werkstatt?: { slots: number; cost: number; goldenCost: number; golden: string[]; names?: Record<string, string>; maxBulbs?: number; /** weapons offered on the bench from the first Werkstatt on (first bench: as ideas of their own) */ firstLearn?: SkillId[] };
+  /** 24.11.2026 Händler: comes after every everyWaves waves with his cart, ready for stay s, talk radius m */
+  merchant?: { everyWaves: number; delay: number; stay: number; reveal: number; talkRadius: number; speed: number; leaveSpeed: number; spawnRadius: number; gap: number; turn: number; arc: number };
   /** combo weapons: offered once both weapons have unlockUpgrades upgrades each */
   combos?: { unlockUpgrades: number; convertDamage: number; shock: { duration: number; tick: number; radius: number }; list: Record<ComboId, ComboCfg> };
   transitions?: { slow: number; uiFade: number };

@@ -75,6 +75,8 @@ export interface Snap {
   bs: number;     // boss HP fraction, -1 = no boss
   sn?: number[][]; // Shockgun berries on the ground: [id, x, z, ticks left 0..1]
   br?: number[];  // per fruit type: fruit per second of a common field without neighbours
+  /** Händler (24.11.2026): [x, z, face, state 0 coming / 1 ready / 2 turning / 3 leaving, s in this state, s of ready time left] */
+  mc?: number[];
   me: Record<number, Priv>;
   ev: Ev[];
 }

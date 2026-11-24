@@ -41,6 +41,9 @@ export function eggSlot(i: number, L: number): [number, number, number] {
   const gx = i % n, gz = Math.floor(i / n), off = (n - 1) / 2;
   return [EGG_POS[0] + (gx - off) * EGG_SP, .11 + layer * EGG_LAYER, EGG_POS[1] + (gz - off) * EGG_SP];
 }
+/** Händler (24.11.2026): the merchant walks in front, the cart follows. Solid circles along his back axis [offset behind him (m), radius] */
+export const MERCH_BODY: [number, number][] = [[0, .5], [-1.55, .55], [-2.25, .85], [-3.05, .85]];
+export interface Merchant { st: 0 | 1 | 2 | 3; x: number; z: number; face: number; t: number; sx: number; sz: number; tx: number; tz: number; from: number; to: number }
 /** item a tile puts out: crops their fruit, buildings their product */
 export const outType = (cfg: Balancing, t: FruitType): FruitType => isBuilding(t) ? cfg.buildings[t].makes : t;
 // ---------- hex field grid (pointy-top axial, fields touch each other) ----------
@@ -95,8 +98,8 @@ export interface Player {
   ammo: Record<SkillId, number>; collected: Record<SkillId, number>; skills: Record<SkillId, SkillState>;
   rakeCd: number; aimX: number; aimZ: number; active: Weapon; intent: Intent; lastTap: number; lastCycle: number;
   offers: Offer[] | null; picked: boolean; fresh: boolean; placing: FruitType | null; placeMode: 'new' | 'stack' | 'any';
-  /** Werkstatt (23.11.2026): ideas (1 per level-up), the bench of this pause, open, must leave the chest before it opens again, s until it may open */
-  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean; shopDelay: number; shopWant?: boolean;
+  /** Werkstatt (23.11.2026): ideas (1 per level-up), the merchant's bench of this visit, open, must walk away from the merchant before it opens again */
+  ideas: number; shop: Offer[] | null; shopOpen: boolean; shopLock: boolean;
   /** bag: picked-up goods (wheat and products) to feed into buildings */
   inv: Partial<Record<FruitType, number>>;
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
@@ -258,12 +261,12 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
     this.players.push(p);
-    if (!this.sb && this.players.some(q => q !== p && (q.shopOpen || q.shopWant))) { this.genShop(p); p.shopWant = true; } // joined while the others shop
+    if (!this.sb && this.merchant && this.merchant.st <= 1) this.genShop(p); // joined while the merchant is here
     // 23.11.2026: before the first wave every player picks one of three berry start fields
     if (!this.sb && !this.started && this.wave === 0 && this.cfg.arena.startChoice?.length && (this.phase === 'play' || this.startPick)) {
       this.startPick = true; this.phase = 'lvl'; p.offers = this.startOffers(); p.picked = false;
@@ -2074,6 +2077,7 @@ export class Sim {
   startWave(w: number) {
     const W = this.cfg.waves, cf = this.f(this.cfg.coop.enemyCountExponent);
     this.wave = w; this.wavePause = false; this.waveGroups = []; this.waveSpawned = 0;
+    if (this.merchant && this.merchant.st <= 1) { this.merchant.st = 2; this.merchant.t = 0; this.emit({ k: 'merchLeave' }); } // pause over: the merchant packs up and goes
     const D = W.durationStart + W.durationPerWave * (w - 1), base = Math.min(W.sizeMax, W.sizeStart + W.sizePerWave * (w - 1)) * cf * this.nightMul(w).size * (W.countMultiplier ?? 1);
     const gap = Math.max(W.gapMin, W.gapStart - W.gapPerWave * (w - 1));
     const round = (v: number) => Math.max(1, Math.floor(v) + (Math.random() < v % 1 ? 1 : 0));
@@ -2184,7 +2188,10 @@ export class Sim {
       if (this.time >= this.waveEndAt) { // countdown ran out: every enemy except the boss turns round and vanishes, pause begins
         this.waveGroups.length = 0; this.spawnQueue.length = 0;
         for (const e of this.enemies) if (!e.boss && !e.dead && !e.leave) { this.dropCarry(e); e.fleeing = false; e.leave = W.leaveTime ?? 3; e.target = null; }
-        this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1); this.dayEnd = this.dayFrac();
+        this.wavePause = true; this.waveT = this.pauseLen = W.pauseStart + W.pausePerWave * (this.wave - 1);
+        const MC = this.cfg.merchant; // 24.11.2026: after every everyWaves waves the merchant comes; his stay is the pause
+        if (MC && !this.sb && this.wave % MC.everyWaves === 0 && this.wave < W.total) this.waveT = this.pauseLen = this.merchArrive();
+        this.dayEnd = this.dayFrac();
         this.emit({ k: 'waveEnd', w: this.wave });
         this.xpHist.push({ w: this.wave, ...this.xpNow, lv: this.level }); this.xpNow = { h: 0, e: 0, j: 0 };
       }
@@ -2324,6 +2331,7 @@ export class Sim {
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) this.updatePlayer(p, dt);
+    this.updateMerchant(dt);
     this.updateClouds(dt); this.updateBaits(dt);
     // fields
     for (const f of this.fields) {
@@ -2626,25 +2634,79 @@ export class Sim {
     else this.applyOffer(p, o.key);
     this.emit({ k: 'buy', p: p.id, i, g: o.gold ? 1 : 0 });
   }
-  /** close the Werkstatt (until the next werkstatt.everyLevels levels) */
-  closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopWant = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
+  /** close the merchant's bench (opens again after walking away from him and coming back) */
+  closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
   /** everyone (alive) at the bench: the world stands still like during a level-up */
   get shopPause() { return !this.sb && this.players.some(p => p.shopOpen) && this.players.every(p => p.shopOpen || !p.alive); }
-  /** shop tiers already opened (one every werkstatt.everyLevels levels) */
+  /** merchant visits so far (the first one offers firstLearn) */
   shopTier = 0;
-  /** 23.11.2026: every werkstatt.everyLevels levels the Werkstatt opens by itself for everyone (after the level-up card) */
+  /** Händler (24.11.2026): null = not here */
+  merchant: Merchant | null = null;
+  /** distance of a point to the merchant (his body, not the cart) */
+  merchDist(x: number, z: number) { const m = this.merchant; return m ? Math.hypot(x - m.x, z - m.z) : 1e9; }
+  /** 24.11.2026: the bench opens when a player walks up to the ready merchant (talkRadius), closes when he leaves */
   private tickShop(dt: number) {
-    const WS = this.cfg.werkstatt; if (!WS || this.sb) return;
-    const tier = Math.floor(this.level / Math.max(1, WS.everyLevels ?? 5));
-    if (tier > this.shopTier && this.phase === 'play' && !this.won) {
-      this.shopTier = tier;
-      for (const p of this.players) { this.genShop(p); p.shopDelay = WS.openDelay; p.shopWant = true; p.shopLock = false; }
-    }
+    void dt;
+    const M = this.cfg.merchant, m = this.merchant; if (!M || this.sb) return;
+    const ready = !!m && m.st === 1 && m.t >= M.reveal && this.phase === 'play' && !this.won; // first the tarp dissolves
     for (const p of this.players) {
-      p.shopDelay = Math.max(0, p.shopDelay - dt);
-      if (this.phase !== 'play' || this.won) { if (p.shopOpen) { p.shopOpen = false; p.shopWant = true; } continue; }
-      if (p.shopWant && !p.shopOpen && p.alive && p.shopDelay <= 0 && p.shop) { p.shopOpen = true; this.emit({ k: 'shopOpen', p: p.id }); }
+      if (!ready) { if (p.shopOpen) { p.shopOpen = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); } continue; }
+      const d = this.merchDist(p.x, p.z);
+      if (p.shopLock && d > M.talkRadius + .4) p.shopLock = false; // walked away after closing: may open again
+      if (!p.shopOpen && !p.shopLock && p.alive && p.shop && d <= M.talkRadius) { p.shopOpen = true; this.emit({ k: 'shopOpen', p: p.id }); }
     }
+  }
+  /** where the merchant stops: on the ray from the edge towards the centre, just before the first bed he would meet */
+  private merchStop(a: number) {
+    const ux = Math.cos(a), uz = Math.sin(a), H = hexR(this.cfg), M = this.cfg.merchant!;
+    let r = (this.chestOn ? 1 : 0) + M.gap + 1;
+    for (const f of this.fields) {
+      if (!f.alive) continue; const sl = this.slots[f.slot]; if (sl.forest) continue;
+      const along = sl.x * ux + sl.z * uz, side = Math.abs(-sl.x * uz + sl.z * ux);
+      if (along > 0 && side < H + 1) r = Math.max(r, along + H * .9 + M.gap);
+    }
+    return Math.min(r, this.cfg.arena.radius - 4);
+  }
+  /** the merchant arrives (after a merchant wave): comes from the far side of the garden (top of the screen) */
+  private merchArrive() {
+    const M = this.cfg.merchant!; let best = { a: -Math.PI / 2, r: 1e9 };
+    for (let k = 0; k < 9; k++) { // candidate directions over the upper half; prefers the one where he gets closest to the centre
+      const a = -Math.PI / 2 + (k / 8 - .5) * M.arc * Math.PI / 180 + rand(-.05, .05), r = this.merchStop(a) + rand(0, .8);
+      if (r < best.r) best = { a, r };
+    }
+    const R = M.spawnRadius, r = this.merchStop(best.a), ux = Math.cos(best.a), uz = Math.sin(best.a);
+    this.merchant = { st: 0, x: ux * R, z: uz * R, face: Math.atan2(-ux, -uz), t: 0, sx: ux * R, sz: uz * R, tx: ux * r, tz: uz * r, from: R, to: r };
+    for (const p of this.players) { this.genShop(p); p.shopLock = false; }
+    this.shopTier++;
+    this.emit({ k: 'merchCome' });
+    return M.delay + (R - r) / M.speed + M.stay;
+  }
+  /** moves the merchant, pushes players (and animals) out of him and his cart */
+  private updateMerchant(dt: number) {
+    const m = this.merchant, M = this.cfg.merchant; if (!m || !M) return;
+    m.t += dt;
+    if (m.st === 0) {
+      const go = Math.max(0, m.t - M.delay) * M.speed, L = m.from - m.to, k = Math.min(1, go / Math.max(.01, L));
+      m.x = m.sx + (m.tx - m.sx) * k; m.z = m.sz + (m.tz - m.sz) * k;
+      if (k >= 1) { m.st = 1; m.t = 0; this.emit({ k: 'merchReady' }); }
+    } else if (m.st === 2) { // turn round on the spot (the cart swings round behind him)
+      const k = Math.min(1, m.t / M.turn), a0 = Math.atan2(-m.tx, -m.tz);
+      m.face = a0 + Math.PI * (k * k * (3 - 2 * k));
+      if (k >= 1) { m.st = 3; m.t = 0; }
+    } else if (m.st === 3) {
+      m.x += Math.sin(m.face) * M.leaveSpeed * dt; m.z += Math.cos(m.face) * M.leaveSpeed * dt;
+      if (Math.hypot(m.x, m.z) > M.spawnRadius + 1) { this.merchant = null; return; }
+    }
+    // solid: the merchant cannot be stopped, he pushes everyone out of his way
+    const fx = Math.sin(m.face), fz = Math.cos(m.face);
+    const push = (o: { x: number; z: number }, own: number) => {
+      for (const [off, r] of MERCH_BODY) {
+        const cx = m.x + fx * off, cz = m.z + fz * off, dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz), R = r + own;
+        if (d < R) { const k = d > 1e-3 ? R / d : 0; o.x = d > 1e-3 ? cx + dx * k : cx + R; o.z = d > 1e-3 ? cz + dz * k : cz; }
+      }
+    };
+    for (const p of this.players) if (p.alive) { push(p, .3); [p.x, p.z] = this.clampArena(p.x, p.z); }
+    for (const e of this.enemies) if (!e.dead) push(e, .3);
   }
   /** level-up (23.11.2026): three hex fields out of the field pool (chosen start field + fieldPool.types; well once unlocked).
    *  Only types that can be built somewhere right now (free slot or a tile of that type below level 3, chain rules) */
@@ -2756,6 +2818,7 @@ export class Sim {
     }
     return {
       ch: this.chestOn ? this.enemies.filter(e => !e.dead && e.cs >= 0 && !e.fleeing && Math.hypot(e.x - this.thiefPos(e.cs)[0], e.z - this.thiefPos(e.cs)[1]) < .2).length : undefined,
+      mc: this.merchant ? [r2(this.merchant.x), r2(this.merchant.z), r2(this.merchant.face), this.merchant.st, r2(this.merchant.t), this.merchant.st === 1 ? r2(Math.max(0, this.waveT)) : 0] : undefined,
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0, jc: this.cfg.juice ? BERRIES.flatMap(b => [Math.round(this.juice[b].w / this.cfg.juice!.fill * 1000) / 1000, this.juice[b].lv]) : undefined,
       pl: this.players.map(p => ({
         id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,

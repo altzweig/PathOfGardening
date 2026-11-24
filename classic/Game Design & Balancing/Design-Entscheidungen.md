@@ -547,13 +547,14 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Abklingzeit wie die Beeren-Schrotflinte (0,625 s). Upgrades: Schaden, Tempo, Radius (+0,1 m). Alle Werte unter skills.sling in balancing.yaml.
 - Eier im Beutel werden beim Lernen zu Munition; Gebäude (Spiegeleierei) können weiter aus diesem Vorrat gefüttert werden.
 
-## Steckbrief unter den Hexfeldern (24.11.2026)
-- Beim Level-up (und bei der Startwahl) hängt unter jedem Hexfeld ein dunkler Steckbrief statt der Saat→Frucht-Zeile.
-- Anbaufeld: drei Kennzahlen Wachstum (s), Ernte (s = 6 Pflanzen × Schläge × Harkentakt), Ertrag (6 × plants.x.amount).
-- Gebäude: Zutaten → Produkt (mit Mengen) und Dauer (time bzw. interval).
-- Darunter Tabelle Stufe 1-3: Bonus (Anbaufeld = Chance auf doppelten Ertrag, Gebäude = Tempo, Brunnen = Bonus für alle Felder aus cropBonus), Leben (hpPerLevel), kleine Kachel-Symbole = so viele weitere Karten braucht die Stufe.
-- Stufe 3 zeigt, was sie freischaltet (chains: Weizen → Mühle, Beeren → Saftpresse, Mühle → Bäckerei). Hinweis „+ gleiche Nachbarn“: der Bonus gilt auch für angrenzende Kacheln gleichen Typs.
-- Alle Werte kommen aus balancing.yaml, Beschriftungen unter werkstatt.names. Handy hochkant: Hexfeld links, Steckbrief rechts; quer: kleines Hexfeld, Steckbrief darunter.
+## Feldkarten beim Level-up und Händler-Karten (24.11.2026, Basti Version 1)
+- Level-up: jede Wahl ist eine dunkle Karte, das Hexfeld ragt oben heraus. Nur das Hexfeld kippt/spiegelt beim Drüberfahren.
+- Leben steht als Herz-Plakette am Hexfeld. Darunter Name, dann 2 Zeilen Infos (links Icon, rechts Label und Wert): Anbaufeld Wachstum / Ernte / Ertrag, Gebäude Braucht / Macht / Dauer. Schaltet das Feld auf Stufe 3 etwas frei (Weizen → Mühle, Beeren → Saftpresse, Mühle → Bäckerei), steht das als goldenes viertes Feld „Ab Stufe 3“.
+- Stufen 1 › 2 › 3 als Hex-Plaketten mit Wert: Anbaufeld „Doppelter Ertrag“ (tiles-Bonus), Gebäude „Tempo“, Brunnen „Doppelter Ertrag“ für alle Felder (cropBonus). Keine Stufe-Beschriftung, keine Kachel-Anzahl, kein Nachbar-Hinweis.
+- Ganz unten der Haupteffekt als helle Karte: die Waffe, die das Feld versorgt (Beeren: Munition Schrotflinte + Debuff, Weizen: Körner-MP, Mühle: Mehlsack, Hühner: Eierschleuder, Spiegeleierei: Spiegeleischleuder), Brunnen: Bonus für alle Felder, sonst was die Ware gibt (XP, Leben).
+- Handy hochkant: Karten nebeneinander zum Wischen; quer: drei kleine Karten.
+- Händler: gleiche Karten in klein, Hexfeld in Waffenfarbe mit dem Werte-Symbol, Waffe als Plakette am Hexfeld, darunter Waffe, Upgrade-Name und Änderung. Neue Waffe / Brunnen: goldener Rand.
+- Beschriftungen unter werkstatt.names in balancing.yaml.
 
 ## Waffe auf dem Rücken (24.11.2026)
 - Die aktive Waffe hängt schräg auf dem Rücken, mittig fixiert (Griff oben an der rechten Schulter, Lauf zur anderen Hüfte), flach anliegend; sie dreht sich immer um ihre eigene Mitte.

@@ -534,5 +534,5 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Auf der Werkbank liegen nur Upgrades von Waffen, die man schon hat (inkl. Harke).
 - Höchstens eine neue Waffe pro Werkstatt, immer auf dem goldenen Platz, kostet immer 2 Birnen.
 - Jede Karte ist in der Farbe ihrer Waffe umrandet.
-- Upgrade-Karte: oben Waffe (Icon + Name), darunter Upgrade-Name groß, großes Werte-Icon, unten alter Wert → neuer Wert (neu grün hervorgehoben).
+- Upgrade-Karte: oben Waffe (Icon + Name), darunter Upgrade-Name groß, großes Werte-Icon, unten nur die Wertänderung in Grün (z. B. −0,08 s, +1,3 m), nicht alt → neu.
 - Waffen-Karte: Schild „Neue Waffe“, Bild, Name, Kurzbeschreibung, Werte im Raster.

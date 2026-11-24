@@ -102,6 +102,9 @@ export interface Player {
   slots: SkillId[]; // learned weapons in the order they were learned (HUD positions)
   fieldLock: number; taken: Record<string, number>; rakeLv: { dmg: number; rng: number; dia: number; cd: number };
   /** flamethrower: sweep phase 0..1 (back and forth), spin angle (circle mode, rad), s the flame stays visible, last flame angle (rad) */
+  /** 24.11.2026 weapon on the back: dk 0 = on the back .. 1 = in the hand, dDir +1 drawing / -1 putting away; pend = a press
+   *  that came while the weapon was moving (done once the animation ends) */
+  dk: number; dDir: number; pend: { w: Weapon; tap: boolean } | null;
   xbT: number; handT: number; /** s left of the Mehlsack / Bratpfannen spin, its length, which weapon spins */ spinT: number; spinD: number; spinK: string; flPh: number; flSpin: number; flOn: number; flAng: number; flPrevSpin: number; flHit: number; flBase: number;
   /** collected nuts (nut trees in the forest) */
   nuts: number;
@@ -255,7 +258,7 @@ export class Sim {
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
-      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, shopDelay: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
@@ -2200,7 +2203,7 @@ export class Sim {
     if (!p.alive) {
       p.chW = ''; p.chT = 0; // a held throw is lost when the player falls
       p.respawnT -= dt;
-      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
+      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
     }
     let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
@@ -2244,13 +2247,32 @@ export class Sim {
     // shotgun berry: switch on request, and by itself when the selected berry is used up
     if ((it.berry ?? 0) !== p.lastBerry) { p.lastBerry = it.berry ?? 0; this.nextBerry(p); }
     else if (p.ammo[p.berry] < this.stats('blue', p.skills.blue).cost) this.nextBerry(p);
-    const fw: Weapon | null = it.fire === 'active' ? p.active : it.fire;
+    let fw: Weapon | null = it.fire === 'active' ? p.active : it.fire;
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
     if (p.swing > 0 || p.rakeHit) { // running stroke: turns with the player at once, impact at the end of the push
       const d = this.rakeDir(p); p.aimX = d[0]; p.aimZ = d[1]; p.face = p.swingDir = Math.atan2(d[0], d[1]);
       if (p.swing <= 0) { p.rakeHit = false; this.rakeImpact(p, d[0], d[1]); }
     }
+    // 24.11.2026 (Basti): the weapon hangs on the back until Space; it goes back only when the rake is used again.
+    // Drawing / putting away takes player.drawTime s; shooting and raking only after that. Tab swaps the model only.
+    const tapW = it.tapSeq !== p.lastTap ? it.tapW : null;
+    const DT = Math.max(.01, P.drawTime ?? .28), hasW = p.active !== 'rake';
+    if (!hasW) { p.dk = 0; p.dDir = 0; if (p.pend && p.pend.w !== 'rake') p.pend = null; }
+    const wantW = hasW && ((!!fw && fw !== 'rake') || (!!tapW && tapW !== 'rake')), wantR = fw === 'rake' || tapW === 'rake';
+    // a press while the weapon is still moving is kept and done once the animation is over
+    if (wantR && p.dk > 0) p.pend = { w: 'rake', tap: tapW === 'rake' };
+    else if (wantW && (p.dk < 1 || p.dDir)) p.pend = { w: (tapW && tapW !== 'rake' ? tapW : fw) as Weapon, tap: !!tapW && tapW !== 'rake' };
+    if (p.pend?.w === 'rake') { if (p.dk > 0) p.dDir = -1; }
+    else if (p.pend && p.dk < 1 && p.swing <= 0 && !p.rakeHit) p.dDir = 1; // not in the middle of a rake stroke
+    if (p.dDir) { p.dk = clamp(p.dk + p.dDir * dt / DT, 0, 1); if (p.dk <= 0 || p.dk >= 1) p.dDir = 0; }
+    const drawn = hasW && p.dk >= 1 && !p.dDir, stowed = p.dk <= 0 && !p.dDir;
+    if (p.pend && (p.pend.w === 'rake' ? stowed : drawn)) {
+      const q = p.pend; p.pend = null;
+      if (q.w === 'rake') { if (fw !== 'rake' && p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range, !q.tap); this.rakeAttack(p, d[0], d[1]); } }
+      else if ((!fw || fw === 'rake') && p.active !== 'rake') { const w = p.active; { const s = this.stats(w, p.skills[w]); this.tryFire(p, w, q.tap ? this.aimDir(p, this.thrown(p.skills[w], w) ? s.throwDist : s.range, false) : undefined); } }
+    }
+    if (fw && (fw === 'rake' ? !stowed : !drawn)) { for (const id of SKILLS) p.skills[id].firing = false; fw = null; }
     // thrown weapons (cabbage, Coleateral Bomb, Cabboomberry, Kimchi): hold to charge, the throw flies on release
     const chg = fw && fw !== 'rake' && this.thrown(p.skills[fw], fw) ? fw : null;
     if (p.chW && p.chW !== chg) {
@@ -2268,7 +2290,7 @@ export class Sim {
     }
     if (it.tapSeq !== p.lastTap) {
       p.lastTap = it.tapSeq;
-      const w = it.tapW;
+      const w = tapW && (tapW === 'rake' ? stowed : drawn) && !p.pend ? tapW : null; // else kept in p.pend (see above)
       if (w === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range, false); this.rakeAttack(p, d[0], d[1]); } }
       else if (w) { const s = this.stats(w, p.skills[w]); this.tryFire(p, w, this.aimDir(p, this.thrown(p.skills[w], w) ? s.throwDist : s.range, false)); }
     }
@@ -2739,6 +2761,7 @@ export class Sim {
         // combo weapon in the hand: active weapon is a combo, or a combo fired just now
         cw: (() => { const ac = p.active !== 'rake' ? p.skills[p.active].combo : ''; const c = p.cwT > 0 && p.cwId ? p.cwId : ac; return c ? COMBOS.indexOf(c as ComboId) : -1; })(),
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
+        dk: p.dk > 0 ? r2(p.dk) : undefined,
         rh: p.swing > 0 || (p.active === 'rake' && p.handT <= 0) ? 1 : 0,
       })),
       en: this.enemies.map(e => {

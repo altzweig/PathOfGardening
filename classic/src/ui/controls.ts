@@ -32,7 +32,7 @@ export function pcControls() {
     bar += `<rect x="${x}" y="70" width="${S}" height="${S}" rx="7" fill="#10161c" stroke="${sel ? GOLD : '#8a8f96'}" stroke-width="${sel ? 4 : 1.5}"/>${icon(skillIcon(w), x + 7, 77, S - 14)}`;
     bar += kc(x + S / 2, 140, SLOT_ACTS[g * 5 + k], 50, 50, 'middle');
   }
-  return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
+  return `<svg viewBox="0 0 1000 710" xmlns="http://www.w3.org/2000/svg">
   <!-- weapon bar -->
   ${mouseSvg(56, 72, .3, 'l')}${mouseSvg(908, 72, .3, 'r')}
   ${bar}
@@ -53,8 +53,10 @@ export function pcControls() {
   ${icon(fruitIcon('blue'), 190, 570, 36)}${icon(fruitIcon('black'), 226, 570, 36)}${icon(fruitIcon('cran'), 262, 570, 36)}
   <!-- Alt: show keys on the bar -->
   ${kc(360, 562, 'keys', 80, 56)}${label(460, 600, 'Tasten zeigen', 'start', 24)}
+  <!-- Shift: sprint (24.11.2026) -->
+  ${kc(40, 636, 'sprint', 110, 56)}${label(170, 674, 'Sprinten', 'start', 24)}
   <!-- Esc -->
-  ${key(650, 562, 80, 56, 'Esc', true, 22)}${label(745, 600, 'Pause', 'start', 24)}
+  ${key(360, 636, 80, 56, 'Esc', true, 22)}${label(460, 674, 'Pause', 'start', 24)}
   <!-- mouse: aim + zoom -->
   ${mouseSvg(800, 350, .62, '')}
   ${label(846, 530, 'Mausrad: Zoom', 'middle', 22)}

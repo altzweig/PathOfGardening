@@ -11,6 +11,7 @@ export interface Intent {
   berry?: number;                   // increments on every "switch berry" press (shotgun ammo, 23.11.2026)
   /** PC 10-slot bar (24.11.2026): pick = counter per slot key press, pickS = that slot 0..9; cycP / cycS = next primary / secondary (Q / E) */
   pick?: number; pickS?: number; cycP?: number; cycS?: number;
+  sprint?: boolean;                 // Shift held (24.11.2026)
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: false, fire: null, tapSeq: 0, tapW: null, cycle: 0, berry: 0 });
 
@@ -18,6 +19,7 @@ export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   /** shotgun berry (index in BERRIES, 23.11.2026) */ be?: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
+  /** 24.11.2026: stamina 0..1, drained (locked), energy shield HP and its max */ sa?: number; sx?: 0 | 1; sh?: number; ms?: number;
   sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
   xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m
@@ -56,7 +58,7 @@ export type FSnap = [number, number, number, number, number, number] | [number, 
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]
-export type BSnap = [number, number, number, number, number, number, number, number, number, number?]; // [9] 1 = cabbage contact mine
+export type BSnap = [number, number, number, number, number, number, number, number, number, number?, number?]; // [9] 1 = cabbage contact mine, [10] its s left before it rots away
 // lying cranberry (missed pellet): [id, x, z, fuse progress 0..1, height while scattered, burning]
 export type MSnap = [number, number, number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]

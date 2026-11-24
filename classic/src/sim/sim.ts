@@ -1,7 +1,7 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
 import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry } from '../config';
-import { emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
+import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()); // standard normal (Box-Muller)
@@ -119,6 +119,9 @@ export interface Player {
   chW: SkillId | ''; chT: number; thrK: number; chAim: boolean;
   /** shotgun: berry it fires (23.11.2026), last berry-switch counter */
   berry: Berry; lastBerry: number;
+  /** 24.11.2026 sprint: stamina 0..1, s until it regenerates, drained empty (locked until cfg exhausted), sprinting now;
+   *  energy shield HP, s since the last hit */
+  sta: number; staT: number; staX: boolean; sprint: boolean; sh: number; shT: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
@@ -160,6 +163,8 @@ interface Enemy {
   thorn: number; thornT: number; bx: number; bz: number;
   /** raccoon at the chest: thief slot on the circle (-1 none), s to the next stolen item, items it can carry */
   cs: number; stealT: number; cmax: number;
+  /** raccoon (24.11.2026): has had its one go at a player (then off to the chest), s spent chasing for it */
+  pHit?: boolean; pChase?: number;
   /** Körner-MP: grain damage not shown yet, time of the last number */ gs?: number; gt?: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
@@ -264,6 +269,7 @@ export class Sim {
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, collected: { asp: 0, cran: 0, cab: 0, lemon: 0, chili: 0, blue: 0, flour: 0, pan: 0, black: 0, wheat: 0, sling: 0 }, skills: { asp: mk(), cran: mk(), cab: mk(), lemon: mk(), chili: mk(), blue: mk(), flour: mk(), pan: mk(), black: mk(), wheat: mk(), sling: mk() }, berry: 'blue', lastBerry: 0,
       rakeCd: 0, aimX: 0, aimZ: 1, active: 'rake', intent: emptyIntent(), lastTap: 0, lastCycle: 0, prim: 'rake', sec: 'rake', lastPick: 0, lastCycP: 0, lastCycS: 0, offers: null, picked: false, fresh: true, placing: null, placeMode: 'new', inv: {}, slots: [], fieldLock: 0, taken: {}, rakeLv: { dmg: 0, rng: 0, dia: 0, cd: 0 }, ideas: 0, shop: null, shopOpen: false, shopLock: false, rerolls: 0, dk: 0, dDir: 0, pend: null, xbT: 0, handT: 0, spinT: 0, spinD: 1, spinK: '', flPh: 0, flSpin: 0, flOn: 0, flAng: 0, flPrevSpin: 0, flHit: 0, flBase: 0, nuts: 0,
+      sta: 1, staT: 0, staX: false, sprint: false, sh: P.shield?.hp ?? 0, shT: 99,
     };
     if (this.sb) { p.x = -this.sb.W * .62; p.z = 0; p.face = Math.PI / 2; p.aimX = 1; p.aimZ = 0; }
     this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
@@ -1267,8 +1273,8 @@ export class Sim {
     } else { // cabbage: contact mine put down right where the player stands (see canLayMine)
       this.snd('throw');
       const b = this.spawnBomb(p.x, .5, p.z, p.x, p.z, st.range, st.dmg, st.minis, false, st.gas, st.poisonMul);
-      b.flight = .2; b.fuse = 1e9; b.mine = true;
-      const mines = this.bombs.filter(x => x.mine), max = S.cab.maxMines ?? 15;
+      b.flight = .2; b.fuse = b.flight + (S.cab.mineLife ?? 60); b.mine = true; // 24.11.2026: a mine rots away after mineLife s (snapshot b[7] = life used 0..1)
+      const mines = this.bombs.filter(x => x.mine), max = S.cab.maxMines ?? 100;
       if (mines.length > max) { const old = mines[0]; this.bombs.splice(this.bombs.indexOf(old), 1); this.burst(old.x, .2, old.z, 0x6fbf3a, 8, 1, .1, .4); }
     }
   }
@@ -1350,7 +1356,7 @@ export class Sim {
     const c: Cloud = { id: this.nid++, x: p.x, z: p.z, r: st.range, age: 0, life: F.life, ign: -1, ix: 0, iz: 0, front: 0, dmg: st.dmg, hit: new Set() };
     this.clouds.push(c);
     const unlit = this.clouds.filter(x => x.ign < 0);
-    if (unlit.length > (F.maxClouds ?? 4)) this.clouds.splice(this.clouds.indexOf(unlit[0]), 1);
+    if (unlit.length > (F.maxClouds ?? 100)) this.clouds.splice(this.clouds.indexOf(unlit[0]), 1);
   }
   /** fire touches a cloud at (x, z): it catches there and the flame front eats through it from that point */
   igniteCloud(c: Cloud, x: number, z: number) {
@@ -1755,6 +1761,11 @@ export class Sim {
     if (e.fleeing) return { kind: 'flee' };
     const D = this.cfg.enemies[e.type];
     if (e.type === 'raccoon' && this.chestOn) { // 23.11.2026: raccoons steal from the chest; whoever finds no place there attacks the nearest player
+      if (!e.pHit && (e.pChase ?? 0) < (this.cfg.chest?.attackFirst ?? 0)) { // 24.11.2026: one go at the nearest player first
+        let fp: Player | null = null, fd = 1e9;
+        for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < fd) { fd = d; fp = p; } }
+        if (fp) return { kind: 'player', p: fp };
+      }
       if (this.thiefSlot(e) >= 0) return { kind: 'chest' };
       let bp: Player | null = null, bd = 1e9;
       for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
@@ -1806,10 +1817,26 @@ export class Sim {
   targetPos(t: Target): { x: number; z: number } | null {
     if (!t) return null; if (t.kind === 'chest') return { x: 0, z: 0 }; if (t.kind === 'player') return t.p; if (t.kind === 'fruit') return t.fr; if (t.kind === 'field') return t.f; if (t.kind === 'wander') return t; return null;
   }
+  /** 24.11.2026 Basti: Shift sprints (stamina for sprint.duration s, empty -> full in sprint.regen s, drained empty = locked until
+   *  sprint.exhausted); the energy shield refills at shield.regen/s once shield.regenDelay s passed without a hit */
+  private tickSprintShield(p: Player, dt: number, moving: boolean) {
+    const S = this.cfg.player.sprint, H = this.cfg.player.shield;
+    if (S) {
+      if (p.staX && p.sta >= S.exhausted - 1e-6) p.staX = false;
+      p.sprint = !!p.intent.sprint && moving && !p.staX && p.sta > 0;
+      if (p.sprint) {
+        p.sta = Math.max(0, p.sta - dt / S.duration); p.staT = S.regenDelay;
+        if (p.sta <= 0) { p.staX = true; p.sprint = false; }
+      } else if ((p.staT -= dt) <= 0) p.sta = Math.min(1, p.sta + dt / S.regen);
+    } else p.sprint = false;
+    if (H) { p.shT += dt; if (p.shT >= H.regenDelay) p.sh = Math.min(H.hp, p.sh + H.regen * dt); }
+  }
   hurtPlayer(p: Player, dmg: number, color = 'h') {
     if (!p.alive || this.phase === 'over') return;
-    dmg *= this.f(this.cfg.coop.enemyDamageExponent);
-    p.hp -= dmg; p.flash = .35; this.emit({ k: 'hurt', p: p.id });
+    dmg *= this.f(this.cfg.coop.enemyDamageExponent) * (this.cfg.player.damageTaken ?? 1);
+    p.shT = 0; // the energy shield takes the hit first (24.11.2026)
+    const soak = Math.min(p.sh, dmg); p.sh -= soak;
+    p.hp -= dmg - soak; p.flash = .35; this.emit({ k: 'hurt', p: p.id });
     this.num(p.x, p.z, dmg, color);
     if (this.sb) { p.hp = this.cfg.player.hp; return; } // test room: hits show, nobody dies
     if (p.hp <= 0) {
@@ -1888,6 +1915,7 @@ export class Sim {
       }
       return;
     }
+    if (t.kind === 'player' && e.type === 'raccoon' && !e.pHit) e.pChase = (e.pChase ?? 0) + dt; // gives up after chest.attackFirst s
     const tp = this.targetPos(t)!;
     const FR = hexR(this.cfg) * .7; // enemies walk onto the field to attack it
     const reach = t.kind === 'field' ? FR : t.kind === 'player' ? e.r + .5 : e.r * .6;
@@ -1933,7 +1961,7 @@ export class Sim {
       }
     } else if (t.kind !== 'fruit' && d <= reach && !D.puffEvery) { // hedgehogs only hurt by puffing up
       e.atkT -= dt;
-      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } }
+      if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; if (t.kind === 'player') { this.sfx(e.type + '.attack', e.x, e.z); this.hurtPlayer(t.p, E.meleeDamage * e.dmgMul); if (e.type === 'raccoon' && !e.pHit) { e.pHit = true; e.think = 0; } } else if (t.kind === 'field') { this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtField(t.f, E.meleeDamage * e.dmgMul); } }
     } else e.atkT = Math.min(e.atkT, .5);
   }
   /** hedgehog: puffs up with a jerk every puffEvery s, spines hurt players around it (and the field it stands on) */
@@ -2251,16 +2279,17 @@ export class Sim {
     if (!p.alive) {
       p.chW = ''; p.chT = 0; // a held throw is lost when the player falls
       p.respawnT -= dt;
-      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
+      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
     }
     let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
     const sf = this.stunF(p); // stunned: movement and attacks ramp up from 0 to normal
+    this.tickSprintShield(p, dt, ml > .05 && sf > 0 && !p.kb);
     if (p.stun > 0) p.stun = Math.max(0, p.stun - dt);
     this.tickPoison(p, dt, d => this.hurtPlayer(p, d, 'v'));
     if (!p.alive) return;
     if (p.kb) { const s = Math.min(p.kb.left, 12 * dt); p.x += p.kb.dx * s; p.z += p.kb.dz * s; p.kb.left -= s; if (p.kb.left <= 0) p.kb = null; }
-    else if (ml > .05 && sf > 0) { p.x += mx * P.speed * sf * dt; p.z += mz * P.speed * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
+    else if (ml > .05 && sf > 0) { const sp = P.speed * (p.sprint ? P.sprint!.speed : 1); p.x += mx * sp * sf * dt; p.z += mz * sp * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml) * (p.sprint ? P.sprint!.speed : 1); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
     [p.x, p.z] = this.clampArena(p.x, p.z);
     if (this.chestOn) { const d = Math.hypot(p.x, p.z), R = .75; if (d < R) { const k = d > 1e-3 ? R / d : 0; p.x = d > 1e-3 ? p.x * k : 0; p.z = d > 1e-3 ? p.z * k : R; } } // the chest is solid
     // standing (with the centre) on a field heals it
@@ -2536,6 +2565,7 @@ export class Sim {
       if (b.mine && b.t >= b.flight) { // cabbage mine: goes off as soon as an animal steps on it
         const R = this.cfg.skills.cab.mineTrigger ?? .45;
         if (this.enemies.some(e => !e.dead && !this.airborne(e) && !this.inTree(e) && dist(e, b) < R + e.r)) { this.bombs.splice(i, 1); this.explode(b); }
+        else if (b.t >= b.fuse) { this.bombs.splice(i, 1); this.burst(b.x, .2, b.z, 0x6fbf3a, 8, 1, .1, .4); } // rotted away: falls apart quietly
         continue;
       }
       if (b.t >= b.fuse) { this.bombs.splice(i, 1); if (b.kind === 'cab') this.explode(b); else if (b.kind === 'egg') this.eggBurst(b); else this.comboExplode(b); }
@@ -2898,7 +2928,7 @@ export class Sim {
       mc: this.merchant ? [r2(this.merchant.x), r2(this.merchant.z), r2(this.merchant.face), this.merchant.st, r2(this.merchant.t), this.merchant.st === 1 ? r2(Math.max(0, this.waveT)) : 0] : undefined,
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0, jc: this.cfg.juice ? BERRIES.flatMap(b => [Math.round(this.juice[b].w / this.cfg.juice!.fill * 1000) / 1000, this.juice[b].lv]) : undefined,
       pl: this.players.map(p => ({
-        id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
+        id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, sa: r2(p.sta), sx: p.staX ? 1 : 0, sh: Math.ceil(p.sh), ms: this.cfg.player.shield?.hp ?? 0, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
@@ -2927,7 +2957,7 @@ export class Sim {
       eg: this.baits.filter(b => b.delay <= 0).map(b => [b.id, r2(b.x + (b.sx - b.x) * (1 - Math.min(1, b.t / b.fl))), r2(b.y), r2(b.z + (b.sz - b.z) * (1 - Math.min(1, b.t / b.fl))), b.t >= b.fl ? 1 : 0, r2(Math.max(0, b.left) / b.total), r2(b.out), r2(b.r), b.eaters]),
       pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? 1 : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
       cl: this.clouds.map(c => [c.id, r2(c.x), r2(c.z), r2(c.r), r2(c.age), c.life, c.ign, r2(c.ix), r2(c.iz)]),
-      bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen, b.mine ? 1 : 0]),
+      bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen, b.mine ? 1 : 0, ...(b.mine ? [r2(b.fuse - b.t)] : [])] as unknown as BSnap), // mines: [10] = s until it rots away
       mi: this.mines.map(m => { const f = m.fl && m.fl > 0 && m.ft ? 1 - m.fl / m.ft : 1; const x = m.sx !== undefined && f < 1 ? m.sx + (m.x - m.sx) * f : m.x, z = m.sz !== undefined && f < 1 ? m.sz + (m.z - m.sz) * f : m.z;
         return [m.id, r2(x), r2(z), r2(clamp(1 - m.t / (m.r ? this.CB.list.cabboom.berryDelay : this.cfg.skills.cran.splashDelay), 0, 1)), f < 1 ? r2(.3 + Math.sin(f * Math.PI) * 1.1) : 0, m.fire ? 1 : 0] as MSnap; }),
       sn: this.snodes.map(n => [n.id, r2(n.x), r2(n.z), r2(n.ticks / n.tot)]),

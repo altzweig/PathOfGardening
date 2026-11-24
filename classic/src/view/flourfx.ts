@@ -1,6 +1,10 @@
 // Mehlsack FX (23.11.2026): flour cloud (sliced volume, noisy, hard white pixel specks), fire dissolve into a flame carpet
 // that eats through the cloud concentrically from the ignition point (glowing edge, flame tongues, ember sparks, heat haze).
-// All animation runs on the GPU from a handful of uniforms per cloud; one draw call per part. Parameters: balancing.yaml fx.
+// All animation runs on the GPU. 24.11.2026 (bis zu 100 Wolken): every part is ONE instanced draw call for all clouds together
+// (cloud slices, flame carpet, flame tongues, ember sparks); the per-cloud values ride along as two instance attributes
+// (aA = x, z, radius, age; aB = ignition x, z, ignition age | -1, life) in fixed-size buffers that stay on the GPU.
+// A cloud coming or going costs no mesh, material or shader compile, only a few floats in the next buffer upload.
+// From LAYER_HALF clouds on, every other slice is skipped (the rest gets denser): fill rate stays in check. Parameters: balancing.yaml fx.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
@@ -11,6 +15,8 @@ type P = Record<string, number>;
 const DEF_CLOUD: P = { layers: 6, height: 1.5, noiseScale: 1.6, swirl: .35, density: .95, speckle: .55, speckleSize: 3, color: 0xf4efe4 };
 const DEF_FIRE: P = { edgeWidth: .55, flameHeight: 1.1, flameSpeed: 1.6, intensity: 2.2, burnOut: .9, sparks: 220, haze: .004, hazeHeight: 2.2 };
 const TONGUES = 56;
+export const CLOUD_CAP = 128; // instance slots (balancing maxClouds 100 + burning ones that are still finishing)
+const LAYER_HALF = 48;
 
 // value noise + fbm (3 octaves, cheap enough for mobile), hash for the pixel specks
 const NOISE = /* glsl */`
@@ -26,21 +32,29 @@ vec3 fireRamp(float k){ // 0 dark red .. 1 white-yellow (HDR, feeds the bloom)
   c=mix(c, vec3(1.,.2,.008), smoothstep(.3,.72,k));
   return mix(c, vec3(1.,.48,.1), smoothstep(.78,1.,k)); }
 `;
-// per-cloud uniforms shared by all its parts
+// per-cloud values (from the instance attributes: LOAD_VS in the vertex shader, LOAD_FS from the varyings) + shared uniforms
 const COMMON = /* glsl */`
-uniform vec2 uC; uniform float uR, uAge, uLife, uFade, uFS, uTime, uDay; uniform vec3 uIgn; // uIgn = (ix, iz, ignition age | -1)
+vec2 uC; float uR, uAge, uLife; vec3 uIgn; // uIgn = (ix, iz, ignition age | -1)
+uniform float uFade, uFS, uTime, uDay;
 uniform float uEdge, uBurnOut, uInt, uFlameH, uFlameSpeed;
+varying vec4 vA, vB;
 float frontNow(){ return uIgn.z < 0. ? -1. : (uAge - uIgn.z) * uFS; }
 `;
+const ATTR = `attribute vec4 aA, aB;\n`;
+const LOAD_VS = `vA=aA; vB=aB; uC=aA.xy; uR=aA.z; uAge=aA.w; uIgn=aB.xyz; uLife=aB.w;`;
+const LOAD_FS = `uC=vA.xy; uR=vA.z; uAge=vA.w; uIgn=vB.xyz; uLife=vB.w;`;
 
 const cloudVS = /* glsl */`
-attribute float aLayer; varying vec3 vW; varying float vL;
-void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; vL=aLayer; gl_Position=projectionMatrix*viewMatrix*w; }`;
+${COMMON}${ATTR}
+attribute float aLayer; uniform float uLayers, uStep; varying vec3 vW; varying float vL;
+void main(){ ${LOAD_VS}
+  if(mod(floor(aLayer*(uLayers-1.)+.5),uStep)>.5){ gl_Position=vec4(2.,2.,2.,1.); return; } // many clouds: every other slice
+  vec3 w=vec3(uC.x+position.x*uR, position.y, uC.y+position.z*uR); vW=w; vL=aLayer; gl_Position=projectionMatrix*viewMatrix*vec4(w,1.); }`;
 const cloudFS = /* glsl */`
 ${NOISE}${COMMON}
-uniform float uScale, uSwirl, uDens, uSpeck, uSpkPx, uLayers, uH; uniform vec3 uCol;
+uniform float uScale, uSwirl, uDens, uSpeck, uSpkPx, uLayers, uStep, uH; uniform vec3 uCol;
 varying vec3 vW; varying float vL;
-void main(){
+void main(){ ${LOAD_FS}
   vec2 d2=vW.xz-uC; float r=length(d2)/uR;
   float grow=1.-pow(1.-clamp(uAge/.45,0.,1.),3.);                  // spin-out: flung outwards, ease-out
   float rr=r/mix(.2,1.,grow);
@@ -69,7 +83,7 @@ void main(){
     col=mix(col, fireRamp(.55+line*.4)*uInt*.3, line);
     dens=max(dens, line*.9*smoothstep(1.1,.8,rr));
   }
-  float a=dens*uDens*2.6/uLayers;
+  float a=dens*uDens*2.6*uStep/uLayers;
   // hard white pixel specks: whole screen pixels (uSpkPx), re-rolled 12x per second, only inside the cloud
   vec2 cell=floor(gl_FragCoord.xy/uSpkPx);
   float h=h21(cell+floor(uTime*12.)*vec2(.137,.711)+vL*17.);
@@ -79,11 +93,12 @@ void main(){
 }`;
 
 // flame carpet on the ground: the band behind the front burns for burnOut s, then glows out as embers
-const carpetVS = /* glsl */`varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
+const carpetVS = /* glsl */`${COMMON}${ATTR}varying vec3 vW;
+void main(){ ${LOAD_VS} vec3 w=vec3(uC.x+position.x*uR, .045, uC.y+position.z*uR); vW=w; gl_Position=projectionMatrix*viewMatrix*vec4(w,1.); }`;
 const carpetFS = /* glsl */`
 ${NOISE}${COMMON}
 varying vec3 vW;
-void main(){
+void main(){ ${LOAD_FS}
   float fr=frontNow(); if(fr<0.) discard;
   vec2 d2=vW.xz-uC; float r=length(d2)/uR;
   vec3 P=vec3(vW.xz*2.2, uTime*uFlameSpeed*.9);
@@ -103,9 +118,9 @@ void main(){
 
 // flame tongues: camera-facing quads scattered in the cloud, each lights up when the front reaches it
 const tongueVS = /* glsl */`
-${COMMON}
+${COMMON}${ATTR}
 attribute vec3 aP; varying vec2 vUv; varying float vLife, vSeed;
-void main(){
+void main(){ ${LOAD_VS}
   vec2 c=uC+aP.xy*uR; float seed=aP.z; vSeed=seed; vUv=uv;
   float fr=frontNow(); float tOn=length(c-uIgn.xy)/max(.01,uFS);
   float l=uIgn.z<0. ? -1. : ((uAge-uIgn.z)-tOn)/max(.01,uBurnOut*(.7+seed*.6)); vLife=l;
@@ -134,9 +149,9 @@ void main(){
 
 // ember sparks: points flung up by the passing front, drag + buoyancy + flutter, all from time in the shader
 const sparkVS = /* glsl */`
-${COMMON}
-attribute vec4 aS; attribute vec3 aV; uniform float uPx; varying float vA;
-void main(){
+${COMMON}${ATTR}
+attribute vec4 aS; attribute vec3 aV; uniform float uPx; varying float vSA;
+void main(){ ${LOAD_VS}
   vec2 c=uC+aS.xy*uR; float seed=aS.z;
   float tOn=length(c-uIgn.xy)/max(.01,uFS)+seed*uBurnOut*.8;
   float a=uIgn.z<0. ? -1. : (uAge-uIgn.z)-tOn, L=.9+aS.w*.9;
@@ -147,18 +162,29 @@ void main(){
   vec4 mv=viewMatrix*vec4(p,1.);
   gl_Position=projectionMatrix*mv;
   gl_PointSize=uPx*(.028+.02*seed)*(1.-k*.7)/max(.5,-mv.z);
-  vA=(1.-k)*(1.-k)*(.6+.4*sin(a*30.+seed*60.));
+  vSA=(1.-k)*(1.-k)*(.6+.4*sin(a*30.+seed*60.));
 }`;
 const sparkFS = /* glsl */`
-uniform float uInt; varying float vA;
+uniform float uInt; varying float vSA;
 void main(){ vec2 d=gl_PointCoord-.5; float r=length(d); if(r>.5) discard;
   float g=smoothstep(.5,.0,r); vec3 col=mix(vec3(1.,.25,.02),vec3(1.,.75,.35),g*g)*uInt*.6;
-  gl_FragColor=vec4(col*g*vA, g*vA); }`;
+  gl_FragColor=vec4(col*g*vSA, g*vSA); }`;
 
-interface CloudView {
-  id: number; g: THREE.Group; U: Record<string, THREE.IUniform>; cloud: THREE.Mesh; carpet: THREE.Mesh; tongues: THREE.Mesh; sparks: THREE.Points;
-  age: number; sAge: number; gone: boolean; far: number; heat: number;
+/** one cloud as the sim reports it, plus the local clock (smooth between snapshots) and the fire state */
+interface CloudView { id: number; x: number; z: number; r: number; life: number; ign: number; ix: number; iz: number; age: number; gone: boolean; far: number; heat: number }
+
+/** instance attribute pair (aA, aB) with CLOUD_CAP slots, filled densely each frame; shared by every geometry that draws this list */
+class Slots {
+  readonly A = new THREE.InstancedBufferAttribute(new Float32Array(CLOUD_CAP * 4), 4); readonly B = new THREE.InstancedBufferAttribute(new Float32Array(CLOUD_CAP * 4), 4);
+  n = 0;
+  constructor() { this.A.setUsage(THREE.DynamicDrawUsage); this.B.setUsage(THREE.DynamicDrawUsage); }
+  put(v: CloudView) { if (this.n >= CLOUD_CAP) return; const i = this.n++ * 4; this.A.array.set([v.x, v.z, v.r, v.age], i); this.B.array.set([v.ix, v.iz, v.ign, v.life], i); }
+  commit() {
+    for (const a of [this.A, this.B]) { a.clearUpdateRanges(); if (this.n) { a.addUpdateRange(0, this.n * 4); a.needsUpdate = true; } }
+  }
+  attach(g: THREE.InstancedBufferGeometry) { g.setAttribute('aA', this.A); g.setAttribute('aB', this.B); g.instanceCount = 0; return g; }
 }
+const NOWHERE = new THREE.Sphere(new THREE.Vector3(), 1e4);
 
 /** haze: screen-space shimmer over burning areas (up to 4), off whenever nothing burns */
 const hazePass = new ShaderPass({
@@ -183,36 +209,65 @@ hazePass.enabled = false;
 export class FlourFX {
   private views = new Map<number, CloudView>();
   private cp: P = { ...DEF_CLOUD }; private fp: P = { ...DEF_FIRE }; private fs = 4; private life = 6; private fade = 2;
-  private cloudGeo: THREE.BufferGeometry | null = null; private tongueGeo: THREE.InstancedBufferGeometry | null = null; private sparkGeo: THREE.BufferGeometry | null = null;
+  private all = new Slots(); private burn = new Slots(); // every visible cloud / the burning ones
+  private U: Record<string, THREE.IUniform> = {
+    uFade: { value: 2 }, uFS: { value: 4 }, uTime: { value: 0 }, uDay: envU.uDay,
+    uEdge: { value: 0 }, uBurnOut: { value: 0 }, uInt: { value: 0 }, uFlameH: { value: 0 }, uFlameSpeed: { value: 0 },
+    uScale: { value: 0 }, uSwirl: { value: 0 }, uDens: { value: 0 }, uSpeck: { value: 0 }, uSpkPx: { value: 0 }, uLayers: { value: 1 }, uStep: { value: 1 }, uH: { value: 1 },
+    uCol: { value: new THREE.Color() }, uPx: { value: pxScale },
+  };
+  private cloud: THREE.Mesh; private carpet: THREE.Mesh; private tongues: THREE.Mesh; private sparks: THREE.Points;
   private light = new THREE.PointLight(0xff7a22, 0, 9, 1.7);
-  constructor() { this.light.position.set(0, 1.2, 0); scene.add(this.light); } // always in the scene (intensity 0): no shader recompile when a fire starts
+  constructor() {
+    this.light.position.set(0, 1.2, 0); scene.add(this.light); // always in the scene (intensity 0): no shader recompile when a fire starts
+    const U = this.U, mat = (vs: string, fs: string, o: THREE.ShaderMaterialParameters = {}) => new THREE.ShaderMaterial({ uniforms: U, vertexShader: vs, fragmentShader: fs, transparent: true, depthWrite: false, ...o });
+    const add = <T extends THREE.Mesh | THREE.Points>(o: T, order: number) => { o.frustumCulled = false; o.renderOrder = order; scene.add(o); return o; };
+    this.cloud = add(new THREE.Mesh(this.geoCloud(), mat(cloudVS, cloudFS)), 5);
+    this.carpet = add(new THREE.Mesh(this.geoCarpet(), mat(carpetVS, carpetFS, { blending: THREE.AdditiveBlending })), 4);
+    this.tongues = add(new THREE.Mesh(this.geoTongues(), mat(tongueVS, tongueFS, { blending: THREE.AdditiveBlending, side: THREE.DoubleSide })), 6);
+    this.sparks = add(new THREE.Points(this.geoSparks(), mat(sparkVS, sparkFS, { blending: THREE.AdditiveBlending })), 7);
+    this.setUniforms();
+  }
   setConfig(cfg: Balancing) {
     this.cp = { ...DEF_CLOUD, ...(cfg.fx?.flour ?? {}) }; this.fp = { ...DEF_FIRE, ...(cfg.fx?.fire ?? {}) };
     const F = cfg.skills.flour; if (F) { this.fs = F.frontSpeed; this.life = F.life; this.fade = F.fade; }
-    this.cloudGeo = this.tongueGeo = this.sparkGeo = null; this.clear();
+    this.clear();
+    for (const [o, g] of [[this.cloud, this.geoCloud()], [this.carpet, this.geoCarpet()], [this.tongues, this.geoTongues()], [this.sparks, this.geoSparks()]] as const) { o.geometry.dispose(); o.geometry = g; }
+    this.setUniforms();
   }
-  clear() { for (const v of this.views.values()) this.drop(v); this.views.clear(); hazePass.enabled = false; this.light.intensity = 0; }
-  private layers() { return gfx.quality === 'niedrig' ? Math.min(3, this.cp.layers) : this.cp.layers; }
+  private setUniforms() {
+    const U = this.U, cp = this.cp, fp = this.fp;
+    U.uFade.value = this.fade; U.uFS.value = this.fs; U.uEdge.value = fp.edgeWidth; U.uBurnOut.value = fp.burnOut; U.uInt.value = fp.intensity; U.uFlameH.value = fp.flameHeight; U.uFlameSpeed.value = fp.flameSpeed;
+    U.uScale.value = cp.noiseScale; U.uSwirl.value = cp.swirl; U.uDens.value = cp.density; U.uSpeck.value = cp.speckle; U.uSpkPx.value = cp.speckleSize; U.uLayers.value = this.layers(); U.uH.value = cp.height;
+    (U.uCol.value as THREE.Color).set(cp.color);
+  }
+  clear() { this.views.clear(); this.all.n = this.burn.n = 0; this.upload(); hazePass.enabled = false; this.light.intensity = 0; }
+  private layers() { return Math.max(1, Math.round(gfx.quality === 'niedrig' ? Math.min(3, this.cp.layers) : this.cp.layers)); }
+  private inst(base: THREE.BufferGeometry, list: Slots) {
+    const g = new THREE.InstancedBufferGeometry(); g.index = base.index;
+    for (const [k, a] of Object.entries(base.attributes)) g.setAttribute(k, a);
+    g.boundingSphere = NOWHERE; return list.attach(g);
+  }
   private geoCloud() {
-    if (this.cloudGeo) return this.cloudGeo;
-    const L = Math.max(1, Math.round(this.layers())), parts: THREE.BufferGeometry[] = [];
+    const L = this.layers(), parts: THREE.BufferGeometry[] = [];
     for (let i = 0; i < L; i++) {
       const k = L === 1 ? 0 : i / (L - 1), g = new THREE.CircleGeometry(1.15, 40); g.rotateX(-Math.PI / 2); g.translate(0, .08 + k * this.cp.height, 0);
       g.setAttribute('aLayer', new THREE.Float32BufferAttribute(new Array(g.attributes.position.count).fill(k), 1)); parts.push(g);
     }
-    return (this.cloudGeo = mergeGeometries(parts)!);
+    return this.inst(mergeGeometries(parts)!, this.all);
   }
+  private geoCarpet() { return this.inst(new THREE.CircleGeometry(1.15, 40).rotateX(-Math.PI / 2), this.burn); }
+  /** TONGUES quads in one geometry (aP per vertex = spot in the cloud + seed), drawn once per burning cloud */
   private geoTongues() {
-    if (this.tongueGeo) return this.tongueGeo;
-    const q = new THREE.PlaneGeometry(1, 1); q.translate(0, .5, 0);
-    const g = new THREE.InstancedBufferGeometry(); g.index = q.index; g.setAttribute('position', q.attributes.position); g.setAttribute('uv', q.attributes.uv);
-    const a = new Float32Array(TONGUES * 3);
-    for (let i = 0; i < TONGUES; i++) { const r = Math.sqrt((i + .5) / TONGUES) * .92, an = i * 2.39996; a[i * 3] = Math.cos(an) * r; a[i * 3 + 1] = Math.sin(an) * r; a[i * 3 + 2] = Math.random(); }
-    g.setAttribute('aP', new THREE.InstancedBufferAttribute(a, 3)); g.instanceCount = TONGUES;
-    return (this.tongueGeo = g);
+    const parts: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < TONGUES; i++) {
+      const q = new THREE.PlaneGeometry(1, 1); q.translate(0, .5, 0);
+      const r = Math.sqrt((i + .5) / TONGUES) * .92, an = i * 2.39996, P = [Math.cos(an) * r, Math.sin(an) * r, Math.random()];
+      q.setAttribute('aP', new THREE.Float32BufferAttribute(new Array(q.attributes.position.count).fill(0).flatMap(() => P), 3)); q.deleteAttribute('normal'); parts.push(q);
+    }
+    return this.inst(mergeGeometries(parts)!, this.burn);
   }
   private geoSparks() {
-    if (this.sparkGeo) return this.sparkGeo;
     const N = Math.round(this.fp.sparks * (gfx.quality === 'niedrig' ? .4 : 1)), S = new Float32Array(N * 4), Vv = new Float32Array(N * 3), pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       const r = Math.sqrt(Math.random()), an = Math.random() * 6.283;
@@ -220,83 +275,61 @@ export class FlourFX {
       const va = Math.random() * 6.283, vs = .3 + Math.random() * 1.2; Vv.set([Math.cos(va) * vs, .5 + Math.random() * 2.2, Math.sin(va) * vs], i * 3);
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aS', new THREE.BufferAttribute(S, 4)); g.setAttribute('aV', new THREE.BufferAttribute(Vv, 3));
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
-    return (this.sparkGeo = g);
-  }
-  private make(id: number, c: number[]): CloudView {
-    const cp = this.cp, fp = this.fp, L = Math.max(1, Math.round(this.layers()));
-    const U: Record<string, THREE.IUniform> = {
-      uC: { value: new THREE.Vector2(c[1], c[2]) }, uR: { value: c[3] }, uAge: { value: c[4] }, uLife: { value: c[5] || this.life }, uFade: { value: this.fade }, uFS: { value: this.fs },
-      uTime: { value: 0 }, uDay: envU.uDay, uIgn: { value: new THREE.Vector3(0, 0, -1) },
-      uEdge: { value: fp.edgeWidth }, uBurnOut: { value: fp.burnOut }, uInt: { value: fp.intensity }, uFlameH: { value: fp.flameHeight }, uFlameSpeed: { value: fp.flameSpeed },
-      uScale: { value: cp.noiseScale }, uSwirl: { value: cp.swirl }, uDens: { value: cp.density }, uSpeck: { value: cp.speckle }, uSpkPx: { value: cp.speckleSize }, uLayers: { value: L }, uH: { value: cp.height },
-      uCol: { value: new THREE.Color(cp.color) }, uPx: { value: pxScale },
-    };
-    const g = new THREE.Group();
-    const cloud = new THREE.Mesh(this.geoCloud(), new THREE.ShaderMaterial({ uniforms: U, vertexShader: cloudVS, fragmentShader: cloudFS, transparent: true, depthWrite: false }));
-    cloud.position.set(c[1], 0, c[2]); cloud.scale.set(c[3], 1, c[3]); cloud.renderOrder = 5; cloud.frustumCulled = false;
-    const carpet = new THREE.Mesh(new THREE.CircleGeometry(1.15, 40).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({ uniforms: U, vertexShader: carpetVS, fragmentShader: carpetFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    carpet.position.set(c[1], .045, c[2]); carpet.scale.set(c[3], 1, c[3]); carpet.renderOrder = 4; carpet.visible = false;
-    const tongues = new THREE.Mesh(this.geoTongues(), new THREE.ShaderMaterial({ uniforms: U, vertexShader: tongueVS, fragmentShader: tongueFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-    tongues.frustumCulled = false; tongues.renderOrder = 6; tongues.visible = false;
-    const sparks = new THREE.Points(this.geoSparks(), new THREE.ShaderMaterial({ uniforms: U, vertexShader: sparkVS, fragmentShader: sparkFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    sparks.frustumCulled = false; sparks.renderOrder = 7; sparks.visible = false;
-    g.add(cloud, carpet, tongues, sparks); scene.add(g);
-    return { id, g, U, cloud, carpet, tongues, sparks, age: c[4], sAge: c[4], gone: false, far: c[3], heat: 0 };
-  }
-  private drop(v: CloudView) {
-    scene.remove(v.g);
-    for (const m of [v.cloud, v.carpet, v.tongues, v.sparks]) (m.material as THREE.Material).dispose();
-    v.carpet.geometry.dispose();
+    return this.inst(g, this.burn);
   }
   /** snapshot rows [id, x, z, r, age, life, ignAge, ix, iz] */
   sync(rows: number[][] | undefined) {
     const seen = new Set<number>();
     for (const c of rows ?? []) {
       seen.add(c[0]);
-      let v = this.views.get(c[0]); if (!v) { v = this.make(c[0], c); this.views.set(c[0], v); }
-      v.gone = false; v.sAge = c[4]; if (Math.abs(v.age - c[4]) > .25) v.age = c[4];
-      (v.U.uC.value as THREE.Vector2).set(c[1], c[2]); v.U.uR.value = c[3];
-      v.cloud.position.set(c[1], 0, c[2]); v.cloud.scale.set(c[3], 1, c[3]); v.carpet.position.set(c[1], .045, c[2]); v.carpet.scale.set(c[3], 1, c[3]);
-      const ig = v.U.uIgn.value as THREE.Vector3;
-      if (c[6] >= 0 && ig.z < 0) { ig.set(c[7], c[8], c[6]); v.far = Math.hypot(c[7] - c[1], c[8] - c[2]) + c[3]; v.carpet.visible = v.tongues.visible = v.sparks.visible = true; }
+      let v = this.views.get(c[0]);
+      if (!v) { v = { id: c[0], x: c[1], z: c[2], r: c[3], life: c[5] || this.life, ign: -1, ix: 0, iz: 0, age: c[4], gone: false, far: c[3], heat: 0 }; this.views.set(c[0], v); }
+      v.gone = false; if (Math.abs(v.age - c[4]) > .25) v.age = c[4];
+      v.x = c[1]; v.z = c[2]; v.r = c[3];
+      if (c[6] >= 0 && v.ign < 0) { v.ign = c[6]; v.ix = c[7]; v.iz = c[8]; v.far = Math.hypot(c[7] - c[1], c[8] - c[2]) + c[3]; }
     }
     for (const v of this.views.values()) if (!seen.has(v.id)) {
-      const ig = (v.U.uIgn.value as THREE.Vector3).z;
-      if (ig < 0) { this.drop(v); this.views.delete(v.id); } // unlit: gone (faded / replaced)
-      else v.gone = true;                                     // burning: the sim is done with it, let the flames finish here
+      if (v.ign < 0) this.views.delete(v.id); // unlit: gone (faded / replaced)
+      else v.gone = true;                      // burning: the sim is done with it, let the flames finish here
     }
   }
   frame(dt: number) {
     const t = performance.now() / 1000, haze: THREE.Vector4[] = [];
     let best: CloudView | null = null;
-    for (const v of [...this.views.values()]) {
-      v.age += dt; v.U.uAge.value = v.age; v.U.uTime.value = t; v.U.uPx.value = pxScale;
-      const ig = (v.U.uIgn.value as THREE.Vector3).z;
-      if (ig >= 0) {
-        const tf = v.age - ig, end = v.far / this.fs + this.fp.burnOut;
-        v.cloud.visible = tf * this.fs < v.far + this.fp.edgeWidth;
-        v.heat = tf < 0 ? 0 : Math.min(1, tf * 4) * Math.max(0, 1 - Math.max(0, tf - end + this.fp.burnOut) / (this.fp.burnOut + .6));
-        if (v.gone && tf > end + 2.4) { this.drop(v); this.views.delete(v.id); continue; }
-        if (v.heat > .02 && (!best || v.heat > best.heat)) best = v;
-        if (v.heat > .02 && haze.length < 4 && this.fp.haze > 0 && gfx.quality !== 'niedrig') haze.push(this.hazeOf(v));
-      }
+    this.all.n = this.burn.n = 0;
+    for (const v of this.views.values()) {
+      v.age += dt;
+      if (v.ign < 0) { this.all.put(v); continue; }
+      const tf = v.age - v.ign, end = v.far / this.fs + this.fp.burnOut;
+      if (v.gone && tf > end + 2.4) { this.views.delete(v.id); continue; }
+      if (tf * this.fs < v.far + this.fp.edgeWidth) this.all.put(v); // the cloud itself until the front has eaten through it
+      this.burn.put(v);
+      v.heat = tf < 0 ? 0 : Math.min(1, tf * 4) * Math.max(0, 1 - Math.max(0, tf - end + this.fp.burnOut) / (this.fp.burnOut + .6));
+      if (v.heat > .02 && (!best || v.heat > best.heat)) best = v;
+      if (v.heat > .02 && haze.length < 4 && this.fp.haze > 0 && gfx.quality !== 'niedrig') haze.push(this.hazeOf(v));
     }
+    this.U.uTime.value = t; this.U.uPx.value = pxScale; this.U.uStep.value = this.all.n >= LAYER_HALF && this.layers() > 2 ? 2 : 1;
+    this.upload();
     // one flickering light at the strongest fire (stays in the scene at 0 so nothing recompiles)
     if (best) {
-      const ig = best.U.uIgn.value as THREE.Vector3, c = best.U.uC.value as THREE.Vector2, k = Math.min(1, (best.age - ig.z) * this.fs / Math.max(.1, best.far));
-      this.light.position.set(ig.x + (c.x - ig.x) * k, 1.1, ig.y + (c.y - ig.y) * k);
+      const k = Math.min(1, (best.age - best.ign) * this.fs / Math.max(.1, best.far));
+      this.light.position.set(best.ix + (best.x - best.ix) * k, 1.1, best.iz + (best.z - best.iz) * k);
       this.light.intensity = 14 * best.heat * (.8 + .2 * Math.sin(t * 23) * Math.sin(t * 7.3));
     } else this.light.intensity = 0;
     const H = hazePass.uniforms;
     H.uN.value = haze.length; haze.forEach((h, i) => (H.uH.value[i] as THREE.Vector4).copy(h)); H.uTime.value = t; H.uAsp.value = camera.aspect;
     hazePass.enabled = haze.length > 0;
   }
+  /** pushes this frame's slots to the GPU (only the used part of the buffers) and sets the instance counts */
+  private upload() {
+    this.all.commit(); this.burn.commit();
+    (this.cloud.geometry as THREE.InstancedBufferGeometry).instanceCount = this.all.n;
+    for (const o of [this.carpet, this.tongues, this.sparks]) (o.geometry as THREE.InstancedBufferGeometry).instanceCount = this.burn.n;
+  }
   /** screen position / size of a fire for the haze pass: (u, v, radius in v units, strength) */
   private hazeOf(v: CloudView): THREE.Vector4 {
-    const c = v.U.uC.value as THREE.Vector2, R = v.U.uR.value as number;
-    const p0 = new THREE.Vector3(c.x, .3, c.y).project(camera), p1 = new THREE.Vector3(c.x, .3 + this.fp.hazeHeight, c.y).project(camera);
-    const pr = new THREE.Vector3(c.x + R, .3, c.y).project(camera);
+    const p0 = new THREE.Vector3(v.x, .3, v.z).project(camera), p1 = new THREE.Vector3(v.x, .3 + this.fp.hazeHeight, v.z).project(camera);
+    const pr = new THREE.Vector3(v.x + v.r, .3, v.z).project(camera);
     const rad = Math.max(Math.abs(p1.y - p0.y) * .5, Math.hypot((pr.x - p0.x) * camera.aspect, pr.y - p0.y) * .5);
     return new THREE.Vector4(p0.x * .5 + .5, p0.y * .5 + .5, rad, this.fp.haze * v.heat);
   }

@@ -160,6 +160,7 @@ export class Input {
     if (k[KB.left] || k.ArrowLeft) mx -= 1; if (k[KB.right] || k.ArrowRight) mx += 1;
     const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
     it.mx = mx; it.mz = mz;
+    it.sprint = !!(k[KB.sprint] || (/^Shift/.test(KB.sprint) && (k.ShiftLeft || k.ShiftRight))); // 24.11.2026 Basti: Shift sprints (costs stamina)
     if (this.mode === 'pc') {
       const d = this.mouse ? this.view.groundDir(this.mouse.x, this.mouse.y) : null;
       if (d) { it.ax = d[0]; it.az = d[1]; it.aim = true; Object.assign(this.view.localAim, { weapon: activeWeapon, x: d[0], z: d[1], show: true }); }

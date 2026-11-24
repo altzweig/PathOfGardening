@@ -6,11 +6,16 @@
  */
 const G = { size: 1024, cx: 512, cy: 560, r: 300 };
 const SURF: Record<string, string> = { hp: '255,170,160', xp: '255,240,200' };
+/** 24.11.2026 Basti: arc along the orb rim, just outside the rope ring, on the side facing the screen centre.
+ *  HP orb: blue energy shield, XP orb: yellow stamina. Angles in canvas radians (0 = right, clockwise), filling from a0 towards a1. */
+const ARC = { r: 368, w: 20, hp: { a0: Math.PI * .22, a1: -Math.PI * .45, c: ['#bfe8ff', '#3fa2ff', '#1550c8'] }, xp: { a0: Math.PI * .78, a1: Math.PI * 1.45, c: ['#fff3a8', '#ffd21f', '#c98a00'] } };
 
 class Orb {
   cv: HTMLCanvasElement; private ctx: CanvasRenderingContext2D;
   private img: Record<'back' | 'fill' | 'front', HTMLImageElement>;
   private shown = -1; private target = 1; private drawn = '';
+  /** rim arc (shield / stamina) 0..1, -1 = none; dim = drained (stamina locked) */
+  private arc = -1; private arcShown = -1; private arcDim = false;
   constructor(public kind: 'hp' | 'xp', parent: HTMLElement) {
     this.cv = document.createElement('canvas'); this.cv.className = 'orbCv';
     parent.appendChild(this.cv);
@@ -19,6 +24,7 @@ class Orb {
     this.img = { back: load('back'), fill: load('fill'), front: load('front') };
   }
   set(v: number) { this.target = Math.max(0, Math.min(1, v)); }
+  setArc(v: number, dim = false) { this.arc = v < 0 ? -1 : Math.max(0, Math.min(1, v)); this.arcDim = dim; }
   /** jump instead of animating (new game, level-up resets the XP orb) */
   snap() { this.shown = this.target; }
   tick(dt: number, t: number) {
@@ -28,9 +34,11 @@ class Orb {
     if (this.shown < 0) this.shown = this.target;
     const d = this.target - this.shown;
     this.shown += Math.abs(d) < .002 ? d : d * Math.min(1, dt * (d < 0 ? 9 : 5));
+    if (this.arc < 0) this.arcShown = -1;
+    else { const da = this.arc - (this.arcShown < 0 ? this.arc : this.arcShown); this.arcShown = Math.abs(da) < .002 ? this.arc : this.arcShown + da * Math.min(1, dt * 12); }
     const f = this.shown, moving = f > .005 && f < .995;
     // the surface sways slowly; redraw ~30x per second while it is visible
-    const key = moving ? `${f.toFixed(4)}|${Math.floor(t * 30)}` : f.toFixed(4);
+    const key = (moving ? `${f.toFixed(4)}|${Math.floor(t * 30)}` : f.toFixed(4)) + `|${this.arcShown.toFixed(3)}${this.arcDim ? Math.floor(t * 30) : ''}`;
     if (key === this.drawn || !this.img.front.complete) return; this.drawn = key;
     const c = this.ctx, k = px / G.size, cx = G.cx * k, cy = G.cy * k, r = G.r * k;
     c.clearRect(0, 0, px, px);
@@ -54,6 +62,30 @@ class Orb {
       }
     }
     c.drawImage(this.img.front, 0, 0, px, px);
+    if (this.arcShown >= 0) this.drawArc(c, k, t);
+  }
+  private drawArc(c: CanvasRenderingContext2D, k: number, t: number) {
+    const A = ARC[this.kind], cx = G.cx * k, cy = G.cy * k, r = ARC.r * k, w = ARC.w * k, ccw = A.a1 < A.a0;
+    const at = (v: number) => A.a0 + (A.a1 - A.a0) * v;
+    c.save(); c.lineCap = 'round';
+    // dark groove for the whole length
+    c.strokeStyle = 'rgba(255,225,170,.3)'; c.lineWidth = w + 9 * k; // thin light rim, so the empty groove reads on dark ground
+    c.beginPath(); c.arc(cx, cy, r, A.a0, A.a1, ccw); c.stroke();
+    c.strokeStyle = 'rgba(10,8,4,.85)'; c.lineWidth = w + 4 * k;
+    c.beginPath(); c.arc(cx, cy, r, A.a0, A.a1, ccw); c.stroke();
+    const v = this.arcShown;
+    if (v > .004) {
+      const g = c.createRadialGradient(cx, cy, r - w / 2, cx, cy, r + w / 2);
+      g.addColorStop(0, A.c[2]); g.addColorStop(.45, A.c[1]); g.addColorStop(1, A.c[0]);
+      c.globalAlpha = this.arcDim ? .45 + .2 * Math.sin(t * 12) : 1;
+      c.shadowColor = A.c[1]; c.shadowBlur = 10 * k;
+      c.strokeStyle = g; c.lineWidth = w;
+      c.beginPath(); c.arc(cx, cy, r, A.a0, at(v), ccw); c.stroke();
+      c.shadowBlur = 0; c.globalAlpha = this.arcDim ? .3 : .7; // highlight on the outer edge
+      c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = Math.max(1, w * .18);
+      c.beginPath(); c.arc(cx, cy, r + w * .22, A.a0, at(v), ccw); c.stroke();
+    }
+    c.restore();
   }
 }
 
@@ -67,9 +99,9 @@ export class Orbs {
     if (import.meta.env.DEV) (window as any).__orbs = this; // screenshots: __orbs.force = [hp, xp]
   }
   force: [number, number] | null = null;
-  update(hp: number, xp: number, lv: number) {
+  update(hp: number, xp: number, lv: number, shield = -1, stamina = -1, drained = false) {
     if (this.force) [hp, xp] = this.force;
-    this.hp.set(hp); this.xp.set(xp);
+    this.hp.set(hp); this.xp.set(xp); this.hp.setArc(shield); this.xp.setArc(stamina, drained);
     if (lv !== this.lv) { if (this.lv >= 0 && lv > this.lv) this.xp.snap(); this.lv = lv; (document.getElementById('orbLv')!).textContent = String(lv); }
     const now = performance.now(), dt = Math.min(.1, (now - this.last) / 1000); this.last = now;
     if (document.body.dataset.input !== 'pc') return;

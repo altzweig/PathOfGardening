@@ -487,6 +487,10 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
   - Reif und während der Ernte: volle Pflanzen, große farbige Früchte, Weizen golden-gelb. Was die Harke abschüttelt, wächst sofort sichtbar nach.
   - Ernte vorbei: der Strauch vertrocknet sofort, die Beeren werden braun. Weizen- und Spargelhalme welken und knicken ab. Kohl verdorrt, schrumpft und verweht als Staub.
   - Nach gut einem Drittel der Wachstumszeit: klein und grün (kleine grüne Früchte, grüne Halme). Bei Reife sofort groß und farbig.
+- **Update 24.11.2026 (alle Pflanzen außer Weizen, Weizen bleibt wie oben):**
+  - Wachstum in 2 Stufen: erste Hälfte ganz klein (ohne Früchte), zweite Hälfte klein mit kleinen grünen Früchten.
+  - Erntereif: auf einen Schlag volle Größe, Früchte größer als vorher (Beeren am deutlichsten). Beerensträucher (Blau-, Brom-, Preiselbeere) haben reif etwas entsättigtere, leicht bräunliche Blätter.
+  - Jede geerntete Pflanze ist sofort wieder ganz klein und grün. Keine Verwelkt-Phase mehr (kein Vertrocknen, kein Kohl-Staub).
 - Hühner ohne Stall und Zaun: 5 Hühner laufen frei auf dem Feld herum und picken. Wenn nicht gearbeitet wird, setzen sie sich hin und schlafen.
 - Gegner etwas leichter: `waves.countMultiplier` 0,7 -> 0,6 (Beerenmenge und Beeren-XP bleiben).
 

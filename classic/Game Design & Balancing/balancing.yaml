@@ -188,7 +188,7 @@ chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): 
   stealInterval: 0.6       # s pro gestohlenem Teil
   carryStart: 5            # so viel trägt ein Waschbär zu Beginn weg ...
   carryPerWave: 0.5        # ... + so viel je Welle (Welle 21: 15, Welle 41: 25)
-  fleeSpeed: 7             # m/s, voll beladen rennen sie schnell weg
+  fleeSpeed: 4.6           # m/s, voll beladen rennen sie schnell weg (25.11.2026 Basti: so schnell wie der Spieler, vorher 7)
   attackFirst: 10          # 24.11.2026 Basti: jeder Waschbär greift zuerst einmal den Spieler an, dann erst zur Truhe; s, nach denen er die Jagd aufgibt
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
@@ -314,11 +314,11 @@ skills:
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
   blue:                    # 23.11.2026: DIE Schrotflinte (Startwaffe). Schießt die gewählte Beere: Blaubeere = Freeze, Brombeere = Dornenfessel, Preiselbeere = Bleeding
-    damage: 4              # je Beere
+    damage: 2.8            # je Beere (25.11.2026 Basti: -30 %, vorher 4)
     range: 6.5             # m
     cooldown: 0.625
-    ammoPerShot: 1         # 23.11.2026 Sim-Balancing: 6 -> 1 (1 Blaubeere = 1 Schuss), sonst war man 85 % der Kampfzeit ohne Munition
-    pellets: 6
+    ammoPerShot: 1.33      # 25.11.2026 Basti: 8 statt 6 Beeren pro Schuss = höherer Verbrauch (1 -> 1,33 Beeren je Schuss). 23.11.2026 Sim-Balancing: 6 -> 1
+    pellets: 8             # 25.11.2026 Basti: 6 -> 8, dafür kleiner
     cone: 45
     spreadSigma: 11
     freeze: 0.8            # 24.11.2026 Debuff-Sim: 1.0 -> 0.8 (Freeze war mit Abstand der stärkste Debuff). s eingefroren bei Treffer (nicht bei Bossen): kann sich weder bewegen noch angreifen
@@ -492,7 +492,7 @@ upgrades:
 
 enemies:
   aggroRadius: 5           # m, ab hier greifen Gegner Spieler statt Felder an
-  maxAlive: 78             # Obergrenze gleichzeitig (x Koop-Anzahl-Faktor); 17.11.2026 60 -> 78 (+30 % wie die Gegneranzahl)
+  maxAlive: 117            # 25.11.2026 Basti: +50 % (78 -> 117) wie die Gegneranzahl. Obergrenze gleichzeitig (x Koop-Anzahl-Faktor); 17.11.2026 60 -> 78 (+30 % wie die Gegneranzahl)
   # 17.11.2026: Schaden aller Tiere und des Bosses x2 (Nahkampf, Gift, Stacheln, Rammen, Boss-Nahkampf, Boss-Bomben)
   meleeDamage: 2           # vorher 1
   meleeInterval: 1         # s
@@ -506,25 +506,31 @@ enemies:
   # die Ernte, deshalb sinkt der Faktor pro Tier leicht: Welle 1 x6,5 · 10 x4,3 · 20 x2,6 · 30 x1,6 · 40 x1,0.
   # Ergebnis: Gegner/Ernte ab Welle 4 etwa 1,1-1,5, Schnitt 1,3; Levelkurve wie vorher (Welle 8/16/24/32: Lvl 7/12/17/21).
   # Die Beere als Munition bleibt 1 Schuss.
-  xpScale: { base: 6.5, growth: 0.953, linear: 0 }
+  xpScale: { base: 4.33, growth: 0.953, linear: 0 }   # 25.11.2026: x2/3 (6,5 -> 4,33), weil 50 % mehr Gegner kommen, sonst steigt man 1,5x so schnell auf (Boss schon ab Welle ~12)
   elite:                   # Elite-Gegner: selten, größer, dunkle Outline wie alle, größerer Lebensbalken (kein Leuchten mehr, 23.11.2026)
     fromWave: 4            # ab dieser Welle möglich
     chanceStart: 0.01      # Anteil Elite in dieser Welle
     chancePerWave: 0.002   # + je weitere Welle
     chanceMax: 0.05
     scale: 1.5             # Größe
-    hp: 5                  # x Leben (23.11.2026, vorher 3)
+    hp: 15                 # x Leben. 25.11.2026 Basti: Elite doppelt so viel Leben -> 15 (normale Tiere haben jetzt nur noch 2/3 Leben, 15 x 2/3 = 2 x die alten 5). 23.11.2026: 5
     damage: 2              # x Angriffsstärke
     xpMultiplier: 5        # x XP-Drop
   boss:                    # Waschbär-Boss (vorerst der einzige Boss)
     levels: { first: 25, every: 10 }   # 23.11.2026 Sim-Balancing: erster Boss ab Level 25 statt 20 (kam sonst mitten in der ersten Nacht). 17.11.2026: kommt zu Beginn der ersten Welle, nachdem die Spieler Level 20 erreicht haben, dann Level 30, 40, 50 ...
     every: 24              # nur ohne "levels": alle N Wellen (mit dayNight: in der letzten Nachtwelle)
     scale: 2.4
-    hpEnemies: 33.33       # Leben = so viel wie 33,3 normale Waschbären (17.11.2026: Boss x3 Leben; vorher 20 Waschbären à 7 HP = 140, jetzt 33,33 x 12,6 = 420) ...
+    hpEnemies: 100         # 25.11.2026 Basti: Boss doppelt so viel Leben (840 statt 420; Waschbär hat jetzt 8,4 statt 12,6). Leben = so viel wie 33,3 normale Waschbären (17.11.2026: Boss x3 Leben; vorher 20 Waschbären à 7 HP = 140, jetzt 33,33 x 12,6 = 420) ...
     phases: 3              # Leben in 3 Stufen geteilt (Striche im Boss-Balken)
     phaseSpeedup: 0.2      # nach jeder verlorenen Stufe greift er 20 % schneller an (x1,2, dann x1,44): Sammeln, Aufladen, Bomben-Takt, Nahkampf
     hpGrowthPerWave: 0     # ... zusätzlich +x je Welle ab der ersten Boss-Welle (0: Boss wächst nur über enemies.scaling)
-    speed: 2.2
+    speed: 2.75            # 25.11.2026 Basti: etwas schneller (2,2 -> 2,75)
+    fieldDamage: false     # 25.11.2026 Basti: Boss-Bomben beschädigen keine Felder mehr
+    dodge:                 # 25.11.2026 Basti: weicht Schüssen aus, solange er keine Fähigkeit einsetzt (Sammeln)
+      look: 4              # m, so nah müssen Geschosse auf ihn zufliegen
+      speed: 8             # m/s Seitenschritt
+      time: 0.3            # s
+      cooldown: 1.5        # s bis er wieder ausweichen kann
     meleeDamage: 6         # vorher 3
     xpDrop: 30
     collectTime: 5         # s Blaubeeren sammeln
@@ -535,11 +541,11 @@ enemies:
     bombFuse: 0.7          # s leuchtender Kreis am Boden, dann Explosion
     trail:                 # Attacke 1: verfolgende Spur
       count: 14
-      interval: 0.12       # s zwischen zwei Bomben
-      speedNear: 4         # m/s des Spur-Kopfes in Spielernähe
-      speedFar: 7          # m/s wenn der Spieler weit weg ist (schneller als der Spieler)
+      interval: 0.08       # s zwischen zwei Bomben (25.11.2026 Basti: Linien-Attacke 50 % schneller: 0,12 -> 0,08, Tempo x1,5, gleicher Abstand)
+      speedNear: 6         # m/s des Spur-Kopfes in Spielernähe (vorher 4)
+      speedFar: 10.5       # m/s wenn der Spieler weit weg ist (vorher 7)
       farDistance: 6
-      turnRate: 1.6        # rad/s, träge bei Richtungswechsel
+      turnRate: 2.4        # rad/s, träge bei Richtungswechsel (vorher 1,6)
     carousel:              # Attacke 2: dreht sich, spuckt 3 Spuren in zufällige Richtungen
       duration: 6
       every: 1             # s
@@ -547,36 +553,46 @@ enemies:
       count: 7             # Bomben pro Spur
       spacing: 0.9         # m
     rain:                  # Attacke 3: Blaubeer-Regen
-      count: 30
+      count: 45            # 25.11.2026 Basti: 50 % länger (30 -> 45 bei gleichem Takt)
       interval: 0.1
       warn: 0.5            # s zum Ausweichen
       radius: 10           # m um die Gartenmitte
+      bombRadius: 0.55     # m, 25.11.2026 Basti: halb so große Kreise (vorher bombRadius 1,1)
   # Betäubt (Stun): Tempo für Bewegung UND Angriffe startet bei 0 und steigt über die Stun-Dauer linear wieder auf normal.
   # Gilt für Spieler und Gegner gleich.
   resistance: 0.3          # Resistenz: so viel weniger Schaden durch die unter "resist" genannten Waffen-Früchte
   raccoon:                 # 23.11.2026: stiehlt aus der Lager-Truhe (siehe chest: max. 10 im Kreis, Beute wächst mit den Wellen), alle weiteren greifen den Spieler an
-    hp: 12.6               # 17.11.2026 x1,8 (vorher 7)
+    hp: 8.4                # 25.11.2026 Basti: 50 % mehr Gegner, dafür 2/3 Leben (12,6 -> 8,4). 17.11.2026 x1,8 (vorher 7)
     speed: 2.75
+    aggroSpeed: 4.6        # 25.11.2026 Basti: mit Spieler in Aggro-Reichweite und auf der Flucht so schnell wie der Spieler
+    formation: { kind: snake, size: 0.7, wave: 6, stagger: 0.45 }   # 25.11.2026: kommen hintereinander in einer Schlangenlinie (size = Ausschlag in rad, wave = m pro Schlenker, stagger = s Abstand)
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: false        # 23.11.2026 true -> false: wer nicht an der Truhe stiehlt, greift an
     steals: [blue, black, cran, wheat, flour, water, egg, juice, bread, fegg]   # 24.11.2026 + Preiselbeeren (alle drei Startbeeren gleich). 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
-    fleeSpeed: 6.2         # (an der Truhe voll beladen: chest.fleeSpeed)
+    fleeSpeed: 6.2         # (nicht mehr genutzt seit aggroSpeed)
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
-  panda:                   # greift Spieler in Aggro-Reichweite an, sammelt 5 Früchte (rote zuerst) und haut ab
-    hp: 13.2               # 17.11.2026 +20 % (vorher 11)
+  panda:                   # 25.11.2026 Basti: geht zur Truhe und stiehlt dort (wie Waschbären), großer Aggro-Radius; kommt in runden Grüppchen aus 3-5
+    hp: 8.8                # 25.11.2026: 2/3 Leben (13,2 -> 8,8). 17.11.2026 +20 % (vorher 11)
     speed: 2.2
     radius: 0.34
+    chest: true            # Ziel Truhe (ohne Beute dort: Früchte am Boden wie früher)
+    aggroRadius: 9         # m, groß (Standard enemies.aggroRadius 5)
+    formation: { kind: ring, size: 1.1 }   # runde Formation, size = Radius in m
     prefers: [cran, chili] # rote Früchte zuerst ...
     steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]
   toad:                    # Frosch (blau): sitzt meist am Boden, springt hoch; Zunge auf Kohl/Zitronen (zuerst) und auf Spieler in Aggro-Reichweite
-    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
+    hp: 4.8                # 25.11.2026: 2/3 Leben (7,2 -> 4,8). 17.11.2026 +20 % (vorher 6)
     speed: 2.1
     radius: 0.30
+    aggroRadius: 5         # m, mittel
+    formation: { kind: lanes, size: 0.9 }  # 25.11.2026 Basti: große Gruppe nebeneinander, je zwei hüpfen abwechselnd übereinander (size = Spurbreite m)
+    thornCrawl: 0.2        # 25.11.2026 Basti: in Dornen gefesselt kein Hüpfen mehr, nur langsames Watscheln mit 20 % Tempo
+    dmgTaken: { cab: 0.5, poison: 0.5 }    # 25.11.2026 Basti: nur halber Schaden von Kohl und Gift
     hopPeriod: 1.2         # s pro Sprung (23.11.2026, vorher 1)
     airShare: 0.35         # Anteil des Sprungs in der Luft (= unverwundbar), Rest am Boden (vorher 0.5); Flugtempo = speed / airShare
     tongueCooldown: 1.5
@@ -584,14 +600,24 @@ enemies:
     poisonTicks: 3
     poisonInterval: 2
     poisonDamage: 2        # vorher 1
-    prefersFields: [cab, lemon]
-    resist: [cab, lemon]
+    prefersFields: [blue, black, cran]   # 25.11.2026 Basti: fressen nur Beerenfelder an (vorher Kohl/Zitrone)
+    onlyFields: true       # keine Beerenfelder: greifen den nächsten Spieler an
+    resist: [lemon]        # (Kohl jetzt über dmgTaken)
   sheep:
-    maxAlive: 5            # höchstens so viele Schafe gleichzeitig
-    hp: 3.6                # 17.11.2026 +20 % (vorher 3)
+    maxAlive: 7            # höchstens so viele Schafe gleichzeitig (25.11.2026: +50 %, vorher 5)
+    hp: 2.4                # 25.11.2026: 2/3 Leben (3,6 -> 2,4). 17.11.2026 +20 % (vorher 3)
     speed: 1.7
     radius: 0.44
-    shield: 7.2            # 17.11.2026 +20 % (vorher 6)
+    # 25.11.2026 Basti: Aggro nur in Sichtlinie (vor sich), dafür weiter. Fressen Gemüsefelder (keine Beerenbüsche), stehlen nichts.
+    sightRange: 9          # m
+    sightCone: 60          # Grad zu jeder Seite der Blickrichtung
+    prefersFields: [wheat, cab, asp, chili, lemon]
+    grazeDamage: 2         # Schaden pro Biss am Feld (alle meleeInterval s)
+    deflect: 0.5           # Anteil Beeren-/Körnertreffer, die an der Wolle abprallen (kein Schaden, kein Debuff)
+    deflectKinds: [blue, black, cran, wheat]
+    dmgTaken: { chili: 1.3 }   # Feuer (Flammenwerfer, brennende Mehlwolke) +30 %
+    formation: { kind: loose, size: 1.0 }
+    shield: 4.8            # 25.11.2026: 2/3 (7,2 -> 4,8). 17.11.2026 +20 % (vorher 6)
     shieldRegen: 3         # s bis Schild wieder voll
     chargeRange: 4.5       # m, ab hier holt es Anlauf (Richtung wird zu Beginn festgelegt und nicht mehr nachgeführt)
     windup: 1              # s Anlauf (vorher 2)
@@ -602,7 +628,7 @@ enemies:
     rest: 2
     resist: [asp]
   hedgehog:                # Igel: kommen in Gruppen, plustern sich regelmäßig auf (Stachel-Schaden), fressen Beeren
-    hp: 7.2                # 17.11.2026 +20 % (vorher 6)
+    hp: 4.8                # 25.11.2026: 2/3 Leben (7,2 -> 4,8). 17.11.2026 +20 % (vorher 6)
     speed: 1.8
     radius: 0.30
     eats: [blue, black, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
@@ -613,7 +639,7 @@ enemies:
     puffRadius: 0.55       # m Stachel-Reichweite über den Körper hinaus
     resist: [blue, cran]
   squirrel:                # Eichhörnchen: kommt von der gegenüberliegenden Seite, hüpft im Zickzack zu seinem Nussbaum, klaut Nüsse und verschwindet damit im Baum
-    hp: 4.8                # 17.11.2026 +20 % (vorher 4)
+    hp: 3.2                # 25.11.2026: 2/3 Leben (4,8 -> 3,2). 17.11.2026 +20 % (vorher 4)
     speed: 4.2             # m/s, flink (Zickzack: der Weg ist länger)
     wanderSpeed: 2.6       # m/s, flitzt um seinen Baum, solange keine Nuss liegt
     radius: 0.22
@@ -640,7 +666,7 @@ waves:
   firstWave: 4             # s bis zur ersten Welle
   spawnRadius: 18.5        # m vom Zentrum: Gegner kommen aus dem Wald (knapp hinter dem begehbaren Bereich)
   firstWaveEnemies: 5      # Welle 1: genau so viele Gegner (nur Waschbären), x countMultiplier
-  countMultiplier: 0.6     # 23.11.2026 0.7 -> 0.6 (Basti: Gegner etwas leichter nach halbierter Beerenmenge; Bot Median wieder ca. Welle 38-40). Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
+  countMultiplier: 0.9     # 25.11.2026 Basti: +50 % Gegner (0,6 -> 0,9), dafür 2/3 Leben. 23.11.2026 0.7 -> 0.6 (Basti: Gegner etwas leichter nach halbierter Beerenmenge; Bot Median wieder ca. Welle 38-40). Sim-Balancing: 1.3 -> 0.7 (Gegneranzahl wuchs viel schneller als die Spielerstärke)
   durationStart: 20        # s Dauer von Welle 1 (Zeit von erster bis letzter Gruppe)
   durationPerWave: 1.0     # s länger je Welle (23.11.2026 Sim-Balancing: 2.5 -> 1.0, weniger Gruppen in späten Wellen)
   countdownAfter: 20       # s Countdown nach dem Start der letzten (großen) Gruppe -> Wellendauer = durationStart + durationPerWave*(w-1) + das hier
@@ -669,11 +695,13 @@ waves:
   staggerMax: 0.35
   warnTime: 1.5            # s vorher blinzeln Augen in dieser Richtung
   types:                   # ab welcher Welle ein Tier mitkommt, und wie häufig
-    raccoon: { from: 1,  weight: 3 }
-    panda:   { from: 4,  weight: 2, early: 1 }   # early: Gewicht schon vor "from", sobald Spargel- oder Preiselbeerfeld steht (ab Welle 2)
-    toad:    { from: 7,  weight: 1.2 }
+    # 25.11.2026 Basti: alle kommen als Gruppe ihrer Art aus einer Richtung (group = Größe), Formation unter enemies.<tier>.formation
+    # weight gilt jetzt je GRUPPE: alte Gewichte je Tier / mittlere Gruppengröße, damit der Tier-Mix gleich bleibt
+    raccoon: { from: 1,  weight: 1, group: [2, 4] }           # vorher 3 je Tier
+    panda:   { from: 4,  weight: 0.5, early: 0.25, group: [3, 5] }   # vorher 2 / 1. early: Gewicht schon vor "from", sobald Spargel- oder Preiselbeerfeld steht (ab Welle 2)
+    toad:    { from: 7,  weight: 0.2, group: [4, 8] }         # vorher 1,2
     hedgehog: { from: 11, weight: 0.4, group: [3, 4] }  # group: kommt immer als Gruppe aus 3-4 Tieren
-    sheep:   { from: 21, weight: 0.4 }
+    sheep:   { from: 21, weight: 0.27, group: [1, 2] }       # vorher 0,4
     squirrel: { from: 3, weight: 1.2, needs: nut }   # needs: kommt nur, wenn ein Nussbaum steht (aus dessen Krone)
 
 dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) = 1 Stunde, die Sonne wandert mit

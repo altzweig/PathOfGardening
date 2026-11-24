@@ -68,12 +68,14 @@ export interface Balancing {
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
   names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
-  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number };
+  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
+    /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
+    sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[] };
   /** Lager-Truhe in the centre (23.11.2026): holds all resources of the players; raccoons steal from it (max thieves on a circle around it) */
-  chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number };
+  chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number; /** s a raccoon chases a player for its one attack before it goes to the chest (24.11.2026) */ attackFirst?: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number } };

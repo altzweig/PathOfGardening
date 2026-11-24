@@ -1,5 +1,6 @@
 // Visual controls page (the only place in the game that explains input).
 import { fruitIcon, skillIcon } from './icons';
+import { Act, SLOT_ACTS, keyLabel, keys } from '../input/keys';
 
 const GOLD = '#e3b964', TXT = '#efe3c8', MUT = '#a59a86';
 const key = (x: number, y: number, w: number, h: number, label: string, hot = true, fs = 28) =>
@@ -9,41 +10,59 @@ const label = (x: number, y: number, t: string, anchor = 'middle', size = 30, co
 const icon = (svg: string, x: number, y: number, s: number) => svg.replace('<svg ', `<svg x="${x}" y="${y}" width="${s}" height="${s}" `);
 const arrow = (x1: number, y1: number, x2: number, y2: number) => `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="${MUT}" stroke-width="3" stroke-dasharray="6 6"/>`;
 
-export function pcControls() {
-  return `<svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">
-  <!-- WASD -->
-  ${key(150, 70, 80, 80, 'W')}${key(60, 160, 80, 80, 'A')}${key(150, 160, 80, 80, 'S')}${key(240, 160, 80, 80, 'D')}
-  ${label(190, 290, 'Laufen')}
-  <!-- Esc -->
-  ${key(40, 360, 90, 70, 'Esc', true, 24)}${label(150, 405, 'Pause', 'start')}
-  <!-- Space: shoot -->
-  ${key(330, 400, 330, 70, 'Leertaste', true, 26)}
-  ${label(495, 510, 'Schießen')}
-  ${label(495, 540, 'tippen = 1 Schuss · halten = Dauerfeuer', 'middle', 22, MUT)}
-  <!-- Tab: next weapon -->
-  ${key(400, 210, 120, 70, 'Tab', true, 26)}${label(460, 310, 'Waffe wechseln')}
-  ${icon(skillIcon('blue'), 380, 130, 46)}<text x="432" y="162" font-size="28" fill="${MUT}">›</text>
-  ${icon(skillIcon('asp'), 445, 130, 46)}<text x="497" y="162" font-size="28" fill="${MUT}">›</text>
-  ${icon(skillIcon('wheat'), 510, 130, 46)}
-  <!-- Q: shotgun berry -->
-  ${key(40, 460, 80, 70, 'Q', true, 28)}${label(135, 505, 'Beere', 'start', 26)}
-  ${icon(fruitIcon('blue'), 215, 470, 40)}${icon(fruitIcon('black'), 255, 470, 40)}${icon(fruitIcon('cran'), 295, 470, 40)}
-  <!-- mouse -->
-  <g transform="translate(760 70)">
+/** a key the player can change (24.11.2026): click it on the controls page, then press the new key */
+const kc = (x: number, y: number, a: Act, minW = 70, h = 64, anchor: 'start' | 'middle' = 'start') => {
+  const t = keyLabel(keys[a]), fs = t.length > 4 ? 22 : 28, w = Math.max(minW, t.length * fs * .62 + 30), x0 = anchor === 'middle' ? x - w / 2 : x;
+  return `<g class="kbind" data-act="${a}" style="cursor:pointer">${key(x0, y, w, h, t, true, fs)}<rect class="kwait" x="${x0 - 4}" y="${y - 4}" width="${w + 8}" height="${h + 13}" rx="13" fill="none" stroke="#fff" stroke-width="3" opacity="0"/></g>`;
+};
+const mouseSvg = (x: number, y: number, s: number, side: 'l' | 'r' | '') => `<g transform="translate(${x} ${y}) scale(${s})">
     <rect x="0" y="0" width="150" height="230" rx="75" fill="#1a2027" stroke="#3a4550" stroke-width="3"/>
     <path d="M75 0 V95 M0 95 H150" stroke="#3a4550" stroke-width="3"/>
-    <path d="M4 92 V75 A71 71 0 0 1 75 4 V92 Z" fill="${GOLD}" opacity=".85"/>
-    <rect x="66" y="30" width="18" height="40" rx="9" fill="#2b3540" stroke="#3a4550" stroke-width="2"/>
+    ${side === 'l' ? `<path d="M4 92 V75 A71 71 0 0 1 75 4 V92 Z" fill="${GOLD}" opacity=".9"/>` : ''}
+    ${side === 'r' ? `<path d="M146 92 V75 A71 71 0 0 0 75 4 V92 Z" fill="${GOLD}" opacity=".9"/>` : ''}
+    <rect x="66" y="30" width="18" height="40" rx="9" fill="#2b3540" stroke="#3a4550" stroke-width="2"/></g>`;
+
+export function pcControls() {
+  // weapon bar: 2 groups of 5 slots, the key of each slot under it
+  const S = 58, G = 10, gx = [120, 560];
+  const PRIM = ['blue', 'asp', 'wheat', 'chili', 'lemon'], SEC = ['cab', 'flour', 'sling', 'pan', 'cran'];
+  let bar = '';
+  for (let g = 0; g < 2; g++) for (let k = 0; k < 5; k++) {
+    const x = gx[g] + k * (S + G), w = (g ? SEC : PRIM)[k], sel = k === 0;
+    bar += `<rect x="${x}" y="70" width="${S}" height="${S}" rx="7" fill="#10161c" stroke="${sel ? GOLD : '#8a8f96'}" stroke-width="${sel ? 4 : 1.5}"/>${icon(skillIcon(w), x + 7, 77, S - 14)}`;
+    bar += kc(x + S / 2, 140, SLOT_ACTS[g * 5 + k], 50, 50, 'middle');
+  }
+  return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
+  <!-- weapon bar -->
+  ${mouseSvg(56, 72, .3, 'l')}${mouseSvg(908, 72, .3, 'r')}
+  ${bar}
+  ${label(gx[0] + (5 * S + 4 * G) / 2, 40, 'Primärwaffe · Linksklick', 'middle', 24)}
+  ${label(gx[1] + (5 * S + 4 * G) / 2, 40, 'Sekundärwaffe · Rechtsklick', 'middle', 24)}
+  <!-- Q / E: next weapon of a group -->
+  ${kc(gx[0] + (5 * S + 4 * G) / 2, 214, 'nextP', 64, 56, 'middle')}${label(gx[0] + (5 * S + 4 * G) / 2, 300, 'nächste Primärwaffe', 'middle', 22, TXT)}
+  ${kc(gx[1] + (5 * S + 4 * G) / 2, 214, 'nextS', 64, 56, 'middle')}${label(gx[1] + (5 * S + 4 * G) / 2, 300, 'nächste Sekundärwaffe', 'middle', 22, TXT)}
+  <!-- WASD -->
+  ${kc(150, 350, 'up')}${kc(60, 424, 'left')}${kc(150, 424, 'down')}${kc(240, 424, 'right')}
+  ${label(190, 528, 'Laufen')}
+  <!-- Space: harvest -->
+  ${kc(500, 440, 'harvest', 300, 64, 'middle')}
+  ${icon(skillIcon('rake'), 400, 362, 54)}${label(470, 400, 'Ernten', 'start')}
+  ${label(500, 540, 'halten = weiter ernten', 'middle', 20, MUT)}
+  <!-- R: shotgun berry -->
+  ${kc(40, 562, 'berry', 64, 56)}${label(118, 600, 'Beere', 'start', 24)}
+  ${icon(fruitIcon('blue'), 190, 570, 36)}${icon(fruitIcon('black'), 226, 570, 36)}${icon(fruitIcon('cran'), 262, 570, 36)}
+  <!-- Alt: show keys on the bar -->
+  ${kc(360, 562, 'keys', 80, 56)}${label(460, 600, 'Tasten zeigen', 'start', 24)}
+  <!-- Esc -->
+  ${key(650, 562, 80, 56, 'Esc', true, 22)}${label(745, 600, 'Pause', 'start', 24)}
+  <!-- mouse: aim + zoom -->
+  ${mouseSvg(800, 350, .62, '')}
+  ${label(846, 530, 'Mausrad: Zoom', 'middle', 22)}
+  <g transform="translate(940 420)">
+    <circle r="30" fill="none" stroke="${GOLD}" stroke-width="3" stroke-dasharray="7 6"/>
+    <path d="M-6 -6 L17 3 L6 6 L3 17 Z" fill="${TXT}"/>
   </g>
-  ${arrow(760, 120, 700, 120)}
-  ${label(690, 112, 'Ernten', 'end')}
-  ${icon(skillIcon('rake'), 600, 128, 44)}
-  ${arrow(835, 95, 835, 40)}${label(835, 30, 'Mausrad: Zoom')}
-  <g transform="translate(835 340)">
-    <circle r="40" fill="none" stroke="${GOLD}" stroke-width="3" stroke-dasharray="7 6"/>
-    <path d="M-8 -8 L22 4 L8 8 L4 22 Z" fill="${TXT}"/>
-  </g>
-  ${label(835, 420, 'Zielen')}
+  ${label(940, 480, 'Zielen', 'middle', 22)}
 </svg>`;
 }
 

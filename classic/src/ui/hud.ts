@@ -4,6 +4,7 @@ import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 import { Orbs } from './orbs';
+import { SLOT_ACTS, keyLabel, keys as KB } from '../input/keys';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 export const PLAYER_CSS = ['#ffd890', '#8fc8ff', '#ff9a8a', '#d0a0ff'];
@@ -51,11 +52,29 @@ export class Hud {
     c.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     box.appendChild(c);
     // PC weapon bar (24.11.2026 Basti): bottom centre between the orbs, every learned weapon, ammo fruit + count above it
+    // 24.11.2026: 10 fixed slots, 2 groups of 5 (primary = left click, secondary = right click); Alt shows each slot's key
     const bar = document.createElement('div'); bar.id = 'wbar'; $('#hud').appendChild(bar); this.wbar = bar;
+    const mouse = (r: boolean) => `<svg viewBox="0 0 20 28"><rect x="1.5" y="1.5" width="17" height="25" rx="8.5" fill="#0d1217" stroke="#c8ccd2" stroke-width="1.6"/><path d="M10 1.5v10M1.5 11.5h17" stroke="#c8ccd2" stroke-width="1.4"/><path d="${r ? 'M10.8 2.4A8 8 0 0 1 17.6 10.7H10.8Z' : 'M9.2 2.4A8 8 0 0 0 2.4 10.7H9.2Z'}" fill="#e8b840"/></svg>`;
+    for (let g = 0; g < 2; g++) {
+      const grp = document.createElement('div'); grp.className = 'wg';
+      grp.innerHTML = `<div class="wm">${mouse(g === 1)}</div>`;
+      for (let k = g * 5; k < g * 5 + 5; k++) {
+        const el = document.createElement('div'); el.className = 'ws none';
+        el.innerHTML = `<div class="wa"><span></span><i></i></div><div class="wf"></div><b class="wk"></b>`;
+        grp.appendChild(el); this.wslot.push(el);
+      }
+      if (g === 1) grp.appendChild(grp.firstElementChild!); // right-click glyph on the outer right
+      bar.appendChild(grp);
+    }
+    try { document.body.classList.toggle('showKeys', localStorage.getItem('pog-classic.showKeys') === '1'); } catch { /* no storage */ }
+  }
+  /** Alt (24.11.2026): key labels on the weapon bar on / off, remembered */
+  toggleKeys() {
+    const on = document.body.classList.toggle('showKeys');
+    try { localStorage.setItem('pog-classic.showKeys', on ? '1' : '0'); } catch { /* no storage */ }
   }
   private wbar!: HTMLElement;
-  private wbarKey = '';
-  private wslot: Record<string, HTMLElement> = {};
+  private wslot: HTMLElement[] = [];
   // wave countdown + announcement
   private cd = { sec: -1, ann: -1, wp: -1 };
   updateWave(s: Snap, W: { announce?: number; tickFrom?: number; redFrom?: number }, dayWaves = 0) {
@@ -151,26 +170,22 @@ export class Hud {
     const cyc = $('#cycBtn'); if (cyc.hidden !== n < 2) cyc.hidden = n < 2;
     this.updateBar(pr, ps, slots, active);
   }
-  /** PC weapon bar: slots in learning order, thin grey frame, the selected (Tab) one thick and golden */
-  private updateBar(pr: any, ps: any, slots: SkillId[], active: Weapon) {
-    const list = slots.filter(id => this.btn[id] && pr.ln[SKILLS.indexOf(id)]), key = list.join(',');
-    if (key !== this.wbarKey) {
-      this.wbarKey = key; this.wbar.innerHTML = ''; this.wslot = {};
-      for (const id of list) {
-        const el = document.createElement('div'); el.className = 'ws'; el.dataset.skill = id;
-        el.innerHTML = `<div class="wa"><span>0</span><i></i></div><div class="wf"></div>`;
-        this.wbar.appendChild(el); this.wslot[id] = el;
-      }
-    }
-    for (const id of list) {
-      const el = this.wslot[id], i = SKILLS.indexOf(id);
+  /** PC weapon bar (24.11.2026): 10 slots from the snapshot (gs), primary group 1-5, secondary 6-0; selected one per group thick and golden */
+  private updateBar(pr: any, ps: any, _slots: SkillId[], _active: Weapon) {
+    const gs: number[] = pr.gs ?? [], pa = WEAPONS[pr.pa ?? -1], sa = WEAPONS[pr.sa ?? -1];
+    for (let k = 0; k < 10; k++) {
+      const el = this.wslot[k], i = gs[k] ?? -1, id = i >= 0 ? SKILLS[i] : null;
+      const kl = keyLabel(KB[SLOT_ACTS[k]]), kb = el.querySelector<HTMLElement>('.wk')!; if (kb.textContent !== kl) kb.textContent = kl;
+      el.classList.toggle('none', !id);
+      const f = el.querySelector<HTMLElement>('.wf')!, ic = el.querySelector<HTMLElement>('.wa i')!, sp = el.querySelector('.wa span')!;
+      if (!id) { if (f.dataset.k) { f.dataset.k = ''; f.innerHTML = ''; ic.dataset.k = ''; ic.innerHTML = ''; sp.textContent = ''; } el.classList.remove('sel', 'empty'); continue; }
       const ai = id === 'blue' ? SKILLS.indexOf(BERRIES[ps.be ?? 0]) : i;
       const ft = id === 'blue' ? BERRIES[ps.be ?? 0] : AMMO_OF[id] ?? id; // shotgun: selected berry; Mehlsack / Pfanne / Schleuder: their goods
       const cb = pr.cb?.[i] ?? -1, fk = cb >= 0 ? COMBOS[cb] : id;
-      const f = el.querySelector<HTMLElement>('.wf')!; if (f.dataset.k !== fk) { f.dataset.k = fk; f.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); }
-      const ic = el.querySelector<HTMLElement>('.wa i')!; if (ic.dataset.k !== ft) { ic.dataset.k = ft; ic.innerHTML = fruitIcon(ft); }
-      const n = String(pr.am[ai]), sp = el.querySelector('.wa span')!; if (sp.textContent !== n) sp.textContent = n;
-      el.classList.toggle('sel', id === active);
+      if (f.dataset.k !== fk) { f.dataset.k = fk; f.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); }
+      if (ic.dataset.k !== ft) { ic.dataset.k = ft; ic.innerHTML = fruitIcon(ft); }
+      const n = String(pr.am[ai]); if (sp.textContent !== n) sp.textContent = n;
+      el.classList.toggle('sel', id === (k < 5 ? pa : sa));
       el.classList.toggle('empty', pr.am[ai] < pr.co[i]);
     }
   }

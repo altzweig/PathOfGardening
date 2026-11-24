@@ -127,7 +127,10 @@ export interface Balancing {
   dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
   /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
-  weaponSlots?: { max: number };
+  /** step-by-step hints from the start of a game (24.11.2026), see balancing.yaml */
+  tutorial?: { harvest: string; attack: string; switch: string; secondary: string; genus?: Record<string, 'm' | 'f' | 'n' | 'p'> };
+  /** max weapons; primary / secondary: which group of the 10-slot bar a weapon goes to (24.11.2026) */
+  weaponSlots?: { max: number; primary?: SkillId[]; secondary?: SkillId[] };
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
   fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
   /** 24.11.2026: field / building that must stand before a weapon is offered (Werkstatt) */

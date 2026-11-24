@@ -592,3 +592,11 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 ### Händler alle 4 Level + Neu würfeln (24.11.2026)
 - Der Händler kommt nicht mehr nach je 5 Wellen, sondern alle 4 Level (merchant.everyLevels): Ist seit dem letzten Besuch eine neue 4er-Stufe erreicht (Level 4, 8, 12 ...), kommt er am Ende der laufenden Welle. Mehrere Stufen auf einmal = ein Besuch.
 - Neu-würfeln-Knopf (Würfel + Preis) neben "Weiter": ersetzt alle noch nicht gekauften Karten. Kostet erst 1 Idee, jedes weitere Mal 1 mehr (rerollCost/rerollStep); pro Händlerbesuch wieder ab 1. Gekaufte Karten bleiben liegen.
+
+## PC-Steuerung mit 10 Waffenplätzen (24.11.2026)
+- Leertaste = Ernten/Harke (halten = weiter ernten). Linksklick feuert die gewählte Primärwaffe, Rechtsklick die gewählte Sekundärwaffe. Tab und Schießen per Leertaste fallen weg.
+- Waffenleiste unten mittig: 10 Plätze in 2 Gruppen à 5. Plätze 1-5 Primärwaffen, 6-0 Sekundärwaffen. Welche Waffe in welche Gruppe gehört, steht in balancing.yaml `weaponSlots.primary/secondary` (primär: Beerengewehr, Armbrust, Körner-MP, Flammenwerfer, Citrateaser; sekundär: Kohlmine, Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere). Gelernte Waffen füllen ihre Gruppe in Lernreihenfolge, ist eine voll, rutscht die Waffe in die andere.
+- Tasten 1-0 wählen den Platz, Q = nächste Primärwaffe, E = nächste Sekundärwaffe, R = Beere der Schrotflinte (vorher Q), T = Testmodus-Menü (vorher E).
+- Alt blendet die Tasten unter den Plätzen und je eine Maus (links/rechts) neben den Gruppen ein und aus. Standard aus, wird gemerkt.
+- Alle Tasten lassen sich auf der Steuerungsseite (PC) ändern: Taste anklicken, neue Taste drücken (Esc = abbrechen). Belegte Tasten tauschen. Knopf "Standard" setzt zurück.
+- weaponSlots.max 4 -> 10. Handy unverändert.

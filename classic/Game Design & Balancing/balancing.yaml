@@ -781,8 +781,22 @@ werkstatt:                 # Angebot des Händlers (Ideen = Glühbirnen, 1 pro L
     ammo: Munition             # Haupteffekt: "Munition Schrotflinte"
     juiceXp: Saft = XP         # Haupteffekt Saftpresse
 
+# 24.11.2026 (Basti): Tutorial-Einblendung ab Spielstart (PC), Schritt für Schritt, jeder Schritt bis die Aktion einmal gemacht wurde.
+# [x] wird als Taste gezeichnet. Platzhalter: {harvest} {prim} {sec} {next} {slot} = aktuelle Tastenbelegung, {weapon} = Waffenname,
+# {zum} = zum/zur, {den} = den/die/das (aus genus: m/f/n/p).
+tutorial:
+  harvest: "Drücke [{harvest}] zum Ernten"
+  attack: "Drücke [{prim}] zum Angreifen"
+  switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."
+  secondary: "Drücke [{sec}] für {den} {weapon}"    # zweite Waffe ist eine Sekundärwaffe (Platz 6-0): sie feuert direkt mit Rechtsklick
+  genus: { blue: f, black: p, flour: m, pan: f, sling: f, asp: f, cran: p, cab: f, lemon: m, chili: m, wheat: f, jam: m, cole: f, sour: m, lance: f, cabboom: f, shock: f }
+
 weaponSlots:               # Waffen neben der Harke
-  max: 4                   # 22.11.2026 3 -> 4 (Blaubeer-Schrotflinte zählt jetzt mit); höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
+  max: 10                  # 24.11.2026 Basti: Waffenleiste mit 10 Plätzen (vorher 4; 22.11.2026 3 -> 4). Höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
+  # 24.11.2026 (Basti): Leiste unten = 2 Gruppen à 5 Plätze. Plätze 1-5 Primärwaffen (Linksklick), Plätze 6-0 Sekundärwaffen (Rechtsklick).
+  # Gelernte Waffen füllen ihre Gruppe in Lernreihenfolge; ist eine Gruppe voll, rutscht die Waffe in einen freien Platz der anderen.
+  primary:   [blue, asp, wheat, chili, lemon]   # Beerengewehr, Spargel-Armbrust, Körner-MP, Flammenwerfer, Citrateaser
+  secondary: [cab, flour, sling, pan, cran]     # Kohlmine, Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere
 
 # ---------------------------------------------------------------------
 #  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")

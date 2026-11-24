@@ -1184,6 +1184,39 @@ export class Sim {
       if (b in s) s[b] = lim0(s[b] + d);
     }
   }
+  // ---------- Cheat-Optionen (24.11.2026, Basti): level, wave, weapons, free build mode ----------
+  cheatSetLevel(v: number) { this.level = Math.max(1, Math.round(v)); this.xp = 0; }
+  /** unlock / lock a weapon for this player; unlocking brings a stock of ammo along */
+  cheatWeapon(id: number, sid: SkillId, on: boolean) {
+    const p = this.player(id); if (!p) return;
+    if (on && !p.skills[sid].learned) { this.learn(p, sid); p.ammo[sid] = Math.max(p.ammo[sid], this.cfg.cheats?.ammo ?? 100); }
+    else if (!on && p.skills[sid].learned && sid !== 'blue') this.cheat(id, `${sid}.learned`, -1);
+  }
+  /** free build: empty slot or other type -> new level-1 tile, same type -> next level (up to the top) */
+  cheatBuild(slot: number, type: FruitType) {
+    const s = this.slots[slot]; if (!slotFits(this.cfg, s, type)) return;
+    const f = this.fieldAt(slot);
+    if (f && f.type === type && f.alive) {
+      if (f.rarity >= this.maxR) return;
+      f.rarity++; f.prog = 0; f.maxHp = this.tileHp(type) * (1 + this.cfg.tiles.hpPerLevel * f.rarity); f.hp = f.maxHp; f.broken = false;
+      this.emit({ k: 'rarity', s: slot, r: f.rarity }); this.emit({ k: 'sfx', s: 'ui.rarity' });
+      this.burst(s.x, .4, s.z, 0xffe08a, 30, 2.5, .2, .8);
+      return;
+    }
+    this.placeField(slot, type);
+  }
+  cheatDemolish(slot: number) {
+    const f = this.fieldAt(slot); if (!f) return;
+    this.fields.splice(this.fields.indexOf(f), 1);
+    this.burst(f.x, .4, f.z, 0x8a6a4a, 34, 2.8, .25, 1, { g: 3 });
+  }
+  cheatDowngrade(slot: number) {
+    const f = this.fieldAt(slot); if (!f || f.rarity <= 0) return;
+    f.rarity--; f.prog = 0; f.maxHp = this.tileHp(f.type) * (1 + this.cfg.tiles.hpPerLevel * f.rarity); f.hp = f.maxHp;
+    this.emit({ k: 'rarity', s: f.slot, r: f.rarity });
+    this.burst(f.x, .4, f.z, 0xb0a080, 20, 2, .2, .7);
+  }
+  private tileHp(t: FruitType) { return isBuilding(t) ? (this.cfg.buildings[t].hp ?? this.cfg.tiles.buildingHp) : this.cfg.fields.hp; }
   tryFire(p: Player, id: SkillId, dir?: [number, number]) {
     const s = p.skills[id];
     if (!p.alive || !this.canFire(p, id) || s.cdT > 0) return false;

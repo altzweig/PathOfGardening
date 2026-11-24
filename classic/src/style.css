@@ -882,3 +882,57 @@ body.shopOn #toast{visibility:hidden}
 .juiceUp i svg{width:100%;height:100%;display:block}
 @media (max-width:700px){.pressBars s{width:46px}.juiceUp{font-size:13px}}
 .hexFlow .hs i:has(.hsMulti){width:34px;margin-right:3px}.hsMulti{display:flex;height:100%}.hsMulti svg{flex:1;min-width:0;margin-right:-6px}
+
+/* ---------- Cheat-Optionen (24.11.2026) ---------- */
+#coBody{display:flex;flex-direction:column;gap:10px;width:min(560px,92vw);max-height:calc(100dvh - 190px);overflow:auto;padding:2px}
+.coRow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 14px;border-radius:12px;background:linear-gradient(180deg,#1d262ee6,#11171ce6);border:1px solid #e3b96433;font:700 18px var(--f-body)}
+.coRow>span{color:var(--parch)}
+.coWrap{flex-direction:column;align-items:stretch}
+.coStep{display:flex;align-items:center;gap:6px}
+.coStep button{width:40px;height:40px;border-radius:10px;border:1px solid var(--gold-dim);background:#0b1016;color:var(--gold);font:700 22px var(--f-body);cursor:pointer}
+.coStep input{width:64px;height:40px;box-sizing:border-box;text-align:center;font:700 20px var(--f-body);background:#0b1016;color:var(--parch);border:1px solid #e3b96455;border-radius:10px;-moz-appearance:textfield}
+.coStep input::-webkit-inner-spin-button,.coStep input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.coWeps{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.coWep{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:10px;border:1px solid #ffffff1a;background:#0b1016;color:var(--mut);font:600 12px var(--f-body);cursor:pointer;opacity:.6;transition:opacity .15s,border-color .15s,box-shadow .15s}
+.coWep svg{width:40px;height:40px;filter:grayscale(.8)}
+.coWep b{font-weight:700;text-align:center;line-height:1.1}
+.coWep.on{opacity:1;color:var(--parch);border-color:var(--gold);box-shadow:0 0 14px #e3b96444}
+.coWep.on svg{filter:none}
+.coTog{flex:none;position:relative;width:58px;height:32px;border-radius:16px;border:1px solid var(--gold-dim);background:#0b1016;cursor:pointer;transition:background .2s}
+.coTog i{position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#59626b;transition:transform .2s,background .2s}
+.coTog.on{background:#3d5a26}
+.coTog.on i{transform:translateX(26px);background:var(--gold)}
+#buildBtn svg{width:22px;height:22px}
+
+/* free build mode: HUD away, bar at the bottom (PC) or on the right (phone), garden framed in the rest (view.inset) */
+body.building #hud{display:none}
+#buildUI{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:stretch;gap:10px;padding:10px max(12px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 10px) max(12px,env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,#0b1016d9,#05080bf2);border-top:1px solid #e3b96455;box-shadow:0 -8px 30px #0008;pointer-events:auto;z-index:5}
+#bTools{display:flex;gap:8px;flex:none}
+#bList{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;flex:1;min-width:0;scrollbar-width:thin;scrollbar-color:#e3b96466 transparent;touch-action:pan-x;overscroll-behavior:contain}
+.bItem,.bTool{flex:none;width:84px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border-radius:12px;border:1px solid #ffffff14;background:#161d24;color:var(--parch);font:700 12px var(--f-body);cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}
+.bItem i{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 40% 30%,#2c353e,#0c1014 75%);border:2px solid #ffffff22}
+.bItem i svg{width:76%;height:76%}
+.bItem span,.bTool span{text-align:center;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bItem:hover,.bTool:hover{border-color:#e3b96488}
+.bItem.on{border-color:var(--gold);background:#2a2416;box-shadow:0 0 16px #e3b96455}
+.bItem.on i{border-color:var(--gold)}
+.bTool svg{width:34px;height:34px;margin:11px 0}
+.bTool[data-tool=del]{color:#ff8a7a}
+.bTool[data-tool=down]{color:#ffb860}
+.bTool.on{background:#2a1a16;border-color:currentColor;box-shadow:0 0 16px currentColor}
+#bDone{flex:none;width:84px;border-radius:14px;border:1px solid #ffe9b0aa;background:linear-gradient(180deg,#f8e2a6,#e2b864 48%,#c3903f 52%,#a8752c);box-shadow:0 4px 0 #6b4f1f,0 0 24px #e3b96444;cursor:pointer;display:grid;place-items:center}
+#bDone svg{width:40px;height:40px}
+#bDone:active{transform:translateY(2px)}
+/* phone: scrollable column on the right */
+body[data-input=touch] #buildUI{left:auto;top:0;bottom:0;width:92px;flex-direction:column;gap:8px;border-top:0;border-left:1px solid #e3b96455;box-shadow:-8px 0 30px #0008;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) max(6px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 8px) 6px}
+body[data-input=touch] #buildUI .bItem,body[data-input=touch] #buildUI .bTool{width:100%;box-sizing:border-box}
+body[data-input=touch] #bTools{flex-direction:column}
+body[data-input=touch] #bList{flex-direction:column;overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
+body[data-input=touch] #bDone{width:100%;height:56px;order:-1}
+body[data-input=touch] .bTool{flex-direction:row;justify-content:center;padding:4px}
+body[data-input=touch] .bTool svg{width:26px;height:26px;margin:4px 0}
+body[data-input=touch] .bTool span{display:none}
+body[data-input=touch] #bTools{flex-direction:row}
+body[data-input=touch] .bItem i{width:48px;height:48px}

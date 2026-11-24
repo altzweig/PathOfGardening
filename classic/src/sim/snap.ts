@@ -52,7 +52,7 @@ export type FSnap = [number, number, number, number, number, number] | [number, 
 // projectile: [id, kind (PK index: asp, cran, combo kinds), x, y, z, angle, widthScale]
 export type JSnap = [number, number, number, number, number, number, number];
 // bomb: [id, x, y, z, mini, pulse, kind (BK index), fuse progress 0..1, split generation]
-export type BSnap = [number, number, number, number, number, number, number, number, number, number?]; // [9] 1 = cabbage contact mine
+export type BSnap = [number, number, number, number, number, number, number, number, number, number?, number?]; // [9] 1 = cabbage contact mine, [10] its s left before it rots away
 // lying cranberry (missed pellet): [id, x, z, fuse progress 0..1, height while scattered, burning]
 export type MSnap = [number, number, number, number, number, number];
 // field: [slot, type, hpFrac, alive, shake, rarity, rarityProgress, edge, edgeProgress, tilled]

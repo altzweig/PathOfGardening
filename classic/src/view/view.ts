@@ -46,6 +46,7 @@ import { Rig, animateArms, animateLegs, disposeFarmer } from './farmer';
 import { carryApply, carryRestore } from './carry';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
+import { MinePool } from './minepool';
 import { EggFX, fryingPan } from './eggfx';
 import { friedEgg, rawEgg } from './eggfx';
 import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
@@ -169,6 +170,7 @@ export interface LocalAim { weapon: Weapon | null; x: number; z: number; show: b
 export class GameView {
   cfg!: Balancing;
   private flourFx = new FlourFX();
+  private minePool = new MinePool(); // Kohlminen: one InstancedMesh, up to 100+
   private eggFx = new EggFX();
   me = 0;
   smooth = false; // clients interpolate
@@ -494,7 +496,7 @@ export class GameView {
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
     this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset();
-    this.flourFx.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    this.flourFx.clear(); this.minePool.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
@@ -630,15 +632,11 @@ export class GameView {
     });
     // projectiles / bombs / mines
     this.sync(this.projs, s.pj, id, p => p[0], p => projObj(p[1]), (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
-    this.sync(this.bombs, s.bo, id, b => b[0], (b) => b[6] === EGG_BK ? rawEgg() : b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
+    this.minePool.sync(s.bo.filter(b => b[9]), this.smooth); // contact mines lying around: instanced pool (minepool.ts)
+    this.sync(this.bombs, s.bo.filter(b => !b[9]), id, b => b[0], (b) => b[6] === EGG_BK ? rawEgg() : b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
       if (b[6] === EGG_BK) { v.m.rotation.x += .32; v.m.rotation.y = Math.atan2(v.tx - v.x, v.tz - v.z); if (Math.random() < .3) PART.spawn(V(v.x, v.y, v.z), V(0, .1, 0), 0xfff4d8, .03, .18, { a: .6 }); return; } // raw egg tumbling end over end
       if (b[6]) { animBomb(v.m, b[6], !!b[5], b[7]); return; }
-      if (b[9] && b[5]) { // contact mine lying on the ground: settled, slowly breathing, fuse spark now and then
-        v.ty = .14; v.m.rotation.x = lerp(v.m.rotation.x % (Math.PI * 2), .35, .2); v.m.scale.setScalar(.85 * (1 + Math.sin(performance.now() / 420 + b[0]) * .04));
-        if (Math.random() < .02) PART.spawn(V(v.x, .32, v.z), V(rand(-.1, .1), .5, rand(-.1, .1)), 0xffd040, .05, .35, { a: .9 });
-        return;
-      }
       v.m.rotation.x += .13;
       if (b[5]) v.m.scale.setScalar((b[4] ? .6 : 1) * (1 + Math.sin(performance.now() / 33) * .12));
     });
@@ -1157,6 +1155,7 @@ export class GameView {
       for (const e of ENEMIES) { add(buildEnemy(e).g); add(buildEnemy(e, true).g); }
       add(merchantWarm()); // Händler: paled colours, golden sweep, tarp dissolve
     } catch (e) { console.warn('prewarm', e); }
+    this.minePool.warm(); // instanced variant of the cabbage material
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
     G.scale.setScalar(1e-4); G.position.set(0, -.5, 0); scene.add(G);
@@ -1165,11 +1164,11 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.flourFx.clear(); merchantReset();
+    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); merchantReset();
   }
   frame(dt: number) {
     resetFlameLight();
-    windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt);
+    windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt); this.minePool.frame(dt, this.smooth ? 1 - Math.exp(-dt * 16) : 1);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
     if (s) {

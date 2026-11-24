@@ -626,7 +626,7 @@ body.shopOn #res,body.shopOn #btns,body.shopOn .stick,body.shopOn #wcd,body.shop
 .wsLines .sub{font-size:clamp(11px,1.1vw,13px);color:#6a4a2a}
 .wsLines s{text-decoration:none;color:#8a6a48;font-size:.8em}
 .wsLines .arr{font-style:normal;color:#8a6a48;font-size:.85em}
-.wsLines .nv{color:#1f6a1a;font-size:1.12em}
+.wsLines .nv,.wsLines .gold{color:#1f6a1a;font-size:1.12em}
 .wsCard.x2 .wsX2{position:static;font-size:.9em}
 /* big card (new weapon, well): label, picture, name, short effect, all stats as chips */
 .wsTag{font:700 clamp(11px,1.1vw,13px) var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:#fff;background:var(--wc);padding:3px 10px;border-radius:10px;box-shadow:0 1px 2px #0005;text-shadow:0 1px 1px #0007}

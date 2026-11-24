@@ -78,7 +78,18 @@ function weaponKey(o: Offer) {
   const m = /^skill_(\w+)/.exec(o.pic); return m ? m[1] : o.key.replace(/^x2_/, '').split('_')[0];
 }
 /** "a → b" becomes old value small, arrow, new value big */
-function change(html: string) { return html.replace(/(\S+(?:\s?(?:s|m|cm|%|°))?)\s*→\s*(.+)$/, '<s>$1</s><em class="arr">→</em><b class="nv">$2</b>'); }
+/** 24.11.2026 (Basti): show only the change of a value ("−0,08 s"), not before → after. */
+function change(html: string) {
+  const num = (x: string) => parseFloat(x.replace(',', '.'));
+  const dec = (x: string) => (x.split(/[.,]/)[1] ?? '').length;
+  return html
+    .replace(/(\d[\d.,]*)(°)?\s*→\s*(\d[\d.,]*|alle)(\s?(?:U\/s|cm|s|m|%|°))?/g, (_m, a: string, deg: string | undefined, b: string, u: string | undefined) => {
+      if (b === 'alle') return '<b class="nv">alle</b>';
+      const d = num(b) - num(a), unit = u ? (u.trim() === '°' ? '°' : ' ' + u.trim()) : deg ? '°' : '';
+      return `<b class="nv">${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(Math.max(dec(a), dec(b))).replace('.', ',')}${unit}</b>`;
+    })
+    .replace(/\d[\d.,]*(?:\s?%)?\s*(<b class="gold">)/g, '$1');
+}
 
 export class WerkstattUI {
   private key = '';

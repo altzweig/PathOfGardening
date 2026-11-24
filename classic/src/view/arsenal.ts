@@ -598,3 +598,37 @@ export function flourSack() {
   for (let i = 0; i < 5; i++) mesh(body, new THREE.IcosahedronGeometry(.018, 0), FLOUR_M, Math.cos(i * 1.3) * .1, -.12 - i * .03, Math.sin(i * 1.3) * .12, 1, .4, 1); // dusty spots
   return g;
 }
+/** Eierschleuder (24.11.2026): wooden slingshot (forked branch, leather-wrapped grip, twine at the fork tips), a leather band
+ *  pulled back to the pouch with a raw egg in it. +z = aim, y up, grip at the origin. setPull(k): 1 = drawn back, 0 = band snapped
+ *  forward between the tips (the egg is gone then). */
+let EGGSHELL: THREE.MeshStandardMaterial | null = null;
+export function eggSling() {
+  const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
+  EGGSHELL ??= std(null, { color: 0xf3e4c8, r: .45 }) as THREE.MeshStandardMaterial;
+  // forked branch: grip down, two arms up and slightly forward, a bit crooked like real wood
+  const fork = V3(0, .02, 0), tips = [V3(-.052, .125, .018), V3(.054, .12, .014)];
+  mesh(a, sweep([V3(0, -.1, -.004), V3(.002, -.04, 0), fork], t => .016 - t * .002, { radial: 12, steps: 10, caps: true }), K.walnutT);
+  for (const [i, tp] of tips.entries()) {
+    const mid = fork.clone().lerp(tp, .5).add(V3(i ? .012 : -.012, -.008, .004));
+    mesh(a, sweep([fork.clone().add(V3(0, -.012, 0)), mid, tp], t => .013 - t * .004, { radial: 12, steps: 14, caps: true }), K.walnutT);
+    mesh(a, sph(12, 8), K.twine, tp.x, tp.y - .012, tp.z, .012, .014, .012); // band tied on with twine
+  }
+  mesh(a, sph(12, 8), K.walnutT, .006, -.02, .012, .006, .009, .006); // little knot in the wood
+  mesh(a, lathe([[.016, -.035], [.019, -.03], [.02, .03], [.019, .035], [.016, .04]], 16), K.leather, 0, -.05, 0).rotation.x = -Math.PI / 2; // leather grip wrap
+  // band: two leather strips from the tips to the pouch (stretched every frame), pouch cupping the egg
+  const strip = new THREE.CylinderGeometry(1, 1, 1, 6), bands = tips.map(() => mesh(a, strip, K.leather));
+  const pouch = new THREE.Group(); a.add(pouch);
+  const cup = mesh(pouch, sph(14, 10), K.leather, 0, 0, -.006, .03, .024, .014);
+  const egg = mesh(pouch, sph(16, 12), EGGSHELL, 0, .002, .012, .026, .033, .026); egg.rotation.x = Math.PI / 2;
+  const tipT = tips.map(t => t.clone().add(V3(0, -.008, 0))), up = V3(0, 1, 0), d = V3();
+  const setPull = (k: number, wob = 0) => {
+    pouch.position.set(wob * .01, .095 + .005 * k, .02 - .17 * k); cup.scale.set(.024 + .006 * k, .02 + .004 * k, .005 + .009 * k); // empty: the pouch hangs flat
+    for (let i = 0; i < 2; i++) {
+      const b = bands[i], p0 = tipT[i], p1 = pouch.position.clone().add(V3(i ? .02 : -.02, 0, 0));
+      d.subVectors(p1, p0); const L = d.length();
+      b.position.copy(p0).addScaledVector(d, .5); b.quaternion.setFromUnitVectors(up, d.normalize()); b.scale.set(.011, L, .003 + .002 * (1 - k));
+    }
+  };
+  setPull(1); g.scale.setScalar(1.3); // a bit bigger than life, so it reads from the game camera
+  return { g, anim: a, egg, pouch, setPull };
+}

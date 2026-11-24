@@ -70,7 +70,7 @@ export class Bulbs {
 // ---------------- workbench ----------------
 /** frame colour per weapon (24.11.2026): the colour of its fruit / material */
 const WCOL: Record<string, string> = { rake: '#b07a3e', blue: '#4a6cf0', black: '#8a4aa8', cran: '#e0305a', asp: '#6fbf3a', cab: '#86c83e', lemon: '#e8c020', chili: '#ff5a1a',
-  wheat: '#d8a83a', flour: '#c8b898', pan: '#f09a3a', well: '#4a9ad8' };
+  wheat: '#d8a83a', flour: '#c8b898', pan: '#f09a3a', sling: '#e8c43a', well: '#4a9ad8' };
 /** which weapon a card belongs to: combo/learn cards name it, upgrades carry it in their picture key */
 function weaponKey(o: Offer) {
   if (o.key === 'gold_well') return 'well';

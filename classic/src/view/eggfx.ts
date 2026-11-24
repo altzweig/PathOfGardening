@@ -176,3 +176,12 @@ export class EggFX {
     for (const a of ['position', 'aUV', 'aA']) (this.geo.getAttribute(a) as THREE.BufferAttribute).needsUpdate = true;
   }
 }
+
+// ---------- raw egg (Eierschleuder shot) ----------
+const RAW = new THREE.MeshStandardMaterial({ color: 0xf6e8cc, roughness: .4, emissive: 0xfff0d0, emissiveIntensity: .1 });
+/** raw egg in flight, about 7 cm long (long axis along z) */
+export function rawEgg() {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), RAW); m.scale.set(.028, .028, .036); m.castShadow = true; g.add(m);
+  return g;
+}

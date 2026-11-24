@@ -147,6 +147,9 @@ export const SND: Record<string, (arg?: any) => void> = {
     for (let i = 0; i < 4; i++) noise({ t: .06, vol: .05, type: 'bandpass', f: rand(500, 900), q: 2, when: .08 + i * .1, at: .01 });
     tone({ f: 110, f2: 55, t: .16, vol: .22, when: .55 }); noise({ t: .35, vol: .12, type: 'lowpass', f: 900, f2: 250, when: .55 });
   },
+  // Eierschleuder (24.11.2026): rubber-band thwip; raw egg bursting: shell crack, wet splat, a soft sulphur puff
+  sling() { if (!can('sling', .05)) return; tone({ type: 'triangle', f: 620, f2: 160, t: .09, vol: .12 }); noise({ t: .06, vol: .1, type: 'bandpass', f: 2400, f2: 900, q: 3 }); noise({ t: .18, vol: .04, type: 'bandpass', f: 500, f2: 1400, q: 2, when: .03 }); },
+  eggBoom() { if (!can('eggBoom', .05)) return; noise({ t: .035, vol: .16, type: 'highpass', f: 3500 }); noise({ t: .16, vol: .16, type: 'lowpass', f: 1100, f2: 220, when: .015 }); tone({ f: 150, f2: 55, t: .18, vol: .14, when: .01 }); noise({ t: .45, vol: .05, type: 'bandpass', f: 700, f2: 300, q: 1.2, when: .06, at: .05 }); },
   throw() { if (can('throw', .05)) noise({ t: .25, vol: .1, type: 'bandpass', f: 600, f2: 1600, q: 2 }); },
   boom() { if (can('boom', .04)) { noise({ t: .55, vol: .32, f: 900, f2: 90 }); tone({ f: 85, f2: 30, t: .45, vol: .32 }); } },
   boomS() { if (can('boomS', .04)) { noise({ t: .25, vol: .18, f: 900, f2: 90 }); tone({ f: 120, f2: 30, t: .2, vol: .18 }); } },

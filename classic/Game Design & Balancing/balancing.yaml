@@ -99,7 +99,7 @@ names:
     rng: Reichweite
     cab_rng: Radius
     cd: Abklingzeit
-    wheat_dur: Feuerdauer bis heiß
+    wheat_dur: Zeit bis ungenau
     arc: Kegelbreite
     wid: Breite
     pierce: Durchbohren
@@ -127,7 +127,7 @@ names:
     cab: Kontaktmine · Gift
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
-    wheat: 10 Körner/s · läuft heiß
+    wheat: 10 Körner/s · streut mit der Zeit
 
 player:
   hp: 100
@@ -157,6 +157,7 @@ xp:
   growth: 1.02             # 23.11.2026 Sim-Balancing: 1.0667 -> 1.02, sonst kommen ab Welle ~25 kaum noch Level-ups (vorher: 16.11.2026: Kurve um 1/3 steiler (Zuwachs 5 % -> 6,67 % je Stufe, vorher 1.05)
   linear: 4.5              # 23.11.2026 Sim-Balancing: 6.67 -> 4.5 (16.11.2026: 5 -> 6.67)
   fieldPerSecond: 0.3      # 23.11.2026 0.5 -> 0.3 (Gegner-XP soll ca. 1/3 über der Ernte liegen, Levelkurve bleibt gleich, siehe enemies.xpScale). 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
+  perPlant: 2.0            # 24.11.2026 Ernte neu: XP je geernteter Pflanze und Harkenschlag (Chili: 2 Schläge = 4 XP, verteilt auf seine 7 Chilis). Jeder Schlag auf ein reifes Feld ist gleich viel wert; Felder geben pro Zeit gleich viel XP (Chili wächst länger, braucht aber doppelt so viele Schläge). Ersetzt fieldPerSecond für Felder.
   gain: 0.6667             # (alt) XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
 
 arena:
@@ -182,7 +183,7 @@ forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im W
 
 fields:
   hp: 100
-  cycle: { grow: 8, harvest: 4, rakeGrow: 2 }   # Standard-Erntezyklus (Basti 23.11.2026, 2. Runde): Feld wächst 8 s, dann erntereif. Keine passive Ernte: Ertrag nur durch Harken, die Erntezeit läuft nur, solange geharkt wird (Pausen erlaubt), insgesamt bis zu 4 s, dann wächst es wieder. Harken während des Wachstums halbiert die Wachstumszeit höchstens (rakeGrow x2). Eigene Zeiten je Pflanze unter plants (grow / harvest). Nussbaum ausgenommen.
+  cycle: { grow: 8, harvest: 2, plants: 6 }   # 24.11.2026 (Basti): jedes Feld hat 6 Pflanzen. Reif: jeder Harkenschlag (alle 1/3 s) erntet genau 1 Pflanze (plants.x.strokes: Pflanzen mit langer Erntezeit brauchen 2 Schläge), danach wächst das Feld grow s nach. Harken beschleunigt das Wachstum nicht mehr. Ertrag je Pflanze = plants.x.amount; Produktionsbonus (Nachbarn, Ausbau, Brunnen) + Doppelernte = Chance auf doppelten Ertrag statt mehr Menge. harvest = nur noch Anzeige (6 Schläge x 1/3 s).
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
@@ -191,7 +192,8 @@ fields:
   # Die Startfelder nehmen erst Schaden, wenn alle anderen Gartenfelder auf 0 HP sind. Spielende: alle Gartenfelder auf 0 HP.
   # Beackern: jeder Harkenzug beackert alle Felder im Harken-Rechteck vor dem Spieler, anteilig zur überdeckten Fläche
   tillDuration: 1.0        # s, so lange gilt das Feld nach einem Harkenstoß als beackert (Leuchten, Heilung; Spieler-Heilung nur über das am meisten geharkte Feld)
-  tillStroke: 6.0          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkentreffer auf dem Feld (23.11.2026: nur Treffer ja/nein, Trefferfläche egal)
+  tillStroke: 6.0          # 24.11.2026 nur noch für Bäume (Felder: 1 Pflanze pro Schlag)
+  # alt:          # 16.11.2026 x6 (= Harken-Ertrag x3 bei verdoppelten Erntezeiten); s Produktionszeit pro Harkentreffer auf dem Feld (23.11.2026: nur Treffer ja/nein, Trefferfläche egal)
                            # -> Grundharke ganz auf einem Feld: Ernte alle (Erntezeit x Harken-Abklingzeit) s; Ertrag fällt aus dem Busch
   # Felder sind flach: Spieler und Gegner laufen einfach drüber.
   # Seltenheit: Feld desselben Typs auf ein Feld bauen -> Fortschritt zur nächsten Stufe.
@@ -230,7 +232,7 @@ buildings:
   well:    { minLevel: 2, interval: 4, makes: water, cropBonus: [0.10, 0.18, 0.24] }    # Brunnen: Wasser; 23.11.2026: alle Anbaufelder (keine Gebäude) +10 % Ertrag, Level 2: 18 %, Level 3: 24 % (der beste Brunnen zählt). Muss in der Werkstatt freigeschaltet werden
   # 23.11.2026 Kuh, Milch, Käserei, Käse vorerst ausgebaut (Basti). Zum Wiedereinbauen: Zeilen aktivieren + BUILDINGS/PRODUCTS in src/config.ts
   # cow:     { minLevel: 3, interval: 6, makes: milk }                                    # Kuh am Pfahl: Milch
-  mill:    { minLevel: 3, needs: { wheat: 3 }, time: 3, makes: flour }                  # Mühle: 3 Weizen -> Mehl
+  mill:    { minLevel: 3, needs: { wheat: 3 }, time: 1.5, makes: flour }   # 24.11.2026 doppelt so schnell (3 -> 1,5 s)                  # Mühle: 3 Weizen -> Mehl
   hens:    { minLevel: 4, needs: { wheat: 2 }, time: 4, makes: egg, stack: 4 }          # Hühnergehege: 2 Weizen (Futter) -> Eier; stack: Eier als Pyramide mit 4 Schichten (16+9+4+1 = 30) neben dem Stall
   press:   { minLevel: 4, needsAny: [blue, black, cran], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren -> Saft. 23.11.2026: presst immer die Beere, von der am meisten da ist; Saft wird sofort zu XP (siehe juice)
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
@@ -259,13 +261,14 @@ fruit:
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
   blue: { interval: 8 }                 # 23.11.2026: Beerenmenge zweimal halbiert (2 -> 4 -> 8, XP je Beere damit jeweils verdoppelt; Basti: man soll zwischendurch Beerenmangel haben). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
+  # 24.11.2026 Ernte neu (fields.cycle): Ertrag je Feld und Runde = 6 Pflanzen x amount; interval gilt nur noch für Bäume. XP je Frucht aus dem Zyklus, alle Felder gleich viel XP/s.
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
   black: { interval: 8 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
   cran: { interval: 8, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
-  cab:  { interval: 3.2, unlockAt: 0, grow: 12, harvest: 2 }   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
+  cab:  { interval: 3.2, unlockAt: 0, grow: 12, amount: 1 }   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
-  chili: { interval: 1.2, unlockAt: 0, amount: 1, minLevel: 5, grow: 16, harvest: 4 } # 24.11.2026 Chili früh (Level 5, Werkstatt). Chilifeld: wächst 16 s, 4 s Ernte (23.11.2026, Menge angepasst: pro Zeit etwa wie vorher), wie das Zitronenbäumchen erst ab Level 10
-  wheat: { interval: 3, amount: 1, minLevel: 2, grow: 6, harvest: 3 }   # Getreidefeld (22.11.2026): 1 Weizen alle 3 s, ab Level 2; 23.11.2026: wächst 6 s, 3 s Ernte
+  chili: { interval: 1.2, unlockAt: 0, amount: 7, minLevel: 5, grow: 16, strokes: 2 }   # 24.11.2026: 2 Harkenschläge je Pflanze (lange Erntezeit), 7 Chilis je Pflanze (Menge pro Zeit wie vorher). # 24.11.2026 Chili früh (Level 5, Werkstatt). Chilifeld: wächst 16 s, 4 s Ernte (23.11.2026, Menge angepasst: pro Zeit etwa wie vorher), wie das Zitronenbäumchen erst ab Level 10
+  wheat: { interval: 3, amount: 2, minLevel: 2, grow: 8 }   # 24.11.2026 Basti: 8 s wachsen, 2 s ernten (6 Schläge), 2 Weizen je Pflanze.   # Getreidefeld (22.11.2026): 1 Weizen alle 3 s, ab Level 2; 23.11.2026: wächst 6 s, 3 s Ernte
   nut:  { interval: 20, amount: 1, minLevel: 5, dropRadius: [1.2, 3.5], magnet: false, disabled: true }
   # disabled: true (17.11.2026) -> Nussbaum wird vorerst nicht angeboten (und damit keine Eichhörnchen), bis eine Nuss-Waffe kommt. Zum Reaktivieren auf false setzen.
   # Nussbaum: nur auf Waldplätzen (forest). 1 Nuss alle 20 s, fällt aus der Krone und rollt 1,2-3,5 m vom Stamm weg.
@@ -275,7 +278,7 @@ rake:
   damage: 5                # 16.11.2026 halbiert (vorher 10)
   range: 1.2               # m, maximale Ausdehnung der Harke (vordere Kante des Trefferkreises)
   diameter: 0.7            # m, Trefferkreis (Sphere-Overlap) zwischen Zug-Ende vorne und maximaler Ausdehnung, Durchmesser = diese Distanz (17.11.2026, ersetzt die Breite); Treffer + Beackern
-  cooldown: 0.5            # s
+  cooldown: 0.333          # s (24.11.2026 Basti: Harken-Takt 1/3 s, vorher 0,5)
   pullTime: 0.22           # s, Zug: Harke in einem Schwung von vorne nach links hinten ziehen (17.11.2026, immer gleich, nicht mehr abwechselnd)
   pushTime: 0.1            # s, Stoß: Harke zügig nach vorne schieben; beim Aufprall Schaden + Beackern (Zug + Stoß < cooldown)
   stun: 0.5                # s Stun pro Treffer (Speed linear von 0 auf normal), nicht bei Bossen
@@ -329,16 +332,17 @@ skills:
     maxLife: 20            # s, unberührte Eier verschwinden danach
     boss: false            # Bosse lassen sich nicht ablenken
   wheat:                   # 23.11.2026 Körner-MP aus Holz: Munition = Weizen (Getreidefeld), Freischalt-Karte wie die anderen Feldwaffen
-    damage: 1.6            # je Korn (wenig Schaden, dafür 10 Schuss/s)
+    damage: 2.0            # 24.11.2026: 1,6 -> 2. je Korn (wenig Schaden, dafür 10 Schuss/s)
     range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
     cooldown: 0.1          # s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
     ammoPerShot: 1         # Weizen je Korn (Basti 23.11.2026: 1 Weizen = 1 Korn)
     speed: 24              # m/s, schnelle Körner
-    heatTime: 3            # s Dauerfeuer bis heiß (Upgrade Feuerdauer +25 %/Stufe); dann gesperrt, bis sie abgekühlt ist
-    coolTime: 2            # s von ganz heiß bis kalt
+    heatTime: 3            # s Dauerfeuer bis zur vollen Streuung (Upgrade +25 %/Stufe). 24.11.2026 (Basti): überhitzt nicht mehr, man kann durchgehend schießen, wird nur ungenauer
+    width: 0.12            # m Trefferbreite eines Korns (24.11.2026: 0,07 -> 0,12, größere Körner)
+    coolTime: 2            # s von voller Streuung bis ganz genau
     coolDelay: 0.3         # s nach dem letzten Korn beginnt sie abzukühlen
     spreadMin: 1           # Grad Streuung kalt (sehr genau)
-    spreadMax: 14          # Grad Streuung kurz vor heiß (wächst quadratisch mit der Hitze)
+    spreadMax: 14          # Grad Streuung bei Dauerfeuer (wächst quadratisch mit der Hitze)
   flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
     damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
     range: 1.04            # m, Radius der Mehlwolke um den Spieler (23.11.2026: 2/5 von 2,6; Reichweite-Upgrade vergrößert sie)
@@ -389,7 +393,7 @@ skills:
     # Brennen: pro Tick Stapel x burnDamage. Jeder neue Treffer frischt die Brenndauer auf; ohne Treffer erlischt es nach burnDuration.
     # Flächenbrand: stirbt ein brennender Gegner, springt das Feuer auf Gegner in spreadRadius über (Anteil spreadShare seiner Stapel, mind. 1).
     damage: 1              # Sofortschaden je Treffer (8 Flammenstöße pro Sekunde)
-    burnDamage: 0.5        # Brandschaden je Stapel und Tick
+    burnDamage: 1.0        # Brandschaden je Stapel und Tick (24.11.2026 Basti: mehr Schaden pro Tick, 0,5 -> 1; Sim: Schrotflinte + Flammenwerfer Welle 39 -> 41)
     burnStacks: 6
     burnDuration: 3        # s Brenndauer nach dem letzten Treffer
     burnTick: 0.5          # s pro Brand-Tick

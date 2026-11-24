@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Balancing, BERRIES, COMBOS, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { buildBuilding, chestModel, type BuildingView } from './buildings';
-import { Slot, accepts, cornerAngle, hexDist, hexR, outType, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
+import { Slot, accepts, cornerAngle, hexDist, hexR, outType, plantOrder, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
 const pulseTex = (() => { const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d')!; const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, S, S); return new THREE.CanvasTexture(cv); })();
 import { EF, ESnap, Ev, PSnap, Snap } from '../sim/snap';
@@ -579,7 +579,7 @@ export class GameView {
         let g: THREE.Group;
         if (stacked && f[7] !== undefined) g = juiceBottle(f[7]); // Saftpresse bottle standing in the row
         else if (stacked) { g = new THREE.Group(); const e = new THREE.Mesh(GEO.sph, EGG_STACK); e.scale.set(.047, .06, .047); e.castShadow = true; e.rotation.z = rand(-.08, .08); g.add(e); } // one upright egg of the pyramid
-        else g = fruitMesh(type, this.cfg.fruit.tierScale[f[2]] || 1);
+        else g = fruitMesh(type, (this.cfg.fruit.tierScale[f[2]] || 1) * (type === 'flour' ? 2.3 : 1)); // 24.11.2026 flour sacks much bigger
         g.traverse(o => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = true));
         this.dyn.add(g); v = { g, tier: f[2], type, x: f[3], y: f[4], z: f[5], tx: f[3], ty: f[4], tz: f[5], seen: id, st: stacked }; this.fruits.set(f[0], v);
       }
@@ -680,7 +680,7 @@ export class GameView {
       lava.position.y = .03; lava.rotation.y = rand(0, 7); lava.renderOrder = 2; g.add(lava);
     }
     for (const m of fruits) m.userData.mat0 = m.material; // ripe material (unripe: green, see animCrop)
-    const v: FieldView = { order: [0, 1, 2, 3, 4, 5].sort(() => Math.random() - .5), leafC: mats.leaf.color.clone(), headC: mats.head.color.clone(), bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
+    const v: FieldView = { order: plantOrder(slot), leafC: mats.leaf.color.clone(), headC: mats.head.color.clone(), bedMat, g, plant, fruits, mats, rim, bar: makeBar(1.1, .09, 0x6fcf4a), alive: true, type: FRUITS.indexOf(type), rarity: 0, prog: 0, pulse, edge: 0, ep: 0, pos: -1, tilled: false, x: p.x, z: p.z, shake: 0, glow: 0, hit: 0, comb: 0, combs: [0, 0, 0, 0, 0, 0], bmats, bglow: [0, 0, 0, 0, 0, 0], ftype: type, lava, lavaT: 9, lv: 0, rate: 0 };
     v.bar.position.set(p.x, 1.1, p.z);
     this.fields.set(slot, v);
     burst(V(p.x, .4, p.z), 0x8fe36a, 30, 2.5, .2, .8);
@@ -765,7 +765,7 @@ export class GameView {
       let gy = 1, gx = 1, fs = 1, show = true, mat: 'ripe' | 'green' | 'dead' = 'ripe';
       c.visible = true;
       // harvest countdown (bushes + wheat): the 6 clumps dry up one after another while the harvest time runs (23.11.2026)
-      const k = v.order!.indexOf(i), gone = st === 0 && !head && t !== 'asp' && v.alive && h * 6 > k + .02;
+      const k = v.order!.indexOf(i), gone = st === 0 && !head && t !== 'asp' && v.alive && Math.floor(h * 6 + 1e-6) > k; // 24.11.2026: one plant per rake stroke, in the sim's plantOrder
       this.dryClump(v, c, gone);
       if (gone) {
         mat = 'dead';
@@ -1017,6 +1017,7 @@ export class GameView {
         break;
       }
       case 'juice': { const v = this.fields.get(e.s), x = v ? v.x : e.x, z = v ? v.z : e.z; if (x !== undefined) this.floatNum(x, z, `+${String(e.v).replace('.', ',')} XP`, '#ffe08a'); break; }
+      case 'sackFly': { const me = this.players.get(this.me); if (!me || Math.hypot(me.x - e.x, me.z - e.z) < 12) play('sackFly'); break; } // flour sack thrown out of the mill
       case 'bdone': { const v = this.fields.get(e.s); if (v) { v.bld?.set?.('done', 0); buildingSound(v.ftype, 'done', v.x, v.z); if (v.ftype !== 'press') burst(V(v.x, 1, v.z), FRUIT_HEX[outType(this.cfg, v.ftype)] ?? 0xffe08a, 10, 1.6, .12, .5); } break; }
       case 'broken': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'break', v.x, v.z); burst(V(v.x, .8, v.z), 0x7a6048, 40, 3, .25, 1, { g: 5 }); } break; }
       case 'repair': { const v = this.fields.get(e.s); if (v) { buildingSound('any', 'repair', v.x, v.z); burst(V(v.x, .9, v.z), 0xc8a070, 6, 1.5, .08, .4, { g: 6 }); } break; }

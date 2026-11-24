@@ -600,3 +600,9 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Alt blendet die Tasten unter den Plätzen und je eine Maus (links/rechts) neben den Gruppen ein und aus. Standard aus, wird gemerkt.
 - Alle Tasten lassen sich auf der Steuerungsseite (PC) ändern: Taste anklicken, neue Taste drücken (Esc = abbrechen). Belegte Tasten tauschen. Knopf "Standard" setzt zurück.
 - weaponSlots.max 4 -> 10. Handy unverändert.
+
+## Spielstände (24.11.2026)
+- Basti: "Ich möchte Spielstand nicht immer neustarten müssen." Lokal im Browser, die letzten 3 Läufe werden behalten.
+- Gespeichert wird der komplette Spielzustand (auch laufende Welle, Gegner, Händler) bei jeder neuen Welle, alle 30 s (`save.autosave`), beim Pausieren, über "Speichern" im Pausemenü, beim Verlassen und beim Schließen des Tabs.
+- Hauptmenü: "Weiterspielen" (neuester Stand, mit Welle/Level/Zeit), "Neues Spiel", "Spielstände" (Liste, Löschen mit zweitem Tippen).
+- Nur normale Solo-Spiele (kein Testmodus, kein Waffentest, kein Koop). Game over löscht den Stand. Geladen wird immer mit der aktuellen balancing.yaml.

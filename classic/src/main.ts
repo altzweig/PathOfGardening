@@ -18,10 +18,11 @@ import { StartMenu } from './ui/startmenu';
 import { Look, loadLook } from './look';
 import { CHEAT_WEAPONS, loadCheats, saveCheats } from './ui/cheats';
 import { TILE_TYPES } from './sim/sim';
+import { SaveInfo, deleteSave, listSaves, loadGame, saveGame } from './save';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat', '#cheatOpt'];
+const OVERLAYS = ['#menu', '#saves', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat', '#cheatOpt'];
 let onMenu: (on: boolean) => void = () => {};
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); onMenu(id === '#menu'); }
 
@@ -77,6 +78,7 @@ class Game {
     applyQuality();
     this.idle();
     this.wire();
+    this.renderMenuSaves();
     await this.view.prewarm(); // compile every weapon / effect shader now, not on its first use in the game
     only('#menu');
     let last = performance.now();
@@ -108,6 +110,11 @@ class Game {
     this.menu.onSound = k => sfx(k);
     onMenu = on => this.menu.setActive(on); this.menu.setActive(!$('#menu').hidden);
     click('#soloBtn', () => this.startSolo(false));
+    click('#contBtn', () => { const l = listSaves(); if (l[0]) this.loadSave(l[0].id); });
+    click('#savesBtn', () => this.openSaves());
+    click('#savesBack', () => only('#menu'));
+    click('#pSaveBtn', () => { const ok = this.autosave(true); const b = $('#pSaveBtn'); b.classList.add(ok ? 'saved' : 'failed'); setTimeout(() => b.classList.remove('saved', 'failed'), 1200); });
+    addEventListener('pagehide', () => this.autosave(true));
     click('#testBtn', () => this.startSolo(true));
     click('#wtestBtn', () => this.startSandbox());
     this.wireSandbox();
@@ -175,7 +182,7 @@ class Game {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.answerOverbuild(true); }
       else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.answerOverbuild(false); }
     }, true);
-    document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && !this.building && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.autosave(true); if (document.hidden && this.mode === 'solo' && !this.building && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
   }
   private touchSel = -1;
@@ -223,7 +230,53 @@ class Game {
 
   // ---------- modes ----------
   testMode = false;
-  startSolo(test = this.testMode) { this.endSandbox(); this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); this.startCheats = true; }
+  startSolo(test = this.testMode) { this.endSandbox(); this.testMode = test; this.newSaveId(); show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); this.startCheats = true; }
+  // ---------- Spielstände (24.11.2026) ----------
+  private saveId = ''; private saveStarted = 0; private saveT = 0; private saveWave = -1;
+  private newSaveId() { this.saveId = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); this.saveStarted = Date.now(); this.saveT = 0; this.saveWave = -1; }
+  /** only normal solo games are saved (no test mode, no weapon test room, no co-op) */
+  private canSave() { return this.mode === 'solo' && !this.testMode && !this.sandbox && !!this.sim && !!this.saveId && this.sim.phase !== 'over' && !this.sim.startPick; }
+  autosave(force = false) {
+    if (!this.canSave()) return false;
+    if (!force && this.building) return false;
+    this.saveT = 0; this.saveWave = this.sim!.wave;
+    return saveGame(this.saveId, this.saveStarted, this.sim!, this.look);
+  }
+  /** every cfg.save.autosave s of play and whenever a new wave starts */
+  private tickSave(dt: number) {
+    if (!this.canSave()) return;
+    this.saveT += dt;
+    if (this.saveT >= ((this.cfg as any).save?.autosave ?? 30) || (this.sim!.wave !== this.saveWave && this.saveWave >= 0)) this.autosave();
+    else if (this.saveWave < 0) this.saveWave = this.sim!.wave;
+  }
+  loadSave(id: string) {
+    const g = loadGame(id, this.cfg);
+    if (!g) { deleteSave(id); this.renderMenuSaves(); return; }
+    this.endSandbox(); this.testMode = false; show('#cheatBtn', false);
+    this.mode = 'solo'; this.me = g.sim.players[0]?.id ?? 0; this.sim = g.sim;
+    this.saveId = g.info.id; this.saveStarted = g.info.started || Date.now(); this.saveT = 0; this.saveWave = g.sim.wave;
+    this.view.setLooks([{ id: this.me, look: this.look }]); this.view.smooth = false;
+    this.enterGame();
+  }
+  renderMenuSaves() {
+    const l = listSaves(), top = l[0];
+    show('#contBtn', !!top); show('#savesBtn', l.length > 0);
+    $('#soloBtn').classList.toggle('main', !top);
+    $('#contBtn').classList.toggle('main', !!top);
+    if (top) $('#contBtn').innerHTML = `Weiterspielen<small>${saveLine(top)}</small>`;
+    $('#soloBtn').textContent = top ? 'Neues Spiel' : 'Spielen';
+  }
+  private openSaves() {
+    const l = listSaves(); if (!l.length) return;
+    $('#savesList').innerHTML = l.map(s => `<div class="svRow"><button class="btn svLoad" data-id="${s.id}"><b>${esc(s.name || '—')}</b><small>${saveLine(s)}</small></button><button class="btn sec svDel" data-id="${s.id}" aria-label="Löschen">✕</button></div>`).join('');
+    $('#savesList').querySelectorAll<HTMLElement>('.svLoad').forEach(b => b.addEventListener('click', () => { initAudio(); sfx('ui.confirm'); this.loadSave(b.dataset.id!); }));
+    $('#savesList').querySelectorAll<HTMLElement>('.svDel').forEach(b => b.addEventListener('click', () => {
+      sfx('ui.click'); const row = b.parentElement!;
+      if (!row.classList.contains('ask')) { row.classList.add('ask'); b.textContent = '✓'; return; } // second tap deletes
+      deleteSave(b.dataset.id!); this.renderMenuSaves(); if (listSaves().length) this.openSaves(); else only('#menu');
+    }));
+    only('#saves');
+  }
   restart() {
     if (this.mode === 'solo' && this.sandbox) return this.startSandbox();
     if (this.mode === 'solo') return this.startSolo();
@@ -269,10 +322,11 @@ class Game {
     c.join(code);
   }
   leave() {
+    this.autosave(true);
     if (this.host) { this.host.close(); this.host = null; }
     if (this.client) { const c = this.client; this.client = null; c.onClose = () => {}; c.close(); }
     this.testMode = false; show('#cheatBtn', false); this.endSandbox(); this.exitBuild(); show('#buildBtn', false);
-    this.idle(); this.view.setConfig(this.cfg); only('#menu');
+    this.idle(); this.view.setConfig(this.cfg); only('#menu'); this.renderMenuSaves();
   }
   private renderLobby() {
     const list = this.host ? this.host.players.map(p => ({ id: p.id, color: p.color, look: p.look })) : this.client ? this.client.lobby : [];
@@ -401,7 +455,7 @@ class Game {
     if (p.hidden && !$('#controls').hidden) { only(null); }
     if (p.hidden && $('#options').hidden && $('#controls').hidden && $('#credits').hidden) {
       this.input.releaseAll(); only('#pause'); this.backTo = '#pause'; this.updateOptLabels();
-      show('#restartBtn', this.mode !== 'client'); show('#pCheatOptBtn', this.mode === 'solo');
+      show('#restartBtn', this.mode !== 'client'); show('#pCheatOptBtn', this.mode === 'solo'); show('#pSaveBtn', this.canSave()); this.autosave(true);
       if (this.mode === 'solo' && this.sim) this.sim.paused = true;
     } else { only(null); if (this.sim) this.sim.paused = false; }
   }
@@ -420,6 +474,7 @@ class Game {
       if (this.sandbox && this.sbOpen) this.sbAutoAim(it); // settings open: the player keeps firing as live preview
       sim.setIntent(this.me, it);
       sim.update(dt);
+      if (!headless) this.tickSave(dt);
       const snap = sim.snapshot();
       if (!headless) this.view.apply(snap);
       if (this.mode === 'host' && this.host) {
@@ -495,6 +550,7 @@ class Game {
     } else if ($('#levelup').hidden === false && s.ph !== 'lvl') { show('#levelup', false); this.luShownFor = ''; }
     if (s.ph === 'over' && !this.overShown) {
       this.overShown = true; this.input.releaseAll();
+      if (this.saveId && this.mode === 'solo') { deleteSave(this.saveId); this.saveId = ''; }
       const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60);
       $('#overStats').innerHTML = `<span><i class="ic">${mini('cd')}</i>${m}:${String(sec).padStart(2, '0')}</span><span><i class="ic">${mini('x2').replace('×2', '★')}</i>${s.lv}</span><span><i class="ic">${mini('dmg')}</i>${s.ki}</span><span><i class="ic">${mini('blue')}</i>${s.cx}</span>`;
       $('#over h1').textContent = s.won ? 'Die Ernte ist gerettet' : 'Die Ernte ist verloren';
@@ -620,3 +676,8 @@ Object.assign(Game.prototype, {
 const esc = (t: string) => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
 new Game().boot();
+/** "Welle 7 · Lvl 5 · 24.11. 23:40" */
+function saveLine(s: SaveInfo) {
+  const d = new Date(s.t), two = (n: number) => String(n).padStart(2, '0');
+  return `Welle ${Math.max(1, s.wave)} · Lvl ${s.level} · ${d.getDate()}.${d.getMonth() + 1}. ${two(d.getHours())}:${two(d.getMinutes())}`;
+}

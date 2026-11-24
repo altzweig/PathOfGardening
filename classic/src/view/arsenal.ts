@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { ComboId } from '../config';
+import { GUN_CHUNKS, GUN_MATS } from './berryGunModel';
+import { BERRY_DATA } from './berryModels';
 
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 let seed = 7;
@@ -380,19 +382,17 @@ export function rakeHeadModel(n: number, gap: number, w: number) {
   for (const sd of [-1, 1]) rivet(g, K.brass, .008, sd * (n * gap / 2 - .005), .02, 0);
   return g;
 }
-/** cranberry blunderbuss: cherry stock, aged copper barrel with a flared bell, glass hopper with berries on top */
+/** Beerengewehr (24.11.2026, Bastis FBX tools/berrygun): double-barrelled shotgun with a funnel of berries on top, barrel along +z.
+ *  Used by every berry shotgun; the berries in the funnel and in the muzzles take the colour of the loaded berry (tintBerries). */
+let GUN_GEO: { geo: THREE.BufferGeometry; m: string }[] | null = null;
+const GUN_MAT: Record<string, THREE.MeshStandardMaterial> = {};
 export function cranGun() {
-  const K = kit(), g = new THREE.Group(), a = new THREE.Group(); g.add(a);
-  mesh(a, profile([[-.3, .02], [-.05, .03], [.05, .025], [.05, -.03], [-.09, -.034], [-.12, -.07], [-.14, -.13], [-.18, -.135], [-.19, -.12], [-.18, -.05], [-.31, -.04], [-.32, -.005]], .06, .01), K.cherry);
-  mesh(a, lathe([[.026, -.04], [.028, .1], [.026, .25], [.03, .3], [.045, .36], [.06, .395], [.056, .4], [.04, .39], [.022, .36]], 26), K.copper, 0, .012, 0);
-  for (const z of [.02, .16, .29]) band(a, K.brass, .033, .018, z, 0, .012);
-  const hop = new THREE.Group(); hop.position.set(0, .07, -.02); a.add(hop); // glass hopper of berries
-  mesh(hop, sph(18, 12), K.glass, 0, 0, 0, .045, .04, .055);
-  for (let i = 0; i < 7; i++) berryM(hop, .016, R(-.022, .022), R(-.025, .01), R(-.03, .03));
-  mesh(hop, lathe([[.012, -.01], [.02, -.005], [.02, .005], [.012, .01]], 14), K.brass, 0, -.045, 0).rotation.x = Math.PI / 2;
-  mesh(hop, lathe([[.01, 0], [.03, .006], [.028, .014], [0, .016]], 16), K.brass, 0, .04, 0).rotation.x = -Math.PI / 2;
-  const tg = mesh(a, new THREE.TorusGeometry(.026, .005, 8, 18, Math.PI), K.brass, 0, -.034, -.1); tg.rotation.set(Math.PI, Math.PI / 2, 0);
-  wrapZ(a, K.leather, .037, -.05, .0, 0, -.005).scale.set(1, .8, 1);
+  const g = new THREE.Group(), a = new THREE.Group(); g.add(a);
+  GUN_GEO ??= GUN_CHUNKS.map(c => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(c.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(c.nrm, 3)); return { geo, m: c.m }; });
+  for (const c of GUN_GEO) {
+    const mat = c.m === GUN_BERRY ? berryTint('cran') : (GUN_MAT[c.m] ??= new THREE.MeshStandardMaterial({ color: GUN_MATS[c.m].col, roughness: GUN_MATS[c.m].rough, metalness: c.m === GUN_METAL ? .55 : 0 }));
+    const m = new THREE.Mesh(c.geo, mat); m.castShadow = true; m.userData.berry = c.m === GUN_BERRY; a.add(m);
+  }
   return { g, anim: a };
 }
 /** Körner-MP (23.11.2026): wooden submachine gun that shoots wheat grains. Ash stock and body, walnut pistol grip and fore grip,
@@ -572,12 +572,18 @@ export function comboModel(cid: ComboId, a: THREE.Group): ComboModel {
   return { t0, t1, muzzle, base, loaded };
 }
 
+const GUN_BERRY = 'Material.004', GUN_METAL = 'Material.006';
 const BERRY_TINT: Record<string, THREE.MeshStandardMaterial> = {};
-/** berries on the held shotgun take the colour of the selected ammo (23.11.2026: blue / black / cran) */
+/** gun berry material per berry: body colour and roughness of Bastis berry models (berryModels.ts), a touch of glow so dark berries still read */
+function berryTint(kind: string) {
+  const k = (kind in BERRY_DATA ? kind : 'cran') as keyof typeof BERRY_DATA, d = BERRY_DATA[k];
+  const glow: Record<string, [number, number]> = { blue: [0x2440ff, .08], cran: [0xe0104a, .08], black: [0x4a1a5a, .12] };
+  return BERRY_TINT[k] ??= new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(...d.body, THREE.LinearSRGBColorSpace), roughness: d.rough, emissive: glow[k][0], emissiveIntensity: glow[k][1] });
+}
+/** berries in the funnel and the muzzles of the berry gun take the colour of the loaded berry (blue / black / cran) */
 export function tintBerries(g: THREE.Object3D, kind: string) {
-  const K = kit(), base = K.berry as THREE.MeshStandardMaterial;
-  const mat = kind === 'cran' ? base : (BERRY_TINT[kind] ??= (() => { const m = base.clone(); if (kind === 'blue') { m.color.set(0x4a64e0); m.emissive.set(0x0a1450); } else { m.color.set(0x3a1f44); m.emissive.set(0x1a0a22); } return m; })());
-  g.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; if (m.material === base || Object.values(BERRY_TINT).includes(m.material as THREE.MeshStandardMaterial)) m.material = mat; });
+  const mat = berryTint(kind);
+  g.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.userData.berry) m.material = mat; });
 }
 
 let BURLAP: THREE.MeshStandardMaterial | null = null, FLOUR_M: THREE.MeshStandardMaterial | null = null;

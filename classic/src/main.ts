@@ -123,6 +123,7 @@ class Game {
     click('#coBack', () => this.closeCheatOpt());
     click('#buildBtn', () => this.enterBuild());
     click('#bDone', () => this.exitBuild());
+    $('#bList').addEventListener('wheel', e => { const l = $('#bList'); if (l.scrollWidth > l.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { l.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false }); // PC: mouse wheel scrolls the bar sideways
     document.querySelectorAll<HTMLElement>('#bTools .bTool').forEach(b => b.addEventListener('click', () => {
       const t = b.dataset.tool as 'del' | 'down'; sfx('ui.click'); this.buildTool = this.buildTool === t ? 'build' : t; this.applyBuild();
     }));

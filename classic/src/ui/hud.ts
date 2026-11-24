@@ -44,6 +44,10 @@ export class Hud {
       if (w !== 'rake') b.hidden = true;
       box.appendChild(b); this.btn[w] = b;
     }
+    // touch (24.11.2026, Basti): one button cycles through the weapons, the active weapon's button shoots, the rake button attacks / harvests
+    const c = document.createElement('div'); c.id = 'cycBtn'; c.hidden = true;
+    c.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="#efe3c8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    box.appendChild(c);
   }
   // wave countdown + announcement
   private cd = { sec: -1, ann: -1, wp: -1 };
@@ -126,6 +130,8 @@ export class Hud {
       const t = `${pr.am[ai]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
     });
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
+    const n = SKILLS.filter((id, i) => this.btn[id] && pr.ln[i] && slots.includes(id)).length;
+    const cyc = $('#cycBtn'); if (cyc.hidden !== n < 2) cyc.hidden = n < 2;
   }
 }
 

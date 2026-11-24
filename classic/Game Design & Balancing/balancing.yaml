@@ -1060,3 +1060,9 @@ fx:
 # Cheat-Optionen (24.11.2026, Optionen > Cheat-Optionen)
 cheats:
   ammo: 100              # Munition, die eine per Cheat freigeschaltete Waffe mitbringt
+
+save:
+  # 24.11.2026 Spielstände (Basti: Spielstand nicht immer neu starten müssen). Lokal im Browser, die letzten 3 Läufe.
+  # Gespeichert wird bei jeder neuen Welle, alle `autosave` s, beim Pausieren, Verlassen und Tab-Schließen.
+  # Ein geladener Stand nutzt immer die aktuelle balancing.yaml. Game over löscht den Stand.
+  autosave: 30             # s Spielzeit zwischen automatischen Speicherungen

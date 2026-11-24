@@ -127,7 +127,9 @@ export interface Balancing {
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   weaponSlots?: { max: number };
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
-  fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number>; /** weapon fields: in the pool once the player learned that weapon */ weaponTypes?: FruitType[] };
+  fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
+  /** 24.11.2026: field / building that must stand before a weapon is offered (Werkstatt) */
+  weaponNeeds?: Partial<Record<SkillId, FruitType>>;
   /** processing chains: every level-3 tile of "from" unlocks one tile of this type; stage 2 also needs a "nextTo" neighbour */
   chains?: Partial<Record<FruitType, { from: FruitType | FruitType[]; stage: number; nextTo?: FruitType }>>;
   /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */

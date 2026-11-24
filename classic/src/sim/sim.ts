@@ -367,6 +367,12 @@ export class Sim {
     return (c.grow + n * this.strokesOf(t) * this.cfg.rake.cooldown) / n;
   }
   fieldOf(type: FruitType) { return !!this.fields.find(f => f.type === type); }
+  /** field / building a weapon needs on the farm (balancing weaponNeeds, fallback: building of SOURCE_OF, else its own fruit field) */
+  weaponNeed(id: SkillId): FruitType { return (this.cfg.weaponNeeds?.[id] ?? SOURCE_OF[id] ?? id) as FruitType; }
+  /** 24.11.2026: weapon may be offered only while its field / building stands */
+  weaponReady(id: SkillId) { const t = this.weaponNeed(id); return this.fields.some(f => f.alive && f.type === t); }
+  /** player level from which a tile type comes into the level-up pool (plants / buildings minLevel) */
+  minLevelOf(t: FruitType) { return (isBuilding(t) ? this.cfg.buildings[t]?.minLevel : this.cfg.plants[t]?.minLevel) ?? 0; }
   /** can this player's current build card go on that slot? new tile: free slot or another type (overbuild); upgrade: a tile of that type */
   canPlace(p: Player, slot: number) {
     if (!p.placing || !slotFits(this.cfg, this.slots[slot], p.placing)) return false;
@@ -2501,8 +2507,8 @@ export class Sim {
     for (const id of SKILLS) {
       const s = p.skills[id]; if (isBerry(id)) continue; // berries are shotgun ammo, no weapons of their own (23.11.2026)
       const src = SOURCE_OF[id], srcFull = !!src && SKILLS.filter(k => p.skills[k].learned).length >= this.maxWeapons;
-      const early = (this.cfg.werkstatt?.firstLearn ?? []).includes(id) && this.shopTier >= 1; // 24.11.2026 Chili + Kohl: im Laden ab der ersten Werkstatt, ohne Feld
-      if ((early || this.fieldOf((src ?? id) as FruitType)) && !srcFull && !s.learned && !s.merged && (src || !this.closedType(p, id as FruitType)) && (early || second || src || p.collected[id] >= (PL[id as FruitType]?.unlockAt || 0))) {
+      // 24.11.2026 (Basti): a weapon is only offered once its field / building (weaponNeeds) is unlocked AND built
+      if (this.weaponReady(id) && !srcFull && !s.learned && !s.merged && (src || !this.closedType(p, id as FruitType)) && (second || src || p.collected[id] >= (PL[id as FruitType]?.unlockAt || 0))) {
         // weapon unlock card: every stat as an icon chip, special effect named briefly
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
@@ -2594,7 +2600,7 @@ export class Sim {
     };
     const head = (key: string) => { const [a, b] = key.split('_'); return a === 'learn' ? H.learn ?? '' : H[b] ?? H[a] ?? ''; };
     // 24.11.2026 (Basti): the bench holds only upgrades of weapons the player already has (cost 1); at most ONE weapon,
-    // always on the golden spot (cost 2). First Werkstatt (Level 5): that weapon is Flammenwerfer or Kohlmine (firstLearn).
+    // always on the golden spot (cost 2). First Werkstatt (Level 5): Flammenwerfer or Kohlmine first (firstLearn), if its field stands.
     for (let k = 0; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
     const pickOne = <T,>(a: T[]) => a.length ? a[Math.floor(Math.random() * a.length)] : null;
     const first = this.shopTier <= 1 ? golden.filter(o => (WS.firstLearn ?? []).some(id => o.key === 'learn_' + id)) : [];
@@ -2644,7 +2650,8 @@ export class Sim {
    *  Only types that can be built somewhere right now (free slot or a tile of that type below level 3, chain rules) */
   private drawOffers(p: Player): Offer[] {
     const FP = this.cfg.fieldPool, N = this.cfg.names, W = FP?.weights || {};
-    const types: FruitType[] = [...this.startTypes, ...(FP?.types || []), ...(FP?.weaponTypes || []).filter(t => p.skills[t as SkillId]?.learned)].filter((t, i, a) => a.indexOf(t) === i && (t !== 'well' || this.wellOpen));
+    // 24.11.2026: weapon fields (Chili, Kohl ...) come first as fields, from their minLevel on; the weapon follows in the Werkstatt
+    const types: FruitType[] = [...this.startTypes, ...(FP?.types || [])].filter((t, i, a) => a.indexOf(t) === i && (t !== 'well' || this.wellOpen) && (this.startTypes.has(t) || this.level >= this.minLevelOf(t)));
     const pool = types.filter(t => this.placeSlots(t).length > 0).map(t => ({ t, w: (this.startTypes.has(t) ? W.start : W[t]) ?? 1 }));
     const out: Offer[] = [], n = FP?.offers ?? 3;
     while (out.length < n && pool.length) {

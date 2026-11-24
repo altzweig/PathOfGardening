@@ -305,8 +305,9 @@ function outlineMat(color: number, width: number, glow = true) {
 }
 /** add a glowing outline in the given colour around all lit parts below root (eyes, shield, stars stay without) */
 export function addOutline(root: THREE.Object3D, color: number, width = .03, glow = true) {
+  // (the animal player body is one skinned mesh with two materials: fur + overalls)
   const mat = outlineMat(color, width, glow), list: THREE.Mesh[] = [];
-  root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && (m.material as THREE.Material).type === 'MeshStandardMaterial') list.push(m); });
+  root.traverse(o => { const m = o as THREE.Mesh; const mt = Array.isArray(m.material) ? m.material[0] : m.material; if (m.isMesh && mt?.type === 'MeshStandardMaterial') list.push(m); });
   for (const m of list) {
     const sk = m as THREE.SkinnedMesh;
     if (sk.isSkinnedMesh) { const h = new THREE.SkinnedMesh(smoothGeo(m.geometry), mat); h.castShadow = false; h.renderOrder = -1; h.frustumCulled = false; m.parent!.add(h); h.bind(sk.skeleton, sk.bindMatrix); }

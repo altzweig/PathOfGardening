@@ -219,7 +219,7 @@ export class GameView {
   /** player looks (character editor), by player id; a changed look rebuilds that figure */
   private looks = new Map<number, Look>();
   setLooks(list: { id: number; look?: Look }[]) { for (const p of list) if (p.look) this.looks.set(p.id, cleanLook(p.look)); }
-  private lookFor(id: number, c: number): Look { return this.looks.get(id) ?? { name: '', hair: c % 4, hairCol: c % 3, skin: (c + 1) % 3, outfit: c % 3 }; }
+  private lookFor(id: number, c: number): Look { return this.looks.get(id) ?? { name: '', animal: c % 5, fur: c % 5, eyes: c % 5, outfit: c % 6, hat: 1 + c % 5, hatCol: c % 6, glasses: 0, glassCol: 0, earring: 0, pierce: 0, metal: 0 }; }
   private nameLabel(name: string, c: number) {
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48; const x = cv.getContext('2d')!;
     x.font = '700 30px "Alegreya Sans", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';

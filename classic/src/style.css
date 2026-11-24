@@ -1040,10 +1040,31 @@ body.sandbox .ws .wa{visibility:hidden}
 @media (max-height:500px){.mkPanel .mkBtns{margin-top:6px}#shopReroll{padding:5px 10px}#shopReroll svg{width:24px;height:24px}#shopReroll .rrCost{font-size:16px}}
 @media (orientation:portrait) and (max-width:760px){.mkPanel .mkBtns{align-self:center;margin:14px 0 6px}}
 
-/* 24.11.2026 (Basti): tutorial hint above the weapon bar (PC), key caps as <kbd> */
-#tut{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px) + clamp(40px,min(6.4vh,4.3vw),64px) * 2.1);transform:translate(-50%,10px);opacity:0;pointer-events:none;
-  max-width:min(900px,80vw);padding:12px 22px;border-radius:14px;background:#0d1217d9;border:1.5px solid #e3b96488;box-shadow:0 6px 24px #000a;
+/* 24.11.2026 (Basti): tutorial. Prompts above the weapon bar, explanations next to the orbs (arrow) or at the top during a level-up.
+   Explanations: click anywhere (after 1 s, the gold line fills) goes on. */
+#tut{position:fixed;z-index:40;overflow:visible;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px) + clamp(40px,min(6.4vh,4.3vw),64px) * 2.1);transform:translate(-50%,10px);opacity:0;pointer-events:none;
+  max-width:min(760px,70vw);padding:12px 22px;border-radius:14px;background:#0d1217e6;border:1.5px solid #e3b96488;box-shadow:0 6px 24px #000a;
   font:700 clamp(16px,2.2vh,22px)/1.5 var(--f-body);color:#f2ead8;text-align:center;text-shadow:0 1px 2px #000;transition:opacity .35s,transform .35s}
 #tut.on{opacity:1;transform:translate(-50%,0)}
 #tut kbd{display:inline-block;min-width:1.4em;padding:0 .45em;margin:0 .1em;border-radius:6px;background:#2b3540;border:2px solid #e3b964;box-shadow:0 3px 0 #0a0d10;color:#efe3c8;font:inherit;line-height:1.35}
-body[data-input=touch] #tut,body.shopOn #tut{display:none}
+#tut.hp,#tut.xp{bottom:calc(var(--orb,200px) * .42);max-width:min(420px,34vw);text-align:left}
+#tut.hp{left:calc(var(--orb,200px) * .95 + 34px);transform:translate(0,10px)}
+#tut.xp{left:auto;right:calc(var(--orb,200px) * .95 + 34px);transform:translate(0,10px)}
+#tut.hp.on,#tut.xp.on{transform:none}
+#tut .tutArr{position:absolute;top:50%;width:30px;height:34px;margin-top:-17px;filter:drop-shadow(0 2px 3px #000);animation:tutArr 1s ease-in-out infinite}
+#tut .tutArr svg{width:100%;height:100%;display:block}
+#tut.hp .tutArr{left:-46px}
+#tut.xp .tutArr{right:-46px;animation-name:tutArrR}
+#tut.xp .tutArr svg{transform:scaleX(-1)}
+@keyframes tutArr{50%{transform:translateX(-8px)}}
+@keyframes tutArrR{50%{transform:translateX(8px)}}
+#tut.top{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 70px);max-width:min(820px,86vw)}
+#tut .tutGo{position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;background:#e3b964;transform-origin:left;animation:tutGo 1s linear both}
+@keyframes tutGo{from{transform:scaleX(0);opacity:.3}to{transform:scaleX(1);opacity:1}}
+#tut.card{padding-bottom:16px}
+.tutRow{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0}
+.tutRow i{width:34px;height:34px;flex:none}.tutRow i svg{width:100%;height:100%;display:block}
+#tutCatch{position:fixed;inset:0;z-index:39;display:none;cursor:pointer}
+#tutCatch.on{display:block}
+#tutSkip{width:auto;padding:0 12px;font-size:13px;white-space:nowrap}
+body[data-input=touch] #tut,body[data-input=touch] #tutCatch,body[data-input=touch] #tutSkip{display:none}

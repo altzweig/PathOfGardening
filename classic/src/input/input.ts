@@ -21,7 +21,7 @@ export class Input {
   private mouseDown = false; private rmbDown = false;
   private clickLatch = false; private rclickLatch = false; // a click shorter than a frame still fires once
   /** how often each thing was pressed this session (tutorial steps, 24.11.2026) */
-  used = { harvest: 0, prim: 0, sec: 0, nextP: 0, nextS: 0, pick: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+  used = { sprint: 0, harvest: 0, prim: 0, sec: 0, nextP: 0, nextS: 0, pick: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
   private keysArmed = false;
   private harvLatch = false; // a harvest-key tap shorter than a frame still rakes once
   private pick = 0; private pickS = -1; private cycP = 0; private cycS = 0;
@@ -53,7 +53,8 @@ export class Input {
       this.keysArmed = a === 'keys' && !e.repeat ? true : a === 'keys' && this.keysArmed; // Alt toggles on release, not with Alt+Tab etc.
       if (a || e.code === 'Tab' || e.altKey) e.preventDefault(); // Space scrolls, Alt opens the browser menu, Tab moves focus
       if (!a || e.repeat) return;
-      if (a === 'harvest' && this.enabled) { this.harvLatch = true; this.used.harvest++; } // tap = one stroke, held = keeps raking, see intent()
+      if (a === 'sprint') this.used.sprint++;
+      else if (a === 'harvest' && this.enabled) { this.harvLatch = true; this.used.harvest++; } // tap = one stroke, held = keeps raking, see intent()
       else if (a === 'nextP' && this.enabled) { this.cycP++; this.used.nextP++; }
       else if (a === 'nextS' && this.enabled) { this.cycS++; this.used.nextS++; }
       else if (a === 'berry' && this.enabled) this.berry++; // shotgun: next berry

@@ -3,6 +3,7 @@ import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
+import { Orbs } from './orbs';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 export const PLAYER_CSS = ['#ffd890', '#8fc8ff', '#ff9a8a', '#d0a0ff'];
@@ -36,6 +37,7 @@ export class Hud {
   }
   /** display names of the goods (balancing names.items) */
   names: Record<string, string> = {};
+  orbs = new Orbs($('#hud'));
   constructor() {
     const box = $('#btns');
     for (const w of WEAPONS) {
@@ -97,6 +99,7 @@ export class Hud {
     this.set('#xptext', 'xp', `${s.xp} / ${s.nx}`); this.set('#lvl', 'lv', String(s.lv));
     ($('#hpfill')).style.width = (ps.hp / ps.mhp * 100) + '%';
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
+    this.orbs.update(ps.al ? ps.hp / ps.mhp : 0, s.xp / s.nx, s.lv); // PC: orbs instead of the bars
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any

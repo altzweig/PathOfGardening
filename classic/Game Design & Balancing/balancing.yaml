@@ -764,17 +764,20 @@ werkstatt:                 # Angebot des Händlers (Ideen = Glühbirnen, 1 pro L
     stock: Vorrat          # Liste rechts in der Werkstatt
     berries: Beeren        # Saftpresse-Hexfeld: alle Beeren -> XP
     xp: XP
-    # 24.11.2026 Steckbrief unter den Hexfeldern beim Level-up (Werte kommen aus plants/buildings/tiles)
+    # 24.11.2026 Feldkarte beim Level-up (Basti Version 1, Werte kommen aus plants/buildings/tiles)
     grow: Wachstum
     harvest: Ernte
     time: Dauer
-    chance: Chance         # Spalte Stufen-Tabelle Anbaufeld: Chance auf doppelten Ertrag
-    speed: Tempo           # Spalte Stufen-Tabelle Gebäude: schneller arbeiten
-    crops: Alle Felder     # Spalte Brunnen: Ertrags-Bonus für alle Anbaufelder
+    needs: Braucht
+    makes: Macht
+    chance: Doppelter Ertrag   # Stufen-Zeile Anbaufeld: Chance auf doppelten Ertrag
+    speed: Tempo               # Stufen-Zeile Gebäude: schneller arbeiten
+    crops: Alle Felder         # Brunnen: Ertrags-Bonus für alle Anbaufelder
     life: Leben
-    level: Stufe
-    neighbours: + gleiche Nachbarn
-    unlocks: schaltet frei
+    fieldLife: Feld            # Kräutertee: Heilung fürs Feld
+    fromLevel: Ab Stufe        # Freischaltung (z. B. "Ab Stufe 3 · Saftpresse")
+    ammo: Munition             # Haupteffekt: "Munition Schrotflinte"
+    juiceXp: Saft = XP         # Haupteffekt Saftpresse
 
 weaponSlots:               # Waffen neben der Harke
   max: 4                   # 22.11.2026 3 -> 4 (Blaubeer-Schrotflinte zählt jetzt mit); höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up

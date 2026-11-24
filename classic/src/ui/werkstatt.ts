@@ -145,9 +145,11 @@ export class WerkstattUI {
   onBuy: (i: number) => void = () => {};
   onClose: () => void = () => {};
   onDeny: () => void = () => {};
+  onReroll: () => void = () => {};
   open = false;
   constructor(private bulbs: Bulbs) {
     $('#shopGo').addEventListener('click', () => this.onClose());
+    $('#shopReroll').addEventListener('click', () => { const b = $('#shopReroll'); if (b.classList.contains('poor')) { b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); this.bulbs.flash(); this.onDeny(); return; } this.onReroll(); });
   }
   /** show / update the bench of this pause; ideas = bulbs the player has */
   update(s: Snap, me: number, cfg: Balancing) {
@@ -158,14 +160,18 @@ export class WerkstattUI {
     }
     if (!on || !pr?.sh) return;
     const ideas = pr.id ?? 0, sh = pr.sh;
-    const key = sh.map(o => o.key + (o.sold ? '!' : '')).join(',');
+    const key = (pr.rn ?? 0) + '|' + sh.map(o => o.key + (o.sold ? '!' : '')).join(',');
     if (key !== this.key) {
-      const fresh = this.key.split(',').map(k => k.replace('!', '')).join(',') !== sh.map(o => o.key).join(',');
+      const strip = (k: string) => k.replace(/!/g, ''), fresh = strip(this.key) !== strip(key);
       this.key = key;
       if (fresh) this.build(sh, cfg);
       sh.forEach((o, i) => { const c = this.cards[i]; if (c && o.sold && !c.classList.contains('sold')) this.markSold(c, !fresh); });
     }
     sh.forEach((o, i) => { const c = this.cards[i]; if (c) c.classList.toggle('poor', !o.sold && ideas < (o.cost ?? 1)); });
+    // reroll button: price as number + bulb, greyed when too expensive or nothing left to reroll
+    const rb = $('#shopReroll'), rc = pr.rc ?? 1;
+    rb.querySelector('.rrCost')!.innerHTML = `${rc}${bulb()}`;
+    rb.classList.toggle('poor', ideas < rc || sh.every(o => o.sold));
     this.stock(s, me, cfg);
   }
   private build(sh: Offer[], cfg: Balancing) {

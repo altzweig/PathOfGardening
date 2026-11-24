@@ -190,6 +190,12 @@ export const SND: Record<string, (arg?: any) => void> = {
     [1047, 1319, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .35, vol: .045, when: .18 + i * .05 }));
   },
   /** not enough ideas: dull double thud */
+  /** Händler reroll (24.11.2026): dice rattling in a wooden cup, then a short shuffle of cards */
+  reroll() {
+    if (!can('reroll', .15)) return;
+    for (let i = 0; i < 6; i++) { const w = i * rand(.045, .07); noise({ t: .03, vol: .09, type: 'bandpass', f: rand(1800, 3200), q: 3, when: w, at: .001 }); tone({ f: rand(500, 800), f2: 300, t: .03, vol: .04, when: w }); }
+    noise({ t: .25, vol: .05, type: 'highpass', f: 3000, f2: 5000, when: .4, at: .05 });
+  },
   deny() { if (!can('deny', .2)) return; tone({ type: 'triangle', f: 220, f2: 160, t: .09, vol: .1 }); tone({ type: 'triangle', f: 180, f2: 130, t: .1, vol: .09, when: .1 }); },
   /** Werkstatt opens: chest lid creak + soft workshop chord */
   shop() {

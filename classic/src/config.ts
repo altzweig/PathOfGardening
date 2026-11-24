@@ -105,7 +105,7 @@ export interface Balancing {
     /** Eierschleuder (24.11.2026): wooden slingshot, raw eggs (hens) as ammo; the egg bursts where it lands (radius m, +radiusStep per
      *  upgrade) and gives everything hit the cabbage poison debuff (cab.poison*), sulphur yellow; range = max throw distance m */
     sling: { damage: number; range: number; radius: number; radiusStep: number; cooldown: number; ammoPerShot: number; aimCone?: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
+    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; mineLife?: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;

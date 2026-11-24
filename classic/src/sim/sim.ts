@@ -1,7 +1,7 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
 import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry } from '../config';
-import { emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
+import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()); // standard normal (Box-Muller)
@@ -1271,8 +1271,8 @@ export class Sim {
     } else { // cabbage: contact mine put down right where the player stands (see canLayMine)
       this.snd('throw');
       const b = this.spawnBomb(p.x, .5, p.z, p.x, p.z, st.range, st.dmg, st.minis, false, st.gas, st.poisonMul);
-      b.flight = .2; b.fuse = 1e9; b.mine = true;
-      const mines = this.bombs.filter(x => x.mine), max = S.cab.maxMines ?? 15;
+      b.flight = .2; b.fuse = b.flight + (S.cab.mineLife ?? 60); b.mine = true; // 24.11.2026: a mine rots away after mineLife s (snapshot b[7] = life used 0..1)
+      const mines = this.bombs.filter(x => x.mine), max = S.cab.maxMines ?? 100;
       if (mines.length > max) { const old = mines[0]; this.bombs.splice(this.bombs.indexOf(old), 1); this.burst(old.x, .2, old.z, 0x6fbf3a, 8, 1, .1, .4); }
     }
   }
@@ -1354,7 +1354,7 @@ export class Sim {
     const c: Cloud = { id: this.nid++, x: p.x, z: p.z, r: st.range, age: 0, life: F.life, ign: -1, ix: 0, iz: 0, front: 0, dmg: st.dmg, hit: new Set() };
     this.clouds.push(c);
     const unlit = this.clouds.filter(x => x.ign < 0);
-    if (unlit.length > (F.maxClouds ?? 4)) this.clouds.splice(this.clouds.indexOf(unlit[0]), 1);
+    if (unlit.length > (F.maxClouds ?? 100)) this.clouds.splice(this.clouds.indexOf(unlit[0]), 1);
   }
   /** fire touches a cloud at (x, z): it catches there and the flame front eats through it from that point */
   igniteCloud(c: Cloud, x: number, z: number) {
@@ -2533,6 +2533,7 @@ export class Sim {
       if (b.mine && b.t >= b.flight) { // cabbage mine: goes off as soon as an animal steps on it
         const R = this.cfg.skills.cab.mineTrigger ?? .45;
         if (this.enemies.some(e => !e.dead && !this.airborne(e) && !this.inTree(e) && dist(e, b) < R + e.r)) { this.bombs.splice(i, 1); this.explode(b); }
+        else if (b.t >= b.fuse) { this.bombs.splice(i, 1); this.burst(b.x, .2, b.z, 0x6fbf3a, 8, 1, .1, .4); } // rotted away: falls apart quietly
         continue;
       }
       if (b.t >= b.fuse) { this.bombs.splice(i, 1); if (b.kind === 'cab') this.explode(b); else if (b.kind === 'egg') this.eggBurst(b); else this.comboExplode(b); }
@@ -2924,7 +2925,7 @@ export class Sim {
       eg: this.baits.filter(b => b.delay <= 0).map(b => [b.id, r2(b.x + (b.sx - b.x) * (1 - Math.min(1, b.t / b.fl))), r2(b.y), r2(b.z + (b.sz - b.z) * (1 - Math.min(1, b.t / b.fl))), b.t >= b.fl ? 1 : 0, r2(Math.max(0, b.left) / b.total), r2(b.out), r2(b.r), b.eaters]),
       pj: this.projs.map(p => [p.id, PK.indexOf(p.kind), r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(p.dx, p.dz)), r2(p.kind === 'asp' ? p.w / this.cfg.skills.asp.width : p.kind === 'ball' ? p.w / this.cfg.skills.lemon.ballRadius : p.kind === 'cran' ? 1 : p.kind === 'lance' || p.kind === 'rocket' ? p.w * 2 : p.w / .3)]),
       cl: this.clouds.map(c => [c.id, r2(c.x), r2(c.z), r2(c.r), r2(c.age), c.life, c.ign, r2(c.ix), r2(c.iz)]),
-      bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen, b.mine ? 1 : 0]),
+      bo: this.bombs.map(b => [b.id, r2(b.x), r2(b.y), r2(b.z), b.mini ? 1 : 0, b.t >= b.flight ? 1 : 0, BK.indexOf(b.kind), r2(clamp((b.t - b.flight) / Math.max(.01, b.fuse - b.flight), 0, 1)), b.gen, b.mine ? 1 : 0, ...(b.mine ? [r2(b.fuse - b.t)] : [])] as unknown as BSnap), // mines: [10] = s until it rots away
       mi: this.mines.map(m => { const f = m.fl && m.fl > 0 && m.ft ? 1 - m.fl / m.ft : 1; const x = m.sx !== undefined && f < 1 ? m.sx + (m.x - m.sx) * f : m.x, z = m.sz !== undefined && f < 1 ? m.sz + (m.z - m.sz) * f : m.z;
         return [m.id, r2(x), r2(z), r2(clamp(1 - m.t / (m.r ? this.CB.list.cabboom.berryDelay : this.cfg.skills.cran.splashDelay), 0, 1)), f < 1 ? r2(.3 + Math.sin(f * Math.PI) * 1.1) : 0, m.fire ? 1 : 0] as MSnap; }),
       sn: this.snodes.map(n => [n.id, r2(n.x), r2(n.z), r2(n.ticks / n.tot)]),

@@ -379,7 +379,7 @@ skills:
     frontSpeed: 4          # m/s, Flammenwelle frisst sich konzentrisch von der Zündstelle aus durch die Wolke
     burnTime: 3            # s Nachbrennen getroffener Tiere ...
     burnDps: 4             # ... mit so viel Schaden pro Sekunde
-    maxClouds: 16          # 23.11.2026 4 -> 16 (kleine Wolken im Laufen); höchstens so viele unentzündete Wolken gleichzeitig (die älteste verschwindet)
+    maxClouds: 100         # 24.11.2026 16 -> 100 (Basti), 23.11.2026 4 -> 16 (kleine Wolken im Laufen); höchstens so viele unentzündete Wolken gleichzeitig (die älteste verschwindet)
   cran:
     damage: 5              # je Projektil
     range: 7.00            # m (4,5 -> +50 %)
@@ -427,7 +427,8 @@ skills:
   cab:                     # 22.11.2026: Kontaktmine statt Wurf. Wird beim Laufen vor die Füße gelegt, Gedrückthalten legt je Abklingzeit eine.
     mineSpacing: 1.0       # 23.11.2026 1.6 -> 1.0, damit im Laufen 2 Minen/s liegen. Mindestabstand zur nächsten Mine = Explosionsradius x 1,6 (Explosionskreise überlappen leicht, Minen nie ineinander)
     mineTrigger: 0.45      # m, Tier berührt die Mine -> Explosion (Flächenschaden radius)
-    maxMines: 15           # höchstens so viele Minen liegen gleichzeitig
+    maxMines: 100          # 24.11.2026 15 -> 100 (Basti): höchstens so viele Minen liegen gleichzeitig (die älteste verschwindet)
+    mineLife: 60           # 24.11.2026 s, so lange liegt eine Mine, dann zerfällt sie ohne Explosion (schrumpft die letzten 0,6 s)
     damage: 5
     radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
     cooldown: 0.5          # 23.11.2026: 2 Minen pro Sekunde (vorher 1.0)

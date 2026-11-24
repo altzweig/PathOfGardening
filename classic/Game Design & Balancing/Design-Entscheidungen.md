@@ -560,3 +560,9 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Leertaste (Handy: Schießen-Knopf) zieht sie über die Schulter nach vorne, erst die Harke (Linksklick / Ernten-Knopf) steckt sie wieder weg. Dauer jeweils player.drawTime = 0,28 s (Basti: 0,2-0,35 s).
 - Schießen bzw. Harken erst nach Animationsende. Ein Druck während der Animation wird gemerkt und danach ausgeführt (Tippen = genau 1 Schuss bzw. 1 Harkenschlag).
 - Tab tauscht nur das Modell: die neue Waffe übernimmt den Stand der laufenden Animation (eigene Rückenlage je Waffe aus ihrer Form), der gemerkte Schuss kommt aus der neuen Waffe.
+
+## Spielfigur = Tier (24.11.2026)
+- Kein Mensch mehr: Classic nutzt denselben Charakter-Editor wie das Hof-Spiel (Waschbär, Roter Panda, Fuchs, Hund, Katze, je 5 Fellvarianten, Latzhose, Hüte, Brillen, Schmuck).
+- Name = Vorname + Nachname aus Bastis Namenslisten, beide einzeln würfel- oder wählbar.
+- Alte Classic-Figuren (Mensch) werden beim ersten Start zu einem zufälligen Tier, der Name bleibt.
+- Waffe auf dem Rücken, Werkzeuge je Feld und alle Hand-Animationen laufen über dieselben Gelenke (Torso/Arme) wie vorher.

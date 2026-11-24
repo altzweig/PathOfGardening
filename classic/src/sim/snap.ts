@@ -23,6 +23,7 @@ export interface PSnap {
   aw?: number; // active weapon (WEAPONS index): held model for the shotgun / cabbage
   sp?: number; // Mehlsack / Bratpfanne spin progress 0..1 (0 = not spinning)
   sk?: number; // spin kind: 0 Mehlsack, 1 Spiegeleischleuder (fast turn, abrupt stop)
+  dk?: number; // weapon 0 = on the back .. 1 = in the hand (24.11.2026), absent = 0
   rh: 0 | 1; // rake in the hand (hidden while another weapon is held)
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none

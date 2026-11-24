@@ -140,6 +140,7 @@ player:
   pickupPerTier: 0.12      # m, große Früchte (Stufe 2/3) von etwas weiter
   magnetRadius: 1.8        # m, ab hier rollt eine Frucht zum Spieler
   magnetSpeed: 2.8         # m/s
+  drawTime: 0.28           # s, Waffe vom Rücken ziehen bzw. zurückstecken (24.11.2026, Basti: 0,2-0,35 s); erst danach schießen/arbeiten
 
 coop:
   maxPlayers: 4
@@ -267,7 +268,7 @@ plants:
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
   black: { interval: 8 }                # 23.11.2026 Brombeere: wie Blaubeere (alle drei Startbeeren gleich ergiebig)
   cran: { interval: 8, unlockAt: 0 }    # 23.11.2026: wie Blaubeere (vorher 4 alle 5 s für die eigene Schrotflinte mit 6 Beeren pro Schuss)
-  cab:  { interval: 3.2, unlockAt: 0, grow: 12, amount: 1 }   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
+  cab:  { interval: 3.2, unlockAt: 0, grow: 12, amount: 1, minLevel: 4 }   # 24.11.2026 Kohlfeld ab Level 4 im Level-up (vor der 1. Werkstatt)   # 23.11.2026: wächst 12 s, 2 s Ernte; Menge so, dass eine Ernte etwas mehr bringt als vorher (ca. 7-8 statt 6 Kohl)
   lemon: { interval: 10, unlockAt: 0, amount: 1, minLevel: 10 }   # Zitronenbäumchen: erst ab Level 10 als neuer Feldtyp
   chili: { interval: 1.2, unlockAt: 0, amount: 7, minLevel: 5, grow: 16, strokes: 2 }   # 24.11.2026: 2 Harkenschläge je Pflanze (lange Erntezeit), 7 Chilis je Pflanze (Menge pro Zeit wie vorher). # 24.11.2026 Chili früh (Level 5, Werkstatt). Chilifeld: wächst 16 s, 4 s Ernte (23.11.2026, Menge angepasst: pro Zeit etwa wie vorher), wie das Zitronenbäumchen erst ab Level 10
   wheat: { interval: 3, amount: 2, minLevel: 2, grow: 8 }   # 24.11.2026 Basti: 8 s wachsen, 2 s ernten (6 Schläge), 2 Weizen je Pflanze.   # Getreidefeld (22.11.2026): 1 Weizen alle 3 s, ab Level 2; 23.11.2026: wächst 6 s, 3 s Ernte
@@ -676,10 +677,21 @@ dayNight:                  # Tag-Nacht-Zyklus: jede Welle (inkl. Pause danach) =
 #  Im Pool: das gewählte Startfeld + diese Typen. Die anderen beiden Startbeeren tauchen nicht mehr auf.
 # ---------------------------------------------------------------------
 fieldPool:
-  types: [wheat, mill, bakery, well, press]   # well nur, wenn in der Werkstatt freigeschaltet
-  offers: 3                            # Hexfelder pro Level-up (fehlen Typen, füllt Kräutertee auf)
+  types: [wheat, mill, bakery, well, press, chili, cab]   # well nur, wenn in der Werkstatt freigeschaltet. 24.11.2026: Chili-/Kohlfeld normal im Pool (ab plants.minLevel), die Waffe kommt erst danach
+  offers: 3                            # Hexfelder pro Level-up (fehlen Typen, füllt Kräutertee auf). Jeder Typ erst ab seinem minLevel (plants/buildings)
   weights: { start: 1, wheat: 1, mill: 1.6, bakery: 1.6, well: 1.3, press: 1.6, chili: 2, cab: 2 }
-  weaponTypes: [chili, cab]           # 24.11.2026: Chilifeld / Kohlfeld kommen in den Pool, sobald man Flammenwerfer / Kohlmine in der Werkstatt gelernt hat
+
+# 24.11.2026 (Basti): Waffen werden in der Werkstatt erst angeboten, wenn das zugehörige Feld/Gebäude freigeschaltet UND gebaut ist.
+# Beeren (blue/black/cran) sind Munition der Schrotflinte (Startfeld), keine eigenen Waffen.
+weaponNeeds:
+  chili: chili     # Flammenwerfer   <- Chilifeld (ab Level 5)
+  cab:   cab       # Kohlmine        <- Kohlfeld (ab Level 4)
+  wheat: wheat     # Körner-MP       <- Getreidefeld (ab Level 2)
+  flour: mill      # Mehlsack        <- Mühle (Weizen Stufe 3)
+  sling: hens      # Eierschleuder   <- Hühnergehege (derzeit nicht im Pool)
+  pan:   kitchen   # Spiegeleischleuder <- Spiegeleierei (derzeit nicht im Pool)
+  asp:   asp       # Spargel-Armbrust <- Spargelfeld (derzeit nicht im Pool)
+  lemon: lemon     # Citrateaser     <- Zitronenbäumchen (ab Level 10, derzeit nicht im Pool)
 
 # Verarbeitung: jedes Level-3-Feld von "from" schaltet 1 Kachel frei (neu oder Ausbau).
 # Mühle Level 3 = 4 Kacheln = 4 Weizenfelder auf Level 3. Stufe 2 (Bäckerei): je Level-3-Mühle 1 Kachel, neue Bäckerei nur neben einem Brunnen.
@@ -703,7 +715,7 @@ werkstatt:                 # Shop: öffnet sich alle paar Level von selbst für 
   cost: 1                  # Glühbirnen je normaler Idee
   goldenCost: 2            # Glühbirnen für die goldene Idee
   golden: [well, learn]    # goldene Ideen: Brunnen freischalten, Waffe lernen (Mehlsack, sobald eine Mühle steht); sonst doppeltes Upgrade
-  firstLearn: [chili, cab] # erste Werkstatt (Level 5): eine davon auf dem goldenen Platz (24.11.2026: höchstens 1 Waffe pro Werkstatt, immer golden, kostet goldenCost); danach als goldene Idee, bis gelernt
+  firstLearn: [chili, cab] # erste Werkstatt (Level 5), nur wenn ihr Feld steht (weaponNeeds): eine davon auf dem goldenen Platz (24.11.2026: höchstens 1 Waffe pro Werkstatt, immer golden, kostet goldenCost); danach als goldene Idee, bis gelernt
   maxBulbs: 10             # so viele Glühbirnen nebeneinander im HUD, darüber mit Zahl
   names:                   # Überschriften der Ideen-Karten
     dmg: Schaden

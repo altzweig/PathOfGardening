@@ -66,7 +66,7 @@ export interface EnemyCfg {
 }
 export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
-  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
+  player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[] };
@@ -127,7 +127,9 @@ export interface Balancing {
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   weaponSlots?: { max: number };
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */
-  fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number>; /** weapon fields: in the pool once the player learned that weapon */ weaponTypes?: FruitType[] };
+  fieldPool?: { types: FruitType[]; offers: number; weights?: Record<string, number> };
+  /** 24.11.2026: field / building that must stand before a weapon is offered (Werkstatt) */
+  weaponNeeds?: Partial<Record<SkillId, FruitType>>;
   /** processing chains: every level-3 tile of "from" unlocks one tile of this type; stage 2 also needs a "nextTo" neighbour */
   chains?: Partial<Record<FruitType, { from: FruitType | FruitType[]; stage: number; nextTo?: FruitType }>>;
   /** Saftpresse (23.11.2026): juice XP = xpFactor x a crop field's XP rate; fill = s of active pressing per bar, step = debuff duration per fill */

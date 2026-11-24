@@ -19,7 +19,7 @@ export function pcControls() {
   <!-- Space: shoot -->
   ${key(330, 400, 330, 70, 'Leertaste', true, 26)}
   ${label(495, 510, 'Schießen')}
-  ${label(495, 540, '(halten = Dauerfeuer)', 'middle', 22, MUT)}
+  ${label(495, 540, 'tippen = 1 Schuss · halten = Dauerfeuer', 'middle', 22, MUT)}
   <!-- Tab: next weapon -->
   ${key(400, 210, 120, 70, 'Tab', true, 26)}${label(460, 310, 'Waffe wechseln')}
   ${icon(skillIcon('blue'), 380, 130, 46)}<text x="432" y="162" font-size="28" fill="${MUT}">›</text>
@@ -57,20 +57,23 @@ export function mobileControls() {
   <circle cx="232" cy="306" r="32" fill="${GOLD}"/>
   ${label(250, 150, 'Laufen', 'middle', 34)}
   ${label(250, 188, 'Daumen irgendwo links', 'middle', 22, MUT)}
-  <!-- right side: drag = aim rake -->
-  ${label(600, 150, 'Wischen', 'middle', 30)}
-  ${label(600, 186, 'Harke zielen', 'middle', 22, MUT)}
-  <path d="M560 250 q40 -30 90 -10" stroke="${TXT}" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M650 240 l-14 -10 l2 16 z" fill="${TXT}"/>
-  <!-- buttons -->
+  <!-- right side: attack, shoot (active weapon), switch weapon (24.11.2026) -->
   <g transform="translate(870 420)">
     <circle r="58" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(skillIcon('rake'), -36, -36, 72)}
   </g>
-  <g transform="translate(735 445)"><circle r="40" fill="#1d252d" stroke="#8fe36a" stroke-width="4"/>${icon(skillIcon('asp'), -26, -26, 52)}</g>
-  <g transform="translate(760 330)"><circle r="40" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('blue'), -26, -26, 52)}
-    <circle cx="34" cy="-34" r="17" fill="#0b1016" stroke="${GOLD}" stroke-width="2"/>${icon(fruitIcon('black'), 21, -47, 26)}</g>
-  <path d="M800 290 q30 -40 70 -40" stroke="${MUT}" stroke-width="2" stroke-dasharray="5 5" fill="none"/>${label(610, 300, 'Tippen = Beere wechseln', 'middle', 20, MUT)}
-  <g transform="translate(870 290)"><circle r="40" fill="#1d252d" stroke="#b8f070" stroke-width="4"/>${icon(skillIcon('cab'), -26, -26, 52)}</g>
-  ${label(905, 240, 'Tippen = automatisch zielen', 'end', 22, TXT)}
-  ${label(905, 212, 'Halten + ziehen = zielen', 'end', 22, TXT)}
+  ${label(870, 512, 'Ernten', 'middle', 24)}
+  <g transform="translate(720 430)"><circle r="48" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('blue'), -32, -32, 64)}
+    <circle cx="40" cy="-40" r="17" fill="#0b1016" stroke="${GOLD}" stroke-width="2"/>${icon(fruitIcon('black'), 27, -53, 26)}</g>
+  ${label(720, 512, 'Schießen', 'middle', 24)}
+  ${label(560, 410, 'tippen = 1 Schuss', 'end', 20, TXT)}
+  ${label(560, 438, 'halten = Dauerfeuer', 'end', 20, TXT)}
+  ${label(560, 466, 'ziehen = zielen', 'end', 20, TXT)}
+  ${label(720, 345, 'Beere', 'middle', 20, MUT)}<path d="M745 352 q14 8 14 22" stroke="${MUT}" stroke-width="2" stroke-dasharray="5 5" fill="none"/>
+  <g transform="translate(870 290)"><circle r="34" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/>
+    <g transform="translate(-20 -20) scale(1.67)"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+  ${label(870, 228, 'Waffe wechseln', 'middle', 24)}
+  ${icon(skillIcon('blue'), 740, 130, 40)}<text x="786" y="158" font-size="26" fill="${MUT}">›</text>
+  ${icon(skillIcon('asp'), 800, 130, 40)}<text x="846" y="158" font-size="26" fill="${MUT}">›</text>
+  ${icon(skillIcon('wheat'), 860, 130, 40)}
 </svg>`;
 }

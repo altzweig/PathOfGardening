@@ -63,6 +63,13 @@ export interface EnemyCfg {
   /** squirrel: spawn arc opposite its tree (deg), s climbing into the crown, crown height (m), s it waits for nuts at the tree,
    *  own aggro radius, hop height (m), zigzag angle (deg) */
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
+  /** 25.11.2026 Gruppenverhalten: m/s on aggro and fleeing (raccoon); goes for the chest (panda); attacks only prefersFields (toad, sheep);
+   *  damage factors by source fruit (+ 'poison' for poison ticks); crawl speed share under thorns (toad, no hopping);
+   *  sheep: sight range m + half cone deg (aggro only in line of sight), share of berry/grain hits bouncing off, bite damage on fields */
+  aggroSpeed?: number; chest?: boolean; onlyFields?: boolean; dmgTaken?: Partial<Record<string, number>>; thornCrawl?: number;
+  sightRange?: number; sightCone?: number; deflect?: number; deflectKinds?: string[]; grazeDamage?: number;
+  /** formation of the pack: snake (raccoon: amplitude m, wavelength m), ring (panda: radius m), lanes (toad: lane width m) */
+  formation?: { kind: 'snake' | 'ring' | 'lanes' | 'loose'; size?: number; wave?: number; stagger?: number };
 }
 export interface Balancing {
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
@@ -121,10 +128,10 @@ export interface Balancing {
     /** per-wave growth of enemy HP / attack: growth^(w-1) + linear*(w-1) */
     scaling?: { hp: { growth: number; linear: number }; damage: { growth: number; linear: number } };
     elite: { fromWave: number; chanceStart: number; chancePerWave: number; chanceMax: number; scale: number; hp: number; damage: number; xpMultiplier: number };
-    boss: { levels?: { first: number; every: number }; phases?: number; phaseSpeedup?: number; every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
+    boss: { levels?: { first: number; every: number }; /** 25.11.2026: bombs leave fields alone; dodges shots while collecting */ fieldDamage?: boolean; dodge?: { look: number; speed: number; time: number; cooldown: number }; phases?: number; phaseSpeedup?: number; every: number; scale: number; hpEnemies: number; hpGrowthPerWave: number; speed: number; meleeDamage: number; xpDrop: number; collectTime: number; chargeTime: number; berryBonus: number; bombDamage: number; bombRadius: number; bombFuse: number;
       trail: { count: number; interval: number; speedNear: number; speedFar: number; farDistance: number; turnRate: number };
       carousel: { duration: number; every: number; trails: number; count: number; spacing: number };
-      rain: { count: number; interval: number; warn: number; radius: number } } } & Record<EnemyType, EnemyCfg>;
+      rain: { count: number; interval: number; warn: number; radius: number; /** m bomb radius of the rain (default bombRadius) */ bombRadius?: number } } } & Record<EnemyType, EnemyCfg>;
   /** day-night cycle: dayWaves day waves, then nightWaves night waves (boss in the last one); night waves bigger/stronger */
   dayNight?: { dayWaves: number; nightWaves: number; night: { size: number; hp: number; damage: number } };
   /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */

@@ -65,7 +65,7 @@ const mineObj = (hot: boolean) => new THREE.Mesh(GEO.sph, new THREE.MeshStandard
 /** projectile mesh by sim kind (0 asparagus bolt, 1 cranberry, 2+ combos) */
 function projObj(kind: number): THREE.Object3D {
       if (kind >= 2) return projMesh(kind);
-      if (kind !== 0) return fruitMesh('cran', .9, false, true);
+      if (kind !== 0) return fruitMesh('cran', .72, false, true); // 25.11.2026: smaller shotgun berries (.9 -> .72)
       const m = new THREE.Group();
       const st = part(m, GEO.cyl, PROJ_ASP, .035, .45, .035, 0, 0, 0, false); st.rotation.x = Math.PI / 2;
       const tp = part(m, GEO.cone, PROJ_ASP_TIP, .05, .14, .05, 0, 0, .28, false); tp.rotation.x = Math.PI / 2;

@@ -582,3 +582,8 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - „All fields unlocked“: im Spiel erscheint oben rechts ein Hammer. Er pausiert und öffnet die Bauansicht von oben mit einer Leiste aller Felder und Gebäude (PC unten, Handy rechts, scrollbar). Ein Klick setzt das gewählte Feld (frei = neu, gleiche Art = nächste Stufe bis 3, andere Art = ersetzt), ohne Stufen-, Ketten- oder Levelgrenzen. Werkzeuge Abreißen und Abstufen. Der Haken bringt zurück ins Spiel.
 - Die Kamera rahmt den Garten nur im freien Teil des Bildschirms, die Leiste verdeckt nie ein Feld.
 - Nur Solo (im Koop ausgeblendet).
+
+## HP- und XP-Kugeln am PC (24.11.2026)
+- Am PC zeigen zwei Kugeln wie bei Path of Exile / Diablo Leben (rot, unten links) und Erfahrung (goldgelb, unten rechts). Keine Zahlen, nur die Füllhöhe. Die Levelzahl sitzt als kleines Abzeichen oben auf der XP-Kugel.
+- Die Grafik ist vorgerendert (`tools/orbs/render_orbs.py`): leere Glaskugel, Flüssigkeit als ganze Kugel (milchig, Gold mit Schwebeteilchen) und darüber Glanz, Unebenheiten, ein Ring aus geflochtenen Ästen und Dornenranken, die die Kugel am äußeren Rand etwas verdecken. Im Spiel wird nur die Flüssigkeit auf die Füllhöhe zugeschnitten, mit leicht schwappender Oberfläche.
+- Handy bleibt unverändert (Balken oben links).

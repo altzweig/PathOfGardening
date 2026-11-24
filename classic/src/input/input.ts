@@ -1,4 +1,4 @@
-// PC (WASD + mouse: left click rakes, Space shoots, Tab switches weapon) and touch (twin sticks + skill buttons) both produce the same Intent.
+// PC (WASD + mouse: left click rakes, Space shoots, Tab switches weapon) and touch (move stick + attack, shoot and switch buttons) both produce the same Intent.
 import { WEAPONS, Weapon } from '../config';
 import { Intent, emptyIntent } from '../sim/snap';
 import type { GameView } from '../view/view';
@@ -14,6 +14,7 @@ export class Input {
   private mouse: { x: number; y: number } | null = null;
   private mouseDown = false;
   private clickLatch = false; // a click shorter than a frame still fires once
+  private spaceLatch = false; // a Space tap shorter than a frame still fires one shot
   private mode: 'pc' | 'touch';
   private cycle = 0; private berry = 0; private tapSeq = 0; private tapW: Weapon | null = null;
   private move = newStick();
@@ -36,7 +37,7 @@ export class Input {
     addEventListener('keydown', e => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       this.keys[e.code] = true; this.setMode('pc');
-      if (e.code === 'Space') e.preventDefault(); // shoot (held = continuous fire), see intent()
+      if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && this.enabled) this.spaceLatch = true; } // shoot: tap = one shot, held = continuous fire, see intent()
       if (e.code === 'Tab') { e.preventDefault(); if (!e.repeat && this.enabled) this.cycle++; } // next weapon
       if (e.code === 'KeyQ' && !e.repeat && this.enabled) this.berry++; // shotgun: next berry
       if (e.code === 'Escape') this.onPause();
@@ -50,6 +51,7 @@ export class Input {
 
   private down(e: PointerEvent) {
     if ((e.target as HTMLElement)?.closest?.('.berry') && this.enabled) { this.berry++; e.preventDefault(); return; } // shotgun badge: next berry
+    if ((e.target as HTMLElement)?.closest?.('#cycBtn') && this.enabled) { this.cycle++; this.setMode('touch'); e.preventDefault(); return; } // touch: tap = next weapon (24.11.2026)
     if (e.pointerType === 'mouse') {
       this.setMode('pc'); this.mouse = { x: e.clientX, y: e.clientY };
       if (this.enabled && e.button === 0 && (e.target as HTMLElement).id === 'c') { this.mouseDown = true; this.clickLatch = true; }
@@ -119,7 +121,7 @@ export class Input {
   releaseAll() {
     this.free.clear(); this.pinch = null;
     this.releaseAim(false); Object.assign(this.move, newStick()); this.moveEl.style.display = 'none';
-    this.mouseDown = false; this.keys = {};
+    this.mouseDown = false; this.spaceLatch = false; this.keys = {};
   }
 
   /** builds the intent for this frame; activeWeapon comes from the latest snapshot */
@@ -137,8 +139,8 @@ export class Input {
       const d = this.mouse ? this.view.groundDir(this.mouse.x, this.mouse.y) : null;
       if (d) { it.ax = d[0]; it.az = d[1]; it.aim = true; Object.assign(this.view.localAim, { weapon: activeWeapon, x: d[0], z: d[1], show: true }); }
       // 23.11.2026 (Basti): Space shoots the active weapon, left click rakes / harvests, Tab switches the weapon
-      if (k.Space) it.fire = 'active'; else if (this.mouseDown || this.clickLatch) it.fire = 'rake';
-      this.clickLatch = false;
+      if (k.Space || this.spaceLatch) it.fire = 'active'; else if (this.mouseDown || this.clickLatch) it.fire = 'rake';
+      this.clickLatch = false; this.spaceLatch = false;
     } else if (this.aimW) {
       const long = performance.now() - this.aimT0 > 140 || this.aim.mag > .25;
       if (long) { this.aimLong = true; it.fire = this.aimW; }

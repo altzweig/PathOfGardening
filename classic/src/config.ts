@@ -68,15 +68,15 @@ export interface Balancing {
   names: { skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
-  xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number };
+  xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[] };
   /** Lager-Truhe in the centre (23.11.2026): holds all resources of the players; raccoons steal from it (max thieves on a circle around it) */
   chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
-  fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number } };
+  fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number } };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; cornerScatter: number };
-  plants: Partial<Record<FruitType, { interval: number; /** crop cycle s of this plant (else fields.cycle) */ grow?: number; harvest?: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
+  plants: Partial<Record<FruitType, { interval: number; /** crop cycle s of this plant (else fields.cycle) */ grow?: number; harvest?: number; /** rake strokes per plant (24.11.2026, default 1) */ strokes?: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
   buildings: Record<BuildingType, BuildingCfg>;
   items: Partial<Record<FruitType, ItemCfg>>;
   /** tile levels: same-type neighbour bonus, upgrade cost/bonus, interaction (feeding/repair) */
@@ -97,7 +97,7 @@ export interface Balancing {
     pan: { damage: number; range: number; cooldown: number; ammoPerShot: number; eggs: number; throw: number; spin: number; flight: number; eat: number; cdStep: number; rangeStep: number; eatStep: number; spread: number; spreadJitter: number; ring: [number, number]; maxLife: number; boss?: boolean };
     /** Körner-MP (23.11.2026): wooden SMG firing wheat grains; heats up (full after heatTime s of firing, then locked until cooled,
      *  coolTime s from full), spread grows with heat from spreadMin to spreadMax deg */
-    wheat: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; heatTime: number; coolTime: number; coolDelay: number; spreadMin: number; spreadMax: number };
+    wheat: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; heatTime: number; coolTime: number; coolDelay: number; spreadMin: number; spreadMax: number; /** m grain hit width (24.11.2026) */ width?: number };
     cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {

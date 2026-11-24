@@ -11,6 +11,6 @@ const rng = (a: number) => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.
 for (let i = 0; i < job.runs; i++) {
   if (job.seed != null) Math.random = rng(job.seed + (job.part ?? 0) * job.runs + i);
   const cfg = structuredClone(base); for (const [k, v] of Object.entries(job.overrides || {})) set(cfg, k, v);
-  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime, start: job.start, stopWave: job.stopWave }));
+  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime, start: job.start, stopWave: job.stopWave, solo: job.solo }));
 }
 process.stdout.write(JSON.stringify(out));

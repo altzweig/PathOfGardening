@@ -102,7 +102,7 @@ export function projMesh(kind: number): THREE.Object3D {
     }
     case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .07, .07, .07, 0, 0, 0, false); break; // blueberry pellet
     case 11: part(g, BERRY_GEO.black, PEL_BLACK, .075, .075, .075, 0, 0, 0, false); break; // blackberry pellet
-    case 12: part(g, GEO.sph, GRAIN, .035, .035, .075, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff0b0, .35), .05, .05, .16, 0, 0, -.06, false); break; // Körner-MP: wheat grain with a faint streak
+    case 12: part(g, GEO.sph, GRAIN, .056, .056, .12, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff0b0, .35), .08, .08, .24, 0, 0, -.09, false); break; // 24.11.2026 grains 1.6x bigger // Körner-MP: wheat grain with a faint streak
     default: part(g, GEO.sph, PROJ_CRAN, .07, .07, .07, 0, 0, 0, false);
   }
   return g;

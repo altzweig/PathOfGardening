@@ -140,6 +140,13 @@ export const SND: Record<string, (arg?: any) => void> = {
     noise({ t: 1.6, vol: .2, type: 'bandpass', f: 500, f2: 1800, q: .6, at: .25 });
     for (let i = 0; i < 26; i++) noise({ t: rand(.02, .05), vol: rand(.04, .11), type: 'bandpass', f: rand(2500, 7000), q: rand(2, 5), when: rand(.05, 1.6), at: .002 });
   },
+  /** 24.11.2026 flour sack flies out of the mill: cloth flapping whoosh through the air, then a soft dusty thud on landing */
+  sackFly() {
+    if (!can('sackFly', .15)) return;
+    noise({ t: .5, vol: .16, type: 'bandpass', f: 300, f2: 1100, q: 1.2, at: .2 });
+    for (let i = 0; i < 4; i++) noise({ t: .06, vol: .05, type: 'bandpass', f: rand(500, 900), q: 2, when: .08 + i * .1, at: .01 });
+    tone({ f: 110, f2: 55, t: .16, vol: .22, when: .55 }); noise({ t: .35, vol: .12, type: 'lowpass', f: 900, f2: 250, when: .55 });
+  },
   throw() { if (can('throw', .05)) noise({ t: .25, vol: .1, type: 'bandpass', f: 600, f2: 1600, q: 2 }); },
   boom() { if (can('boom', .04)) { noise({ t: .55, vol: .32, f: 900, f2: 90 }); tone({ f: 85, f2: 30, t: .45, vol: .32 }); } },
   boomS() { if (can('boomS', .04)) { noise({ t: .25, vol: .18, f: 900, f2: 90 }); tone({ f: 120, f2: 30, t: .2, vol: .18 }); } },

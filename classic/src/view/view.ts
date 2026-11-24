@@ -77,6 +77,13 @@ const DRY_COL = new THREE.Color(0x6e5430), DRY_HEAD = new THREE.Color(0x5c4528),
 const DEAD_FRUIT = M(0x5a3e24, { r: .9 });
 /** share of the growing time the plants stay dried up after the harvest, then young and green */
 const CROP_DEAD = .35;
+/** growth stages of every plant except wheat (24.11.2026): size of the plant while tiny / small (ripe = 1), h = extra height factor, f = fruit size when ripe */
+const CROP_STAGE: Record<string, { 0: number; 1: number; f: number; h?: number }> = {
+  def: { 0: .3, 1: .55, f: 1.15 }, blue: { 0: .3, 1: .55, f: 1.4 }, black: { 0: .3, 1: .55, f: 1.35 }, cran: { 0: .3, 1: .55, f: 1.45 },
+  asp: { 0: .5, 1: .75, f: 1.15, h: .5 }, cab: { 0: .3, 1: .55, f: 1 },
+};
+/** ripe berry bush: leaves a bit desaturated and browner */
+const ripeTint = (c: THREE.Color) => { const o = { h: 0, s: 0, l: 0 }; c.getHSL(o); return new THREE.Color().setHSL(o.h - .05, o.s * .7, o.l * 1.06).lerp(DRY_COL, .12); };
 const UNRIPE: Partial<Record<FruitType, THREE.Material>> = {
   blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), black: M(0x9a3a34, { r: .4 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
 };
@@ -125,7 +132,7 @@ interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant:
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
   /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
-  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number; dryM?: THREE.MeshStandardMaterial; dryH?: THREE.MeshStandardMaterial }
+  cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number; dryM?: THREE.MeshStandardMaterial; dryH?: THREE.MeshStandardMaterial; ripeM?: THREE.MeshStandardMaterial; ripeH?: THREE.MeshStandardMaterial }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
 interface Bit { m: THREE.Object3D; vx: number; vy: number; vz: number; t: number; life: number; leaf: boolean; spin: number; s0: number; landed: boolean }
 const LEAF_GEO = (() => { const g = new THREE.PlaneGeometry(.11, .07); g.translate(0, 0, 0); return g; })();
@@ -746,7 +753,8 @@ export class GameView {
   private night = 0;
   private chest: THREE.Group | null = null; private chestFn: ((dt: number, n: number) => void) | null = null; private chestN = 0;
   private animCrop(v: FieldView, dt: number) {
-    const h = v.cy ?? 0, t = v.ftype, now = performance.now() / 1000;
+    if (v.ftype !== 'wheat') { this.animCropSnap(v, dt); return; } // 24.11.2026: wheat keeps its look, every other plant snaps between 3 sizes
+    const h = v.cy ?? 0, t: FruitType = v.ftype as FruitType;
     const cut = t === 'wheat' || t === 'asp', head = t === 'cab';
     const ripe = h < 1, r = ripe ? 0 : h - 1, dead = !ripe && r < CROP_DEAD, st = !v.alive ? 0 : ripe ? 0 : dead ? 1 : 2;
     if (v.cst !== st) { // state change: snap
@@ -793,6 +801,51 @@ export class GameView {
         m.scale.copy(m.userData.s0).multiplyScalar(fs * (st === 0 ? g * g * (3 - 2 * g) : 1));
       }
     });
+    this.cropGlow(v, dt, ripe, r);
+  }
+  /** crop look of every plant except wheat (24.11.2026, Basti): growing in 2 stages (tiny, small, green with small green fruit),
+   *  ripe snaps at once to full size with bigger fruit (berry bushes: leaves a bit desaturated and browner).
+   *  Each harvested plant is at once tiny and green again: no wilted phase. */
+  private animCropSnap(v: FieldView, dt: number) {
+    const h = v.cy ?? 0, t = v.ftype;
+    const ripe = h < 1, r = ripe ? 0 : h - 1, st = !v.alive ? 0 : ripe ? 0 : 2;
+    if (v.cst !== st) { v.cst = st; v.mats.leaf.color.copy(v.leafC!); v.mats.head.color.copy(v.headC!); }
+    const bush = t === 'blue' || t === 'black' || t === 'cran';
+    const S = CROP_STAGE[t] ?? CROP_STAGE.def;
+    v.plant.children.forEach((c, i) => {
+      const fr = (c.userData.fr || []) as THREE.Mesh[];
+      c.visible = true;
+      const k = v.order!.indexOf(i), gone = st === 0 && v.alive && Math.floor(h * 6 + 1e-6) > k; // one plant per rake stroke, in the sim's plantOrder
+      // stage: 0 tiny, 1 small, 2 ripe
+      const stage = !v.alive ? 2 : gone ? 0 : st === 0 ? 2 : r < .5 ? 0 : 1;
+      this.tintClump(v, c, stage === 2 && bush && v.alive ? 2 : 0);
+      const gs = stage === 2 ? 1 : S[stage];
+      c.userData.gy = gs * (stage < 2 && S.h ? S.h : 1); c.scale.x = c.scale.z = (c.userData.sx ?? .56) * gs;
+      const fs = stage === 2 ? S.f : .55;
+      for (const m of fr) {
+        m.visible = v.alive && stage > 0;
+        const mm = stage === 1 ? UNRIPE[t] ?? UNRIPE.blue : m.userData.mat0; if (m.material !== mm) m.material = mm;
+        if (!m.userData.s0) m.userData.s0 = m.scale.clone();
+        // shaken off by a rake stroke during the harvest: grows back right away (0 -> full in .6 s)
+        let g = 1; if (m.userData.rg !== undefined) { m.userData.rg += dt / .6; g = Math.min(1, m.userData.rg); if (g >= 1) m.userData.rg = undefined; }
+        m.scale.copy(m.userData.s0).multiplyScalar(fs * (stage === 2 ? g * g * (3 - 2 * g) : 1));
+      }
+    });
+    this.cropGlow(v, dt, ripe, r);
+  }
+  /** ripe berry bushes: own leaf material per field, a bit desaturated and browner (per clump, so harvested clumps turn green at once) */
+  private tintClump(v: FieldView, c: THREE.Object3D, mode: 0 | 2) {
+    if ((c.userData.tint ?? 0) === mode) return; c.userData.tint = mode;
+    if (mode && !v.ripeM) {
+      v.ripeM = (v.mats.leaf as THREE.MeshStandardMaterial).clone(); v.ripeM.color.copy(ripeTint(v.leafC!));
+      v.ripeH = (v.mats.head as THREE.MeshStandardMaterial).clone(); v.ripeH.color.copy(ripeTint(v.headC!));
+    }
+    c.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return;
+      if (mode) { if (m.material === v.mats.leaf) { m.userData.m0 = m.material; m.material = v.ripeM!; } else if (m.material === v.mats.head) { m.userData.m0 = m.material; m.material = v.ripeH!; } }
+      else if (m.userData.m0) { m.material = m.userData.m0; m.userData.m0 = undefined; } });
+  }
+  private cropGlow(v: FieldView, dt: number, ripe: boolean, r: number) {
+    const t = v.ftype, now = performance.now() / 1000;
     // golden shimmer: builds up in the last moment before ripeness, bursts at the snap
     v.ripeT = Math.max(0, (v.ripeT ?? 0) - dt);
     const pre = !ripe && r > .85 ? (r - .85) / .15 : 0, gold = pre * .6 + v.ripeT * 1.6;
@@ -820,7 +873,7 @@ export class GameView {
     } else {
       const t = v.ftype;
       if (t === 'wheat' || t === 'asp') burst(V(v.x, .15, v.z), t === 'wheat' ? 0xd8b050 : 0x6aa83c, 14, 1.4, .08, .6, { g: 4 });
-      else burst(V(v.x, .3, v.z), 0x8a7448, 14, 1.2, .1, .7, { g: 3 });
+      else burst(V(v.x, .3, v.z), 0x7ab850, 14, 1.2, .1, .7, { g: 3 }); // 24.11.2026: no wilting any more, fresh green leaves fly off
       if (near) play(t === 'wheat' ? 'cropDoneWheat' : t === 'asp' || t === 'cab' ? 'cropDoneCut' : 'cropDoneDry');
     }
   }

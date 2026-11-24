@@ -265,6 +265,17 @@ export class GameView {
     this.allowed = list ? new Set(list) : null;
   }
   private allowedKey = '';
+  /** Cheat-Optionen (24.11.2026): free build mode (every type everywhere), tool = build / downgrade / demolish,
+   *  inset = px of the screen covered by the build bar (right on phones, bottom on PC) so the garden is framed in the rest */
+  free = false; tool: 'build' | 'down' | 'del' = 'build';
+  inset = { t: 0, r: 0, b: 0 };
+  setFree(on: boolean, type: FruitType | null, tool: 'build' | 'down' | 'del' = 'build') {
+    const changed = this.free !== on || this.tool !== tool;
+    this.free = on; this.tool = tool;
+    if (changed) { const t = this.placing; this.placing = null; this.setPlacing(on ? type : t); }
+    else this.setPlacing(on ? type : null);
+    if (!on) this.inset = { t: 0, r: 0, b: 0 };
+  }
   setPlacing(type: FruitType | null, stack = false) {
     if (this.placing === type && this.placeStack === stack) return;
     this.placing = type; this.placeStack = stack; this.hoverSlot = -1;
@@ -273,7 +284,7 @@ export class GameView {
     if (!type || !this.cfg) return;
     const H = hexR(this.cfg);
     for (const s of this.slots) {
-      const g = new THREE.Group(); g.position.set(s.x, .06, s.z); g.visible = slotFits(this.cfg, s, type); // nut trees only in the forest, everything else only in the garden
+      const g = new THREE.Group(); g.position.set(s.x, .06, s.z); g.visible = this.free && this.tool !== 'build' ? !s.chest && (!s.forest || this.fields.has(this.slots.indexOf(s))) : slotFits(this.cfg, s, type); // nut trees only in the forest, everything else only in the garden
       const fill = new THREE.Mesh(new THREE.CircleGeometry(H * .93, 6, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .06, depthWrite: false }));
       const line = new THREE.Mesh(new THREE.RingGeometry(H * .86, H * .95, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false }));
       fill.rotation.x = line.rotation.x = -Math.PI / 2;
@@ -312,7 +323,9 @@ export class GameView {
   }
   /** upgrade card: only onto a tile of the same type; new tile: free slot or another type (overbuild with confirmation) */
   canPlaceView(i: number) {
+    if (this.free && this.tool !== 'build') { const f = this.fields.get(i); return !!f && (this.tool === 'del' || f.rarity > 0); }
     if (!this.placing || !slotFits(this.cfg, this.slots[i], this.placing)) return false;
+    if (this.free) return true;
     if (this.allowed) return this.allowed.has(i);
     const f = this.fields.get(i), same = !!f && f.alive && FRUITS[f.type] === this.placing;
     return this.placeStack ? same : !same;
@@ -327,8 +340,8 @@ export class GameView {
     this.slotOverlay.children.forEach((g, i) => {
       if (!g.visible) { this.fieldInfo(i, null, false, false, px, pv); return; }
       const [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
-      const f = this.fields.get(i), same = !!f && f.alive && f.type === type, ok = this.canPlaceView(i);
-      const col = !ok ? 0x666666 : !f ? 0xffffff : same ? 0xffd860 : 0xff6a5a;
+      const f = this.fields.get(i), same = !!f && f.alive && f.type === type && !(this.free && this.tool !== 'build'), ok = this.canPlaceView(i);
+      const col = !ok ? 0x666666 : this.free && this.tool === 'del' ? 0xff5a4a : this.free && this.tool === 'down' ? 0xffa040 : !f ? 0xffffff : same ? 0xffd860 : 0xff6a5a;
       const hov = i === this.hoverSlot || i === this.confirmSlot;
       const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
       const ghost = hov && pv.slot === i && (!f || !f.alive);
@@ -337,7 +350,7 @@ export class GameView {
         badge.scale.setScalar(hexR(this.cfg) * BADGE * (.96 + .04 * Math.sin(performance.now() / 160))); bm.color.set(0xffffff); bm.opacity = .85;
       } else if (f && f.alive) {
         const t = badgeTex(FRUITS[f.type], f.rarity); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; }
-        const over = !same && hov, now = performance.now() / 1000;
+        const over = !same && hov && !(this.free && this.tool === 'down'), now = performance.now() / 1000;
         badge.scale.setScalar(hexR(this.cfg) * BADGE * (hov ? 1.1 : 1) * (over ? 1 + .05 * Math.sin(now * 10) : 1));
         bm.color.set(over ? 0xffb0a0 : ok ? 0xffffff : 0x9a9a9a); bm.opacity = hov ? 1 : ok ? .92 : .55;
       }
@@ -359,7 +372,10 @@ export class GameView {
     let slot = -1;
     if (g && g.visible && this.canPlaceView(h)) {
       slot = h; const c = cur.get(h), v = this.fields.get(h);
-      if (c && c.t === type && v) next.set(h, { t: type, r: v.prog + 1 >= tileCost(this.cfg, c.r) ? c.r + 1 : c.r });
+      if (this.free && this.tool === 'del') next.delete(h);
+      else if (this.free && this.tool === 'down' && c) next.set(h, { t: c.t, r: Math.max(0, c.r - 1) });
+      else if (this.free && c && c.t === type) next.set(h, { t: type, r: Math.min(c.r + 1, Math.max(0, (this.cfg.tiles.maxLevel ?? 99) - 1)) });
+      else if (c && c.t === type && v) next.set(h, { t: type, r: v.prog + 1 >= tileCost(this.cfg, c.r) ? c.r + 1 : c.r });
       else next.set(h, { t: type, r: 0 });
     }
     // neighbour bonus: own contribution + every adjacent tile of the same type
@@ -378,7 +394,7 @@ export class GameView {
   private edgeInfo(pv: ReturnType<GameView['buildPreview']>, px: number) {
     let k = 0;
     const links: Record<string, number> = {};
-    if (pv.slot >= 0) {
+    if (pv.slot >= 0 && pv.next.get(pv.slot)) {
       const h = pv.slot, sh = this.slots[h], me = pv.next.get(h)!, T = FRUITS[me.t], out = outType(this.cfg, T);
       const ph = V(sh.x, 0, sh.z).project(camera);
       for (const [o, x] of pv.next) {
@@ -1630,10 +1646,15 @@ export class GameView {
     // build mode: blend to a top-down view of the whole garden
     this.placeT = clamp(this.placeT + (this.placing ? dt : -dt) * 3, 0, 1);
     const k = this.placeT * this.placeT * (3 - 2 * this.placeT);
-    const ext = this.slots.filter(s => !s.forest || (this.placing && slotFits(this.cfg, s, this.placing))).reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
-    const topH = ext / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
-    camera.position.set(lerp(this.camX + off.x + sx, 0, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, .01, k));
-    camera.lookAt(lerp(this.camX + sx, 0, k), 0, lerp(this.camZ + sz, 0, k));
+    const forestIn = (s: Slot, i: number) => this.free && this.tool !== 'build' ? this.fields.has(i) : !!this.placing && slotFits(this.cfg, s, this.placing);
+    const ext = this.slots.filter((s, i) => !s.forest || forestIn(s, i)).reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
+    // Cheat build mode: frame the garden in the part of the screen the build bar leaves free (in = px covered top / right / bottom)
+    const In = this.inset, Wp = innerWidth, Hp = innerHeight, aw = Math.max(80, Wp - In.r), ah = Math.max(80, Hp - In.t - In.b);
+    const hh = ext / Math.min(ah / Hp, camera.aspect * aw / Wp), wpp = 2 * hh / Hp; // half the visible ground height, world units per px
+    const topH = hh / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const cx = In.r / 2 * wpp, cz = (In.b - In.t) / 2 * wpp;
+    camera.position.set(lerp(this.camX + off.x + sx, cx, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, cz + .01, k));
+    camera.lookAt(lerp(this.camX + sx, cx, k), 0, lerp(this.camZ + sz, cz, k));
     if (this.sandbox) gardenLight.position.set(this.camX - 2, 6, this.camZ + 1); // test room: the night light hangs over the action
     else gardenLight.position.set(0, 6, 1);
     const px = me ? me.x : tx, pz = me ? me.z : tz;

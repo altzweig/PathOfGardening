@@ -986,3 +986,7 @@ fx:
     sparks: 220            # Funken pro Brand
     haze: 0.004            # Stärke Hitzeflirren (Bildverzerrung), 0 = aus
     hazeHeight: 2.2        # m Höhe der Flirrzone
+
+# Cheat-Optionen (24.11.2026, Optionen > Cheat-Optionen)
+cheats:
+  ammo: 100              # Munition, die eine per Cheat freigeschaltete Waffe mitbringt

@@ -1,5 +1,5 @@
 import './style.css';
-import { Balancing, COMBOS, ComboId, EnemyType, FRUITS, FruitType, SKILLS, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
+import { Balancing, COMBOS, ComboId, EnemyType, FRUITS, FruitType, SKILLS, SkillId, WEAPONS, Weapon, loadBalancing, loadSounds } from './config';
 import { SB_ENEMIES, Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
@@ -14,10 +14,12 @@ import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tick
 import { Client, Host } from './net/net';
 import { StartMenu } from './ui/startmenu';
 import { Look, loadLook } from './look';
+import { CHEAT_WEAPONS, loadCheats, saveCheats } from './ui/cheats';
+import { TILE_TYPES } from './sim/sim';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat'];
+const OVERLAYS = ['#menu', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat', '#cheatOpt'];
 let onMenu: (on: boolean) => void = () => {};
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); onMenu(id === '#menu'); }
 
@@ -56,7 +58,7 @@ class Game {
       else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
       else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
     };
-    this.input.onPause = () => { if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
+    this.input.onPause = () => { if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
     this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
     this.shop.onClose = () => this.closeShop();
     this.shop.onDeny = () => play('deny');
@@ -116,6 +118,15 @@ class Game {
     click('#ctrlBack', () => only(this.backTo));
     click('#credBtn', () => { $('#credView').innerHTML = creditsHtml(); only('#credits'); });
     click('#credBack', () => only('#options'));
+    click('#cheatOptBtn', () => this.openCheatOpt('#options'));
+    click('#pCheatOptBtn', () => this.openCheatOpt('#pause'));
+    click('#coBack', () => this.closeCheatOpt());
+    click('#buildBtn', () => this.enterBuild());
+    click('#bDone', () => this.exitBuild());
+    $('#bList').addEventListener('wheel', e => { const l = $('#bList'); if (l.scrollWidth > l.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { l.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false }); // PC: mouse wheel scrolls the bar sideways
+    document.querySelectorAll<HTMLElement>('#bTools .bTool').forEach(b => b.addEventListener('click', () => {
+      const t = b.dataset.tool as 'del' | 'down'; sfx('ui.click'); this.buildTool = this.buildTool === t ? 'build' : t; this.applyBuild();
+    }));
     for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOptLabels(); });
     for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); this.updateOptLabels(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
@@ -135,6 +146,7 @@ class Game {
     canvas.addEventListener('pointermove', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
     canvas.addEventListener('pointerdown', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
     canvas.addEventListener('pointerup', e => {
+      if (this.building) { this.buildAt(e.clientX, e.clientY); return; }
       if (!this.view.placing || this.view.confirmSlot >= 0) return;
       const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
       // touch: first tap shows the preview (rates, neighbour synergies), a second tap on the same spot builds
@@ -148,11 +160,12 @@ class Game {
     click('#pcYes', () => this.answerOverbuild(true));
     click('#pcNo', () => this.answerOverbuild(false));
     addEventListener('keydown', e => {
+      if (this.building && e.key === 'Enter') { e.preventDefault(); this.exitBuild(); return; }
       if (this.view.confirmSlot < 0) return;
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.answerOverbuild(true); }
       else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.answerOverbuild(false); }
     }, true);
-    document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'solo' && !this.building && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     this.updateOptLabels();
   }
   private touchSel = -1;
@@ -181,15 +194,16 @@ class Game {
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
   }
   enterGame() {
+    this.exitBuild(); this.startCheats = false;
     only(null); show('#hud'); this.hud.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
-    this.input.enabled = true; this.luShownFor = ''; this.overShown = false;
+    this.input.enabled = true; this.luShownFor = ''; this.overShown = false; this.syncBuildBtn();
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     try { (navigator as any).wakeLock?.request('screen').catch(() => {}); } catch { /* ignore */ }
   }
 
   // ---------- modes ----------
   testMode = false;
-  startSolo(test = this.testMode) { this.endSandbox(); this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); }
+  startSolo(test = this.testMode) { this.endSandbox(); this.testMode = test; show('#cheatBtn', test); this.mode = 'solo'; this.me = 0; this.sim = new Sim(this.cfg); this.sim.addPlayer(0, 0); this.view.setLooks([{ id: 0, look: this.look }]); this.view.smooth = false; this.enterGame(); this.startCheats = true; }
   restart() {
     if (this.mode === 'solo' && this.sandbox) return this.startSandbox();
     if (this.mode === 'solo') return this.startSolo();
@@ -236,7 +250,7 @@ class Game {
   leave() {
     if (this.host) { this.host.close(); this.host = null; }
     if (this.client) { const c = this.client; this.client = null; c.onClose = () => {}; c.close(); }
-    this.testMode = false; show('#cheatBtn', false); this.endSandbox();
+    this.testMode = false; show('#cheatBtn', false); this.endSandbox(); this.exitBuild(); show('#buildBtn', false);
     this.idle(); this.view.setConfig(this.cfg); only('#menu');
   }
   private renderLobby() {
@@ -266,6 +280,99 @@ class Game {
     $('#cheatRows').innerHTML = html;
     $('#cheatRows').querySelectorAll<HTMLElement>('button').forEach(b => b.addEventListener('click', () => { sim.cheat(this.me, b.dataset.k!, +b.dataset.d!); this.renderCheat(); }));
   }
+  // ---------- Cheat-Optionen (24.11.2026) ----------
+  cheats = loadCheats();
+  private startCheats = false;
+  private coFrom = '#options';
+  private coWave0 = 0;
+  /** solo game running: the page changes it directly; otherwise it sets start values for the next solo game */
+  private get cheatLive() { return this.mode === 'solo' && !this.sandbox && !!this.sim; }
+  private openCheatOpt(from: string) {
+    this.coFrom = from; only('#cheatOpt');
+    this.coWave0 = this.cheatLive ? Math.max(1, this.sim!.wave) : 0;
+    this.coVals = this.cheatLive ? { level: this.sim!.level, wave: this.coWave0 } : { level: this.cheats.level, wave: this.cheats.wave };
+    this.renderCheatOpt();
+  }
+  private coVals = { level: 1, wave: 1 };
+  private renderCheatOpt() {
+    const live = this.cheatLive, p = live ? this.sim!.player(this.me) : null, N = this.cfg.names;
+    const on = (w: SkillId) => live ? !!p?.skills[w].learned : this.cheats.weapons.includes(w);
+    const step = (k: string, v: number) => `<div class="coStep"><button data-k="${k}" data-d="-1" aria-label="−">−</button><input data-k="${k}" type="number" min="1" max="100" inputmode="numeric" value="${v}"><button data-k="${k}" data-d="1" aria-label="+">+</button></div>`;
+    $('#coBody').innerHTML =
+      `<div class="coRow"><span>Level</span>${step('level', this.coVals.level)}</div>` +
+      `<div class="coRow"><span>Welle</span>${step('wave', this.coVals.wave)}</div>` +
+      `<div class="coRow coWrap"><span>Waffen</span><div class="coWeps">${CHEAT_WEAPONS.map(w => `<button class="coWep${on(w) ? ' on' : ''}" data-w="${w}" aria-pressed="${on(w)}">${skillIcon(w)}<b>${esc(N.skills[w] ?? w)}</b></button>`).join('')}</div></div>` +
+      `<div class="coRow"><span>All fields unlocked</span><button class="coTog${this.cheats.allFields ? ' on' : ''}" id="coAll" role="switch" aria-checked="${this.cheats.allFields}"><i></i></button></div>`;
+    const setVal = (k: string, v: number) => {
+      v = Math.min(100, Math.max(1, Math.round(v) || 1)); (this.coVals as any)[k] = v;
+      if (k === 'level' && live) this.sim!.cheatSetLevel(v);
+      if (!live) { (this.cheats as any)[k] = v; saveCheats(this.cheats); }
+      ($('#coBody').querySelector(`input[data-k="${k}"]`) as HTMLInputElement).value = String(v);
+    };
+    $('#coBody').querySelectorAll<HTMLButtonElement>('.coStep button').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); setVal(b.dataset.k!, (this.coVals as any)[b.dataset.k!] + +b.dataset.d!); }));
+    $('#coBody').querySelectorAll<HTMLInputElement>('.coStep input').forEach(i => i.addEventListener('change', () => setVal(i.dataset.k!, +i.value)));
+    $('#coBody').querySelectorAll<HTMLButtonElement>('.coWep').forEach(b => b.addEventListener('click', () => {
+      const w = b.dataset.w as SkillId, now = !on(w); sfx('ui.click');
+      if (live) this.sim!.cheatWeapon(this.me, w, now);
+      else { this.cheats.weapons = now ? [...this.cheats.weapons, w] : this.cheats.weapons.filter(x => x !== w); saveCheats(this.cheats); }
+      b.classList.toggle('on', on(w)); b.setAttribute('aria-pressed', String(on(w)));
+    }));
+    $('#coAll').addEventListener('click', () => {
+      sfx('ui.click'); this.cheats.allFields = !this.cheats.allFields; saveCheats(this.cheats);
+      $('#coAll').classList.toggle('on', this.cheats.allFields); $('#coAll').setAttribute('aria-checked', String(this.cheats.allFields)); this.syncBuildBtn();
+    });
+  }
+  private closeCheatOpt() {
+    if (this.cheatLive && this.coVals.wave !== this.coWave0) this.sim!.jumpToWave(this.coVals.wave);
+    only(this.coFrom);
+  }
+  /** start values from the main menu, once the start field is chosen */
+  private applyStartCheats() {
+    const sim = this.sim!, c = this.cheats;
+    if (c.level > 1) sim.cheatSetLevel(c.level);
+    for (const w of c.weapons) sim.cheatWeapon(this.me, w, true);
+    if (c.wave > 1) sim.jumpToWave(c.wave);
+  }
+  private syncBuildBtn() { show('#buildBtn', this.cheats.allFields && this.mode === 'solo' && !this.sandbox); }
+  // free build mode: every field / building anywhere, demolish, downgrade; confirm goes back into the game
+  building = false;
+  private buildType: FruitType = 'blue';
+  private buildTool: 'build' | 'down' | 'del' = 'build';
+  private enterBuild() {
+    const s = this.view.snap;
+    if (this.building || !this.sim || this.mode !== 'solo' || !this.cheats.allFields || s?.ph !== 'play' || this.shop.open || !$('#pause').hidden) return;
+    this.building = true; this.input.releaseAll(); this.sim.paused = true;
+    document.body.classList.add('building'); show('#buildUI', true);
+    show('#placeBar', false); show('#placeConfirm', false); this.view.confirmSlot = -1;
+    $('#bList').innerHTML = TILE_TYPES.map(t => `<button class="bItem" data-t="${t}"><i>${pic('field_' + t)}</i><span>${esc(this.cfg.names.fields[t] ?? t)}</span></button>`).join('');
+    $('#bList').querySelectorAll<HTMLElement>('.bItem').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); this.buildType = b.dataset.t as FruitType; this.buildTool = 'build'; this.applyBuild(); }));
+    this.measureBuildInset(); this.applyBuild();
+  }
+  private applyBuild() {
+    this.view.setFree(true, this.buildType, this.buildTool);
+    $('#bList').querySelectorAll<HTMLElement>('.bItem').forEach(b => b.classList.toggle('on', this.buildTool === 'build' && b.dataset.t === this.buildType));
+    document.querySelectorAll<HTMLElement>('#bTools .bTool').forEach(b => b.classList.toggle('on', b.dataset.tool === this.buildTool));
+    document.body.dataset.tool = this.buildTool;
+  }
+  exitBuild() {
+    if (!this.building) return;
+    this.building = false; document.body.classList.remove('building'); show('#buildUI', false);
+    this.view.setFree(false, null); this.placeShown = null;
+    if (this.sim && $('#pause').hidden) this.sim.paused = false;
+    sfx('ui.confirm');
+  }
+  private buildAt(cx: number, cy: number) {
+    const slot = this.view.slotFromScreen(cx, cy); if (slot < 0 || !this.sim) return;
+    if (this.buildTool === 'del') { this.sim.cheatDemolish(slot); sfx('ui.click'); }
+    else if (this.buildTool === 'down') { this.sim.cheatDowngrade(slot); sfx('ui.click'); }
+    else { this.sim.cheatBuild(slot, this.buildType); sfx('ui.confirm'); }
+    this.view.setHover(cx, cy);
+  }
+  /** the bar covers the right edge (phone) or the bottom (PC): the garden is framed in the free rest */
+  private measureBuildInset() {
+    const r = $('#buildUI').getBoundingClientRect(), side = getComputedStyle($('#buildUI')).flexDirection === 'column';
+    this.view.inset = side ? { t: 12, r: innerWidth - r.left + 8, b: 12 } : { t: 12, r: 0, b: innerHeight - r.top + 8 };
+  }
   togglePause() {
     if (this.sandbox && this.mode === 'solo') return this.toggleSb();
     if (this.mode === 'idle' || !$('#levelup').hidden || !$('#over').hidden) return;
@@ -273,7 +380,7 @@ class Game {
     if (p.hidden && !$('#controls').hidden) { only(null); }
     if (p.hidden && $('#options').hidden && $('#controls').hidden && $('#credits').hidden) {
       this.input.releaseAll(); only('#pause'); this.backTo = '#pause'; this.updateOptLabels();
-      show('#restartBtn', this.mode !== 'client');
+      show('#restartBtn', this.mode !== 'client'); show('#pCheatOptBtn', this.mode === 'solo');
       if (this.mode === 'solo' && this.sim) this.sim.paused = true;
     } else { only(null); if (this.sim) this.sim.paused = false; }
   }
@@ -281,12 +388,13 @@ class Game {
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
-    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden || this.sbOpen;
+    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden || !$('#cheatOpt').hidden || this.sbOpen || this.building;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open;
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
     } else if (this.mode === 'solo' || this.mode === 'host') {
       const sim = this.sim!;
+      if (this.startCheats && this.mode === 'solo' && !sim.startPick && sim.phase === 'play') { this.startCheats = false; this.applyStartCheats(); }
       const it = this.input.intent(this.activeWeapon());
       if (this.sandbox && this.sbOpen) this.sbAutoAim(it); // settings open: the player keeps firing as live preview
       sim.setIntent(this.me, it);
@@ -306,11 +414,12 @@ class Game {
     if (headless) return;
     const s = this.view.snap;
     // soft sound when the game eases into a pause (level-up, menu) and out of it again
-    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || (this.shop.open && s.ts < 1));
+    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1));
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
     if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
     else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
+    if (this.building) this.measureBuildInset();
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);
   }
@@ -322,6 +431,7 @@ class Game {
   }
   private syncPhase(s: Snap) {
     const pr = s.me[this.me];
+    if (this.building) return; // Cheat build mode owns the build view
     // build mode: card chosen, now pick a spot in the top-down view
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
     const stack = !!placing && (pr?.pm ?? 0) >= 1; // 2 = hex field: new tile or the next tile of the same type

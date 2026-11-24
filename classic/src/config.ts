@@ -65,6 +65,8 @@ export interface EnemyCfg {
   spawnArc?: number; climbTime?: number; crownHeight?: number; patience?: number; aggroRadius?: number; hopHeight?: number; zigzag?: number;
 }
 export interface Balancing {
+  /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
+  cheats?: { ammo?: number };
   names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number };
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };

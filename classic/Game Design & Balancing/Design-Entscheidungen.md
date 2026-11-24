@@ -575,3 +575,10 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Name = Vorname + Nachname aus Bastis Namenslisten, beide einzeln würfel- oder wählbar.
 - Alte Classic-Figuren (Mensch) werden beim ersten Start zu einem zufälligen Tier, der Name bleibt.
 - Waffe auf dem Rücken, Werkzeuge je Feld und alle Hand-Animationen laufen über dieselben Gelenke (Torso/Arme) wie vorher.
+
+## Cheat-Optionen (24.11.2026)
+- Optionen (Hauptmenü) und Pause haben den Knopf „Cheat-Optionen“: Level, Welle, Waffen freischalten, Schalter „All fields unlocked“.
+- Aus dem Hauptmenü sind es Startwerte für das nächste Solo-Spiel (gespeichert, greifen nach der Startfeld-Wahl). Aus der Pause ändern sie das laufende Solo-Spiel: Level sofort, Waffen sofort (mit `cheats.ammo` Munition), Welle beim Zurück.
+- „All fields unlocked“: im Spiel erscheint oben rechts ein Hammer. Er pausiert und öffnet die Bauansicht von oben mit einer Leiste aller Felder und Gebäude (PC unten, Handy rechts, scrollbar). Ein Klick setzt das gewählte Feld (frei = neu, gleiche Art = nächste Stufe bis 3, andere Art = ersetzt), ohne Stufen-, Ketten- oder Levelgrenzen. Werkzeuge Abreißen und Abstufen. Der Haken bringt zurück ins Spiel.
+- Die Kamera rahmt den Garten nur im freien Teil des Bildschirms, die Leiste verdeckt nie ein Feld.
+- Nur Solo (im Koop ausgeblendet).

@@ -523,6 +523,13 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Debuffs per Bot-Simulation (tools/balance, feste Zufallsfolgen, je 800-1200 Läufe bis Welle 20 + 400 volle Läufe) ausgeglichen. Freeze war mit Abstand am stärksten, Dornen und Blutung brachten fast nichts. Neu: Freeze 0,8 s (1), Gefroren-Bonus x1,2 (1,5); Dornenfessel 4 s (3), 30 % langsamer (20), 1,75 Schaden/s (1), Mitfessel-Radius 0,8 m (0,5); Bleeding 6,5 s (5), 3,2 Schaden/s (2), Tick 0,4 s (0,5). Ergebnis volle Läufe: Welle Ø 29,3 / 29,3 / 29,0, Level bei Welle 24: 34,9 / 34,6 / 34,5. Blaubeere hält bis Welle 20 noch etwas weniger Schaden ab (Freeze stoppt Angriffe, kürzer machen wirkt kaum).
 - Flammenwerfer und Kohlmine liegen in der ersten Werkstatt (Level 5) als erste Ideen auf der Werkbank (2 Glühbirnen), danach als goldene Idee, bis gelernt. Wer sie gelernt hat, bekommt Chili- bzw. Kohlfelder in die Level-up-Hexfelder.
 
+## Ernte pro Pflanze, Körner-MP, Flammenwerfer, Mühle (24.11.2026)
+- Jedes Feld hat 6 Pflanzen. Reif: jeder Harkenschlag (Takt 1/3 s) erntet genau eine Pflanze, die Frucht fällt aus genau diesem Busch, der Busch vertrocknet. Chili braucht 2 Schläge je Pflanze. Danach wächst das Feld nach (Standard 8 s, Weizen 8 s, Kohl 12 s, Chili 16 s). Harken beschleunigt das Wachstum nicht mehr.
+- Produktionsbonus (Nachbarn, Ausbau, Brunnen) und Doppelernte erhöhen die Chance auf doppelten Ertrag statt der Menge.
+- XP: xp.perPlant (2) je geernteter Pflanze und Schlag, auf ihre Früchte verteilt. Jeder Schlag auf ein reifes Feld ist gleich viel wert.
+- Körner-MP überhitzt nicht mehr, streut nur mit der Zeit mehr; Körner 1,6x größer, 2 Schaden. Flammenwerfer: Brandschaden je Stapel und Tick 0,5 -> 1. Mühle 3 -> 1,5 s. Mehlsäcke 2,3x größer, fliegen hörbar aus der Mühle neben den Spieler, dann einsammeln.
+- Folge laut Bot-Sim: das Spiel ist leichter geworden (nur Schrotflinte: Welle 29 -> 36; Schrotflinte + Flammenwerfer 41, + Kohlmine 44 mit 50 % Siegen), vor allem durch den schnelleren Harken-Takt.
+
 ## Werkstatt-Karten (24.11.2026)
 - Auf der Werkbank liegen nur Upgrades von Waffen, die man schon hat (inkl. Harke).
 - Höchstens eine neue Waffe pro Werkstatt, immer auf dem goldenen Platz, kostet immer 2 Birnen.

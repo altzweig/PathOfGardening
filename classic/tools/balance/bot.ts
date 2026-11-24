@@ -4,7 +4,7 @@ import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
 
-export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number; /** stop after this wave (debuff tests: early/mid game only) */ stopWave?: number }
+export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number; /** stop after this wave (debuff tests: early/mid game only) */ stopWave?: number; /** 24.11.2026 weapon test: fight ONLY with this weapon (learned at the start + one field of it next to the start field; 'blue' = shotgun with an extra berry field) */ solo?: SkillId }
 export interface RunResult {
   won: boolean; wave: number; level: number; time: number; deaths: number; kills: number;
   lvAtWave: Record<number, number>; deathsAtWave: Record<number, number>; fieldHpAtWave: Record<number, number>;
@@ -22,6 +22,8 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   // 23.11.2026 start field choice: one berry at random (or opts.start); its fruit is shotgun ammo, so the bot wants it
   const SC = cfg.arena.startChoice ?? [], startB = o.start ?? SC[Math.floor(Math.random() * SC.length)];
   if (startB) want.add(startB);
+  if (o.solo) { want.add(o.solo); if (o.solo !== 'blue' && startB) want.delete(startB); } let soloDone = !o.solo;
+  const soloOther = !!o.solo && o.solo !== 'blue';
   const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, xpHist: [], second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [], hurt: 0, fieldLoss: 0 };
   const dt = o.dt ?? .05, maxT = o.maxTime ?? 3 * 3600; let lastWave = 0, noAmmo = 0, fightT = 0, mineX = 1e9, mineZ = 1e9;
   const slots = (sim as any).slots as { x: number; z: number; q: number; r: number; forest?: boolean }[];
@@ -34,7 +36,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     const [a, b] = key.split('_');
     if (a === 'start') return b === startB ? 100 : 1;
     if (a === 'tile') { // 23.11.2026 hex fields: berry field first (ammo), then the press (XP), processors as they open up
-      if (b === 'press') return 62; if (b === startB) return 60; if (want.has(b)) return 58; if (b === 'well') return 45; if (b === 'mill') return 40; if (b === 'bakery') return 35; if (b === 'wheat') return 30; return 20;
+      if (b === 'press') return 62; if (b === startB && !soloOther) return 60; if (want.has(b)) return 58; if (b === 'well') return 45; if (b === 'mill') return 40; if (b === 'bakery') return 35; if (b === 'wheat') return 30; return 20;
     }
     if (a === 'gold') return 80; if (a === 'x2') return 70;
     if (a === 'learn') return want.has(b) ? 100 : 0;
@@ -56,6 +58,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     if (a === 'care') return 10;
     if (a === 'rake') return b === 'dmg' || b === 'cd' ? 5 : 3;
     if (a === 'tea') return 1;
+    if (o.solo && learned().includes(a as SkillId) && a !== o.solo) return -1; // weapon test: only the tested weapon
     if (learned().includes(a as SkillId)) { // weapon upgrade
       if (focus === 'main' && extra.length && a === 'blue' && learned().includes(extra[0])) return 20; // all-in on the main weapon once it is there
       if (focus === 'fields') return b === 'dmg' || b === 'cd' ? 40 : 30;
@@ -100,13 +103,19 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     }
     // ---- decide movement / fire ----
     if (o.infAmmo) for (const k of Object.keys(p.ammo) as SkillId[]) p.ammo[k] = 999;
+    if (!soloDone && sim.phase === 'play') { // weapon test: learn the weapon and give it one field next to the start field
+      soloDone = true; const t = o.solo === 'blue' ? startB : o.solo!; if (o.solo !== 'blue') (sim as any).learn(p, o.solo);
+      const i = slots.map((_, k) => k).filter(k => (sim as any).slotOK(t, k) && !sim.fieldAt(k)).sort((a, b) => Math.hypot(slots[a].x, slots[a].z) - Math.hypot(slots[b].x, slots[b].z))[0];
+      if (i !== undefined) { const f = (sim as any).placeField(i, t); if (f) f.starter = true; }
+      if (o.solo !== 'blue') (sim as any).startTypes.add(t);
+    }
     const it = { ...emptyIntent(), tapSeq: p.lastTap, cycle: p.lastCycle } as any;
     if (p.alive) {
       const ens = sim.enemies.filter(e => !e.dead && !e.leave);
       const go = (x: number, z: number, stop = .3) => { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); if (l > stop) { it.mx = dx / l; it.mz = dz / l; } };
       const near = (x: number, z: number, r: number) => { let b = null as any, bd = r; for (const e of ens) { const d = Math.hypot(e.x - x, e.z - z); if (d < bd) { bd = d; b = e; } } return b; };
-      const weapons = learned().filter(w => sim.isReady(p, w));
-      const sec = weapons.includes('cab') ? 'cab' : weapons.find(w => w !== 'blue'), gun = weapons.find(w => w !== 'blue' && w !== 'cab') ?? (weapons.includes('blue') ? 'blue' : undefined);
+      const weapons = learned().filter(w => sim.isReady(p, w) && (!o.solo || w === o.solo));
+      const sec = weapons.includes('cab') ? 'cab' : weapons.find(w => w !== 'blue'), gun = o.solo === 'cab' ? (weapons.includes('cab') ? 'cab' : undefined) : weapons.find(w => w !== 'blue' && w !== 'cab') ?? (weapons.includes('blue') ? 'blue' : undefined);
       // the enemy that matters most: close to the player, or eating the garden
       let tgt = null as any, td = 1e9;
       for (const e of ens) { const d = Math.hypot(e.x - p.x, e.z - p.z), dc = Math.hypot(e.x, e.z); if (dc > 14 && d > 6) continue; const pr = d + dc * .3 - (e.target?.kind === 'field' ? 5 : 0) - (e.type === 'toad' ? 2 : 0); if (pr < td) { td = pr; tgt = e; } }
@@ -116,12 +125,14 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const press = sim.fields.find(f => f.alive && f.type === 'press' && !f.broken);
       // no passive harvest (23.11.2026): with little ammo left, go and rake a ripe weapon field
       const ripe = (f: any) => f.alive && !isBuilding(f.type) && (f as any).cyc === 0;
-      const low = gun && (p.ammo as any)[gun === 'blue' ? p.berry : gun] < 12;
+      const ammoT = o.solo && o.solo !== 'blue' ? o.solo : gun === 'blue' ? p.berry : gun;
+      const low = (gun || o.solo) && (p.ammo as any)[ammoT!] < 12;
       let rf = null as any; if (low) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && want.has(f.type)) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rf = f; } } }
       if (rf && !close) { const d = Math.hypot(rf.x - p.x, rf.z - p.z); if (d > .4) go(rf.x, rf.z, .2); it.fire = 'rake'; }
       else if (gun && tgt) { // shoot
         fightT += dt; const d = Math.hypot(tgt.x - p.x, tgt.z - p.z), R = sim.stats(gun as SkillId, p.skills[gun as SkillId]).range;
-        if (d > R * .75) go(tgt.x, tgt.z); else if (d < R * .3) { it.mx = (p.x - tgt.x) / d; it.mz = (p.z - tgt.z) / d; }
+        if (gun === 'cab') { if (d > 2.5) go(tgt.x, tgt.z); else { it.mx = (p.x - tgt.x) / d; it.mz = (p.z - tgt.z) / d; } } // mine: walk up, then back off and leave a trail of mines
+        else if (d > R * .75) go(tgt.x, tgt.z); else if (d < R * .3) { it.mx = (p.x - tgt.x) / d; it.mz = (p.z - tgt.z) / d; }
         it.fire = gun; it.aim = true; it.ax = tgt.x - p.x; it.az = tgt.z - p.z;
         if (sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2.5 && d < 6 && sim.isReady(p, 'cab')) { it.fire = 'cab'; mineX = p.x; mineZ = p.z; }
       } else if (close) { // no gun: rake whatever is in reach (mines first)

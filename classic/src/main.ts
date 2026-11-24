@@ -10,7 +10,7 @@ import { Bulbs, WerkstattUI, hexEl } from './ui/werkstatt';
 import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { Act, bind as bindKey, resetKeys } from './input/keys';
-import { Tutorial } from './ui/tutorial';
+import { Tutorial, setTutorialOn, tutorialOn } from './ui/tutorial';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host } from './net/net';
@@ -116,6 +116,8 @@ class Game {
     this.input.onCheat = () => this.toggleCheat();
     this.input.onKeysToggle = () => this.hud.toggleKeys();
     this.tut = new Tutorial(this.input);
+    this.tut.onSkip = () => { if (this.sim) this.sim.tutPause = false; this.updateOptLabels(); };
+    for (const id of ['#tutBtn', '#pTutBtn']) click(id, () => { setTutorialOn(!tutorialOn()); this.updateOptLabels(); });
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
@@ -195,6 +197,7 @@ class Game {
   private updateOptLabels() {
     for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
     for (const id of ['#sndBtn', '#pSndBtn']) $(id).textContent = 'Ton: ' + (audio.on ? 'An' : 'Aus');
+    for (const id of ['#tutBtn', '#pTutBtn']) $(id).textContent = 'Tutorial: ' + (tutorialOn() ? 'An' : 'Aus');
   }
   private openControls(back: string) { this.backTo = back; only('#controls'); this.ctrlTab(this.input.isTouch ? 'mobile' : 'pc'); }
   private ctrlTab(t: string) {
@@ -435,8 +438,10 @@ class Game {
     const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1));
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); this.tut.update(s, this.me, this.view.cfg); this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
-    else (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0';
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#controls').hidden || !$('#options').hidden || !$('#cheatOpt').hidden || this.building || this.shop.open;
+        this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
+        if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
+    else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }
     if (this.building) this.measureBuildInset();
     this.view.frame(dt);
     tickAudio(dt); tickAmbient(dt);

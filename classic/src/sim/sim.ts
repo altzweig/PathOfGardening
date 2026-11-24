@@ -2417,7 +2417,7 @@ export class Sim {
   update(rdt: number) {
     // pauses are eased: the game slows to a stop / speeds up again instead of jumping
     this.tickShop(rdt);
-    const want = this.phase === 'play' && !this.paused && !this.shopPause ? 1 : 0, T = Math.max(.01, this.cfg.transitions?.slow ?? .5);
+    const want = this.phase === 'play' && !this.paused && !this.tutPause && !this.shopPause ? 1 : 0, T = Math.max(.01, this.cfg.transitions?.slow ?? .5);
     this.ramp = want ? Math.min(1, this.ramp + rdt / T) : Math.max(0, this.ramp - rdt / T);
     const scale = this.ramp * this.ramp * (3 - 2 * this.ramp);
     if (scale <= 0) return;
@@ -2743,6 +2743,8 @@ export class Sim {
   /** close the merchant's bench (opens again after walking away from him and coming back) */
   closeShop(id: number) { const p = this.player(id); if (!p || !p.shopOpen) return; p.shopOpen = false; p.shopLock = true; this.emit({ k: 'shopClose', p: p.id }); }
   /** everyone (alive) at the bench: the world stands still like during a level-up */
+  /** solo: a tutorial explanation is open (24.11.2026) */
+  tutPause = false;
   get shopPause() { return !this.sb && this.players.some(p => p.shopOpen) && this.players.every(p => p.shopOpen || !p.alive); }
   /** merchant visits so far (the first one offers firstLearn) */
   shopTier = 0;

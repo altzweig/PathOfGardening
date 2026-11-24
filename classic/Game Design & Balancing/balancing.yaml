@@ -798,6 +798,16 @@ werkstatt:                 # Angebot des Händlers (Ideen = Glühbirnen, 1 pro L
 # [x] wird als Taste gezeichnet. Platzhalter: {harvest} {prim} {sec} {next} {slot} = aktuelle Tastenbelegung, {weapon} = Waffenname,
 # {zum} = zum/zur, {den} = den/die/das (aus genus: m/f/n/p).
 tutorial:
+  # Erklärungen (weiter per Mausklick nach mind. 1 s; Ausdauer auch per Sprint-Taste). Solo: das Spiel steht still, solange eine Erklärung offen ist.
+  hp: "Das sind deine Lebenspunkte."
+  shield: "Der blaue Rand ist dein Energieschild: 30 Extra-Lebenspunkte. Er lädt sich langsam wieder auf."
+  xp: "Das ist deine Erfahrung. Ist die Kugel voll, steigst du ein Level auf."
+  stamina: "Der gelbe Rand ist deine Ausdauer. Halte [{sprint}] zum Sprinten."
+  lvNew: "Level up! Such dir ein neues Feld aus. Setz es auf einen freien Platz neben deine Felder oder auf ein Feld der gleichen Art, dann steigt dieses eine Stufe auf."
+  lvBuild: "Felder auf höherer Stufe schalten neue Gebäude frei."
+  lvNeighbour: "Felder der gleichen Art direkt nebeneinander verstärken sich gegenseitig."
+  lvWeapon: "{field} schaltet beim Händler {den} {weapon} frei."   # eine Zeile je angebotenem Feld mit Waffe (weaponNeeds)
+  # Aufforderungen (weiter mit der richtigen Taste)
   harvest: "Drücke [{harvest}] zum Ernten"
   attack: "Drücke [{prim}] zum Angreifen"
   switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."

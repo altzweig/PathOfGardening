@@ -9,6 +9,7 @@ export interface Intent {
   tapSeq: number; tapW: Weapon | null; // one-shot fire with auto-aim (quick tap on touch)
   cycle: number;                    // increments on every "switch skill" press
   berry?: number;                   // increments on every "switch berry" press (shotgun ammo, 23.11.2026)
+  sprint?: boolean;                 // Shift held (24.11.2026)
 }
 export const emptyIntent = (): Intent => ({ mx: 0, mz: 0, ax: 0, az: 1, aim: false, fire: null, tapSeq: 0, tapW: null, cycle: 0, berry: 0 });
 
@@ -16,6 +17,7 @@ export interface PSnap {
   id: number; c: number; x: number; z: number; f: number;
   /** shotgun berry (index in BERRIES, 23.11.2026) */ be?: number;
   hp: number; mhp: number; al: 0 | 1; st: 0 | 1;
+  /** 24.11.2026: stamina 0..1, drained (locked), energy shield HP and its max */ sa?: number; sx?: 0 | 1; sh?: number; ms?: number;
   sw: number; sd: number; wk: number; rs: number; po: number; fl: number; ti: number; rr: number; ra: number;
   xb: 0 | 1; // crossbow (asparagus) in hand
   fo: 0 | 1; fa: number; fc: number; fw: number; fr: number; // flamethrower: burning, angle (rad), cone deg, sweep deg (360 = spinning), range m

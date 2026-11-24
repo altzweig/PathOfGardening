@@ -142,6 +142,17 @@ player:
   magnetRadius: 1.8        # m, ab hier rollt eine Frucht zum Spieler
   magnetSpeed: 2.8         # m/s
   drawTime: 0.1            # s, Waffe vom Rücken ziehen bzw. zurückstecken (24.11.2026 Basti: 0,28 -> 0,1 s); erst danach schießen/arbeiten
+  sprint:                  # 24.11.2026 Basti: Sprinten mit Shift (PC), kostet Ausdauer (gelber Bogen am XP-Orb)
+    speed: 1.6             # x Laufgeschwindigkeit beim Sprinten
+    duration: 5            # s Sprint mit voller Ausdauer
+    regen: 5               # s von leer bis voll
+    regenDelay: 0.4        # s nach dem Loslassen, bis die Ausdauer wieder steigt
+    exhausted: 1.0         # ganz leer gesprintet: erst wieder sprinten, wenn die Ausdauer so weit aufgeladen ist (1 = voll)
+  shield:                  # 24.11.2026 Basti: blaues Energieschild am HP-Orb, fängt Schaden vor dem Leben ab
+    hp: 30                 # Extra-Leben
+    regen: 3               # pro s (leer -> voll in 10 s)
+    regenDelay: 3          # s nach dem letzten Treffer, bis es sich wieder auflädt
+  damageTaken: 2           # 24.11.2026 Basti: Angriffe der Gegner auf den Spieler doppelt so stark (Ausgleich fürs Schild)
 
 coop:
   maxPlayers: 4
@@ -178,6 +189,7 @@ chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): 
   carryStart: 5            # so viel trägt ein Waschbär zu Beginn weg ...
   carryPerWave: 0.5        # ... + so viel je Welle (Welle 21: 15, Welle 41: 25)
   fleeSpeed: 7             # m/s, voll beladen rennen sie schnell weg
+  attackFirst: 10          # 24.11.2026 Basti: jeder Waschbär greift zuerst einmal den Spieler an, dann erst zur Truhe; s, nach denen er die Jagd aufgibt
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten

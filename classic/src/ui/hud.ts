@@ -103,8 +103,10 @@ export class Hud {
     ($('#xpfill')).style.width = Math.min(100, s.xp / s.nx * 100).toFixed(1) + '%';
     this.set('#xptext', 'xp', `${s.xp} / ${s.nx}`); this.set('#lvl', 'lv', String(s.lv));
     ($('#hpfill')).style.width = (ps.hp / ps.mhp * 100) + '%';
-    this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}` : '');
-    this.orbs.update(ps.al ? ps.hp / ps.mhp : 0, s.xp / s.nx, s.lv); // PC: orbs instead of the bars
+    this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}${ps.sh ? ` +${ps.sh}` : ''}` : '');
+    const shf = ps.ms ? (ps.al ? (ps.sh ?? 0) / ps.ms : 0) : -1; // 24.11.2026 energy shield (blue) + stamina (yellow) on the orb rims
+    ($('#shfill')).style.width = (Math.max(0, shf) * 100) + '%';
+    this.orbs.update(ps.al ? ps.hp / ps.mhp : 0, s.xp / s.nx, s.lv, shf, ps.sa ?? -1, !!ps.sx); // PC: orbs instead of the bars
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any

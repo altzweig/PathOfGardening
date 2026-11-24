@@ -25,6 +25,8 @@ export function pcControls() {
   ${icon(skillIcon('blue'), 380, 130, 46)}<text x="432" y="162" font-size="28" fill="${MUT}">›</text>
   ${icon(skillIcon('asp'), 445, 130, 46)}<text x="497" y="162" font-size="28" fill="${MUT}">›</text>
   ${icon(skillIcon('wheat'), 510, 130, 46)}
+  <!-- Shift: sprint (24.11.2026) -->
+  ${key(570, 210, 140, 70, 'Shift', true, 26)}${label(655, 310, 'Sprinten')}
   <!-- Q: shotgun berry -->
   ${key(40, 460, 80, 70, 'Q', true, 28)}${label(135, 505, 'Beere', 'start', 26)}
   ${icon(fruitIcon('blue'), 215, 470, 40)}${icon(fruitIcon('black'), 255, 470, 40)}${icon(fruitIcon('cran'), 295, 470, 40)}

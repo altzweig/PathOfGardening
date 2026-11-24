@@ -384,11 +384,14 @@ export function rakeHeadModel(n: number, gap: number, w: number) {
 }
 /** Beerengewehr (24.11.2026, Bastis FBX tools/berrygun): double-barrelled shotgun with a funnel of berries on top, barrel along +z.
  *  Used by every berry shotgun; the berries in the funnel and in the muzzles take the colour of the loaded berry (tintBerries). */
+/** 24.11.2026 Basti: gun 35 % bigger than the baked size; scaled around the rear hand grip so the stock stays in the hand */
+const GUN_SCALE = 1.35, GRIP = new THREE.Vector3(0, -.09, -.165);
 let GUN_GEO: { geo: THREE.BufferGeometry; m: string }[] | null = null;
 const GUN_MAT: Record<string, THREE.MeshStandardMaterial> = {};
 export function cranGun() {
   const g = new THREE.Group(), a = new THREE.Group(); g.add(a);
-  GUN_GEO ??= GUN_CHUNKS.map(c => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(c.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(c.nrm, 3)); return { geo, m: c.m }; });
+  GUN_GEO ??= GUN_CHUNKS.map(c => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(c.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(c.nrm, 3));
+    geo.translate(-GRIP.x, -GRIP.y, -GRIP.z).scale(GUN_SCALE, GUN_SCALE, GUN_SCALE).translate(GRIP.x, GRIP.y, GRIP.z); return { geo, m: c.m }; });
   for (const c of GUN_GEO) {
     const mat = c.m === GUN_BERRY ? berryTint('cran') : (GUN_MAT[c.m] ??= new THREE.MeshStandardMaterial({ color: GUN_MATS[c.m].col, roughness: GUN_MATS[c.m].rough, metalness: c.m === GUN_METAL ? .55 : 0 }));
     const m = new THREE.Mesh(c.geo, mat); m.castShadow = true; m.userData.berry = c.m === GUN_BERRY; a.add(m);

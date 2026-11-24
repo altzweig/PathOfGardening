@@ -2303,7 +2303,7 @@ export class Sim {
     // 24.11.2026 (Basti): the weapon hangs on the back until Space; it goes back only when the rake is used again.
     // Drawing / putting away takes player.drawTime s; shooting and raking only after that. Tab swaps the model only.
     const tapW = it.tapSeq !== p.lastTap ? it.tapW : null;
-    const DT = Math.max(.01, P.drawTime ?? .28), hasW = p.active !== 'rake';
+    const DT = Math.max(.01, P.drawTime ?? .1), hasW = p.active !== 'rake';
     if (!hasW) { p.dk = 0; p.dDir = 0; if (p.pend && p.pend.w !== 'rake') p.pend = null; }
     const wantW = hasW && ((!!fw && fw !== 'rake') || (!!tapW && tapW !== 'rake')), wantR = fw === 'rake' || tapW === 'rake';
     // a press while the weapon is still moving is kept and done once the animation is over

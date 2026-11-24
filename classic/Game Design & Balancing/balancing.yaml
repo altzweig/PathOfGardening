@@ -141,7 +141,7 @@ player:
   pickupPerTier: 0.12      # m, große Früchte (Stufe 2/3) von etwas weiter
   magnetRadius: 1.8        # m, ab hier rollt eine Frucht zum Spieler
   magnetSpeed: 2.8         # m/s
-  drawTime: 0.28           # s, Waffe vom Rücken ziehen bzw. zurückstecken (24.11.2026, Basti: 0,2-0,35 s); erst danach schießen/arbeiten
+  drawTime: 0.1            # s, Waffe vom Rücken ziehen bzw. zurückstecken (24.11.2026 Basti: 0,28 -> 0,1 s); erst danach schießen/arbeiten
 
 coop:
   maxPlayers: 4

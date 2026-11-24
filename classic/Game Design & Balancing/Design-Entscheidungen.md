@@ -517,3 +517,8 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 ## PC-Steuerung (23.11.2026)
 - Linksklick = Harke (ernten, auch gegen Tiere), Leertaste = mit der aktiven Waffe schießen (halten = Dauerfeuer), Tab = nächste Waffe. Q wechselt weiter die Beere der Schrotflinte.
 - Die aktive Waffe ist immer eine Schusswaffe, sobald eine geladen ist (die Harke hat ihren eigenen Knopf). Steuerungsseite in den Optionen angepasst.
+
+## Startbeeren, Debuffs, Chili + Kohl in der Werkstatt (24.11.2026)
+- Die drei Startbeeren (Blau-, Brom-, Preiselbeere) sind in Erntezeit, Menge und XP identisch. Auch Koop-Mehrertrag, Boss (frisst jede Startbeere am Boden) und Waschbär-Diebstahl an der Truhe gelten jetzt für alle drei gleich.
+- Debuffs per Bot-Simulation (tools/balance, feste Zufallsfolgen, je 800-1200 Läufe bis Welle 20 + 400 volle Läufe) ausgeglichen. Freeze war mit Abstand am stärksten, Dornen und Blutung brachten fast nichts. Neu: Freeze 0,8 s (1), Gefroren-Bonus x1,2 (1,5); Dornenfessel 4 s (3), 30 % langsamer (20), 1,75 Schaden/s (1), Mitfessel-Radius 0,8 m (0,5); Bleeding 6,5 s (5), 3,2 Schaden/s (2), Tick 0,4 s (0,5). Ergebnis volle Läufe: Welle Ø 29,3 / 29,3 / 29,0, Level bei Welle 24: 34,9 / 34,6 / 34,5. Blaubeere hält bis Welle 20 noch etwas weniger Schaden ab (Freeze stoppt Angriffe, kürzer machen wirkt kaum).
+- Flammenwerfer und Kohlmine liegen in der ersten Werkstatt (Level 5) als erste Ideen auf der Werkbank (2 Glühbirnen), danach als goldene Idee, bis gelernt. Wer sie gelernt hat, bekommt Chili- bzw. Kohlfelder in die Level-up-Hexfelder.

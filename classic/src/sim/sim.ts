@@ -351,7 +351,7 @@ export class Sim {
     const P = this.cfg.plants[t]; if (!P) return 0;
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[t]);
     let n = (P.amount || 1) * (1 + dbl);
-    if (t === 'blue') n += this.f(this.cfg.coop.xpYieldExponent) - 1;
+    if (isBerry(t)) n += this.f(this.cfg.coop.xpYieldExponent) - 1; // 24.11.2026: all three start berries alike
     return n / P.interval;
   }
   fieldOf(type: FruitType) { return !!this.fields.find(f => f.type === type); }
@@ -400,7 +400,7 @@ export class Sim {
     let n = (this.cfg.plants[f.type]!.amount || 1) * (Math.random() < dbl ? 2 : 1);
     if (f.type === 'lemon') this.emit({ k: 'lemonZap', s: f.slot }); // lightning jumps between the lemons
     if (f.type === 'chili') this.emit({ k: 'chiliGlow', s: f.slot }); // the bed glows up like lava (breathing)
-    if (f.type === 'blue') { // coop: more blueberries
+    if (isBerry(f.type)) { // coop: more berries (all three start berries alike, 24.11.2026)
       const extra = this.f(this.cfg.coop.xpYieldExponent) - 1;
       n += Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);
     }
@@ -1892,7 +1892,7 @@ export class Sim {
     const mult = 1 + B.berryBonus * S.berries;
     if (S.st === 'collect') {
       let best: Fruit | null = null, bd = 1e9; // walk to the nearest blueberry on the ground and eat it
-      for (const fr of this.fruits) if (fr.state === 'ground' && fr.type === 'blue') { const d = dist(e, fr); if (d < bd) { bd = d; best = fr; } }
+      for (const fr of this.fruits) if (fr.state === 'ground' && isBerry(fr.type)) { const d = dist(e, fr); if (d < bd) { bd = d; best = fr; } }
       if (best) { this.steer(e, best.x, best.z, e.speed, dt); if (bd < e.r + .25) { this.fruits.splice(this.fruits.indexOf(best), 1); S.berries += best.val; this.emit({ k: 'bossEat', x: r2(best.x), z: r2(best.z) }); } }
       else if (target) this.steer(e, target.x, target.z, e.speed, dt, e.r + .6);
       if (target && dist(e, target) < e.r + .6) { e.atkT -= tdt; if (e.atkT <= 0) { e.atkT = this.cfg.enemies.meleeInterval; e.lunge = .2; this.hurtPlayer(target, this.cfg.enemies.meleeDamage * e.dmgMul); } }
@@ -2419,7 +2419,8 @@ export class Sim {
     for (const id of SKILLS) {
       const s = p.skills[id]; if (isBerry(id)) continue; // berries are shotgun ammo, no weapons of their own (23.11.2026)
       const src = SOURCE_OF[id], srcFull = !!src && SKILLS.filter(k => p.skills[k].learned).length >= this.maxWeapons;
-      if (this.fieldOf((src ?? id) as FruitType) && !srcFull && !s.learned && !s.merged && (src || !this.closedType(p, id as FruitType)) && (second || src || p.collected[id] >= (PL[id as FruitType]?.unlockAt || 0))) {
+      const early = (this.cfg.werkstatt?.firstLearn ?? []).includes(id) && this.shopTier >= 1; // 24.11.2026 Chili + Kohl: im Laden ab der ersten Werkstatt, ohne Feld
+      if ((early || this.fieldOf((src ?? id) as FruitType)) && !srcFull && !s.learned && !s.merged && (src || !this.closedType(p, id as FruitType)) && (early || second || src || p.collected[id] >= (PL[id as FruitType]?.unlockAt || 0))) {
         // weapon unlock card: every stat as an icon chip, special effect named briefly
         const st = this.stats(id, s), C = this.cfg.skills, ammo = `${nf(st.cost * st.shots)} {${id}}`;
         const lines = id === 'chili' ? [`{dmg} ${nf(st.dmg, 1)}`, `{fire} ${nf(C.chili.burnDamage * st.dmgPct, 1)} × ${C.chili.burnStacks}`, `{range} ${nf(st.range, 1)} m`, `{sweep} ${nf(st.sweep)}°`, `{arc} ${nf(st.cone)}°`, `${nf(st.cost / st.cd)} {chili} / s`]
@@ -2503,7 +2504,10 @@ export class Sim {
       const { w, ...o } = from.splice(k, 1)[0]; void w; return o;
     };
     const head = (key: string) => { const [a, b] = key.split('_'); return a === 'learn' ? H.learn ?? '' : H[b] ?? H[a] ?? ''; };
-    for (let k = 0; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
+    // 24.11.2026 (Basti): first Werkstatt (Level 5): Flammenwerfer + Kohlmine lie on the bench as the first ideas (price of a golden idea)
+    const early = this.shopTier <= 1 ? golden.filter(o => (WS.firstLearn ?? []).some(id => o.key === 'learn_' + id)) : [];
+    for (const o of early) { golden.splice(golden.indexOf(o), 1); out.push({ ...o, hd: head(o.key), cost: WS.goldenCost }); }
+    for (let k = early.length; k < WS.slots; k++) { const o = draw(normal); if (!o) break; out.push({ ...o, hd: head(o.key), cost: WS.cost }); }
     const gold: Offer[] = [];
     if (WS.golden.includes('well') && !this.wellOpen && this.cfg.buildings.well?.cropBonus) {
       const B = this.cfg.buildings.well.cropBonus!;
@@ -2549,7 +2553,7 @@ export class Sim {
    *  Only types that can be built somewhere right now (free slot or a tile of that type below level 3, chain rules) */
   private drawOffers(p: Player): Offer[] {
     const FP = this.cfg.fieldPool, N = this.cfg.names, W = FP?.weights || {};
-    const types: FruitType[] = [...this.startTypes, ...(FP?.types || [])].filter((t, i, a) => a.indexOf(t) === i && (t !== 'well' || this.wellOpen));
+    const types: FruitType[] = [...this.startTypes, ...(FP?.types || []), ...(FP?.weaponTypes || []).filter(t => p.skills[t as SkillId]?.learned)].filter((t, i, a) => a.indexOf(t) === i && (t !== 'well' || this.wellOpen));
     const pool = types.filter(t => this.placeSlots(t).length > 0).map(t => ({ t, w: (this.startTypes.has(t) ? W.start : W[t]) ?? 1 }));
     const out: Offer[] = [], n = FP?.offers ?? 3;
     while (out.length < n && pool.length) {

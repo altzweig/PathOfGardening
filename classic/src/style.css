@@ -1075,6 +1075,7 @@ body[data-input=touch] #tut,body[data-input=touch] #tutCatch,body[data-input=tou
 .svRow{display:flex;gap:8px;align-items:stretch}
 .svLoad{flex:1;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px}
 .svLoad small{opacity:.75;font-size:.8em;font-weight:500}
+.svCoop{display:inline-flex;gap:1px;margin-right:6px;vertical-align:middle}.svCoop svg{width:1em;height:1em}
 .svDel{flex:0 0 auto;min-width:52px}
 .svRow.ask .svDel{background:#a8322a;color:#fff}
 #pSaveBtn.saved{background:#3d7a3a;color:#fff}

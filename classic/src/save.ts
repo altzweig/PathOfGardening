@@ -13,7 +13,9 @@ const KEY = (id: string) => 'pog-classic.save.' + id;
 const KEEP = 3;
 const VERSION = 1;
 
-export interface SaveInfo { id: string; wave: number; level: number; t: number; name: string; started: number }
+export interface SaveInfo { id: string; wave: number; level: number; t: number; name: string; started: number; /** co-op game saved by the host: number of players */ coop?: number }
+/** co-op save (25.11.2026): each guest's token, so it gets its own figure back when it joins the loaded game */
+export interface CoopSeat { id: number; tok: string; color: number }
 
 type Enc = unknown;
 /** keys that are never written: config (taken from balancing.yaml), events of the current frame */
@@ -92,10 +94,10 @@ export function deleteSave(id: string) {
 }
 
 /** write the running game; returns false if the browser refused (storage full / private mode) */
-export function saveGame(id: string, started: number, sim: Sim, look: Look): boolean {
-  const info: SaveInfo = { id, wave: sim.wave, level: sim.level, t: Date.now(), name: look?.name ?? '', started };
+export function saveGame(id: string, started: number, sim: Sim, look: Look, coop?: CoopSeat[]): boolean {
+  const info: SaveInfo = { id, wave: sim.wave, level: sim.level, t: Date.now(), name: look?.name ?? '', started, ...(coop ? { coop: sim.players.length + coop.filter(c => !sim.player(c.id)).length } : {}) };
   let json: string;
-  try { json = JSON.stringify({ v: VERSION, info, look, sim: encode(sim) }); } catch (e) { console.warn('save: encode', e); return false; }
+  try { json = JSON.stringify({ v: VERSION, info, look, coop, sim: encode(sim) }); } catch (e) { console.warn('save: encode', e); return false; }
   const put = () => { localStorage.setItem(KEY(id), json); writeIndex([info, ...listSaves().filter(s => s.id !== id)]); };
   try { put(); }
   catch {
@@ -106,7 +108,7 @@ export function saveGame(id: string, started: number, sim: Sim, look: Look): boo
   return true;
 }
 
-export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | null; info: SaveInfo } | null {
+export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | null; info: SaveInfo; coop?: CoopSeat[] } | null {
   let raw: any;
   try { raw = JSON.parse(localStorage.getItem(KEY(id)) || 'null'); } catch { return null; }
   if (!raw || raw.v !== VERSION || !raw.sim) return null;
@@ -118,6 +120,7 @@ export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | n
     for (const k of Object.keys(data)) (sim as any)[k] = data[k];
     sim.cfg = cfg; sim.events = []; sim.paused = false; sim.tutPause = false;
     for (const p of sim.players) p.fresh = true; // input counters of the old session are not presses
-    return { sim, look: raw.look ?? null, info: raw.info };
+    sim.rewindFor = null;
+    return { sim, look: raw.look ?? null, info: raw.info, coop: Array.isArray(raw.coop) ? raw.coop : undefined };
   } catch (e) { console.warn('load', e); return null; }
 }

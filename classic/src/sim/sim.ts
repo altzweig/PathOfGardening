@@ -2,6 +2,7 @@
 // only ever see Snap objects + events produced here.
 import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry } from '../config';
 import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
+import { chestPush, clampArena, normMove, sprintStep, walkStep } from './move';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()); // standard normal (Box-Muller)
@@ -289,6 +290,12 @@ export class Sim {
     if (this.phase === 'lvl') this.checkAllPicked();
   }
   player(id: number) { return this.players.find(p => p.id === id); }
+  /** co-op (25.11.2026): a guest comes back and takes over its figure (weapons, bag, cards) */
+  restorePlayer(p: Player) {
+    if (this.player(p.id)) return;
+    p.fresh = true; p.intent = emptyIntent(); this.players.push(p);
+    if (this.phase === 'lvl' && !p.picked) { p.offers = this.startPick ? this.startOffers() : this.offers(p); }
+  }
   setIntent(id: number, it: Intent) {
     const p = this.player(id); if (!p) return;
     if (p.fresh) { p.fresh = false; p.lastTap = it.tapSeq; p.lastCycle = it.cycle; p.lastBerry = it.berry ?? 0; p.lastPick = it.pick ?? 0; p.lastCycP = it.cycP ?? 0; p.lastCycS = it.cycS ?? 0; } // counters from a previous round are not presses
@@ -1708,7 +1715,7 @@ export class Sim {
       if (w.d >= w.len) this.lwaves.splice(i, 1);
     }
   }
-  clampArena(x: number, z: number): [number, number] { if (this.sb) return [clamp(x, -this.sb.W, this.sb.W), clamp(z, -this.sb.D, this.sb.D)]; const R = this.cfg.arena.radius, r = Math.hypot(x, z); return r > R ? [x * R / r, z * R / r] : [x, z]; }
+  clampArena(x: number, z: number): [number, number] { return clampArena(this.cfg, this.sb, x, z); }
 
   // ---------- enemies ----------
   spawnEnemy(type: EnemyType, angle: number, elite = false) {
@@ -1851,15 +1858,8 @@ export class Sim {
   /** 24.11.2026 Basti: Shift sprints (stamina for sprint.duration s, empty -> full in sprint.regen s, drained empty = locked until
    *  sprint.exhausted); the energy shield refills at shield.regen/s once shield.regenDelay s passed without a hit */
   private tickSprintShield(p: Player, dt: number, moving: boolean) {
-    const S = this.cfg.player.sprint, H = this.cfg.player.shield;
-    if (S) {
-      if (p.staX && p.sta >= S.exhausted - 1e-6) p.staX = false;
-      p.sprint = !!p.intent.sprint && moving && !p.staX && p.sta > 0;
-      if (p.sprint) {
-        p.sta = Math.max(0, p.sta - dt / S.duration); p.staT = S.regenDelay;
-        if (p.sta <= 0) { p.staX = true; p.sprint = false; }
-      } else if ((p.staT -= dt) <= 0) p.sta = Math.min(1, p.sta + dt / S.regen);
-    } else p.sprint = false;
+    const H = this.cfg.player.shield;
+    sprintStep(this.cfg, p, !!p.intent.sprint, moving, dt); // shared with the co-op guest's prediction (move.ts)
     if (H) { p.shT += dt; if (p.shT >= H.regenDelay) p.sh = Math.min(H.hp, p.sh + H.regen * dt); }
   }
   hurtPlayer(p: Player, dmg: number, color = 'h') {
@@ -2387,16 +2387,16 @@ export class Sim {
       if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
     }
-    let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
+    const [mx, mz, ml] = normMove(it);
     const sf = this.stunF(p); // stunned: movement and attacks ramp up from 0 to normal
     this.tickSprintShield(p, dt, ml > .05 && sf > 0 && !p.kb);
     if (p.stun > 0) p.stun = Math.max(0, p.stun - dt);
     this.tickPoison(p, dt, d => this.hurtPlayer(p, d, 'v'));
     if (!p.alive) return;
     if (p.kb) { const s = Math.min(p.kb.left, 12 * dt); p.x += p.kb.dx * s; p.z += p.kb.dz * s; p.kb.left -= s; if (p.kb.left <= 0) p.kb = null; }
-    else if (ml > .05 && sf > 0) { const sp = P.speed * (p.sprint ? P.sprint!.speed : 1); p.x += mx * sp * sf * dt; p.z += mz * sp * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml) * (p.sprint ? P.sprint!.speed : 1); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
+    else walkStep(this.cfg, p, it, mx, mz, ml, sf, dt);
     [p.x, p.z] = this.clampArena(p.x, p.z);
-    if (this.chestOn) { const d = Math.hypot(p.x, p.z), R = .75; if (d < R) { const k = d > 1e-3 ? R / d : 0; p.x = d > 1e-3 ? p.x * k : 0; p.z = d > 1e-3 ? p.z * k : R; } } // the chest is solid
+    if (this.chestOn) chestPush(p); // the chest is solid
     // standing (with the centre) on a field heals it
     const under = this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z));
     if (under && under.alive && under.hp < under.maxHp) under.hp = Math.min(under.maxHp, under.hp + this.cfg.fields.healPerSecond * dt);
@@ -2519,6 +2519,9 @@ export class Sim {
   }
 
   // ---------- main update ----------
+  /** co-op host (25.11.2026): lag compensation, set by the network code. Moves the animals back to where a guest saw them
+   *  while that guest's attacks are worked out and returns the function that undoes it. null in solo. */
+  rewindFor: ((p: Player) => (() => void) | null) | null = null;
   update(rdt: number) {
     // pauses are eased: the game slows to a stop / speeds up again instead of jumping
     this.tickShop(rdt);
@@ -2529,7 +2532,7 @@ export class Sim {
     const dt = rdt * scale;
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
-    for (const p of this.players) this.updatePlayer(p, dt);
+    for (const p of this.players) { const back = this.rewindFor?.(p); this.updatePlayer(p, dt); back?.(); }
     this.updateMerchant(dt);
     this.updateClouds(dt); this.updateBaits(dt);
     // fields

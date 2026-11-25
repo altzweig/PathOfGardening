@@ -283,8 +283,20 @@ export class GameView {
     else this.setPlacing(on ? type : null);
     if (!on) this.inset = { t: 0, r: 0, b: 0 };
   }
+  /** placing fields (25.11.2026): pinch / wheel zooms into the garden overview (1 = whole garden), one finger pans when zoomed */
+  placeZoom = 1; placePan = { x: 0, z: 0 }; private placeExt = 10; private gardenExt = 10;
+  static readonly PLACE_ZOOM_MIN = .35;
+  setPlaceZoom(z: number) { this.placeZoom = clamp(z, GameView.PLACE_ZOOM_MIN, 1); this.clampPan(); }
+  /** pan the zoomed overview by screen pixels (drag) */
+  panPlace(dx: number, dy: number) {
+    const hh = this.placeExt * this.placeZoom, wpp = 2 * hh / Math.max(1, innerHeight);
+    this.placePan.x -= dx * wpp; this.placePan.z -= dy * wpp; this.clampPan();
+  }
+  private clampPan() { const m = this.gardenExt * (1 - this.placeZoom) / (1 - GameView.PLACE_ZOOM_MIN); // fully zoomed in: the garden edge can reach the screen centre
+    this.placePan.x = clamp(this.placePan.x, -m, m); this.placePan.z = clamp(this.placePan.z, -m, m); }
   setPlacing(type: FruitType | null, stack = false) {
     if (this.placing === type && this.placeStack === stack) return;
+    if (!this.placing && type) { this.placeZoom = 1; this.placePan = { x: 0, z: 0 }; }
     this.placing = type; this.placeStack = stack; this.hoverSlot = -1;
     for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
     this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = []; this.edgeEls = [];
@@ -1668,9 +1680,10 @@ export class GameView {
     const ext = this.slots.filter((s, i) => !s.forest || forestIn(s, i)).reduce((m, s) => Math.max(m, Math.hypot(s.x, s.z)), 0) + hexR(this.cfg) + .8;
     // Cheat build mode: frame the garden in the part of the screen the build bar leaves free (in = px covered top / right / bottom)
     const In = this.inset, Wp = innerWidth, Hp = innerHeight, aw = Math.max(80, Wp - In.r), ah = Math.max(80, Hp - In.t - In.b);
-    const hh = ext / Math.min(ah / Hp, camera.aspect * aw / Wp), wpp = 2 * hh / Hp; // half the visible ground height, world units per px
+    const hh0 = ext / Math.min(ah / Hp, camera.aspect * aw / Wp); this.placeExt = hh0; this.gardenExt = ext; // half the visible ground height of the whole garden
+    const hh = hh0 * this.placeZoom, wpp = 2 * hh / Hp; // zoomed in (pinch / wheel while placing), world units per px
     const topH = hh / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const cx = In.r / 2 * wpp, cz = (In.b - In.t) / 2 * wpp;
+    const cx = In.r / 2 * wpp + this.placePan.x, cz = (In.b - In.t) / 2 * wpp + this.placePan.z;
     camera.position.set(lerp(this.camX + off.x + sx, cx, k), lerp(off.y, topH, k), lerp(this.camZ + off.z + sz, cz + .01, k));
     camera.lookAt(lerp(this.camX + sx, cx, k), 0, lerp(this.camZ + sz, cz, k));
     if (this.sandbox) gardenLight.position.set(this.camX - 2, 6, this.camZ + 1); // test room: the night light hangs over the action

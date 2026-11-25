@@ -82,6 +82,7 @@ export class StartMenu {
     this.canvas.addEventListener('pointerup', up); this.canvas.addEventListener('pointercancel', up);
     this.name.value = this.look.name; this.renderName();
     this.name.addEventListener('input', () => { this.look.name = this.name.value.slice(0, NAME_MAX); this.renderName(); this.save(); });
+    addEventListener('resize', () => this.fitName()); document.fonts?.ready.then(() => this.fitName());
     this.name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') this.name.blur(); });
     this.name.addEventListener('blur', () => { if (!this.name.value.trim()) { this.look = cleanLook({ ...this.look, name: '' }); this.name.value = this.look.name; this.save(); this.renderName(); } });
     const dice = document.getElementById('mDice')!; dice.innerHTML = DICE;
@@ -117,6 +118,7 @@ export class StartMenu {
   setActive(on: boolean) {
     if (!on) { cancelAnimationFrame(this.raf); this.raf = 0; return; }
     if (this.raf) return;
+    requestAnimationFrame(() => this.fitName());
     if (!this.renderer) {
       this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
       this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.05;
@@ -140,7 +142,7 @@ export class StartMenu {
     this.raf = requestAnimationFrame(this.loop);
     const now = performance.now(), dt = Math.min(.05, (now - this.last) / 1000); this.last = now; this.t += dt;
     if (!this.renderer || !this.rig) return;
-    if (this.canvas.width !== Math.round(this.canvas.clientWidth * this.renderer.getPixelRatio())) this.resize();
+    const pr = this.renderer.getPixelRatio(); if (this.canvas.width !== Math.round(this.canvas.clientWidth * pr) || this.canvas.height !== Math.round(this.canvas.clientHeight * pr)) this.resize();
     if (this.roll.t >= 0 && this.drag === null) {
       const r = this.roll; r.t = Math.min(1, r.t + dt / ROLL); const e = 1 - (1 - r.t) ** 3; // fast start, soft landing
       this.yaw = r.from + (r.to - r.from) * e; if (r.t >= 1) r.t = -1;
@@ -158,8 +160,16 @@ export class StartMenu {
     this.renderer.render(this.scene, this.cam);
   };
 
+  /** long names shrink until they fit the field (25.11.2026: phones in portrait cut them off) */
+  private fitName() {
+    const el = this.name; el.style.fontSize = '';
+    const w = el.clientWidth; if (!w) { requestAnimationFrame(() => { if (this.name.clientWidth) this.fitName(); }); return; }
+    let fs = parseFloat(getComputedStyle(el).fontSize);
+    for (let i = 0; i < 12 && el.scrollWidth > w + 1 && fs > 11; i++) { fs *= .92; el.style.fontSize = fs.toFixed(1) + 'px'; }
+  }
   /** first name + surname: each picked from a list or rolled on its own (the name field stays free text) */
   private renderName() {
+    this.fitName();
     let box = document.getElementById('mNameParts');
     if (!box) { box = document.createElement('div'); box.id = 'mNameParts'; this.name.insertAdjacentElement('afterend', box); }
     const [f, l] = this.split();

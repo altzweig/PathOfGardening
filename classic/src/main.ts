@@ -114,6 +114,7 @@ class Game {
     const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
     addEventListener('wheel', e => {
       if (this.sandbox) { if (!this.sbOpen && this.mode === 'solo') this.sbWheel(e.deltaY); return; } // test room: the wheel switches weapons
+      if (this.mode !== 'idle' && this.view.placing && $('#pause').hidden) { this.view.setPlaceZoom(this.view.placeZoom * Math.pow(1.0015, e.deltaY)); return; } // placing: zoom into the garden
       if (this.mode !== 'idle' && !this.view.placing && $('#pause').hidden) this.view.zoomBy(e.deltaY);
     }, { passive: true });
     this.menu.onSound = k => sfx(k);
@@ -169,9 +170,34 @@ class Game {
     click('#overMenu', () => this.leave());
     // build mode input (mouse or touch on the 3D view)
     const canvas = $('#c');
-    canvas.addEventListener('pointermove', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
-    canvas.addEventListener('pointerdown', e => { if (this.view.placing) this.view.setHover(e.clientX, e.clientY); });
+    // placing on a phone (25.11.2026): two fingers pinch-zoom the garden overview, one finger drags it when zoomed in; a drag is no tap
+    const pts = new Map<number, { x: number; y: number; x0: number; y0: number }>();
+    let pinch: { d0: number; z0: number } | null = null, dragged = false;
+    const dist = () => { const [a, b] = [...pts.values()]; return Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)); };
+    const ptrEnd = (e: PointerEvent) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+    canvas.addEventListener('pointercancel', ptrEnd);
+    canvas.addEventListener('pointermove', e => {
+      if (!this.view.placing) return;
+      const p = pts.get(e.pointerId);
+      if (p && e.pointerType !== 'mouse') {
+        const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+        if (pinch && pts.size >= 2) { this.view.setPlaceZoom(pinch.z0 * pinch.d0 / dist()); dragged = true; return; }
+        if (!pinch && (dragged || Math.hypot(p.x - p.x0, p.y - p.y0) > 12)) { if (!dragged) this.view.panPlace(p.x - p.x0 - dx, p.y - p.y0 - dy); dragged = true; this.view.panPlace(dx, dy); return; }
+      }
+      this.view.setHover(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('pointerdown', e => {
+      if (!this.view.placing) return;
+      if (e.pointerType !== 'mouse') {
+        if (!pts.size) dragged = false;
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+        if (pts.size === 2) { pinch = { d0: dist(), z0: this.view.placeZoom }; dragged = true; }
+        if (pts.size > 1) return;
+      }
+      this.view.setHover(e.clientX, e.clientY);
+    });
     canvas.addEventListener('pointerup', e => {
+      if (e.pointerType !== 'mouse' && pts.has(e.pointerId)) { ptrEnd(e); if (dragged) return; }
       if (this.building) { this.buildAt(e.clientX, e.clientY); return; }
       if (!this.view.placing || this.view.confirmSlot >= 0) return;
       const slot = this.view.slotFromScreen(e.clientX, e.clientY); if (slot < 0) return;
@@ -192,6 +218,8 @@ class Game {
       else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.answerOverbuild(false); }
     }, true);
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.autosave(true); if (document.hidden && this.mode === 'solo' && !this.building && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
+    // 25.11.2026: turning the phone redraws the mobile controls page upright / sideways
+    addEventListener('resize', () => { if (!$('#controls').hidden && document.querySelector('.tab.on')?.getAttribute('data-tab') === 'mobile') this.ctrlTab('mobile'); });
     this.updateOptLabels();
   }
   private touchSel = -1;

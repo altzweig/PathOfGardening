@@ -285,7 +285,7 @@ export class GameView {
   }
   /** placing fields (25.11.2026): pinch / wheel zooms into the garden overview (1 = whole garden), one finger pans when zoomed */
   placeZoom = 1; placePan = { x: 0, z: 0 }; private placeExt = 10; private gardenExt = 10;
-  static readonly PLACE_ZOOM_MIN = .35;
+  static readonly PLACE_ZOOM_MIN = .35; static readonly PLACE_ZOOM_TOUCH = .55;
   setPlaceZoom(z: number) { this.placeZoom = clamp(z, GameView.PLACE_ZOOM_MIN, 1); this.clampPan(); }
   /** pan the zoomed overview by screen pixels (drag) */
   panPlace(dx: number, dy: number) {
@@ -296,7 +296,11 @@ export class GameView {
     this.placePan.x = clamp(this.placePan.x, -m, m); this.placePan.z = clamp(this.placePan.z, -m, m); }
   setPlacing(type: FruitType | null, stack = false) {
     if (this.placing === type && this.placeStack === stack) return;
-    if (!this.placing && type) { this.placeZoom = 1; this.placePan = { x: 0, z: 0 }; }
+    if (!this.placing && type) { // phones (25.11.2026, Basti): start closer, around the player; pinch out to see the whole garden
+      this.placeZoom = 1; this.placePan = { x: 0, z: 0 };
+      const me = this.players.get(this.me);
+      if (document.body.dataset.input === 'touch' && !this.free) { this.placeZoom = GameView.PLACE_ZOOM_TOUCH; if (me) { this.placePan = { x: me.x, z: me.z }; this.clampPan(); } }
+    }
     this.placing = type; this.placeStack = stack; this.hoverSlot = -1;
     for (const c of [...this.slotOverlay.children]) this.slotOverlay.remove(c);
     this.infoLayer.innerHTML = ''; this.infoEls = []; this.infoKey = []; this.edgeEls = [];

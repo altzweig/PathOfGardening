@@ -12,7 +12,7 @@ import { GEO, M, TINE_GAP, envU, outlineU, part, rakeTines, rand, windU } from '
 // Fruit lying on the ground glows; fruit still on the bush does not.
 const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, fegg: 0xfff4e0,
   well: 0x7a8a9a, mill: 0xd8c8a8, press: 0x9a5a3a, bakery: 0xd87a3a, hens: 0xe8d8a8, cow: 0xf0f0e8, dairy: 0xf6d860, kitchen: 0xe0a060 };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, black: 0x5a2a6a, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
+export const FRUIT_HEX: Record<FruitType, number> = { pea: 0x7ac943, blue: 0x4a64f0, black: 0x5a2a6a, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
 export const FRUIT_COL: Record<FruitType, string> = Object.fromEntries(Object.entries(FRUIT_HEX).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])) as Record<FruitType, string>;
 const fbxCol = (k: keyof typeof BERRY_DATA) => new THREE.Color().setRGB(...BERRY_DATA[k].body, THREE.LinearSRGBColorSpace);
 export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{

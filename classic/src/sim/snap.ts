@@ -32,6 +32,8 @@ export interface PSnap {
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
   ht?: number; // Körner-MP heat 0..1 (+2 while overheated), absent when cold
+  /** 25.11.2026 Werkbank: 1 = hammering at the bench right now (hammer animation + grey dust), absent = no. Not in net PL_KEYS yet (P5) */
+  bw?: 0 | 1;
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string;
@@ -50,6 +52,8 @@ export interface Priv {
   /** Werkstatt (23.11.2026): ideas (light bulbs), the bench of this pause, open; ps: slots the hex field being placed may go on */
   id?: number; sh?: Offer[] | null; so?: 0 | 1; ps?: number[];
   /** Händler reroll: price of the next one, rerolls so far this visit (24.11.2026) */ rc?: number; rn?: number;
+  /** 25.11.2026 Werkbank UI of this player: 0 closed, 1 techtree panel (choose the next idea), 2 pickup popup of the finished idea (+ panel below) */
+  ro?: 0 | 1 | 2;
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
@@ -86,4 +90,15 @@ export interface Snap {
   mc?: number[];
   me: Record<number, Priv>;
   ev: Ev[];
+  // ---- 25.11.2026 Werkbank-Techtree + Steinkohle (appended; node index = position in cfg.research.nodes) ----
+  /** research: [cur node index (-1 none), ready 0/1, Forschungstempo level, researched ideas (cost exponent), cost s of the next idea now, player id with the pickup popup open (-1 none)] */
+  rs?: number[];
+  /** per node: 1 = researched (start nodes included; Forschungstempo stays 0, its level is rs[2]) */
+  rd?: number[];
+  /** per node: progress 0..1 towards the current cost (work kept per node when switching) */
+  rp?: number[];
+  /** hex slot index of the Werkbank (slotPositions order), -1 none */
+  bn?: number;
+  /** Steinkohle posts: [id, x, z, hp, maxHp], oldest first; posts closer than skills.wall.linkDist are connected (the view draws the links) */
+  wl?: number[][];
 }

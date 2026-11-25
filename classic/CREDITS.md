@@ -50,4 +50,6 @@ Zugeschnitten auf kurze Clips in `public/audio/` (Mono, 44,1 kHz).
 
 Händler (24.11.2026): Handglocke, Räderquietschen und Rollgeräusch des Wagens sind im Code erzeugt (WebAudio, `src/audio.ts`: merchBell, cartSqueak, cartRoll), keine fremden Dateien. Das Händler-Modell ist ebenfalls prozedural (`src/view/merchantModel.ts`, Vorschau `haendler.html`).
 
+Werkbank / Techtree (25.11.2026): Erbsenpistolen-Schuss, Werkbank-Arbeit (Hammer, Säge, Schrauben), Idee fertig / Fertigstellen und Steinkohl-Mauer (setzen, Treffer, zerbrechen) sind im Code erzeugt (WebAudio, `src/audio.ts`: peaShot, benchHit, benchSaw, benchScrew, benchWork, ideaReady, ideaClaim, wallPlace, wallHit, wallBreak), keine fremden Dateien. Die Modelle (Erbsenpistole, Werkbank, Hammer, Steinkohl-Pfosten, graue Staubwolke) sind ebenfalls prozedural (`src/view/peapistol.ts`, `workbench.ts`, `wallpool.ts`, `dustfx.ts`, Vorschau `werkbank.html`).
+
 (Nicht verwendet: [Flamethrower weapon long bursts](https://freesound.org/s/395039/) von aslakhostaker.)

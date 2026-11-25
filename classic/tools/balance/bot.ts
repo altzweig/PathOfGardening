@@ -3,6 +3,7 @@
 import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
+import { nodeAvailable, rNodes } from '../../src/sim/research';
 
 export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number; /** stop after this wave (debuff tests: early/mid game only) */ stopWave?: number; /** 24.11.2026 weapon test: fight ONLY with this weapon (learned at the start + one field of it next to the start field; 'blue' = shotgun with an extra berry field) */ solo?: SkillId }
 export interface RunResult {
@@ -22,6 +23,9 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   // 23.11.2026 start field choice: one berry at random (or opts.start); its fruit is shotgun ammo, so the bot wants it
   const SC = cfg.arena.startChoice ?? [], startB = o.start ?? SC[Math.floor(Math.random() * SC.length)];
   if (startB) want.add(startB);
+  // 25.11.2026 Werkbank-Techtree: the pea is the start weapon; the bot researches at the bench (weapons first, then fields, Forschungstempo last)
+  const rsMode = sim.rsMode; if (rsMode) want.add('pea');
+  const rsPick = () => { const ns = rNodes(cfg).filter(n => nodeAvailable(cfg, sim.rs, n.id)); const sc = (n: typeof ns[number]) => n.kind === 'weapon' ? (n.ref === 'wall' ? 1 : 3) : n.kind === 'field' ? 2 : 0; return ns.sort((a, b) => sc(b) - sc(a))[0]; };
   if (o.solo) { want.add(o.solo); if (o.solo !== 'blue' && startB) want.delete(startB); } let soloDone = !o.solo;
   const soloOther = !!o.solo && o.solo !== 'blue';
   const res: RunResult = { won: false, wave: 0, level: 1, time: 0, deaths: 0, kills: 0, lvAtWave: {}, deathsAtWave: {}, fieldHpAtWave: {}, picks: {}, wasted: 0, xpHist: [], second: extra.length ? extra.join('+') : '-', noAmmoShare: 0, peakAlive: 0, bossEnd: false, bossAt: [], hurt: 0, fieldLoss: 0 };
@@ -96,6 +100,10 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       }
       continue;
     }
+    // ---- 25.11.2026 Werkbank: pick up a finished idea, choose the next one ----
+    if (rsMode && p.rsUi === 2) { const n = sim.rs.cur; if (sim.finishIdea(p.id)) { res.picks['rs:' + n] = (res.picks['rs:' + n] || 0) + 1; const R = rNodes(cfg).find(x => x.id === n); if (R?.ref) want.add(R.ref); } else sim.closeResearch(p.id); continue; }
+    if (rsMode && !sim.rs.cur && !sim.rs.ready && !p.rsUi && sim.phase === 'play') sim.openResearch(p.id);
+    if (rsMode && p.rsUi === 1) { const n = rsPick(); if (!n || !sim.chooseResearch(p.id, n.id)) sim.closeResearch(p.id); continue; }
     // ---- Händler (bench opens next to the merchant): buy the best ideas, then leave ----
     if (p.shopOpen && p.shop) {
       for (;;) { const c = p.shop.map((x, i) => ({ i, x, s: x.sold || (x.cost ?? 1) > p.ideas ? -1 : (cfg.werkstatt?.firstLearn ?? []).some(k => x.key === 'learn_' + k) ? (want.has(x.key.slice(6)) ? 100 : -1) : x.gold ? 80 : score(x.key) })).filter(c => c.s >= 0).sort((a, b) => b.s - a.s)[0]; if (!c) break; sim.buy(p.id, c.i); res.picks['shop:' + c.x.key] = (res.picks['shop:' + c.x.key] || 0) + 1; }
@@ -115,7 +123,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const go = (x: number, z: number, stop = .3) => { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); if (l > stop) { it.mx = dx / l; it.mz = dz / l; } };
       const near = (x: number, z: number, r: number) => { let b = null as any, bd = r; for (const e of ens) { const d = Math.hypot(e.x - x, e.z - z); if (d < bd) { bd = d; b = e; } } return b; };
       const weapons = learned().filter(w => sim.isReady(p, w) && (!o.solo || w === o.solo));
-      const sec = weapons.includes('cab') ? 'cab' : weapons.find(w => w !== 'blue'), gun = o.solo === 'cab' ? (weapons.includes('cab') ? 'cab' : undefined) : weapons.find(w => w !== 'blue' && w !== 'cab') ?? (weapons.includes('blue') ? 'blue' : undefined);
+      const sec = weapons.includes('cab') ? 'cab' : weapons.find(w => w !== 'blue' && w !== 'wall' && w !== 'pea'), gun = o.solo === 'cab' ? (weapons.includes('cab') ? 'cab' : undefined) : weapons.find(w => w !== 'blue' && w !== 'cab' && w !== 'wall' && w !== 'pea') ?? (weapons.includes('blue') ? 'blue' : weapons.includes('pea') ? 'pea' : undefined);
       // the enemy that matters most: close to the player, or eating the garden
       let tgt = null as any, td = 1e9;
       for (const e of ens) { const d = Math.hypot(e.x - p.x, e.z - p.z), dc = Math.hypot(e.x, e.z); if (dc > 14 && d > 6) continue; const pr = d + dc * .3 - (e.target?.kind === 'field' ? 5 : 0) - (e.type === 'toad' ? 2 : 0); if (pr < td) { td = pr; tgt = e; } }
@@ -125,7 +133,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const press = sim.fields.find(f => f.alive && f.type === 'press' && !f.broken);
       // no passive harvest (23.11.2026): with little ammo left, go and rake a ripe weapon field
       const ripe = (f: any) => f.alive && !isBuilding(f.type) && (f as any).cyc === 0;
-      const ammoT = o.solo && o.solo !== 'blue' ? o.solo : gun === 'blue' ? p.berry : gun;
+      const ammoT = o.solo && o.solo !== 'blue' ? o.solo : gun === 'blue' ? p.berry : gun === 'wshot' ? 'wheat' : gun;
       const low = (gun || o.solo) && (p.ammo as any)[ammoT!] < 12;
       let rf = null as any; if (low) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && want.has(f.type)) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rf = f; } } }
       // 24.11.2026: the merchant is ready -> walk up to him while there is something to buy
@@ -142,6 +150,9 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
         fightT += dt; noAmmo += dt;
         go(close.x, close.z, .9); it.fire = sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2 ? 'cab' : 'rake'; if (it.fire === 'cab') { mineX = p.x; mineZ = p.z; }
       } else if (fb && fd < 6) go(fb.x, fb.z, .05);
+      else if (rsMode && sim.rs.cur) { // 25.11.2026 research: hammer at the bench (hold the harvest action), or walk into it to pick up the finished idea
+        const b = sim.benchCircle()!; go(b.x, b.z, sim.rs.ready ? .3 : 1.0); if (!sim.rs.ready) it.fire = 'rake';
+      }
       else if (!tgt && press && (p.ammo as any)[p.berry] > 25) { const d = Math.hypot(press.x - p.x, press.z - p.z); if (d > .4) go(press.x, press.z, .2); it.fire = 'rake'; } // press spare berries into XP
       else { // tend the garden: broken building / wilting tile first, else the weapon fields (raking makes ammo)
         let ff = null as any, fs = 1e9;

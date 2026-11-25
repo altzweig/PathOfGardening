@@ -10,11 +10,19 @@
 #  Im Koop wird gerechnet:  Faktor = Spielerzahl ^ Exponent
 # =====================================================================
 
+# 25.11.2026 Werkbank-Techtree (Basti): Fortschritt nur noch über Forschung an der Werkbank (siehe research: unten).
+# research = Start mit Truhe, Erbsenfeld, Werkbank + Erbsenpistole; keine Level-up-Karten, keine Ideen, kein Händler, kein Feld-Ausbau.
+# xp = der alte Ablauf (Startbeeren-Wahl, Level-up-Hexfelder, Händler). Code bleibt für beide.
+progression: research
+
 names:
   merchant: Der Händler kommt!   # 24.11.2026 kurze Einblendung, wenn der Händler am Rand auftaucht (einziger Text dazu)
   skills:
     rake: Harke
-    blue: Schrotflinte
+    pea: Erbsenpistole     # 25.11.2026 Startwaffe
+    wshot: Schrotflinte    # 25.11.2026 Weizen-Schrotflinte (Körner-Schrot)
+    wall: Steinkohle       # 25.11.2026 Kohl-Mauer
+    blue: Beerengewehr     # 25.11.2026 (vorher Schrotflinte): nur noch Heidelbeeren
     black: Brombeeren
     flour: Mehlsack
     pan: Spiegeleischleuder
@@ -24,7 +32,7 @@ names:
     cab: Kohlmine
     lemon: Citrateaser
     chili: Flammenwerfer
-    wheat: Körner-MP
+    wheat: Maschinenpistole   # 25.11.2026 (vorher Körner-MP)
   plants:            # Pflanze (Doppelernte-Karte)
     blue: Blaubeerbusch
     black: Brombeerbusch
@@ -35,6 +43,7 @@ names:
     chili: Chilipflanze
     nut: Nussbaum
     wheat: Getreide
+    pea: Erbsen
   fields:            # Feld (Neues-Feld-Karte)
     blue: Blaubeerfeld
     black: Brombeerfeld
@@ -45,6 +54,7 @@ names:
     chili: Chilifeld
     nut: Nussbaum
     wheat: Getreidefeld
+    pea: Erbsenfeld
     well: Brunnen
     mill: Mühle
     press: Saftpresse
@@ -71,6 +81,7 @@ names:
     bread: Brot
     cheese: Käse
     fegg: Spiegeleier
+    pea: Erbsen
   combos:           # Kombiwaffen (Bastis Namen)
     jam: Jam-Bow
     cole: Coleateral Bomb
@@ -131,6 +142,9 @@ names:
     lemon: Kettenblitz
     chili: Brand stapelt sich · Flächenbrand
     wheat: 10 Körner/s · streut mit der Zeit
+    pea: Großkaliber · 3 Erbsen je Schuss
+    wshot: Körnerschrot
+    wall: Mauer · Gegner laufen herum
 
 player:
   hp: 100
@@ -197,7 +211,8 @@ arena:
   fieldSize: 2.8           # m, Feld-Durchmesser (Ecke zu Ecke), Felder liegen lückenlos im Hex-Raster (22.11.2026: 3 -> 2,8, damit 4 Ringe in den Garten passen)
   fieldSlots: 20           # nur ohne tiles.rings: max. Anzahl Feldplätze
   startFields: 1           # 17.11.2026 3 -> 1; Blaubeerfelder zu Beginn (nur ohne startChoice)
-  startChoice: [black, blue, cran]   # 23.11.2026: zu Beginn wählt jeder Spieler eins von drei Beeren-Startfeldern (Ring um die Truhe); Schrotflinte immer Startwaffe
+  startChoice: [black, blue, cran]   # 23.11.2026: zu Beginn wählt jeder Spieler eins von drei Beeren-Startfeldern (Ring um die Truhe); Schrotflinte immer Startwaffe. 25.11.2026: nur noch bei progression: xp
+  startField: { type: pea, slot: [1, 0] }   # 25.11.2026 progression research: das eine Startfeld (Erbsenfeld) auf diesem Nachbarplatz der Truhe [q, r] (rechts); Werkbank: research.bench.slot
 
 chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): alle Ressourcen der Spieler liegen dort, auch was man aufsammelt.
   radius: 1.25             # m, Kreis um die Truhe, auf dem die diebischen Waschbären stehen
@@ -215,6 +230,8 @@ forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im W
   types: [nut]             # Feldtypen, die nur im Wald (und nicht im Garten) gebaut werden
 
 fields:
+  stacking: false          # 25.11.2026 Werkbank-Techtree: kein Aufeinanderbauen/Ausbau mehr (true = alter Ablauf mit Level 1-3)
+  unique: true             # 25.11.2026: jede Feldart nur einmal im Garten
   hp: 100
   cycle: { grow: 8, harvest: 2, plants: 6 }   # 24.11.2026 (Basti): jedes Feld hat 6 Pflanzen. Reif: jeder Harkenschlag (alle 1/3 s) erntet genau 1 Pflanze (plants.x.strokes: Pflanzen mit langer Erntezeit brauchen 2 Schläge), danach wächst das Feld grow s nach. Harken beschleunigt das Wachstum nicht mehr. Ertrag je Pflanze = plants.x.amount; Produktionsbonus (Nachbarn, Ausbau, Brunnen) + Doppelernte = Chance auf doppelten Ertrag statt mehr Menge. harvest = nur noch Anzeige (6 Schläge x 1/3 s).
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
@@ -294,6 +311,7 @@ fruit:
 
 plants:
   # 17.11.2026: Ertrag aller Felder außer Blaubeeren -60 % (Erntezeit x2,5; gilt damit auch fürs Harken)
+  pea:  { interval: 8 }                 # 25.11.2026 Erbsenfeld (Startfeld): exakt wie die bisherigen Beerenfelder (Wachstum fields.cycle 8 s, 6 Pflanzen à 1, 1 Schlag, XP je Pflanze, Koop-Mehrertrag)
   blue: { interval: 8 }                 # 23.11.2026: Beerenmenge zweimal halbiert (2 -> 4 -> 8, XP je Beere damit jeweils verdoppelt; Basti: man soll zwischendurch Beerenmangel haben). 1 Frucht alle x s (16.11.2026: alle Erntezeiten x2 = halbe Droprate, Harken-Ertrag x3)
   # 24.11.2026 Ernte neu (fields.cycle): Ertrag je Feld und Runde = 6 Pflanzen x amount; interval gilt nur noch für Bäume. XP je Frucht aus dem Zyklus, alle Felder gleich viel XP/s.
   asp:  { interval: 10, unlockAt: 0, amount: 2 }   # unlockAt: gesammelt -> Skill wird angeboten; amount: Früchte pro Ernte (3x Ertrag)
@@ -341,6 +359,36 @@ skills:
     spreadSigma: 11
     freeze: 0.8            # 24.11.2026 Debuff-Sim: 1.0 -> 0.8 (Freeze war mit Abstand der stärkste Debuff). s eingefroren bei Treffer (nicht bei Bossen): kann sich weder bewegen noch angreifen
     frozenBonus: 1.2       # 24.11.2026 Debuff-Sim: 1.5 -> 1.2. 23.11.2026: physischer Schaden (Harke, Schrot, Bolzen, Dornen) gegen Gefrorene x1,5
+    ammo: [blue]           # 25.11.2026 Beerengewehr (Techtree Segment 3): schießt nur Heidelbeeren (ohne Eintrag: alle drei Beeren, alter Ablauf)
+  pea:                     # 25.11.2026 Erbsenpistole (Startwaffe, Holzpistole mit erbsengrünem Schlitten): eine dicke Erbse, Desert-Eagle-Gefühl
+    damage: 14             # Einzelschaden (5x ein Beeren-Pellet von 2,8). Startwert, mit dem Bot nachjustieren
+    range: 7               # m
+    cooldown: 0.65         # s, langsam
+    ammoPerShot: 3         # Erbsen je Schuss (Basti)
+    speed: 16              # m/s
+    width: 0.16            # m Trefferbreite der Erbse (kein Durchschlag)
+  wshot:                   # 25.11.2026 Schrotflinte (Weizen): Körner-Schrotkegel wie das Beerengewehr, ohne Beeren-Effekte. Munition = Weizen (wie die Maschinenpistole)
+    damage: 2.5            # je Korn
+    range: 6               # m
+    cooldown: 0.7          # s
+    ammoPerShot: 3         # Weizen je Schuss
+    pellets: 7             # Körner je Schuss
+    cone: 40               # Grad
+    spreadSigma: 10        # Grad
+  wall:                    # 25.11.2026 Steinkohle: Pfosten aus zwei Kohlköpfen, Munition = Kohl. Taste = 1 Pfosten, halten = Mauer ziehen
+    damage: 0
+    range: 0
+    cooldown: 0            # 0 = automatisch: linkDist x linkShare / Sprinttempo (4,6 x 1,6 m/s) = 0,12 s -> auch im Sprint lückenlos
+    ammoPerShot: 2         # Kohl je Pfosten
+    radius: 0.35           # m, Kollisionskreis des Pfostens (Verbindungsstück: 80 % davon)
+    hp: 30                 # Leben je Pfosten
+    max: 200               # höchstens so viele Pfosten (beim 201. verschwindet der älteste); halten ewig
+    linkDist: 1.0          # m, Pfosten so nah beieinander gelten als verbunden (Optik + Kollision)
+    linkShare: 0.9         # Anteil von linkDist, den man im Sprint zwischen zwei Pfosten läuft
+    minGap: 0.6            # m, kein neuer Pfosten näher als das an einem anderen (Stehenbleiben setzt keine Pfosten)
+    behind: 0.25           # m hinter dem Spieler (in Laufrichtung) wird gesetzt
+    stuckTime: 0.8         # s ohne Fortschritt an der Mauer -> das Tier greift den Pfosten an
+    blockRange: 3          # m: liegt der Pfosten zwischen Tier und einem so nahen Ziel, greift es sofort an
   black:                   # 23.11.2026 Brombeere (Schrot-Munition, dunkelviolett): Dornenfessel
     duration: 4            # s (24.11.2026 Debuff-Sim: 3 -> 4)
     slow: 0.3              # 30 % langsamer (24.11.2026: 0.2 -> 0.3)
@@ -443,6 +491,8 @@ skills:
     spreadRadius: 1.5      # m
     spreadShare: 0.5
   cab:                     # 22.11.2026: Kontaktmine statt Wurf. Wird beim Laufen vor die Füße gelegt, Gedrückthalten legt je Abklingzeit eine.
+    mineSize: 0.18         # 25.11.2026 Basti: m Radius des Kohlkopfs (Modell 0,14 + Blätter). Minen dürfen sich berühren (Abstand >= 2 x mineSize), nur nicht ineinander liegen. Ersetzt mineSpacing
+    onFields: true         # 25.11.2026: Kohl darf überall liegen, auch auf Feldern (ein neues Feld entfernt Minen in seinem Hexfeld)
     mineSpacing: 1.0       # 23.11.2026 1.6 -> 1.0, damit im Laufen 2 Minen/s liegen. Mindestabstand zur nächsten Mine = Explosionsradius x 1,6 (Explosionskreise überlappen leicht, Minen nie ineinander)
     mineTrigger: 0.45      # m, Tier berührt die Mine -> Explosion (Flächenschaden radius)
     maxMines: 100          # 24.11.2026 15 -> 100 (Basti): höchstens so viele Minen liegen gleichzeitig (die älteste verschwindet)
@@ -587,7 +637,7 @@ enemies:
     wanderSpeed: 2.0       # m/s beim Umherstreunen
     radius: 0.32
     peaceful: false        # 23.11.2026 true -> false: wer nicht an der Truhe stiehlt, greift an
-    steals: [blue, black, cran, wheat, flour, water, egg, juice, bread, fegg]   # 24.11.2026 + Preiselbeeren (alle drei Startbeeren gleich). 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
+    steals: [pea, blue, black, cran, wheat, flour, water, egg, juice, bread, fegg]   # 24.11.2026 + Preiselbeeren (alle drei Startbeeren gleich). 22.11.2026: klauen auch die Waren, die an den Gebäuden liegen
     carryMax: 5
     fleeSpeed: 6.2         # (nicht mehr genutzt seit aggroSpeed)
     fleeBelow: 0.5         # haut ab, sobald das Leben unter 50 % fällt (mit allem, was er trägt)
@@ -599,7 +649,7 @@ enemies:
     aggroRadius: 9         # m, groß (Standard enemies.aggroRadius 5)
     formation: { kind: ring, size: 1.1 }   # runde Formation, size = Radius in m
     prefers: [cran, chili] # rote Früchte zuerst ...
-    steals: [cran, chili, asp, cab, lemon, blue, black, juice, bread, fegg]   # ... sonst alle anderen (auch fertige Waren)
+    steals: [cran, chili, asp, cab, lemon, pea, blue, black, juice, bread, fegg]   # ... sonst alle anderen (auch fertige Waren)
     carryMax: 5
     fleeSpeed: 3.2
     resist: [chili, cran]
@@ -618,7 +668,7 @@ enemies:
     poisonTicks: 3
     poisonInterval: 2
     poisonDamage: 2        # vorher 1
-    prefersFields: [blue, black, cran]   # 25.11.2026 Basti: fressen nur Beerenfelder an (vorher Kohl/Zitrone)
+    prefersFields: [pea, blue, black, cran]   # 25.11.2026 Basti: fressen nur Beerenfelder an (vorher Kohl/Zitrone); + Erbsenfeld (Startfeld wie die Beeren)
     onlyFields: true       # keine Beerenfelder: greifen den nächsten Spieler an
     resist: [lemon]        # (Kohl jetzt über dmgTaken)
   sheep:
@@ -632,7 +682,7 @@ enemies:
     prefersFields: [wheat, cab, asp, chili, lemon]
     grazeDamage: 2         # Schaden pro Biss am Feld (alle meleeInterval s)
     deflect: 0.5           # Anteil Beeren-/Körnertreffer, die an der Wolle abprallen (kein Schaden, kein Debuff)
-    deflectKinds: [blue, black, cran, wheat]
+    deflectKinds: [blue, black, cran, wheat, wshot]
     dmgTaken: { chili: 1.3 }   # Feuer (Flammenwerfer, brennende Mehlwolke) +30 %
     formation: { kind: loose, size: 1.0 }
     shield: 4.8            # 25.11.2026: 2/3 (7,2 -> 4,8). 17.11.2026 +20 % (vorher 6)
@@ -649,7 +699,7 @@ enemies:
     hp: 4.8                # 25.11.2026: 2/3 Leben (7,2 -> 4,8). 17.11.2026 +20 % (vorher 6)
     speed: 1.8
     radius: 0.30
-    eats: [blue, black, cran]     # frisst bevorzugt alle Beeren (weg ist weg)
+    eats: [pea, blue, black, cran]     # frisst bevorzugt alle Beeren (weg ist weg); 25.11.2026 + Erbsen
     puffEvery: 2           # s pro Aufplustern
     puffUp: 0.12           # s ruckartig aufplustern, danach zieht er sich den Rest der Zeit wieder zusammen
     puffScale: 0.3         # +30 % Größe
@@ -744,6 +794,9 @@ fieldPool:
 # 24.11.2026 (Basti): Waffen werden in der Werkstatt erst angeboten, wenn das zugehörige Feld/Gebäude freigeschaltet UND gebaut ist.
 # Beeren (blue/black/cran) sind Munition der Schrotflinte (Startfeld), keine eigenen Waffen.
 weaponNeeds:
+  pea:   pea       # 25.11.2026 Erbsenpistole <- Erbsenfeld (Start)
+  wshot: wheat     # 25.11.2026 Schrotflinte (Weizen) <- Getreidefeld
+  wall:  cab       # 25.11.2026 Steinkohle <- Kohlfeld
   chili: chili     # Flammenwerfer   <- Chilifeld (ab Level 5)
   cab:   cab       # Kohlmine        <- Kohlfeld (ab Level 4)
   wheat: wheat     # Körner-MP       <- Getreidefeld (ab Level 2)
@@ -858,14 +911,14 @@ tutorial:
   attack: "Drücke [{prim}] zum Angreifen"
   switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."
   secondary: "Drücke [{sec}] für {den} {weapon}"    # zweite Waffe ist eine Sekundärwaffe (Platz 6-0): sie feuert direkt mit Rechtsklick
-  genus: { blue: f, black: p, flour: m, pan: f, sling: f, asp: f, cran: p, cab: f, lemon: m, chili: m, wheat: f, jam: m, cole: f, sour: m, lance: f, cabboom: f, shock: f }
+  genus: { pea: f, wshot: f, wall: f, blue: n, black: p, flour: m, pan: f, sling: f, asp: f, cran: p, cab: f, lemon: m, chili: m, wheat: f, jam: m, cole: f, sour: m, lance: f, cabboom: f, shock: f }
 
 weaponSlots:               # Waffen neben der Harke
   max: 10                  # 24.11.2026 Basti: Waffenleiste mit 10 Plätzen (vorher 4; 22.11.2026 3 -> 4). Höchstens so viele Waffen; danach keine weiteren Waffen, deren Felder oder Upgrades mehr im Level-up
   # 24.11.2026 (Basti): Leiste unten = 2 Gruppen à 5 Plätze. Plätze 1-5 Primärwaffen (Linksklick), Plätze 6-0 Sekundärwaffen (Rechtsklick).
   # Gelernte Waffen füllen ihre Gruppe in Lernreihenfolge; ist eine Gruppe voll, rutscht die Waffe in einen freien Platz der anderen.
-  primary:   [blue, asp, wheat, chili, lemon]   # Beerengewehr, Spargel-Armbrust, Körner-MP, Flammenwerfer, Citrateaser
-  secondary: [cab, flour, sling, pan, cran]     # Kohlmine, Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere
+  primary:   [pea, wshot, wheat, blue, asp, chili, lemon]   # 25.11.2026 + Erbsenpistole, Schrotflinte. Beerengewehr, Spargel-Armbrust, Maschinenpistole, Flammenwerfer, Citrateaser (mehr als 5: Rest rutscht nach rechts)
+  secondary: [cab, wall, flour, sling, pan, cran]     # Kohlmine, Steinkohle (25.11.2026), Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere
 
 # ---------------------------------------------------------------------
 #  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")
@@ -1074,6 +1127,51 @@ fx:
     sparks: 220            # Funken pro Brand
     haze: 0.004            # Stärke Hitzeflirren (Bildverzerrung), 0 = aus
     hazeHeight: 2.2        # m Höhe der Flirrzone
+
+# ---------------------------------------------------------------------
+#  25.11.2026 Werkbank-Techtree (Basti, Thread "Erbsenstart, Werkbank-Forschung und Techtree")
+#  Forschung nur durch aktives Arbeiten: an der Werkbank stehen und die Ernte-Aktion halten (Leertaste / Harken-Knopf).
+#  Mehrere Spieler an der Werkbank: ihre Arbeit addiert sich. Ein gemeinsamer Techtree fürs ganze Team.
+#  Kosten der nächsten Idee (s Arbeit mit 1 Spieler) = baseTime x (1 + costGrowth)^erforschte Ideen / (1 + speedPerLevel)^Forschungstempo-Stufe
+# ---------------------------------------------------------------------
+research:
+  baseTime: 25             # s aktive Arbeit für die erste Idee (1 Spieler). Startwert
+  costGrowth: 0.20         # +20 % je erforschter Idee (Startknoten zählen nicht)
+  speedPerLevel: 0.25      # Forschungstempo: +25 % Tempo je Stufe (beliebig oft erforschbar)
+  speedCounts: true        # Forschungstempo-Stufen zählen als erforschte Idee (+20 % für die nächsten)
+  coopExponent: 0          # Kosten x Spielerzahl^Exponent (0 = gleiche Kosten im Koop, mehr Spieler forschen nur schneller)
+  startShots: 10           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 10 x 3 = 30 Erbsen)
+  weaponShots: 10          # eine erforschte Waffe bringt jedem Spieler so viele Schuss mit (x ammoPerShot, in den Munitionsvorrat der Waffe)
+  dropFruit: pea           # besiegte Tiere lassen das fallen (vorher: Beere der nächsten Schrotflinte)
+  bench:                   # Werkbank: feste Kachel neben der Truhe, nicht bebaubar, fest wie die Truhe
+    slot: [0, -1]          # Hexplatz [q, r] (oben links neben der Truhe); das Erbsenfeld liegt rechts (arena.startField)
+    radius: 0.75           # m, fester Kreis (Spieler laufen nicht hindurch; Tiere schon)
+    touch: 0.35            # m vom Rand: "läuft gegen die Werkbank" -> Abhol-Popup (fertige Idee) bzw. Auswahl (keine Forschung)
+    work: 1.6              # m vom Mittelpunkt: hier wird gearbeitet (Aktion halten)
+  segments:                # Segment öffnet, sobald so viele Felder / Waffen aus den Segmenten "from" erforscht sind (Startknoten zählen nicht)
+    - { id: 1 }
+    - { id: 2, needFields: 1, needWeapons: 1, from: [1] }
+    - { id: 3, needWeapons: 1, from: [2] }
+  # Knoten: kind field (ref = Feldart) | weapon (ref = Waffe) | speed. needs = alle diese müssen erforscht sein (Waffe braucht ihr Feld).
+  # row/col = Platz im Baum (Reihe 0 = oberste Reihe "Forschung", Spalten von links nach rechts). start = von Anfang an erforscht.
+  nodes:
+    - { id: speed,   kind: speed,  segment: 1, row: 0, col: 0 }                                  # Forschungstempo, immer verfügbar, wiederholbar
+    - { id: f_pea,   kind: field,  ref: pea,   segment: 1, row: 1, col: 0, start: true }        # Erbsenfeld
+    - { id: w_pea,   kind: weapon, ref: pea,   segment: 1, row: 1, col: 1, needs: [f_pea], start: true }   # Erbsenpistole
+    - { id: f_wheat, kind: field,  ref: wheat, segment: 1, row: 2, col: 1, needs: [f_pea] }      # Zweig A: Weizenfeld
+    - { id: w_wshot, kind: weapon, ref: wshot, segment: 1, row: 2, col: 2, needs: [f_wheat] }    #   -> Schrotflinte (Weizenkörner)
+    - { id: w_wheat, kind: weapon, ref: wheat, segment: 1, row: 3, col: 2, needs: [f_wheat] }    #   -> Maschinenpistole
+    - { id: f_cab,   kind: field,  ref: cab,   segment: 1, row: 4, col: 1, needs: [f_pea] }      # Zweig B: Kohlfeld
+    - { id: w_cab,   kind: weapon, ref: cab,   segment: 1, row: 4, col: 2, needs: [f_cab] }      #   -> Kohlmine
+    - { id: w_wall,  kind: weapon, ref: wall,  segment: 1, row: 5, col: 2, needs: [f_cab] }      #   -> Steinkohle
+    - { id: f_chili, kind: field,  ref: chili, segment: 2, row: 2, col: 3 }                      # Segment 2: Chilifeld
+    - { id: w_chili, kind: weapon, ref: chili, segment: 2, row: 2, col: 4, needs: [f_chili] }    #   -> Flammenwerfer
+    - { id: f_lemon, kind: field,  ref: lemon, segment: 2, row: 4, col: 3 }                      # Zitronenfeld
+    - { id: w_lemon, kind: weapon, ref: lemon, segment: 2, row: 4, col: 4, needs: [f_lemon] }    #   -> Citrateaser
+    - { id: f_blue,  kind: field,  ref: blue,  segment: 3, row: 2, col: 5 }                      # Segment 3: Heidelbeerfeld
+    - { id: w_blue,  kind: weapon, ref: blue,  segment: 3, row: 2, col: 6, needs: [f_blue] }     #   -> Beerengewehr (nur Heidelbeeren)
+    - { id: f_asp,   kind: field,  ref: asp,   segment: 3, row: 4, col: 5 }                      # Spargelfeld
+    - { id: w_asp,   kind: weapon, ref: asp,   segment: 3, row: 4, col: 6, needs: [f_asp] }      #   -> Spargel-Armbrust
 
 # Cheat-Optionen (24.11.2026, Optionen > Cheat-Optionen)
 cheats:

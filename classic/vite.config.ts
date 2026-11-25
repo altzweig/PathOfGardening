@@ -76,7 +76,7 @@ export default defineConfig({
   plugins: [designFiles()],
   build: {
     target: 'es2020', chunkSizeWarningLimit: 2500,
-    // vfx.html = VFX lab (developer tool for skill effects, not linked from the game); haendler.html = merchant model preview
-    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html'), tiere: path.join(ROOT, 'tiere.html'), boden: path.join(ROOT, 'boden.html'), haendler: path.join(ROOT, 'haendler.html') } },
+    // vfx.html = VFX lab (developer tool for skill effects, not linked from the game); haendler.html = merchant model preview; werkbank.html = workbench / pea pistol / wall / dust preview
+    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html'), tiere: path.join(ROOT, 'tiere.html'), boden: path.join(ROOT, 'boden.html'), haendler: path.join(ROOT, 'haendler.html'), werkbank: path.join(ROOT, 'werkbank.html') } },
   },
 });

@@ -8,6 +8,7 @@
 #  pitch:  [min, max] Abspielgeschwindigkeit (1 = original, 0.8 = tiefer)
 #  gap:    Sekunden, bevor dasselbe Ereignis wieder klingen darf
 #  synth:  zusätzlich ein im Code erzeugter Sound (z. B. hurt, ram, tongue)
+#  svol:   Lautstärke des synth-Sounds 0..1+, wird wie die Clips mit der Entfernung leiser (ohne svol: volle Lautstärke)
 #  chance: Wahrscheinlichkeit, dass der Sound überhaupt spielt (0..1)
 #  delay:  [min, max] zufällige Verzögerung in s (macht Rufe unregelmäßiger)
 #  rising: true = jede schnelle Wiederholung einen Halbton höher (Einsammel-Kette)
@@ -122,6 +123,7 @@ ui:
   gameOver:    { files: [game_over], vol: 0.6 }
   pauseIn:     { synth: pauseIn }                                               # Spiel wird langsamer bis zur Pause (Level-up, Menü)
   pauseOut:    { synth: pauseOut }                                              # Spiel läuft wieder an
+  ideaClaim:   { synth: ideaClaim, svol: 1.0, gap: 0.5 }                        # 25.11.2026 Idee "Fertigstellen": kurze warme Fanfare
 
 collect:
   xp:    { files: [bb_collect_1, bb_collect_2, bb_collect_3, bb_collect_4], vol: 0.16, pitch: [0.95, 1.04], rising: true, lp: 2200 }    # Blaubeeren einsammeln (aus blueberry.mp3: dumpf, kurz, leicht tiefer)
@@ -141,6 +143,20 @@ weapons:
   grain:      { files: [wood_1, wood_3, wood_5], vol: 0.16, pitch: [2.1, 2.6], gap: 0.06 }      # Körner-MP: hölzernes Tackern, 10 Schuss/s
   overheat:   { files: [flame_end_1, flame_end_2], vol: 0.3, pitch: [1.5, 1.8], gap: 0.5 }      # Körner-MP läuft heiß: zischt und blockiert
   cooled:     { files: [wood_2, wood_4], vol: 0.25, pitch: [1.6, 1.8], gap: 0.5 }               # wieder abgekühlt: Klack
+  pea:        { synth: peaShot, svol: 1.0, gap: 0.08 }                                          # 25.11.2026 Erbsenpistole: dumpfer Holz-/Metall-Knall (prozedural)
+
+bench:
+  # 25.11.2026 Werkbank-Forschung (prozedural, audio.ts): Hammer kommt aus der Animation, Säge + Schrauben spielt benchWork() im Zyklus
+  hit:   { synth: benchHit, svol: 0.9, gap: 0.08 }      # Hammerschlag auf Holz/Nagel
+  saw:   { synth: benchSaw, svol: 0.75 }                # ein Sägezug (hin oder her)
+  screw: { synth: benchScrew, svol: 0.8, gap: 0.2 }     # Ratsche + gelegentliches Quietschen
+  ready: { synth: ideaReady, svol: 1.0, gap: 1 }        # Idee fertig: warmes "Ding"
+
+wall:
+  # 25.11.2026 Steinkohl-Mauer (prozedural)
+  place: { synth: wallPlace, svol: 0.8, gap: 0.05 }     # Stück gesetzt: dumpfes Kohl-Plopp
+  hit:   { synth: wallHit, svol: 0.6, gap: 0.12 }       # Gegner beißt/schlägt auf die Mauer
+  break: { synth: wallBreak, svol: 1.0, gap: 0.05 }     # Stück zerbricht: Krautknacken
 
 boss:
   spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben

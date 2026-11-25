@@ -613,3 +613,4 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Lebensbalken nur bei verletzten Tieren. Höchstens 8 Leichen gleichzeitig, der Rest verpufft.
 - Früchte verschmelzen ab 3 (vorher 5), schneller und aus 1,5 m Umkreis, auch feldübergreifend. 4 Stufen (1/3/9/27).
 - Analyse und Messwerte: docs/design-kosten.md.
+- Alle Tiere vorgebacken (Basti 25.11.2026): Bewegungen als Textur, eine Zeichnung pro Tierart. Kopf-Umschauen, Ohrenzucken und nachschwingender Schwanz fallen dafür weg.

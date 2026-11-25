@@ -32,7 +32,7 @@ const DEV = { pc: { viewport: { width: 640, height: 360 } }, handy: { viewport: 
   const out = [];
   out.push(await measure('0 Gegner'));
   await p.evaluate(N => { const s = window.__pog.sim, T = ['raccoon', 'hare', 'toad', 'sheep', 'panda', 'hedgehog'].filter(t => s.cfg.enemies[t]);
-    for (let i = 0; i < N; i++) { s.spawnEnemy(T[i % T.length], i * 2.39996); const e = s.enemies[s.enemies.length - 1]; if (!e) continue; const r = 2 + Math.sqrt(i / N) * 7; e.x = Math.cos(i * 2.39996) * r; e.z = Math.sin(i * 2.39996) * r; e.hp = e.maxHp = 1e9; e.dmgMul = 0; e.speed = 0; }
+    for (let i = 0; i < N; i++) { s.spawnEnemy(T[i % T.length], i * 2.39996); const e = s.enemies[s.enemies.length - 1]; if (!e) continue; const r = 2 + Math.sqrt(i / N) * 7; e.x = Math.cos(i * 2.39996) * r; e.z = Math.sin(i * 2.39996) * r; e.maxHp = 1e9; e.hp = 6e8; e.hurtOnce = true; e.dmgMul = 0; e.speed = 0; }
   }, N);
   await p.waitForTimeout(1500);
   console.log(await p.evaluate(() => { const r = {}; for (const v of window.__pog.view.enemies.values()) { if (r[v.type]) continue; let t = 0, k = 0; v.g.traverse(o => { if (o.isMesh && o.visible && o.renderOrder !== -1) { k++; t += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } }); r[v.type] = { meshes: k, tris: t }; } return JSON.stringify(r); }));

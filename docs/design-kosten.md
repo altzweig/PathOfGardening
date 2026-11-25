@@ -79,6 +79,23 @@ Auf dem Handy bleibt die CPU der Engpass: Es zählt dort vor allem die **Zahl de
 Nach dem Umbau kosten am Handy noch: Schattenpass (1 Draw Call je Tier) ~17 ms, Lebensbalken (3 Meshes je Tier) ~15 ms.
 Nächste Hebel dafür: Punkt 8 (Balken nur nach Treffer) und Punkt 11 (Instancing).
 
+## Umgesetzt am 25.11.2026, zweiter Schritt (Basti: alles außer weniger Gegner)
+
+- **Lebensbalken** (Punkt 8): nur noch bei verletzten Tieren (HP oder Schild unter voll), und alle Gegnerbalken zusammen in
+  **einem** Draw Call (`core.ts` `enemyBars`, instanziert, Shader dreht zur Kamera). Warum sie teuer waren: Jedes Tier trug seinen
+  Balken als 3 eigene Szenenobjekte (Hintergrund, Füllung, Schild). Bei 117 Tieren waren das 351 Objekte, deren Matrizen,
+  Kameradrehung und Transparenz-Sortierung jeden Frame liefen, auch wenn sie unsichtbar waren, plus bis zu 351 Draw Calls.
+- **Leichen** (Punkt 7): höchstens 8 spielen die Todesanimation, der Rest verpufft in einer Staubwolke.
+- **Früchte** (Punkt 5, Bastis Variante): verschmelzen ab 3 statt 5, alle 0,25 statt 0,5 s, und aus 1,5 m Umkreis, egal von
+  welchem Feld. Neue 4. Stufe, Werte 1/3/9/27, damit der Wert gleich bleibt. Saftflaschen und Sonderdrops verschmelzen nicht.
+  Bot-Vergleich (24 gepaarte Läufe bis Welle 24): Level und Wellen unverändert.
+- **Netz** (Punkte 6, 9, 10): hat der neue Netcode (PR #124, Binär-Deltas) schon erledigt: Unverändertes wird nicht mehr
+  geschickt, 4 Spieler im Mittel 19,6 statt 147 KB/s pro Gast. Hier nichts zusätzlich.
+- Nicht umgesetzt: Punkt 4 (Gegnerzahl, Basti: bleibt), Punkt 11 (Instancing der Tiere, großer Umbau).
+
+Handy (4× Drossel), 117 Gegner, jetzt **alle mit sichtbarem Balken**: 60,3 → **52,2 ms** pro Frame (vorher waren in der
+Messung fast alle Balken unsichtbar und kosteten trotzdem).
+
 ## Messwerte
 
 ### Gegner-Darstellung (Messskript `classic/tools/perf/kosten.cjs`)

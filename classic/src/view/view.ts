@@ -29,7 +29,7 @@ import { BUILD_SND_EVERY, buildingSound, loopSfx, play, setListener, sfx, stopAl
 import { FireSprites, FlameFx, GroundHeat, flameLight, makeFlame, resetFlameLight, updateFlame } from './flame';
 import { fruitIcon, mini, skillIcon } from '../ui/icons';
 import {
-  GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
+  GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, enemyBars, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
@@ -59,7 +59,7 @@ const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9
 
 interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s.dk */ dk?: number; chiliH?: THREE.Group; tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
-interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; bar: THREE.Group; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
+interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
 const mineObj = (hot: boolean) => new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: hot ? 0xff7a20 : 0xff2040, emissive: hot ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 }));
 /** projectile mesh by sim kind (0 asparagus bolt, 1 cranberry, 2+ combos) */
@@ -588,7 +588,7 @@ export class GameView {
         if (!boss) setRim(b.P.a, INK, elite ? .56 : .5);
         if (elite) b.g.scale.setScalar(this.cfg.enemies.elite.scale); void ELITE_COL;
         if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); setRim(b.P.a, 0x8a4cff, .42); } // boss: huge, violet outline
-        v = { g: b.g, P: b.P, type, bar: elite ? makeBar(1, .12, 0xd23a2e) : makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
+        v = { g: b.g, P: b.P, type, elite, s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }
       if (!this.smooth) { v.x = e[2]; v.z = e[3]; }
@@ -599,12 +599,12 @@ export class GameView {
     for (const ev of s.ev) if (ev.k === 'die') (died ??= new Set()).add(ev.e);
     for (const [eid, v] of this.enemies) if ((v as any).f !== id) {
       if (v.s[7] & EF.leave) burst(V(v.x, .3, v.z), 0xcfe8b0, 12, 1.4, .08, .35); // wave over: it vanishes in a little puff
-      if (v.ind) this.dyn.remove(v.ind); barGroup.remove(v.bar); this.enemies.delete(eid);
-      if (died?.has(eid) && this.corpses.length < 24) { // killed: plays its death animation, then sinks into the ground
+      if (v.ind) this.dyn.remove(v.ind); this.enemies.delete(eid);
+      if (died?.has(eid) && this.corpses.length < 8) { // 25.11.2026: at most 8 (was 24), the rest vanishes in the puff // killed: plays its death animation, then sinks into the ground
         v.P.stars.visible = false; if (v.P.shield) v.P.shield.visible = false; v.P.carry.clear();
         for (const m of v.P.mats) { m.emissive.setRGB(0, 0, 0); m.opacity = 1; } if (v.P.spines) v.P.spines.emissiveIntensity = 0;
         this.corpses.push({ v, t: 0 });
-      } else this.dyn.remove(v.g);
+      } else { if (died?.has(eid)) burst(V(v.x, .3, v.z), 0xcfe8b0, 10, 1.4, .08, .35); this.dyn.remove(v.g); }
     }
     // fruit
     for (const f of s.fr) {
@@ -1174,7 +1174,7 @@ export class GameView {
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
     if (s) {
       for (const v of this.players.values()) this.animPlayer(v, dt, k);
-      for (const v of this.enemies.values()) this.animEnemy(v, dt, k, now);
+      enemyBars.begin(); for (const v of this.enemies.values()) this.animEnemy(v, dt, k, now); enemyBars.end();
       for (let i = this.corpses.length - 1; i >= 0; i--) { const c = this.corpses[i]; c.t += dt; if (!animateDeath(c.v.P.a, c.t, now)) { this.dyn.remove(c.v.g); this.corpses.splice(i, 1); } }
       for (const v of this.fruits.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.g.position.set(v.x, v.y, v.z);
@@ -1533,8 +1533,9 @@ export class GameView {
       const sc = v.g.scale.x; if (Math.random() < dt * 22) PART.spawn(V(v.x + rand(-.25, .25) * sc, rand(.2, .7) * sc, v.z + rand(-.25, .25) * sc), V(rand(-1.2, 1.2), rand(-.2, 1.2), rand(-1.2, 1.2)), Math.random() < .5 ? 0xfff6c0 : 0x9fd0ff, rand(.04, .08), rand(.08, .16), { a: 1 });
       if (!burning) for (const m of v.P.mats) m.emissive.setRGB(.25 + .2 * Math.random(), .25 + .2 * Math.random(), .12);
     }
-    v.bar.visible = !!(fl & EF.bar); v.bar.position.set(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z); v.bar.quaternion.copy(camera.quaternion);
-    setBar(v.bar, e[5], e[6]);
+    // health bar only while hurt (25.11.2026 Basti), all bars in one instanced draw call (core.ts enemyBars)
+    if ((fl & EF.bar) && (e[5] < .999 || (e[6] >= 0 && e[6] < .999)))
+      enemyBars.add(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z, v.elite ? 1 : .6, v.elite ? .12 : .07, e[5], e[6], 0xd23a2e);
   }
   /** Saftpresse: one thin bar per berry that was pressed, with its debuff icon; the bar being filled right now glows */
   private updatePress(dt: number) {

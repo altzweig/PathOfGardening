@@ -450,6 +450,48 @@ body.sandbox #topbar{justify-content:flex-end}
   #mMain .err{grid-row:4}
 }
 
+/* 25.11.2026: the start menu always fits the screen (small phones, portrait and landscape): the character stage takes
+   whatever height is left, everything else shrinks a little on short screens; scrolling stays possible as a last resort */
+@media (orientation:portrait){
+  #menu{grid-template-rows:auto minmax(0,1fr) auto;align-content:stretch;gap:clamp(4px,1.4vh,10px);overflow-x:hidden;overflow-y:auto;touch-action:pan-y}
+  #mChar{min-height:0;align-self:stretch;justify-content:center;gap:clamp(4px,1vh,8px)}
+  #mStage{height:auto;flex:1 1 0;min-height:70px;max-height:34vh;aspect-ratio:auto;width:100%}
+  #mChar::before{top:0;bottom:0}
+  #mNav{align-self:end}
+}
+@media (orientation:portrait) and (max-height:720px){
+  #mLogo{margin-top:0}
+  #menu h1{font-size:clamp(26px,7.6vw,44px)}
+  .mi{font-size:clamp(16px,4.4vw,22px);padding:1px 22px}
+  .mi.main{font-size:clamp(22px,6.2vw,32px)}
+  #mOpts{padding:5px 8px;gap:4px}.mRow{gap:6px}.mPane{min-height:0;gap:4px}.mTabs{padding-bottom:3px}.mTab{height:26px}
+  .mo{width:30px;height:30px}.mo.ico,.mo.out{width:34px}.mo.ico svg{width:24px;height:24px}
+}
+@media (orientation:landscape) and (max-height:500px){
+  #menu{grid-template-rows:minmax(0,1fr);overflow-y:auto;touch-action:pan-y}
+  #mChar{min-height:0;align-self:stretch;justify-content:center}
+  #mStage{height:auto;flex:1 1 0;min-height:56px;max-height:54vh;aspect-ratio:auto;width:100%}
+  #mChar::before{top:0;bottom:0}
+}
+
+/* 25.11.2026: overlays taller than the screen scroll from their top (plain "center" pushed the first buttons out of reach),
+   buttons get tighter on short screens and sit in two columns on phones held sideways */
+.ov{justify-content:safe center}
+@media (max-height:680px){.col{gap:8px}.btn{padding:10px 22px;font-size:17px}.ov{gap:10px}}
+@media (orientation:landscape) and (max-height:500px){
+  #pause .col,#options .col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(560px,92vw)}
+  #pause #resumeBtn,#options #optBack{grid-column:1/-1}
+}
+/* menus lie above the in-game HUD (its top bar has z-index 6 and covered the pause title / the first button) */
+#pause,#options,#controls,#credits,#cheatOpt,#over,#saves,#coop,#lobby{z-index:8}
+/* code field: never wider than the screen (the input's default width pushed "Beitreten" off small phones) */
+.joinrow{width:100%;max-width:min(420px,92vw)}
+#codeIn{flex:1 1 0;width:0}
+@media (max-width:420px){#codeIn{font-size:18px;letter-spacing:.2em}.joinrow .btn{padding:10px 16px}}
+/* controls page: upright drawing on upright phones, as large as the screen allows */
+@media (orientation:portrait){#ctrlView{width:min(560px,96vw);max-height:none}#ctrlView svg{max-height:calc(100vh - 170px);max-height:calc(100dvh - 170px)}}
+@media (orientation:landscape) and (max-height:500px){#ctrlView,#ctrlView svg{max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px)}#controls{gap:8px}}
+
 /* ================= shared overlay polish (sub screens) ================= */
 .ov:not(#menu){background:radial-gradient(ellipse 70% 60% at 50% 45%,#0a1014d9,#020304f5)}
 .ov h2{font:700 clamp(24px,4vw,38px) var(--f-display);letter-spacing:.08em;background:linear-gradient(180deg,#fff0c8,#e9c47a 55%,#b5832f);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #000);display:flex;align-items:center;gap:16px}
@@ -1080,3 +1122,7 @@ body[data-input=touch] #tut,body[data-input=touch] #tutCatch,body[data-input=tou
 .svRow.ask .svDel{background:#a8322a;color:#fff}
 #pSaveBtn.saved{background:#3d7a3a;color:#fff}
 #pSaveBtn.failed{background:#a8322a;color:#fff}
+/* 25.11.2026: cheat options on a phone held sideways: the list gets the whole height */
+@media (orientation:landscape) and (max-height:500px){#coBody{max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px)}}
+/* 25.11.2026: very flat phones held sideways: card tops stay clear of the HUD bar */
+@media (orientation:landscape) and (max-height:360px){#levelup.hexMode{padding-top:calc(env(safe-area-inset-top,0px) + 34px)}.hcard{--hx:74px}}

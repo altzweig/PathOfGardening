@@ -69,6 +69,7 @@ export function pcControls() {
 }
 
 export function mobileControls() {
+  if (innerHeight > innerWidth) return mobilePortrait(); // 25.11.2026: phone held upright -> upright drawing, big enough to read
   return `<svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">
   <rect x="20" y="30" width="960" height="500" rx="54" fill="#0b1016" stroke="#3a4550" stroke-width="6"/>
   <rect x="44" y="54" width="912" height="452" rx="34" fill="#10161c"/>
@@ -96,5 +97,38 @@ export function mobileControls() {
   ${icon(skillIcon('blue'), 740, 130, 40)}<text x="786" y="158" font-size="26" fill="${MUT}">›</text>
   ${icon(skillIcon('asp'), 800, 130, 40)}<text x="846" y="158" font-size="26" fill="${MUT}">›</text>
   ${icon(skillIcon('wheat'), 860, 130, 40)}
+</svg>`;
+}
+
+/** the same controls on a phone held upright (layout like the game in portrait: buttons bottom right, thumb left) */
+function mobilePortrait() {
+  const cyc = `<path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return `<svg viewBox="0 0 600 1000" xmlns="http://www.w3.org/2000/svg">
+  <rect x="20" y="20" width="560" height="960" rx="54" fill="#0b1016" stroke="#3a4550" stroke-width="6"/>
+  <rect x="44" y="44" width="512" height="912" rx="34" fill="#10161c"/>
+  <!-- shooting hints -->
+  ${label(300, 140, 'Schießen', 'middle', 40)}
+  ${label(300, 200, 'tippen = 1 Schuss', 'middle', 32, TXT)}
+  ${label(300, 246, 'halten = Dauerfeuer', 'middle', 32, TXT)}
+  ${label(300, 292, 'ziehen = zielen', 'middle', 32, TXT)}
+  ${icon(skillIcon('blue'), 190, 340, 56)}<text x="256" y="380" font-size="34" fill="${MUT}">›</text>
+  ${icon(skillIcon('asp'), 272, 340, 56)}<text x="338" y="380" font-size="34" fill="${MUT}">›</text>
+  ${icon(skillIcon('wheat'), 354, 340, 56)}
+  <!-- left: move -->
+  <rect x="60" y="470" width="250" height="330" rx="26" fill="${GOLD}" opacity=".07" stroke="${GOLD}" stroke-opacity=".35" stroke-width="2" stroke-dasharray="10 8"/>
+  ${label(185, 530, 'Laufen', 'middle', 38)}
+  ${label(185, 570, 'Daumen', 'middle', 26, MUT)}
+  ${label(185, 600, 'irgendwo links', 'middle', 26, MUT)}
+  <circle cx="185" cy="700" r="70" fill="#0b1016aa" stroke="${GOLD}" stroke-opacity=".5" stroke-width="3"/>
+  <circle cx="215" cy="678" r="30" fill="${GOLD}"/>
+  <!-- right: switch weapon, shoot, harvest -->
+  ${label(540, 560, 'Waffe wechseln', 'end', 28)}
+  <g transform="translate(480 640)"><circle r="40" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/><g transform="translate(-24 -24) scale(2)">${cyc}</g></g>
+  ${label(370, 790, 'Beere', 'middle', 24, MUT)}
+  <g transform="translate(370 870)"><circle r="54" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('blue'), -36, -36, 72)}
+    <circle cx="44" cy="-44" r="19" fill="#0b1016" stroke="${GOLD}" stroke-width="2"/>${icon(fruitIcon('black'), 30, -58, 28)}</g>
+  ${label(370, 950, 'Schießen', 'middle', 28)}
+  <g transform="translate(490 800)"><circle r="56" fill="#1d252d" stroke="${GOLD}" stroke-width="4"/>${icon(skillIcon('rake'), -36, -36, 72)}</g>
+  ${label(490, 885, 'Ernten', 'middle', 28)}
 </svg>`;
 }

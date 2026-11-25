@@ -4,7 +4,7 @@ import { friedEgg } from './eggfx';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType, FruitType } from '../config';
 import { buildFarmer } from './farmer';
-import { ANIMAL_EYE, makeAnimal, type Animal } from './animals';
+import { ANIMAL_EYE, makeAnimalShell, type Animal } from './animals';
 import type { Look } from '../look';
 import { BERRY_DATA } from './berryModels';
 import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
@@ -231,7 +231,7 @@ const shieldBase = new THREE.ShaderMaterial({
 export interface EnemyParts { a: Animal; body: THREE.Group; stars: THREE.Group; mats: THREE.MeshStandardMaterial[]; tongue?: THREE.Group; spines?: THREE.MeshStandardMaterial; puff?: THREE.Object3D; shield?: THREE.Mesh; eyes?: THREE.Mesh[]; carry: THREE.Group }
 /** enemy = sculpted, rigged animal (animals.ts) + game extras: stun stars, sheep shield */
 export function buildEnemy(type: EnemyType, boss = false) {
-  const a = makeAnimal(type, boss), g = a.g;
+  const a = makeAnimalShell(type, boss), g = a.g; // 25.11.2026: drawn instanced with baked motion (herd.ts)
   const P: EnemyParts = { a, body: a.body, mats: [a.mat], tongue: a.tongue, spines: a.spineMat, puff: a.b.puff, carry: a.carry, stars: new THREE.Group() };
   if (type === 'sheep') {
     P.eyes = [a.eyes];

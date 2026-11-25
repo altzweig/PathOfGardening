@@ -45,7 +45,7 @@ const solid = (hex: number, amt = .1): Col => { const c = C(hex); return p => mu
 //               masks, stripes and fur noise stay as sharp as before although the mesh is much coarser.
 //  - 'shadow' = ultra low poly stand-in that only the shadow pass draws (layer 1, same skeleton); tiny details left out.
 // In both, faces that lie inside another shape (leg roots in the body, wool curls, head in the neck ...) are deleted.
-interface BoneDef { name: string; parent: string | null; pivot: V3 }
+export interface BoneDef { name: string; parent: string | null; pivot: V3 }
 interface Piece { bone: number; g: THREE.BufferGeometry }
 export type Lod = 'full' | 'shadow';
 const DETAIL: Record<Lod, { blob: number; tube: number; steps: number; minSeg: number; minTube: number; skip: number }> = {
@@ -444,9 +444,9 @@ const BUILD: Record<string, (R: Rig) => void> = {
 };
 
 // ---------------- templates (one per species, shared) ----------------
-interface Template { bones: BoneDef[]; geo: THREE.BufferGeometry; shadow: THREE.BufferGeometry; tex: THREE.Texture; eyes: THREE.BufferGeometry; spines?: THREE.BufferGeometry; h: number; w: number }
+export interface Template { bones: BoneDef[]; geo: THREE.BufferGeometry; shadow: THREE.BufferGeometry; tex: THREE.Texture; eyes: THREE.BufferGeometry; spines?: THREE.BufferGeometry; h: number; w: number }
 const TPL = new Map<string, Template>();
-function template(key: string): Template {
+export function template(key: string): Template {
   let t = TPL.get(key); if (t) return t;
   const R = new Rig('full'); BUILD[key](R); R.cull(); const tex = R.atlas();
   const geo = mergeGeometries(R.skin.map(p => p.g))!; geo.computeBoundingSphere();
@@ -463,7 +463,7 @@ export function animalTris(key: string) {
   return { body: n(t.geo) + n(t.eyes) + n(t.spines), shadow: n(t.shadow) };
 }
 /** hedgehog spine bands along the spine (v 0 = root .. 1 = tip): dark / cream / dark / cream tip */
-const SPINE_TEX = (() => {
+export const SPINE_TEX = (() => {
   const H = 32, d = new Uint8Array(H * 4), cs = (h: number) => new THREE.Color(h);
   for (let j = 0; j < H; j++) { const t = (j + .5) / H, c = cs(t < .4 ? 0x2a1c10 : t < .62 ? 0xcdb894 : t < .9 ? 0x4a3624 : 0xcdb894); d.set([c.r * 255, c.g * 255, c.b * 255, 255].map(Math.round), j * 4); }
   const tx = new THREE.DataTexture(d, 1, H, THREE.RGBAFormat); tx.colorSpace = THREE.SRGBColorSpace; tx.magFilter = THREE.LinearFilter; tx.needsUpdate = true; return tx;
@@ -547,7 +547,7 @@ export interface AnimIn {
   tongue?: number;   // toad tongue length (0 = in)
   rear?: number;     // boss rearing up while charging 0..1
 }
-const GAIT: Record<EnemyType, { stride: number; amp: number; bob: number; roll: number; ref: number }> = {
+export const GAIT: Record<EnemyType, { stride: number; amp: number; bob: number; roll: number; ref: number }> = {
   raccoon: { stride: .62, amp: .62, bob: .03, roll: .09, ref: 2.4 },
   panda: { stride: .66, amp: .58, bob: .03, roll: .06, ref: 2.2 },
   sheep: { stride: .8, amp: .5, bob: .035, roll: .04, ref: 1.7 },
@@ -723,4 +723,86 @@ export function animateDeath(a: Animal, t: number, now: number) {
   a.eyes.scale.y = t > .15 ? .1 : 1;
   const sink = sst(t, 1.0, DEATH_TIME); a.g.position.y = -sink * (h + .25) * a.g.scale.x;
   return t < DEATH_TIME;
+}
+
+
+// ---------------- baked animation (25.11.2026, Basti: "Alle Tiere vorbacken") ----------------
+// In the game every animal species is drawn as ONE instanced mesh (view/herd.ts). The bones are no longer posed on the
+// CPU per animal: each motion (idle, walk cycle, run cycle, stun, attack, hit, death and the special moves) is sampled
+// once from the procedural animation above into a float texture (one row = all bone matrices of one frame). The shader
+// picks two rows per motion, interpolates, and blends two motions. animate() above stays for tiere.html and the bake.
+
+/** an animal without its own meshes: only the groups the game hangs things on (carry heap, stars, shield, tongue)
+ *  and stand-in materials whose values (emissive, opacity, rim, eye colour) herd.ts copies to the instance */
+export function makeAnimalShell(type: EnemyType, boss = false): Animal {
+  const T = template(boss ? 'boss' : type), g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const mat = new THREE.MeshStandardMaterial({ transparent: type === 'toad' }); rimOutline(mat, 0x140e0a, .5);
+  const em = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const a: Animal = { type, boss, g, body, mesh: undefined as unknown as THREE.SkinnedMesh, b: { puff: new THREE.Bone() } as Record<string, THREE.Bone>, mat, eyeMat: em, eyes: new THREE.Mesh(undefined, em), carry: new THREE.Group(), h: T.h, w: T.w,
+    m: { ph: 0, spd: 0, px: 0, pz: 0, yaw: 0, yawV: 0, tail: 0, tailV: 0, look: 0, lookT: 0, lookTo: 0, blinkT: 0, earT: 0, earS: 0, hit: 0, atk: 0, grab: 0, seed: 0, flash: false, lunge: false, carry: 0, init: false } };
+  body.add(a.carry);
+  if (T.spines) a.spineMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0 });
+  if (type === 'toad') { // tongue: placed every frame at the baked head bone (herd.ts), scale.z = length
+    const tongue = new THREE.Group(); tongue.matrixAutoUpdate = false; body.add(tongue);
+    const tm = new THREE.MeshStandardMaterial({ color: 0xff6a8a, emissive: 0xff3060, emissiveIntensity: .8, roughness: .3 });
+    const len = new THREE.Group(); tongue.add(len); tongue.userData.len = len;
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, 1, 8), tm); c.rotation.x = Math.PI / 2; c.position.z = .5; len.add(c);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), tm); tip.scale.set(.09, .07, .09); tip.position.z = 1; len.add(tip);
+    tongue.visible = false; a.tongue = tongue;
+  }
+  return a;
+}
+
+export interface Clip { start: number; n: number; loop: boolean; dur: number }
+export interface Baked {
+  key: string; nb: number; rows: number; data: Float32Array; tex: THREE.DataTexture; clips: Record<string, Clip>;
+  /** bone index by name, bind position (pivot) per bone */ bi: Record<string, number>; pivots: V3[];
+}
+const BAKED = new Map<string, Baked>();
+/** sample every motion of a species into bone matrices (relative to the animal's root group) */
+export function bakeAnimal(key: string, puffScale = .3): Baked {
+  let B = BAKED.get(key); if (B) return B;
+  const type = (key === 'boss' ? 'raccoon' : key) as EnemyType, boss = key === 'boss';
+  const a = makeAnimal(type, boss), m = a.m, G = GAIT[type], bones = a.mesh.skeleton.bones, inv = a.mesh.skeleton.boneInverses;
+  const rows: Float32Array[] = [], clips: Record<string, Clip> = {}, tmp = new THREE.Matrix4();
+  const reset = () => {
+    Object.assign(m, { init: true, px: 0, pz: 0, yaw: 0, yawV: 0, spd: 0, ph: 0, tail: 0, tailV: 0, look: 0, lookT: 1e9, lookTo: 0, blinkT: 1e9, earT: 1e9, earS: 0, hit: 0, atk: 0, grab: 0, seed: 0, flash: false, lunge: false, carry: 0 });
+    for (const bn of bones) { bn.rotation.set(0, 0, 0); bn.scale.set(1, 1, 1); } a.body.position.set(0, 0, 0); a.body.rotation.set(0, 0, 0);
+  };
+  const cap = () => {
+    a.g.position.set(0, 0, 0); a.g.rotation.set(0, 0, 0); a.g.scale.set(1, 1, 1); a.g.updateMatrixWorld(true);
+    const f = new Float32Array(bones.length * 16); bones.forEach((bn, i) => tmp.multiplyMatrices(bn.matrixWorld, inv[i]).toArray(f, i * 16)); rows.push(f);
+  };
+  const run = (I: Partial<AnimIn>) => animate(a, { x: 0, z: 0, yaw: 0, dt: 0, now: 0, ...I });
+  /** n frames; loop: u = 0 .. (n-1)/n, else u = 0 .. 1 */
+  const clip = (name: string, n: number, loop: boolean, dur: number, frame: (u: number) => void) => {
+    clips[name] = { start: rows.length, n, loop, dur }; for (let i = 0; i < n; i++) { reset(); frame(loop ? i / n : i / (n - 1)); cap(); }
+  };
+  const tailAt = (now: number, w: number, ph: number) => { m.tail = Math.sin(now * 1.6) * .18 * (1 - w) + Math.sin(ph) * .2 * w; };
+  if (type === 'toad') {
+    clip('idle', 16, true, 2 * Math.PI / 7, u => { const now = u * 2 * Math.PI / 7; run({ now }); });
+    clip('jump', 32, false, 1, u => run({ air: Math.max(.002, Math.min(.998, u)), now: 0 }));
+    clip('tongue', 2, false, 1, () => run({ tongue: 1, now: 0 }));
+    clip('stun', 48, true, 2 * Math.PI, u => run({ stun: true, now: u * 2 * Math.PI }));
+    clip('hit', 12, false, .28, u => { m.hit = 1 - u; run({}); });
+  } else {
+    clip('idle', 64, true, 8.2, u => { const now = u * 8.2; tailAt(now, 0, 0); run({ now }); });
+    clip('walk', 32, true, 2 * Math.PI, u => { const ph = u * 2 * Math.PI; m.spd = G.ref * .75; m.ph = ph; tailAt(0, 1, ph); run({}); });
+    clip('run', 32, true, 2 * Math.PI, u => { const ph = u * 2 * Math.PI; m.spd = G.ref * 2; m.ph = ph; tailAt(0, 1, ph); run({}); });
+    clip('stun', 64, true, 9, u => run({ stun: true, now: u * 9 }));
+    clip('attack', 16, false, .4, u => { m.atk = 1 - u; run({}); });
+    clip('hit', 12, false, .28, u => { m.hit = 1 - u; run({}); });
+    if (type === 'sheep') {
+      clip('windup', 16, true, 2 * Math.PI / 14, u => run({ windup: 1, now: u * 2 * Math.PI / 14 }));
+      clip('charge', 32, true, 2 * Math.PI, u => { const ph = u * 2 * Math.PI; m.spd = G.ref * 2; m.ph = ph; run({ charge: true }); });
+    }
+    if (type === 'hedgehog') clip('puff', 16, false, 1, u => { run({ puff: u }); a.b.puff.scale.setScalar(1 + puffScale * u); });
+    if (boss) clip('rear', 16, true, 2 * Math.PI / 12, u => run({ rear: 1, now: u * 2 * Math.PI / 12 }));
+  }
+  clip('death', 48, false, DEATH_TIME, u => { a.b.torso.scale.set(1, 1, 1); animateDeath(a, u * DEATH_TIME, u * DEATH_TIME); });
+  const nb = bones.length, data = new Float32Array(rows.length * nb * 16); rows.forEach((r, i) => data.set(r, i * nb * 16));
+  const tex = new THREE.DataTexture(data, nb * 4, rows.length, THREE.RGBAFormat, THREE.FloatType); tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+  const T = template(key), bi: Record<string, number> = {}; T.bones.forEach((d, i) => bi[d.name] = i);
+  B = { key, nb, rows: rows.length, data, tex, clips, bi, pivots: T.bones.map(d => d.pivot) }; BAKED.set(key, B);
+  return B;
 }

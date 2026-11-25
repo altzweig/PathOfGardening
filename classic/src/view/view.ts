@@ -33,7 +33,8 @@ import {
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
-import { animate, animateDeath, setRim } from './animals';
+import { DEATH_TIME, setRim } from './animals';
+import { AnimState, Herd } from './herd';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
 import { buildWorld, setEarthSpots, updateGround, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -59,7 +60,7 @@ const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9
 
 interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s.dk */ dk?: number; chiliH?: THREE.Group; tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
 interface Corpse { v: EView; t: number }
-interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
+interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; key: string; st: AnimState; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
 const mineObj = (hot: boolean) => new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: hot ? 0xff7a20 : 0xff2040, emissive: hot ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 }));
 /** projectile mesh by sim kind (0 asparagus bolt, 1 cranberry, 2+ combos) */
@@ -179,6 +180,10 @@ export class GameView {
   private players = new Map<number, PView>();
   private enemies = new Map<number, EView>();
   private corpses: Corpse[] = [];
+  /** all animals: one instanced draw per species with baked motion (herd.ts, 25.11.2026) */
+  private _herd: Herd | null = null;
+  private get herd() { return this._herd ??= new Herd(scene, this.cfg?.enemies.hedgehog.puffScale ?? .3); }
+  private herdItem(v: EView) { return { key: v.key, st: v.st, g: v.g, body: v.P.body, mat: v.P.mats[0], eyeMat: v.P.a.eyeMat, spineMat: v.P.spines, tongue: v.P.tongue }; }
   private fruits = new Map<number, FView>();
   private projs = new Map<number, JView>();
   private bombs = new Map<number, JView>();
@@ -588,7 +593,7 @@ export class GameView {
         if (!boss) setRim(b.P.a, INK, elite ? .56 : .5);
         if (elite) b.g.scale.setScalar(this.cfg.enemies.elite.scale); void ELITE_COL;
         if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); setRim(b.P.a, 0x8a4cff, .42); } // boss: huge, violet outline
-        v = { g: b.g, P: b.P, type, elite, s: e, x: e[2], z: e[3], squash: 0, carry: '' };
+        v = { g: b.g, P: b.P, type, elite, key: boss ? 'boss' : type, st: new AnimState(), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }
       if (!this.smooth) { v.x = e[2]; v.z = e[3]; }
@@ -1153,7 +1158,7 @@ export class GameView {
       for (let k = 1; k <= 3; k++) add(bombMesh(k, 0));
       add(fruitMesh('cab', 1, false, true)); add(fruitMesh('cab', .6, false, false)); add(nodeMesh()); add(mineObj(false)); add(mineObj(true));
       for (const f of FRUITS) add(fruitMesh(f, 1));
-      for (const e of ENEMIES) { add(buildEnemy(e).g); add(buildEnemy(e, true).g); }
+      this.herd.warm([...ENEMIES.filter(e => e !== 'squirrel'), 'boss']); // instanced animals: one of each species (baked motion)
       add(merchantWarm()); // Händler: paled colours, golden sweep, tarp dissolve
     } catch (e) { console.warn('prewarm', e); }
     this.minePool.warm(); // instanced variant of the cabbage material
@@ -1172,10 +1177,19 @@ export class GameView {
     windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt); this.minePool.frame(dt, this.smooth ? 1 - Math.exp(-dt * 16) : 1);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
     const s = this.snap, k = this.smooth ? 1 - Math.exp(-dt * 16) : 1, now = performance.now() / 1000;
+    if (!s && this._herd) { this._herd.begin(); this._herd.end(); }
     if (s) {
       for (const v of this.players.values()) this.animPlayer(v, dt, k);
-      enemyBars.begin(); for (const v of this.enemies.values()) this.animEnemy(v, dt, k, now); enemyBars.end();
-      for (let i = this.corpses.length - 1; i >= 0; i--) { const c = this.corpses[i]; c.t += dt; if (!animateDeath(c.v.P.a, c.t, now)) { this.dyn.remove(c.v.g); this.corpses.splice(i, 1); } }
+      enemyBars.begin(); this.herd.begin();
+      for (const v of this.enemies.values()) { this.animEnemy(v, dt, k, now); this.herd.push(this.herdItem(v)); }
+      enemyBars.end();
+      for (let i = this.corpses.length - 1; i >= 0; i--) { // baked death motion, then sinks into the ground
+        const c = this.corpses[i]; c.t += dt; if (c.t >= DEATH_TIME) { this.dyn.remove(c.v.g); this.corpses.splice(i, 1); continue; }
+        const v = c.v; v.st.death(this.herd.baked(v.key), c.t); v.P.body.position.set(0, 0, 0); v.P.body.scale.set(1, 1, 1);
+        const sink = clamp((c.t - 1) / (DEATH_TIME - 1), 0, 1); v.g.position.y = -sink * sink * (3 - 2 * sink) * (v.P.a.h + .25) * v.g.scale.x;
+        this.herd.push(this.herdItem(v));
+      }
+      this.herd.end();
       for (const v of this.fruits.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.g.position.set(v.x, v.y, v.z);
         if (v.tier > 0) { v.g.rotation.y += dt; if (Math.random() < dt * v.tier * 2) PART.spawn(V(v.x + rand(-.15, .15), v.y + .1, v.z + rand(-.15, .15)), V(0, .6, 0), FRUIT_HEX[v.type], .1, .8); }
@@ -1466,7 +1480,10 @@ export class GameView {
     let puff: number | undefined;
     if (v.type === 'hedgehog') { const up = (H.puffUp ?? .12) / (H.puffEvery || 2), ph = e[9], k2 = ph < up ? ph / up : 1 - (ph - up) / (1 - up); puff = ph < up ? k2 : k2 * k2; }
     // rig animation (gait, idle, attack, hit, stun) driven by the snapshot
-    animate(v.P.a, {
+    v.P.body.position.set(0, 0, 0); v.P.body.rotation.set(0, 0, 0); // baked motion (herd.ts): only the extra offsets below go on the body
+    const tongue = v.type === 'toad' && fl & EF.tongue ? e[10] : 0;
+    if (v.P.tongue) { v.P.tongue.visible = tongue > 0; (v.P.tongue.userData.len as THREE.Object3D).scale.set(1, 1, Math.max(.01, tongue)); }
+    v.st.step(v.type, this.herd.baked(v.key), {
       x: v.x, z: v.z, yaw: v.g.rotation.y, dt, now, stun: !!stun, flee: !!(fl & EF.flee), flash: !!(fl & EF.flash), lunge: !!(fl & EF.lunge), carry: e[8].length,
       air: v.type === 'toad' ? (air ? clamp(e[9] / TA, 0, 1) : 0) : sq ? e[10] / ((this.cfg.enemies.squirrel?.hopHeight ?? .22) || .22) : 0,
       climb: sq && e[9] === 1, windup: fl & EF.windup ? e[9] : 0, charge: !!(fl & EF.charge), puff,

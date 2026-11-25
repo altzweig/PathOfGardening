@@ -96,6 +96,27 @@ Nächste Hebel dafür: Punkt 8 (Balken nur nach Treffer) und Punkt 11 (Instancin
 Handy (4× Drossel), 117 Gegner, jetzt **alle mit sichtbarem Balken**: 60,3 → **52,2 ms** pro Frame (vorher waren in der
 Messung fast alle Balken unsichtbar und kosteten trotzdem).
 
+## Umgesetzt am 25.11.2026, dritter Schritt: alle Tiere vorgebacken (Punkt 11)
+
+- Jede Bewegung jeder Art wird beim Start einmal aus der prozeduralen Animation abgetastet und als Knochenmatrizen in eine
+  Float-Textur geschrieben (`animals.ts` `bakeAnimal`): Stehen, Gehen, Rennen, Betäubt, Angriff, Treffer, Tod, dazu
+  Schaf Anlauf + Rammen, Igel Aufplustern, Boss Aufbäumen, Frosch Sitzen/Sprung/Zunge.
+- Gezeichnet wird pro Art **eine** InstancedMesh (Körper, Augen, Igelstacheln, Schatten-Stellvertreter, `view/herd.ts`).
+  Der Shader nimmt pro Tier zwei Bewegungen, je zwischen zwei Bildern interpoliert, und mischt sie (z. B. Gehen ↔ Rennen
+  nach Tempo, Angriff über die Laufbewegung). Die CPU bewegt keinen Knochen mehr, `AnimState` rechnet nur Bildnummern.
+- Leuchten (Treffer, Brand, Gift, Frost), Transparenz (Frosch), Umrissfarbe (Elite/Boss), Augenfarbe und Blinzeln sind
+  Instanzwerte. Anbauteile (Beute auf dem Rücken, Sterne, Schafschild, Dornen, Froschzunge) bleiben normale Objekte.
+- Verloren: Kopf-Umschauen, Ohrenzucken, nachschwingender Schwanz bei Drehungen, Hochziehen der Ohren auf der Flucht.
+
+| 117 Gegner | Anfang (vor #125) | nach #126 | jetzt |
+|---|---|---|---|
+| Draw Calls (PC) | 862 | 710 | **431** (0 Gegner: 399) |
+| View-JS PC | 8,2 ms | 7,5 ms | **3,9 ms** (0 Gegner: 3,3) |
+| Zusatz-GPU der Gegner (SwiftShader) | +219 | +97 | **+6** |
+| Zusatzzeit der Gegner am Handy (Frame) | +45 ms | +28 ms | **+14 ms** |
+
+Die Handy-Messung streut in diesem Lauf stärker (Grundlast ohne Gegner 36 statt 24–31 ms), die Differenz ist aber eindeutig.
+
 ## Messwerte
 
 ### Gegner-Darstellung (Messskript `classic/tools/perf/kosten.cjs`)

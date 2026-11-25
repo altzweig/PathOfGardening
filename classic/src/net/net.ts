@@ -1,13 +1,48 @@
 // Co-op over WebRTC (PeerJS). Works from a static host like GitHub Pages: the public PeerJS
 // broker only does the handshake, game data flows peer-to-peer. The host runs the simulation;
 // clients send inputs and render the host's snapshots.
-import Peer, { DataConnection } from 'peerjs';
+import Peer, { DataConnection, PeerOptions } from 'peerjs';
 import type { Balancing } from '../config';
 import type { Intent, Snap } from '../sim/snap';
 import { Look, cleanLook } from '../look';
 
 const PREFIX = 'pathofgardening-v1-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+/** tests without the public broker: ?peer=127.0.0.1:9000 uses a local PeerJS server (no STUN, as in the farm game) */
+function peerOpts(): PeerOptions {
+  const o: PeerOptions = { debug: 0 };
+  const p = new URLSearchParams(location.search).get('peer');
+  if (p) { const [host, port] = p.split(':'); Object.assign(o, { host, port: +(port || 9000), path: '/', secure: false, config: { iceServers: [] } }); }
+  return o;
+}
+/** PeerJS refuses JSON messages above 16300 bytes ("Message too big for JSON channel") and drops them: the welcome
+ *  (whole balancing, ~60 KB) and late-game snapshots are bigger. They go as ordered pieces and are put together again. */
+const LIMIT = 16000, PART = 7000, enc = new TextEncoder();
+/** bytes of a message as PeerJS sends it (quotes inside a piece get escaped, umlauts take 2 bytes) */
+const bytes = (js: string) => js.length * 3 < LIMIT ? js.length : enc.encode(js).length;
+function sendJson(c: DataConnection, m: unknown, js = JSON.stringify(m)) {
+  if (!c.open) return;
+  if (bytes(js) <= LIMIT) { c.send(m); return; }
+  const parts: string[] = [];
+  const cut = (str: string) => { // pieces of at most PART chars, halved until the escaped piece fits
+    if (str.length > 64 && bytes(JSON.stringify(str)) > LIMIT - 64) { const h = str.length >> 1; cut(str.slice(0, h)); cut(str.slice(h)); }
+    else parts.push(str);
+  };
+  for (let i = 0; i < js.length; i += PART) cut(js.slice(i, i + PART));
+  parts.forEach((p, i) => c.send({ t: 'part', i, n: parts.length, p }));
+}
+/** collects the pieces of one big message (the channel is reliable + ordered); returns the message when complete */
+function joiner() {
+  let buf: string[] = [];
+  return (d: any): any => {
+    if (!d || d.t !== 'part') return d;
+    if (d.i === 0) buf = [];
+    buf.push(d.p);
+    if (d.i < d.n - 1) return null;
+    const js = buf.join(''); buf = [];
+    try { return JSON.parse(js); } catch { return null; }
+  };
+}
 export const newCode = () => Array.from({ length: 5 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join('');
 
 export type ToHost = { t: 'in'; i: Intent } | { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello'; look?: Look } | { t: 'buy'; i: number } | { t: 'shopClose' } | { t: 'reroll' };
@@ -40,7 +75,7 @@ export class Host {
     return new Promise((resolve, reject) => {
       const tryOpen = (attempt: number) => {
         this.code = newCode();
-        const peer = new Peer(PREFIX + this.code, { debug: 0 });
+        const peer = new Peer(PREFIX + this.code, peerOpts());
         peer.on('open', () => { this.peer = peer; resolve(this.code); });
         peer.on('error', (err: any) => {
           if (err?.type === 'unavailable-id' && attempt < 4) { peer.destroy(); tryOpen(attempt + 1); return; }
@@ -58,11 +93,12 @@ export class Host {
       if (this.players.length >= this.cfg.coop.maxPlayers) { c.send({ t: 'full' } as ToClient); setTimeout(() => c.close(), 300); return; }
       const p: LobbyPlayer = { id: this.nextId++, color: this.freeColor(), conn: c };
       this.players.push(p);
-      c.send({ t: 'welcome', id: p.id, color: p.color, cfg: this.cfg } as ToClient);
+      sendJson(c, { t: 'welcome', id: p.id, color: p.color, cfg: this.cfg } as ToClient);
       if (this.started) c.send({ t: 'start' } as ToClient);
       this.broadcastLobby(); this.onJoin(p); this.onChange();
+      const join = joiner();
       c.on('data', (d: any) => {
-        const m = d as ToHost;
+        const m = join(d) as ToHost; if (!m) return;
         if (m.t === 'in') this.onIntent(p.id, m.i);
         else if (m.t === 'pick') this.onPick(p.id, m.key);
         else if (m.t === 'place') this.onPlace(p.id, m.slot);
@@ -79,7 +115,17 @@ export class Host {
     });
   }
   broadcastLobby() { this.broadcast({ t: 'lobby', players: this.players.map(p => ({ id: p.id, color: p.color, look: p.look })) }); }
-  broadcast(m: ToClient) { for (const p of this.players) if (p.conn && p.conn.open) p.conn.send(m); }
+  broadcast(m: ToClient) {
+    const js = JSON.stringify(m), big = bytes(js) > LIMIT;
+    for (const p of this.players) if (p.conn && p.conn.open) { if (big) sendJson(p.conn, m, js); else p.conn.send(m); }
+  }
+  /** 25.11.2026: each guest gets only its own private part (weapons, cards, merchant bench); of the others only
+   *  "has picked" for the level-up dots. With 4 players this halves the snapshot (~10 KB -> ~5 KB, 20 per second). */
+  sendSnap(s: Snap) {
+    const others: Record<number, any> = {};
+    for (const k in s.me) others[k] = { pk: s.me[k].pk };
+    for (const p of this.players) if (p.conn && p.conn.open) sendJson(p.conn, { t: 's', s: { ...s, me: { ...others, [p.id]: s.me[p.id] } } } as ToClient);
+  }
   start() { this.started = true; this.broadcast({ t: 'start' }); }
   close() { this.broadcast({ t: 'bye' }); setTimeout(() => { this.peer?.destroy(); this.peer = null; }, 200); }
 }
@@ -97,14 +143,15 @@ export class Client {
   private closed = false;
 
   join(code: string) {
-    const peer = new Peer({ debug: 0 }); this.peer = peer;
+    const peer = new Peer(peerOpts()); this.peer = peer;
     const fail = (r: 'full' | 'lost' | 'notfound' | 'bye') => { if (this.closed) return; this.closed = true; this.onClose(r); try { peer.destroy(); } catch { /* ignore */ } };
     peer.on('error', (err: any) => fail(err?.type === 'peer-unavailable' ? 'notfound' : 'lost'));
     peer.on('open', () => {
       const c = peer.connect(PREFIX + code.toUpperCase().trim(), { reliable: true, serialization: 'json' });
       this.conn = c;
+      const join = joiner();
       c.on('data', (d: any) => {
-        const m = d as ToClient;
+        const m = join(d) as ToClient; if (!m) return;
         if (m.t === 'welcome') { this.id = m.id; this.color = m.color; this.cfg = m.cfg; this.onWelcome(); }
         else if (m.t === 'lobby') { this.lobby = m.players; this.onLobby(); }
         else if (m.t === 'start') this.onStart();
@@ -116,6 +163,6 @@ export class Client {
       c.on('error', () => fail('lost'));
     });
   }
-  send(m: ToHost) { if (this.conn && this.conn.open) this.conn.send(m); }
+  send(m: ToHost) { if (this.conn && this.conn.open) sendJson(this.conn, m); }
   close() { this.closed = true; try { this.conn?.close(); this.peer?.destroy(); } catch { /* ignore */ } }
 }

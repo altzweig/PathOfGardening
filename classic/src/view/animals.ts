@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { EnemyType } from '../config';
+import { outlineU } from './outline';
 
 type V3 = [number, number, number];
 type RGB = [number, number, number];
@@ -476,10 +477,10 @@ function rimOutline(mat: THREE.MeshStandardMaterial, ink: number, rim: number) {
   const u = { uInk: { value: new THREE.Color(ink) }, uRim: { value: rim } };
   mat.userData.rim = u;
   mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, u);
-    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 uInk; uniform float uRim;\nvoid main() {')
+    Object.assign(sh.uniforms, u, { uOutl: outlineU });
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 uInk; uniform float uRim; uniform float uOutl;\nvoid main() {')
       .replace('#include <opaque_fragment>', `float rimK = 1.0 - abs(dot(normalize(normal), geometryViewDir));
-        outgoingLight = mix(outgoingLight, uInk, smoothstep(uRim, uRim + .06, rimK));
+        outgoingLight = mix(outgoingLight, uInk, uOutl * smoothstep(uRim, uRim + .06, rimK));
         #include <opaque_fragment>`);
   };
   mat.customProgramCacheKey = () => 'animalRim';

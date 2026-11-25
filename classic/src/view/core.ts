@@ -4,6 +4,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { outlineU } from './outline';
+export { outlineU };
 
 export const rand = (a: number, b: number) => a + Math.random() * (b - a);
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -47,12 +49,21 @@ export const torch = new THREE.PointLight(0xffc27a, 3.5, 7.5, 1.6); scene.add(to
 export const gardenLight = new THREE.PointLight(0xc8d4ff, 70, 16, 1.3); gardenLight.position.set(0, 6, 1); scene.add(gardenLight);
 
 export type Quality = 'hoch' | 'mittel' | 'niedrig';
-const QUAL: Record<Quality, { pr: number; shadow: number; bloom: boolean }> = {
-  hoch: { pr: Math.min(devicePixelRatio, 2), shadow: 2048, bloom: true },
-  mittel: { pr: Math.min(devicePixelRatio, 1.5), shadow: 1024, bloom: true },
-  niedrig: { pr: 1, shadow: 0, bloom: false },
+/** graphics settings (Optionen > Grafik, 25.11.2026): every value can be set on its own, the presets fill them all.
+ *  scale = share of the screen's pixel density (capped at 2), shadow = shadow map size (0 = off), aa = MSAA samples,
+ *  particles = share of the spark / dust particles, quality = coarse level for effects that only know three steps */
+export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: true, scale: 1, shadow: 2048, aa: 0, bloom: true, particles: 1, outline: true };
+export type GfxPreset = 'niedrig' | 'mittel' | 'hoch' | 'ultra';
+export const GFX_PRESETS: Record<GfxPreset, { scale: number; shadow: number; aa: number; bloom: boolean; particles: number; outline: boolean }> = {
+  niedrig: { scale: .67, shadow: 0, aa: 0, bloom: false, particles: .4, outline: true },
+  mittel: { scale: .75, shadow: 1024, aa: 0, bloom: true, particles: .7, outline: true },
+  hoch: { scale: 1, shadow: 2048, aa: 0, bloom: true, particles: 1, outline: true },
+  ultra: { scale: 1, shadow: 4096, aa: 4, bloom: true, particles: 1, outline: true },
 };
-export const gfx = { quality: (isTouch ? 'mittel' : 'hoch') as Quality, auto: true };
+/** fill every graphics value from a preset (does not apply it yet) */
+export function setPreset(p: GfxPreset | Quality) { Object.assign(gfx, GFX_PRESETS[p]); gfx.auto = false; syncQuality(); }
+/** coarse level from the particle amount (flour fire, textures) */
+export function syncQuality() { gfx.quality = gfx.particles <= .45 ? 'niedrig' : gfx.particles < .95 ? 'mittel' : 'hoch'; }
 
 export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -94,11 +105,14 @@ export function resize() {
 }
 addEventListener('resize', resize);
 export function applyQuality() {
-  const q = QUAL[gfx.quality];
-  renderer.setPixelRatio(q.pr); composer.setPixelRatio(q.pr);
-  bloom.enabled = q.bloom;
-  moon.castShadow = q.shadow > 0;
-  if (q.shadow) { moon.shadow.mapSize.set(q.shadow, q.shadow); if (moon.shadow.map) { moon.shadow.map.dispose(); (moon.shadow as any).map = null; } }
+  const pr = Math.max(.5, Math.min(devicePixelRatio || 1, 2) * gfx.scale);
+  renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
+  bloom.enabled = gfx.bloom;
+  outlineU.value = gfx.outline ? 1 : 0;
+  const samples = renderer.capabilities.isWebGL2 ? gfx.aa : 0;
+  for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
+  moon.castShadow = gfx.shadow > 0;
+  if (gfx.shadow && moon.shadow.mapSize.x !== gfx.shadow) { moon.shadow.mapSize.set(gfx.shadow, gfx.shadow); if (moon.shadow.map) { moon.shadow.map.dispose(); (moon.shadow as any).map = null; } }
   resize();
 }
 
@@ -167,6 +181,7 @@ export const PART = (() => {
   return { spawn, update, clear };
 })();
 export function burst(p: { x: number; y: number; z: number }, color: number, n: number, sp = 2, sz = .15, lf = .5, o: { g?: number; up?: number; a?: number; drag?: number; s1?: number } = {}) {
+  if (gfx.particles < 1) { const f = n * gfx.particles; n = Math.floor(f) + (Math.random() < f - Math.floor(f) ? 1 : 0); }
   for (let i = 0; i < n; i++) { const a = rand(0, 7); PART.spawn(p, V(Math.cos(a) * sp * rand(.3, 1), (o.up ?? 1) * sp * rand(.2, 1), Math.sin(a) * sp * rand(.3, 1)), color, sz * rand(.6, 1.3), lf * rand(.6, 1.2), o); }
 }
 

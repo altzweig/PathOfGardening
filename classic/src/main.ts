@@ -3,16 +3,17 @@ import { Balancing, COMBOS, ComboId, EnemyType, FRUITS, FruitType, SKILLS, Skill
 import { SB_ENEMIES, Sim } from './sim/sim';
 import type { Ev, Intent, Snap } from './sim/snap';
 import { GameView } from './view/view';
-import { applyQuality, gfx, isTouch } from './view/core';
+import { isTouch } from './view/core';
 import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { Bulbs, WerkstattUI, hexEl } from './ui/werkstatt';
 import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { Act, bind as bindKey, resetKeys } from './input/keys';
-import { Tutorial, setTutorialOn, tutorialOn } from './ui/tutorial';
+import { Tutorial } from './ui/tutorial';
+import { SettingsPages, TAB_ICONS, Tab, disp, fpsFrame, loadSettings } from './ui/settings';
 import { creditsHtml } from './ui/credits';
-import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
+import { ambient, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
 import { Client, Host, LobbyPlayer } from './net/net';
 import { GuestSync, MV, NetCfg, Rewind, guestQ, lerpSnap, netCfg, sharedQ } from './net/sync';
 import { predictStep } from './sim/move';
@@ -25,12 +26,11 @@ import { SaveInfo, deleteSave, listSaves, loadGame, saveGame } from './save';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const show = (id: string, on = true) => { $(id).hidden = !on; };
-const OVERLAYS = ['#menu', '#saves', '#coop', '#lobby', '#options', '#credits', '#controls', '#levelup', '#pause', '#over', '#cheat', '#cheatOpt'];
+const OVERLAYS = ['#menu', '#saves', '#coop', '#lobby', '#options', '#levelup', '#pause', '#over', '#cheat'];
 let onMenu: (on: boolean) => void = () => {};
 function only(id: string | null) { for (const o of OVERLAYS) show(o, o === id); onMenu(id === '#menu'); }
 
 type Mode = 'idle' | 'solo' | 'host' | 'client';
-const QL: Record<string, string> = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
 
 class Game {
   cfg!: Balancing;
@@ -72,7 +72,7 @@ class Game {
       else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
       else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
     };
-    this.input.onPause = () => { if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
+    this.input.onPause = () => { if (!$('#options').hidden && this.mode === 'idle') { this.closeOptions(); return; } if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
     this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
     this.shop.onClose = () => this.closeShop();
     this.shop.onReroll = () => { initAudio(); if (this.mode === 'client') this.client?.send({ t: 'reroll' }); else this.sim?.reroll(this.me); };
@@ -84,7 +84,7 @@ class Game {
     this.view.setConfig(this.cfg);
     document.documentElement.style.setProperty('--uiFade', (this.cfg.transitions?.uiFade ?? .25) + 's');
     setSoundConfig(await loadSounds());
-    applyQuality();
+    loadSettings();
     this.idle();
     this.wire();
     this.renderMenuSaves();
@@ -92,7 +92,11 @@ class Game {
     only('#menu');
     let last = performance.now();
     let lastRaf = performance.now();
-    const loop = (now: number) => { requestAnimationFrame(loop); lastRaf = performance.now(); const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); };
+    const loop = (now: number) => {
+      requestAnimationFrame(loop); lastRaf = performance.now();
+      if (disp.fpsCap && now - last < 1000 / disp.fpsCap - 1.5) return; // Optionen > Grafik > Bildrate
+      const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); fpsFrame(now);
+    };
     requestAnimationFrame(loop);
     // browsers stop requestAnimationFrame in hidden tabs: a co-op host keeps simulating for the others
     // (timer runs in a worker because hidden tabs throttle normal timers to 1/s)
@@ -133,29 +137,23 @@ class Game {
     this.input.onCheat = () => this.toggleCheat();
     this.input.onKeysToggle = () => this.hud.toggleKeys();
     this.tut = new Tutorial(this.input);
-    this.tut.onSkip = () => { if (this.sim) this.sim.tutPause = false; this.updateOptLabels(); };
-    for (const id of ['#tutBtn', '#pTutBtn']) click(id, () => { setTutorialOn(!tutorialOn()); this.updateOptLabels(); });
+    this.tut.onSkip = () => { if (this.sim) this.sim.tutPause = false; if (this.opTab === 'game' && !$('#options').hidden) this.opShow('game'); };
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
-    click('#optBtn', () => { this.backTo = '#menu'; this.updateOptLabels(); only('#options'); });
-    click('#optBack', () => only(this.backTo === '#pause' ? '#pause' : '#menu'));
-    click('#ctrlBtn', () => this.openControls('#options'));
-    click('#pCtrlBtn', () => this.openControls('#pause'));
-    click('#ctrlBack', () => { this.input.capture = null; only(this.backTo); });
-    click('#keyReset', () => { resetKeys(); this.ctrlTab('pc'); });
-    click('#credBtn', () => { $('#credView').innerHTML = creditsHtml(); only('#credits'); });
-    click('#credBack', () => only('#options'));
-    click('#cheatOptBtn', () => this.openCheatOpt('#options'));
-    click('#pCheatOptBtn', () => this.openCheatOpt('#pause'));
-    click('#coBack', () => this.closeCheatOpt());
+    click('#optBtn', () => this.openOptions('#menu'));
+    click('#pOptBtn', () => this.openOptions('#pause'));
+    click('#optBack', () => this.closeOptions());
+    click('#opReset', () => {
+      if (this.opTab === 'ctrl') { resetKeys(); this.ctrlTab('pc'); }
+      else this.pages.reset(this.opTab, this.opPage(this.opTab));
+    });
+    this.wireOptions();
     click('#buildBtn', () => this.enterBuild());
     click('#bDone', () => this.exitBuild());
     $('#bList').addEventListener('wheel', e => { const l = $('#bList'); if (l.scrollWidth > l.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { l.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false }); // PC: mouse wheel scrolls the bar sideways
     document.querySelectorAll<HTMLElement>('#bTools .bTool').forEach(b => b.addEventListener('click', () => {
       const t = b.dataset.tool as 'del' | 'down'; sfx('ui.click'); this.buildTool = this.buildTool === t ? 'build' : t; this.applyBuild();
     }));
-    for (const id of ['#qualBtn', '#pQualBtn']) click(id, () => { gfx.auto = false; gfx.quality = gfx.quality === 'hoch' ? 'mittel' : gfx.quality === 'mittel' ? 'niedrig' : 'hoch'; applyQuality(); this.updateOptLabels(); });
-    for (const id of ['#sndBtn', '#pSndBtn']) click(id, () => { audio.on = !audio.on; ambient(audio.on); this.updateOptLabels(); });
     document.querySelectorAll<HTMLElement>('.tab').forEach(t => t.addEventListener('click', () => { sfx('ui.click'); this.ctrlTab(t.dataset.tab!); }));
     click('#hostBtn', () => this.hostGame());
     click('#joinBtn', () => this.joinGame());
@@ -219,8 +217,7 @@ class Game {
     }, true);
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.autosave(true); if (document.hidden && this.mode === 'solo' && !this.building && $('#pause').hidden && !this.sim?.paused) this.togglePause(); });
     // 25.11.2026: turning the phone redraws the mobile controls page upright / sideways
-    addEventListener('resize', () => { if (!$('#controls').hidden && document.querySelector('.tab.on')?.getAttribute('data-tab') === 'mobile') this.ctrlTab('mobile'); });
-    this.updateOptLabels();
+    addEventListener('resize', () => { if (!$('#options').hidden && this.opTab === 'ctrl' && document.querySelector('.tab.on')?.getAttribute('data-tab') === 'mobile') this.ctrlTab('mobile'); });
   }
   private touchSel = -1;
   closeShop() { initAudio(); sfx('ui.click'); if (this.mode === 'client') this.client?.send({ t: 'shopClose' }); else this.sim?.closeShop(this.me); }
@@ -238,17 +235,45 @@ class Game {
     this.view.confirmSlot = -1; show('#placeConfirm', false);
     if (yes && this.view.placing) this.doPlace(slot);
   }
-  private updateOptLabels() {
-    for (const id of ['#qualBtn', '#pQualBtn']) $(id).textContent = 'Grafik: ' + QL[gfx.quality];
-    for (const id of ['#sndBtn', '#pSndBtn']) $(id).textContent = 'Ton: ' + (audio.on ? 'An' : 'Aus');
-    for (const id of ['#tutBtn', '#pTutBtn']) $(id).textContent = 'Tutorial: ' + (tutorialOn() ? 'An' : 'Aus');
+  // ---------- Optionen-Panel (25.11.2026) ----------
+  private pages = new SettingsPages();
+  private opTab: Tab = 'gfx';
+  private opPage(t: Tab) { return document.querySelector(`.opPage[data-p="${t}"]`) as HTMLElement; }
+  private wireOptions() {
+    const T: [Tab, string][] = [['gfx', 'Grafik'], ['snd', 'Ton'], ['ctrl', 'Steuerung'], ['game', 'Spiel'], ['cheat', 'Cheats'], ['cred', 'Credits']];
+    $('#opTabs').innerHTML = T.map(([t, l]) => `<button class="opTab" data-p="${t}" role="tab">${TAB_ICONS[t]}<span>${l}</span></button>`).join('');
+    document.querySelectorAll<HTMLElement>('.opTab').forEach(b => b.addEventListener('click', () => { if (b.dataset.p === this.opTab) return; sfx('ui.click'); this.opShow(b.dataset.p as Tab); }));
   }
-  private openControls(back: string) { this.backTo = back; only('#controls'); this.ctrlTab(this.input.isTouch ? 'mobile' : 'pc'); }
+  private get cheatTabOn() { return this.mode === 'idle' || this.cheatLive; }
+  openOptions(from: '#menu' | '#pause') {
+    this.backTo = from;
+    show('.opTab[data-p="cheat"]', this.cheatTabOn); show('.opTab[data-p="cred"]', from === '#menu');
+    if (this.cheatTabOn) this.prepCheatOpt();
+    if ((this.opTab === 'cheat' && !this.cheatTabOn) || (this.opTab === 'cred' && from !== '#menu')) this.opTab = 'gfx';
+    only('#options'); this.opShow(this.opTab);
+  }
+  private opShow(t: Tab) {
+    this.opTab = t; this.input.capture = null;
+    document.querySelectorAll<HTMLElement>('.opTab').forEach(b => { const on = b.dataset.p === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    document.querySelectorAll<HTMLElement>('.opPage').forEach(p => { p.hidden = p.dataset.p !== t; });
+    $('#options').dataset.tab = t;
+    $('#opReset').hidden = t === 'cheat' || t === 'cred';
+    if (t === 'ctrl') this.ctrlTab(this.input.isTouch ? 'mobile' : 'pc');
+    else if (t === 'cheat') this.renderCheatOpt();
+    else if (t === 'cred') $('#credView').innerHTML = creditsHtml();
+    else this.pages.render(t, this.opPage(t));
+    $('#opBody').scrollTop = 0;
+  }
+  closeOptions() {
+    this.input.capture = null;
+    if (this.cheatLive && this.coVals.wave !== this.coWave0) { this.sim!.jumpToWave(this.coVals.wave); this.coWave0 = this.coVals.wave; }
+    only(this.backTo);
+  }
   private ctrlTab(t: string) {
     document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
     this.input.capture = null;
     $('#ctrlView').innerHTML = t === 'pc' ? pcControls() : mobileControls();
-    $('#keyReset').hidden = t !== 'pc';
+    $('#opReset').hidden = t !== 'pc';
     // 24.11.2026 (Basti): every key on the PC page can be changed: click it, press the new key (Esc = keep)
     if (t === 'pc') $('#ctrlView').querySelectorAll<SVGGElement>('.kbind').forEach(g => g.addEventListener('click', () => {
       sfx('ui.click');
@@ -470,15 +495,12 @@ class Game {
   // ---------- Cheat-Optionen (24.11.2026) ----------
   cheats = loadCheats();
   private startCheats = false;
-  private coFrom = '#options';
   private coWave0 = 0;
   /** solo game running: the page changes it directly; otherwise it sets start values for the next solo game */
   private get cheatLive() { return this.mode === 'solo' && !this.sandbox && !!this.sim; }
-  private openCheatOpt(from: string) {
-    this.coFrom = from; only('#cheatOpt');
+  private prepCheatOpt() {
     this.coWave0 = this.cheatLive ? Math.max(1, this.sim!.wave) : 0;
     this.coVals = this.cheatLive ? { level: this.sim!.level, wave: this.coWave0 } : { level: this.cheats.level, wave: this.cheats.wave };
-    this.renderCheatOpt();
   }
   private coVals = { level: 1, wave: 1 };
   private renderCheatOpt() {
@@ -509,10 +531,7 @@ class Game {
       $('#coAll').classList.toggle('on', this.cheats.allFields); $('#coAll').setAttribute('aria-checked', String(this.cheats.allFields)); this.syncBuildBtn();
     });
   }
-  private closeCheatOpt() {
-    if (this.cheatLive && this.coVals.wave !== this.coWave0) this.sim!.jumpToWave(this.coVals.wave);
-    only(this.coFrom);
-  }
+
   /** start values from the main menu, once the start field is chosen */
   private applyStartCheats() {
     const sim = this.sim!, c = this.cheats;
@@ -564,10 +583,10 @@ class Game {
     if (this.sandbox && this.mode === 'solo') return this.toggleSb();
     if (this.mode === 'idle' || !$('#levelup').hidden || !$('#over').hidden) return;
     const p = $('#pause');
-    if (p.hidden && !$('#controls').hidden) { only(null); }
-    if (p.hidden && $('#options').hidden && $('#controls').hidden && $('#credits').hidden) {
-      this.input.releaseAll(); only('#pause'); this.backTo = '#pause'; this.updateOptLabels();
-      show('#restartBtn', this.mode !== 'client'); show('#pCheatOptBtn', this.mode === 'solo'); show('#pSaveBtn', this.canSave()); this.autosave(true);
+    if (!$('#options').hidden) { this.closeOptions(); return; } // Esc in the options: back to the pause menu
+    if (p.hidden) {
+      this.input.releaseAll(); only('#pause'); this.backTo = '#pause';
+      show('#restartBtn', this.mode !== 'client'); show('#pSaveBtn', this.canSave()); this.autosave(true);
       if (this.mode === 'solo' && this.sim) this.sim.paused = true;
     } else { only(null); if (this.sim) this.sim.paused = false; }
   }
@@ -575,7 +594,7 @@ class Game {
   // ---------- per frame ----------
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
-    const menusOpen = !$('#pause').hidden || !$('#controls').hidden || !$('#credits').hidden || !$('#options').hidden || !$('#cheat').hidden || !$('#cheatOpt').hidden || this.sbOpen || this.building;
+    const menusOpen = !$('#pause').hidden || !$('#options').hidden || !$('#cheat').hidden || this.sbOpen || this.building;
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open;
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
@@ -613,7 +632,7 @@ class Game {
     const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1));
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#controls').hidden || !$('#options').hidden || !$('#cheatOpt').hidden || this.building || this.shop.open;
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open;
         this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
         if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
     else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }

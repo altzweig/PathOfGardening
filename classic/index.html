@@ -128,35 +128,24 @@
     </div>
   </div>
 
+  <!-- Optionen (25.11.2026): one panel, tabs like in big games -->
   <div class="ov" id="options" hidden>
-    <h2>Optionen</h2>
-    <div class="col">
-      <button class="btn sec" id="ctrlBtn">Steuerung</button>
-      <button class="btn sec" id="qualBtn">Grafik</button>
-      <button class="btn sec" id="sndBtn">Ton</button>
-      <button class="btn sec" id="tutBtn">Tutorial</button>
-      <button class="btn sec" id="credBtn">Credits</button>
-      <button class="btn sec" id="cheatOptBtn">Cheat-Optionen</button>
-      <button class="btn" id="optBack">Zurück</button>
+    <div id="opPanel">
+      <h2>Optionen</h2>
+      <nav id="opTabs" role="tablist"></nav>
+      <div id="opBody">
+        <section class="opPage" data-p="gfx"></section>
+        <section class="opPage" data-p="snd"></section>
+        <section class="opPage" data-p="ctrl">
+          <div class="tabs"><button class="tab" data-tab="pc">PC</button><button class="tab" data-tab="mobile">Mobil</button></div>
+          <div id="ctrlView"></div>
+        </section>
+        <section class="opPage" data-p="game"></section>
+        <section class="opPage" data-p="cheat"><div id="coBody"></div></section>
+        <section class="opPage" data-p="cred"><div id="credView"></div></section>
+      </div>
+      <div id="opFoot"><button class="btn sec" id="opReset">Standard</button><button class="btn" id="optBack">Zurück</button></div>
     </div>
-  </div>
-
-  <div class="ov" id="cheatOpt" hidden>
-    <h2>Cheat-Optionen</h2>
-    <div id="coBody"></div>
-    <button class="btn" id="coBack">Zurück</button>
-  </div>
-
-  <div class="ov" id="credits" hidden>
-    <h2>Credits</h2>
-    <div id="credView"></div>
-    <button class="btn" id="credBack">Zurück</button>
-  </div>
-
-  <div class="ov" id="controls" hidden>
-    <div class="tabs"><button class="tab" data-tab="pc">PC</button><button class="tab" data-tab="mobile">Mobil</button></div>
-    <div id="ctrlView"></div>
-    <div class="row"><button class="btn sec" id="keyReset" hidden>Standard</button><button class="btn" id="ctrlBack">Zurück</button></div>
   </div>
 
   <div class="ov" id="levelup" hidden>
@@ -176,11 +165,7 @@
     <div class="col">
       <button class="btn" id="resumeBtn">Weiter</button>
       <button class="btn sec" id="pSaveBtn">Speichern</button>
-      <button class="btn sec" id="pCtrlBtn">Steuerung</button>
-      <button class="btn sec" id="pQualBtn">Grafik</button>
-      <button class="btn sec" id="pSndBtn">Ton</button>
-      <button class="btn sec" id="pTutBtn">Tutorial</button>
-      <button class="btn sec" id="pCheatOptBtn">Cheat-Optionen</button>
+      <button class="btn sec" id="pOptBtn">Optionen</button>
       <button class="btn sec" id="restartBtn">Neu starten</button>
       <button class="btn sec" id="leaveBtn">Hauptmenü</button>
     </div>

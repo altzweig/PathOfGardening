@@ -23,6 +23,11 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// 25.11.2026: layer 1 = low poly shadow stand-ins of the animals (animals.ts SHADOW_LAYER). three.js tests the layers of the
+// VIEW camera in the shadow pass, so layer 1 is switched on only while the shadow maps are drawn (the visible pass has
+// already collected its objects by then) -> the stand-ins cast shadows but are never drawn in the picture.
+{ const sm = renderer.shadowMap, draw = sm.render.bind(sm);
+  sm.render = (lights, sc, cam) => { cam.layers.enable(1); try { draw(lights, sc, cam); } finally { cam.layers.disable(1); } }; }
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 scene.fog = new THREE.Fog(0x000000, 20, 60); // light distance fog only; near/far follow the camera distance (daynight.ts)

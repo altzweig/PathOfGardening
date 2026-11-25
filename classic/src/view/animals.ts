@@ -39,84 +39,166 @@ function fur(top: number, side: number, belly: number, amt = .22): Col {
 const solid = (hex: number, amt = .1): Col => { const c = C(hex); return p => mul(c, 1 + (vn(p.x * 30, p.y * 30, p.z * 30) - .5) * amt * 2); };
 
 // ---------------- rig builder ----------------
+// 25.11.2026 (Basti): low-poly animals. Two detail levels are built from the same species code:
+//  - 'full'   = what you see: about a third of the old triangles. The fur colours are no longer vertex colours but
+//               baked per shape into a small texture atlas (blob: longitude/latitude, tube: around/along), so the
+//               masks, stripes and fur noise stay as sharp as before although the mesh is much coarser.
+//  - 'shadow' = ultra low poly stand-in that only the shadow pass draws (layer 1, same skeleton); tiny details left out.
+// In both, faces that lie inside another shape (leg roots in the body, wool curls, head in the neck ...) are deleted.
 interface BoneDef { name: string; parent: string | null; pivot: V3 }
 interface Piece { bone: number; g: THREE.BufferGeometry }
+export type Lod = 'full' | 'shadow';
+const DETAIL: Record<Lod, { blob: number; tube: number; steps: number; minSeg: number; minTube: number; skip: number }> = {
+  full: { blob: .6, tube: .7, steps: .55, minSeg: 7, minTube: 5, skip: 0 },
+  shadow: { blob: .34, tube: .45, steps: .3, minSeg: 5, minTube: 4, skip: .03 },
+};
+/** a closed shape for the inside test: blob = ellipsoid (+ deform), tube = sampled centre line with radii */
+type Solid = { bone: number; piece: number; blob?: { c: THREE.Vector3; r: V3; qi: THREE.Quaternion; deform?: (d: THREE.Vector3) => number }; tube?: { p: THREE.Vector3; r: number }[] };
+/** colour texture of one shape: W x H texels, filled by fn(u, v) (u periodic) */
+interface Bake { W: number; H: number; fn: (u: number, v: number) => RGB; uv: THREE.BufferAttribute }
+const TEXEL = .007; // m per texel of the baked fur
+const pow2 = (x: number, a: number, b: number) => Math.min(b, Math.max(a, 2 ** Math.round(Math.log2(Math.max(1, x)))));
+/** smooth normals over the UV seam: average the normals of vertices at the same position */
+function seamNormals(g: THREE.BufferGeometry) {
+  g.computeVertexNormals();
+  const p = g.attributes.position, n = g.attributes.normal, acc = new Map<string, THREE.Vector3>(), key = (i: number) => `${p.getX(i).toFixed(5)},${p.getY(i).toFixed(5)},${p.getZ(i).toFixed(5)}`;
+  for (let i = 0; i < p.count; i++) { const k = key(i); const a = acc.get(k) ?? acc.set(k, new THREE.Vector3()).get(k)!; a.x += n.getX(i); a.y += n.getY(i); a.z += n.getZ(i); }
+  for (let i = 0; i < p.count; i++) { const a = acc.get(key(i))!.clone().normalize(); n.setXYZ(i, a.x, a.y, a.z); }
+}
 class Rig {
   bones: BoneDef[] = []; idx = new Map<string, number>();
   skin: Piece[] = []; rigid = new Map<string, THREE.BufferGeometry[]>(); eyeGeos: THREE.BufferGeometry[] = []; spineGeos: THREE.BufferGeometry[] = [];
+  solids: Solid[] = []; bakes: Bake[] = [];
+  constructor(public lod: Lod = 'full') {}
+  get D() { return DETAIL[this.lod]; }
   bone(name: string, parent: string | null, pivot: V3) { this.idx.set(name, this.bones.length); this.bones.push({ name, parent, pivot }); return this; }
   private bi(name: string) { const i = this.idx.get(name); if (i === undefined) throw new Error('bone ' + name); return i; }
-  /** finish one shape: colours + skin attributes, normals */
-  private add(bone: string, g: THREE.BufferGeometry, col: Col, ds: THREE.Vector3[], ts: number[]) {
-    const p = g.attributes.position, n = p.count, cols = new Float32Array(n * 3), v = new THREE.Vector3();
-    for (let i = 0; i < n; i++) { v.fromBufferAttribute(p, i); const c = col(v, ds[i], ts[i]); cols[i * 3] = c[0]; cols[i * 3 + 1] = c[1]; cols[i * 3 + 2] = c[2]; }
-    g.setAttribute('color', new THREE.BufferAttribute(cols, 3)); g.computeVertexNormals();
+  /** finish one shape: skin attributes, normals; full detail: remember the colour bake */
+  private add(bone: string, g: THREE.BufferGeometry, bake?: Omit<Bake, 'uv'>) {
+    const n = g.attributes.position.count;
+    if (this.lod === 'full') seamNormals(g); else g.computeVertexNormals();
     const b = this.bi(bone), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) { si[i * 4] = b; sw[i * 4] = 1; }
     g.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
+    if (bake) this.bakes.push({ ...bake, uv: g.attributes.uv as THREE.BufferAttribute });
+    else if (g.attributes.uv) g.deleteAttribute('uv');
     this.skin.push({ bone: b, g }); return g;
   }
   /** soft ellipsoid: centre c, radii r, optional rotation (x,y,z) and a radial deform f(dir) */
   blob(bone: string, c: V3, r: V3, col: Col, o: { rot?: V3; deform?: (d: THREE.Vector3) => number; seg?: number } = {}) {
-    const seg = o.seg ?? 14, s = new THREE.SphereGeometry(1, seg, Math.max(6, Math.round(seg * .7)));
-    s.deleteAttribute('uv'); s.deleteAttribute('normal'); const g = mergeVertices(s);
-    const p = g.attributes.position, ds: THREE.Vector3[] = [], q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(o.rot ?? [0, 0, 0])));
-    for (let i = 0; i < p.count; i++) {
-      const d = new THREE.Vector3().fromBufferAttribute(p, i).normalize(), f = o.deform ? o.deform(d) : 1;
-      const w = new THREE.Vector3(d.x * r[0] * f, d.y * r[1] * f, d.z * r[2] * f).applyQuaternion(q).add(new THREE.Vector3(...c));
-      p.setXYZ(i, w.x, w.y, w.z); ds.push(d);
-    }
-    return this.add(bone, g, col, ds, ds.map(() => 0));
+    const D = this.D, rmax = Math.max(...r);
+    if (rmax < D.skip) return;
+    const seg = Math.max(D.minSeg, Math.round((o.seg ?? 14) * D.blob)), hs = Math.max(4, Math.round(seg * .65));
+    const g = new THREE.SphereGeometry(1, seg, hs); g.deleteAttribute('normal');
+    const p = g.attributes.position, q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(o.rot ?? [0, 0, 0]))), C0 = new THREE.Vector3(...c);
+    const place = (d: THREE.Vector3) => { const f = o.deform ? o.deform(d) : 1; return new THREE.Vector3(d.x * r[0] * f, d.y * r[1] * f, d.z * r[2] * f).applyQuaternion(q).add(C0); };
+    for (let i = 0; i < p.count; i++) { const w = place(new THREE.Vector3().fromBufferAttribute(p, i).normalize()); p.setXYZ(i, w.x, w.y, w.z); }
+    this.solids.push({ bone: this.bi(bone), piece: this.skin.length, blob: { c: C0, r, qi: q.clone().invert(), deform: o.deform } });
+    if (this.lod !== 'full') return this.add(bone, g);
+    // texture: u = longitude, v = latitude exactly like SphereGeometry's own uv
+    const circ = Math.PI * (r[0] + r[1] + r[2]) * 2 / 3, W = pow2(circ / TEXEL, 8, 256), H = pow2(circ / 2 / TEXEL, 4, 128);
+    const d = new THREE.Vector3();
+    return this.add(bone, g, { W, H, fn: (u, v) => { const ph = u * Math.PI * 2, th = (1 - v) * Math.PI; d.set(-Math.cos(ph) * Math.sin(th), Math.cos(th), Math.sin(ph) * Math.sin(th)); return col(place(d), d, 0); } });
   }
   /** tube along a smooth curve through pts, radius interpolated over radii, rounded caps; fluff = noisy radius (fur) */
   tube(bone: string, pts: V3[], radii: number[], col: Col, o: { seg?: number; steps?: number; fluff?: number; flat?: number; closed?: boolean } = {}) {
+    const D = this.D;
+    if (Math.max(...radii) < D.skip * .6) return;
     const curve = new THREE.CatmullRomCurve3(pts.map(q => new THREE.Vector3(...q)), !!o.closed);
-    const seg = o.seg ?? 10, steps = o.steps ?? Math.max(4, pts.length * 4), pos: number[] = [], ds: THREE.Vector3[] = [], ts: number[] = [], idx: number[] = [];
+    const seg = Math.max(D.minTube, Math.round((o.seg ?? 10) * D.tube)), steps = Math.max(o.closed ? 6 : 1, Math.round((o.steps ?? Math.max(4, pts.length * 4)) * D.steps));
+    const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
     const rad = (t: number) => { const f = t * (radii.length - 1), i = Math.min(radii.length - 2, Math.floor(f)); return radii[i] + (radii[i + 1] - radii[i]) * (f - i); };
-    const ref = new THREE.Vector3(1, 0, 0), side = new THREE.Vector3(), up = new THREE.Vector3();
-    const ring = (t: number, rr: number, push = 0) => {
-      const c = curve.getPointAt(Math.min(1, Math.max(0, t))), tg = curve.getTangentAt(Math.min(1, Math.max(0, t)));
+    const ref = new THREE.Vector3(1, 0, 0), side = new THREE.Vector3(), up = new THREE.Vector3(), fl = o.flat ?? 1;
+    /** point on the surface at angle a (0..1) and t, with the cap push; also the colour direction */
+    const surf = (u: number, t: number, rr: number, push = 0) => {
+      const tt = Math.min(1, Math.max(0, t)), c = curve.getPointAt(tt), tg = curve.getTangentAt(tt);
       side.crossVectors(tg, Math.abs(tg.x) > .9 ? new THREE.Vector3(0, 1, 0) : ref).normalize(); up.crossVectors(side, tg).normalize();
       if (Math.abs(tg.x) <= .9) { side.crossVectors(up, tg).normalize(); } // keep "up" roughly world up
       c.addScaledVector(tg, push);
-      for (let k = 0; k < seg; k++) {
-        const a = k / seg * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-        const fl = o.fluff ? 1 + o.fluff * (vn(c.x * 9 + ca * 2.5, c.y * 9 + sa * 2.5, c.z * 9) - .5) * 2 : 1;
-        const r = rr * fl, w = c.clone().addScaledVector(side, ca * r * (o.flat ?? 1)).addScaledVector(up, sa * r);
-        pos.push(w.x, w.y, w.z); ds.push(new THREE.Vector3(ca * (o.flat ?? 1), sa, 0).normalize()); ts.push(t);
-      }
+      const a = u * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const f = o.fluff ? 1 + o.fluff * (vn(c.x * 9 + ca * 2.5, c.y * 9 + sa * 2.5, c.z * 9) - .5) * 2 : 1;
+      return { w: c.clone().addScaledVector(side, ca * rr * f * fl).addScaledVector(up, sa * rr * f), d: new THREE.Vector3(ca * fl, sa, 0).normalize() };
     };
-    const rings: number[] = [];
-    if (!o.closed) { ring(0, rad(0) * .55, -rad(0) * .45); rings.push(1); }
-    for (let s = 0; s <= steps; s++) { if (o.closed && s === steps) break; ring(s / steps, rad(s / steps)); rings.push(1); }
-    if (!o.closed) { ring(1, rad(1) * .55, rad(1) * .45); rings.push(1); }
+    const rings: { t: number; rr: number; push: number; v: number }[] = [];
+    if (!o.closed) rings.push({ t: 0, rr: rad(0) * .55, push: -rad(0) * .45, v: 0 });
+    for (let s = 0; s <= steps; s++) { if (o.closed && s === steps) break; rings.push({ t: s / steps, rr: rad(s / steps), push: 0, v: s / steps }); }
+    if (!o.closed) rings.push({ t: 1, rr: rad(1) * .55, push: rad(1) * .45, v: 1 });
+    const S = seg + 1; // one extra column for the texture seam
+    for (const g of rings) for (let k = 0; k <= seg; k++) { const s = surf(k / seg, g.t, g.rr, g.push); pos.push(s.w.x, s.w.y, s.w.z); uvs.push(k / seg, g.v); }
     const R = rings.length;
     for (let i = 0; i < R - 1 + (o.closed ? 1 : 0); i++) for (let k = 0; k < seg; k++) {
-      const a = i * seg + k, b = i * seg + (k + 1) % seg, c2 = ((i + 1) % R) * seg + k, d = ((i + 1) % R) * seg + (k + 1) % seg;
+      const i2 = (i + 1) % R, a = i * S + k, b = i * S + k + 1, c2 = i2 * S + k, d = i2 * S + k + 1;
       idx.push(a, b, c2, b, d, c2);
     }
     if (!o.closed) { // cap centres
       const s0 = curve.getPointAt(0).addScaledVector(curve.getTangentAt(0), -rad(0) * .6), s1 = curve.getPointAt(1).addScaledVector(curve.getTangentAt(1), rad(1) * .6);
-      const c0 = pos.length / 3; pos.push(s0.x, s0.y, s0.z); ds.push(new THREE.Vector3(0, 0, -1)); ts.push(0);
-      const c1 = pos.length / 3; pos.push(s1.x, s1.y, s1.z); ds.push(new THREE.Vector3(0, 0, 1)); ts.push(1);
-      for (let k = 0; k < seg; k++) { idx.push(c0, (k + 1) % seg, k); const L = (R - 1) * seg; idx.push(c1, L + k, L + (k + 1) % seg); }
+      const c0 = pos.length / 3; pos.push(s0.x, s0.y, s0.z); uvs.push(.5, 0);
+      const c1 = pos.length / 3; pos.push(s1.x, s1.y, s1.z); uvs.push(.5, 1);
+      const L = (R - 1) * S;
+      for (let k = 0; k < seg; k++) { idx.push(c0, k + 1, k); idx.push(c1, L + k, L + k + 1); }
     }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
-    return this.add(bone, g, col, ds, ts);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx);
+    const smp: { p: THREE.Vector3; r: number }[] = []; for (let i = 0; i <= 24; i++) { const t = i / 24; smp.push({ p: curve.getPointAt(t), r: rad(t) * Math.min(1, fl) }); }
+    this.solids.push({ bone: this.bi(bone), piece: this.skin.length, tube: smp });
+    if (this.lod !== 'full') return this.add(bone, g);
+    let len = 0; for (let i = 1; i < smp.length; i++) len += smp[i].p.distanceTo(smp[i - 1].p);
+    const W = pow2(Math.PI * 2 * Math.max(...radii) / TEXEL, 8, 128), H = pow2(len / TEXEL, 4, 256);
+    // rows past the ends are the caps (same colour as the end ring)
+    return this.add(bone, g, { W, H, fn: (u, v) => { const s = surf(u, v, rad(v)); return col(s.w, s.d, v); } });
   }
   /** glowing eye pair on bone "eyes": sphere with a dark pupil looking along dir */
   eyes(at: V3[], r: number, look: V3 = [0, 0, 1]) {
+    if (this.lod !== 'full') return;
     const piv = this.bones[this.bi('eyes')].pivot;
     for (const e of at) {
-      const s = new THREE.SphereGeometry(r, 12, 8); s.deleteAttribute('uv');
+      const s = new THREE.SphereGeometry(r, 10, 7); s.deleteAttribute('uv');
       const L = new THREE.Vector3(look[0] + Math.sign(e[0]) * .45, look[1], look[2]).normalize(), p = s.attributes.position, col: number[] = [], d = new THREE.Vector3();
       for (let i = 0; i < p.count; i++) { d.fromBufferAttribute(p, i).normalize(); const k = d.dot(L); const c = k > .82 ? .02 : k > .74 ? .35 : 1; col.push(c, c, c); }
       s.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); s.translate(e[0] - piv[0], e[1] - piv[1], e[2] - piv[2]); this.eyeGeos.push(s);
     }
   }
   pivot(name: string) { return this.bones[this.bi(name)].pivot; }
+  /** how deep (fraction of its size) point w lies inside solid s, <= 0 = outside */
+  private depth(s: Solid, w: THREE.Vector3) {
+    if (s.blob) {
+      const b = s.blob, u = w.clone().sub(b.c).applyQuaternion(b.qi); u.set(u.x / b.r[0], u.y / b.r[1], u.z / b.r[2]);
+      const L = u.length(); if (L < 1e-6) return 1; const f = b.deform ? b.deform(u.clone().divideScalar(L)) : 1;
+      return 1 - L / f;
+    }
+    let best = -1e9; for (const q of s.tube!) best = Math.max(best, 1 - w.distanceTo(q.p) / q.r); return best;
+  }
+  /** delete triangles whose three corners lie inside another shape (deeper when the shapes hang on different bones,
+   *  because the joint moves them apart a little) */
+  cull() {
+    const w = new THREE.Vector3();
+    this.skin.forEach((pc, pi) => {
+      const g = pc.g, p = g.attributes.position, ix = g.index!.array, keep: number[] = [];
+      const others = this.solids.filter(s => s.piece !== pi);
+      const inside = new Uint8Array(p.count);
+      for (let i = 0; i < p.count; i++) { w.fromBufferAttribute(p, i); inside[i] = others.some(s => this.depth(s, w) > (s.bone === pc.bone ? .04 : .22)) ? 1 : 0; }
+      for (let t = 0; t < ix.length; t += 3) if (!(inside[ix[t]] && inside[ix[t + 1]] && inside[ix[t + 2]])) keep.push(ix[t], ix[t + 1], ix[t + 2]);
+      g.setIndex(keep);
+    });
+  }
+  /** pack all colour bakes into one atlas texture and point the uvs into it */
+  atlas() {
+    const P = 2, AW = 512, tiles = this.bakes.map((b, i) => ({ b, i, w: b.W + 2 * P, h: b.H + 2 * P, x: 0, y: 0 })).sort((a, b) => b.h - a.h);
+    let x = 0, y = 0, rowH = 0; for (const t of tiles) { if (x + t.w > AW) { x = 0; y += rowH; rowH = 0; } t.x = x; t.y = y; x += t.w; rowH = Math.max(rowH, t.h); }
+    const AH = 2 ** Math.ceil(Math.log2(Math.max(16, y + rowH))), data = new Uint8Array(AW * AH * 4);
+    const toS = (c: number) => { c = Math.max(0, Math.min(1, c)); return Math.round((c <= .0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - .055) * 255); };
+    for (const t of tiles) {
+      const { W, H, fn, uv } = t.b;
+      for (let j = 0; j < t.h; j++) for (let i = 0; i < t.w; i++) {
+        const u = (((i - P + .5) / W) % 1 + 1) % 1, v = Math.min(1, Math.max(0, (j - P + .5) / H)), c = fn(u, v), o = ((t.y + j) * AW + t.x + i) * 4;
+        data[o] = toS(c[0]); data[o + 1] = toS(c[1]); data[o + 2] = toS(c[2]); data[o + 3] = 255;
+      }
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, (t.x + P + uv.getX(k) * W) / AW, (t.y + P + uv.getY(k) * H) / AH);
+    }
+    const tex = new THREE.DataTexture(data, AW, AH, THREE.RGBAFormat); tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+    return tex;
+  }
 }
-
 // ---------------- shared limbs ----------------
 const LEGS = ['fl', 'fr', 'bl', 'br'] as const;
 interface LegSpec { hip: V3; knee: V3; foot: V3; r: [number, number, number]; up: Col; lo: Col; paw: Col; pawR: V3 }
@@ -264,17 +346,20 @@ function hedgehog(R: Rig) {
   R.bone('torso', null, [0, .18, 0]);
   R.blob('torso', [0, .16, 0], [.21, .13, .26], skin);
   R.bone('puff', 'torso', [0, .2, -.02]);
-  R.blob('puff', [0, .2, -.03], [.255, .185, .3], solid(0x3a2a1c, .2));
+  const pk = R.lod === 'full' ? 1 : 1.35; R.blob('puff', [0, .2, -.03], [.255 * pk, .185 * pk, .3 * pk], solid(0x3a2a1c, .2));
   // spines: one merged rigid mesh on the puff bone, banded dark / cream / dark
   const piv = R.pivot('puff'), up = new THREE.Vector3(0, 1, 0), base = C(0x2a1c10), band = C(0xcdb894), tip = C(0x4a3624);
   let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 230; i++) {
+  // 25.11.2026 low poly: 3-sided cones without height rings (6 instead of 30 triangles), the dark / cream / dark
+  // bands come from a small gradient texture along the spine (SPINE_TEX), the per-spine shade stays a vertex colour.
+  // The shadow stand-in has no spines, its puff blob is a little bigger instead.
+  if (R.lod === 'full') for (let i = 0; i < 230; i++) {
     const u = rnd(), th = rnd() * Math.PI * 2, ph = Math.acos(1 - u * 1.15);
     const d = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
     if (d.z > .5 || (d.y < .05 && d.z > .1)) continue; // face stays free
-    const len = .13 + rnd() * .06, cg = new THREE.ConeGeometry(.024, len, 5, 3, true); cg.translate(0, len / 2, 0); cg.deleteAttribute('uv');
-    const p = cg.attributes.position, col: number[] = [];
-    for (let k = 0; k < p.count; k++) { const t = p.getY(k) / len; const c = t < .4 ? base : t < .62 ? band : t < .9 ? tip : band; const v = .85 + rnd() * .3; col.push(c[0] * v, c[1] * v, c[2] * v); }
+    const len = .13 + rnd() * .06, cg = new THREE.ConeGeometry(.026, len, 3, 1, true); cg.translate(0, len / 2, 0);
+    const p = cg.attributes.position, col: number[] = [], v = .85 + rnd() * .3; void base; void band; void tip;
+    for (let k = 0; k < p.count; k++) col.push(v, v, v);
     cg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     const dir = d.clone().multiplyScalar(.6).add(new THREE.Vector3(0, .02, -.65)).normalize(), q = new THREE.Quaternion().setFromUnitVectors(up, dir);
     cg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(d.x * .24, d.y * .17 + .02 + .2 - piv[1], d.z * .28 - .03 - piv[2]), q, new THREE.Vector3(1, 1, 1)));
@@ -359,20 +444,52 @@ const BUILD: Record<string, (R: Rig) => void> = {
 };
 
 // ---------------- templates (one per species, shared) ----------------
-interface Template { bones: BoneDef[]; geo: THREE.BufferGeometry; eyes: THREE.BufferGeometry; spines?: THREE.BufferGeometry; h: number; w: number }
+interface Template { bones: BoneDef[]; geo: THREE.BufferGeometry; shadow: THREE.BufferGeometry; tex: THREE.Texture; eyes: THREE.BufferGeometry; spines?: THREE.BufferGeometry; h: number; w: number }
 const TPL = new Map<string, Template>();
 function template(key: string): Template {
   let t = TPL.get(key); if (t) return t;
-  const R = new Rig(); BUILD[key](R);
+  const R = new Rig('full'); BUILD[key](R); R.cull(); const tex = R.atlas();
   const geo = mergeGeometries(R.skin.map(p => p.g))!; geo.computeBoundingSphere();
+  const S = new Rig('shadow'); BUILD[key](S); S.cull();
+  const shadow = mergeGeometries(S.skin.map(p => { const g = p.g.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'skinIndex' && k !== 'skinWeight') g.deleteAttribute(k); return g; }))!; shadow.computeBoundingSphere();
   const eyes = mergeGeometries(R.eyeGeos)!;
   const spines = R.spineGeos.length ? mergeGeometries(R.spineGeos)! : undefined;
   geo.computeBoundingBox(); const bb = geo.boundingBox!;
-  t = { bones: R.bones, geo, eyes, spines, h: R.bones[0].pivot[1], w: Math.max(.08, (bb.max.x - bb.min.x) / 2 * .8) }; TPL.set(key, t); return t;
+  t = { bones: R.bones, geo, shadow, tex, eyes, spines, h: R.bones[0].pivot[1], w: Math.max(.08, (bb.max.x - bb.min.x) / 2 * .8) }; TPL.set(key, t); return t;
 }
+/** triangles of a species: visible mesh (+ eyes, spines) and shadow stand-in (perf / tiere.html) */
+export function animalTris(key: string) {
+  const t = template(key), n = (g?: THREE.BufferGeometry) => g ? (g.index ? g.index.count : g.attributes.position.count) / 3 : 0;
+  return { body: n(t.geo) + n(t.eyes) + n(t.spines), shadow: n(t.shadow) };
+}
+/** hedgehog spine bands along the spine (v 0 = root .. 1 = tip): dark / cream / dark / cream tip */
+const SPINE_TEX = (() => {
+  const H = 32, d = new Uint8Array(H * 4), cs = (h: number) => new THREE.Color(h);
+  for (let j = 0; j < H; j++) { const t = (j + .5) / H, c = cs(t < .4 ? 0x2a1c10 : t < .62 ? 0xcdb894 : t < .9 ? 0x4a3624 : 0xcdb894); d.set([c.r * 255, c.g * 255, c.b * 255, 255].map(Math.round), j * 4); }
+  const tx = new THREE.DataTexture(d, 1, H, THREE.RGBAFormat); tx.colorSpace = THREE.SRGBColorSpace; tx.magFilter = THREE.LinearFilter; tx.needsUpdate = true; return tx;
+})();
+/** layer of the shadow stand-ins: only the shadow cameras render it (core.ts enables it on the sun/moon shadow camera) */
+export const SHADOW_LAYER = 1;
+/** dark silhouette line in the material itself (25.11.2026, replaces the second outline hull): where the surface turns
+ *  away from the camera the colour goes to uInk. uRim = where the line starts (1 = exactly at the silhouette). */
+function rimOutline(mat: THREE.MeshStandardMaterial, ink: number, rim: number) {
+  const u = { uInk: { value: new THREE.Color(ink) }, uRim: { value: rim } };
+  mat.userData.rim = u;
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, u);
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 uInk; uniform float uRim;\nvoid main() {')
+      .replace('#include <opaque_fragment>', `float rimK = 1.0 - abs(dot(normalize(normal), geometryViewDir));
+        outgoingLight = mix(outgoingLight, uInk, smoothstep(uRim, uRim + .06, rimK));
+        #include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'animalRim';
+}
+/** outline colour + width of an enemy (models.ts: elites thinner, boss violet) */
+export function setRim(a: Animal, ink: number, rim: number) { const u = a.mat.userData.rim; u.uInk.value.set(ink); u.uRim.value = rim; }
 
 export const ANIMAL_EYE: Record<EnemyType, number> = { raccoon: 0x5fb4ff, panda: 0xff8a26, toad: 0xffc83a, sheep: 0xe8e2cc, hedgehog: 0xffc04a, squirrel: 0xffe070 };
 const eyeMats = new Map<number, THREE.MeshBasicMaterial>();
+const SHADOW_MAT = new THREE.MeshBasicMaterial({ color: 0 });
 function eyeMat(c: number) { let m = eyeMats.get(c); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, vertexColors: true, toneMapped: false }); eyeMats.set(c, m); } return m; }
 
 /** animation memory per instance */
@@ -389,21 +506,24 @@ export interface Animal {
 
 export function makeAnimal(type: EnemyType, boss = false): Animal {
   const T = template(boss ? 'boss' : type), g = new THREE.Group(), body = new THREE.Group(); g.add(body);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: type === 'toad' ? .5 : .92, metalness: 0, transparent: type === 'toad' });
+  const mat = new THREE.MeshStandardMaterial({ map: T.tex, roughness: type === 'toad' ? .5 : .92, metalness: 0, transparent: type === 'toad' });
+  rimOutline(mat, 0x140e0a, .5);
   const b: Record<string, THREE.Bone> = {}, list: THREE.Bone[] = [];
   for (const d of T.bones) {
     const bn = new THREE.Bone(); bn.name = d.name; const pp = d.parent ? T.bones.find(x => x.name === d.parent)!.pivot : [0, 0, 0];
     bn.position.set(d.pivot[0] - pp[0], d.pivot[1] - pp[1], d.pivot[2] - pp[2]); if (d.parent) b[d.parent].add(bn);
     b[d.name] = bn; list.push(bn);
   }
-  const mesh = new THREE.SkinnedMesh(T.geo, mat); mesh.castShadow = true; mesh.add(list[0]); mesh.updateMatrixWorld(true);
-  mesh.bind(new THREE.Skeleton(list)); body.add(mesh);
+  const mesh = new THREE.SkinnedMesh(T.geo, mat); mesh.castShadow = false; mesh.add(list[0]); mesh.updateMatrixWorld(true);
+  const skel = new THREE.Skeleton(list); mesh.bind(skel); body.add(mesh);
+  // shadow: ultra low poly stand-in on the same skeleton, drawn only by the shadow camera
+  const sm = new THREE.SkinnedMesh(T.shadow, SHADOW_MAT); sm.castShadow = true; sm.layers.set(SHADOW_LAYER); body.add(sm); sm.bind(skel, mesh.bindMatrix);
   const em = type === 'sheep' ? new THREE.MeshBasicMaterial({ color: ANIMAL_EYE.sheep, vertexColors: true, toneMapped: false }) : eyeMat(ANIMAL_EYE[type]);
   const eyes = new THREE.Mesh(T.eyes, em); b.eyes.add(eyes);
   const a: Animal = { type, boss, g, body, mesh, b, mat, eyeMat: em, eyes, carry: new THREE.Group(), h: T.h, w: T.w,
     m: { ph: Math.random() * 6, spd: 0, px: 0, pz: 0, yaw: 0, yawV: 0, tail: 0, tailV: 0, look: 0, lookT: 0, lookTo: 0, blinkT: 1 + Math.random() * 3, earT: Math.random() * 3, earS: 0, hit: 0, atk: 0, grab: 0, seed: Math.random() * 100, flash: false, lunge: false, carry: 0, init: false } };
   body.add(a.carry);
-  if (T.spines) { a.spineMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, emissive: 0xfff0c0, emissiveIntensity: 0 }); a.spines = new THREE.Mesh(T.spines, a.spineMat); a.spines.castShadow = true; b.puff.add(a.spines); }
+  if (T.spines) { a.spineMat = new THREE.MeshStandardMaterial({ map: SPINE_TEX, vertexColors: true, roughness: .7, emissive: 0xfff0c0, emissiveIntensity: 0 }); a.spines = new THREE.Mesh(T.spines, a.spineMat); a.spines.castShadow = false; b.puff.add(a.spines); }
   if (type === 'toad') { // sticky tongue out of the mouth (scale.z = length)
     const tongue = new THREE.Group(); tongue.position.set(0, -.03, .15); b.head.add(tongue);
     const tm = new THREE.MeshStandardMaterial({ color: 0xff6a8a, emissive: 0xff3060, emissiveIntensity: .8, roughness: .3 });

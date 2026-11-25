@@ -49,6 +49,36 @@ Nur 1 + 3 (beide Aufwand S): auf dem Handy mit 117 Gegnern grob **76 → 45 ms**
 etwas weniger als die Summe. Mit 2 und 7 dazu ist die Gegnerlast etwa ein Drittel von heute. Punkt 4 wirkt dann zusätzlich im
 Koop, wo jeder Gast heute doppelt so viele Tiere rendert wie solo.
 
+## Umgesetzt am 25.11.2026 (Punkte 1–3, Bastis Auswahl)
+
+- **Tiermodelle reduziert**: gleiche Formen, gröbere Kugeln/Röhren, alle Flächen gelöscht, die in einer anderen Form stecken
+  (Beinansätze, Wolllocken, Kopf im Hals …). Das Fell (Masken, Streifen, Fellrauschen) ist nicht mehr Vertexfarbe, sondern
+  pro Form in eine kleine Textur gebacken, damit es trotz grobem Netz scharf bleibt. Igelstacheln: 3-seitige Kegel, Farbbänder aus Textur.
+- **Umriss im Material** (Rim im Shader) statt zweiter Hülle, Elite dünner, Boss violett.
+- **Schatten** aus einem Ultra-Low-Poly-Stellvertreter auf demselben Skelett (Layer 1, nur im Schattenpass gezeichnet, `core.ts`).
+
+| Tier | vorher Körper + Umriss + Schatten | nachher Körper + Schatten |
+|---|---|---|
+| Igel | 27.200 | 2.380 + 350 = **2.730** |
+| Boss | 25.200 | 2.720 + 1.050 = **3.770** |
+| Waschbär | 23.800 | 2.640 + 990 = **3.630** |
+| Schaf | 22.400 | 2.800 + 1.350 = **4.150** |
+| Roter Panda | 16.800 | 2.070 + 790 = **2.860** |
+| Frosch | 12.500 | 1.280 + 520 = **1.800** |
+
+Messung mit 117 Gegnern (`tools/perf/kosten.cjs`, gleiche Szene wie oben):
+
+| | vorher | nachher |
+|---|---|---|
+| Dreiecke pro Frame (PC) | 2.125k | **326k** (−85 %) |
+| Zusatz-GPU der Gegner (SwiftShader, PC) | +219 | **+97** (−56 %) |
+| Draw Calls (PC) | 862 | 710 |
+| Handy Frame-Zeit (4× Drossel) | 76,2 ms | **60,3 ms** (13 → 17 fps) |
+
+Auf dem Handy bleibt die CPU der Engpass: Es zählt dort vor allem die **Zahl der Draw Calls** pro Tier, nicht die Dreiecke.
+Nach dem Umbau kosten am Handy noch: Schattenpass (1 Draw Call je Tier) ~17 ms, Lebensbalken (3 Meshes je Tier) ~15 ms.
+Nächste Hebel dafür: Punkt 8 (Balken nur nach Treffer) und Punkt 11 (Instancing).
+
 ## Messwerte
 
 ### Gegner-Darstellung (Messskript `classic/tools/perf/kosten.cjs`)

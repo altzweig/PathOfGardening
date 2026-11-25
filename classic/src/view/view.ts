@@ -32,8 +32,8 @@ import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer,
 } from './core';
-import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, addOutline, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
-import { animate, animateDeath } from './animals';
+import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
+import { animate, animateDeath, setRim } from './animals';
 import { loadNature, natureMesh } from './nature';
 import { setBareRoom } from './world';
 import { buildWorld, setEarthSpots, updateGround, clearEyes, updateEyes, warnEyes, updateFog, syncTorches, updateTorches } from './world';
@@ -584,9 +584,10 @@ export class GameView {
         const type = ENEMIES[e[1]], b = buildEnemy(type, !!(e[7] & EF.boss)); this.dyn.add(b.g);
         // 23.11.2026: every animal gets a clear dark outline; elites only bigger (no glow) with a bigger health bar
         const elite = !!(e[7] & EF.elite), boss = !!(e[7] & EF.boss);
-        if (!boss) addOutline(b.P.body, INK, elite ? .016 : .022, false);
+        // 25.11.2026: the outline is part of the animal material (no second hull mesh), elites a thinner line
+        if (!boss) setRim(b.P.a, INK, elite ? .56 : .5);
         if (elite) b.g.scale.setScalar(this.cfg.enemies.elite.scale); void ELITE_COL;
-        if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); addOutline(b.P.body, 0x8a4cff, .04); } // boss: huge, violet outline
+        if (e[7] & EF.boss) { b.g.scale.setScalar(this.cfg.enemies.boss.scale); setRim(b.P.a, 0x8a4cff, .42); } // boss: huge, violet outline
         v = { g: b.g, P: b.P, type, bar: elite ? makeBar(1, .12, 0xd23a2e) : makeBar(.6, .07, 0xd23a2e), s: e, x: e[2], z: e[3], squash: 0, carry: '' };
         v.g.position.set(e[2], 0, e[3]); v.g.rotation.y = e[4]; this.enemies.set(e[0], v);
       }

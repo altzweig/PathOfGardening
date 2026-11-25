@@ -285,10 +285,11 @@ items:
   fegg:   { xp: 4, heal: 3 }      # Spiegelei (ohne Schleuder: XP + etwas Leben)
 
 fruit:
-  tierScale: [1, 1.75, 2.7]   # Größe Stufe 1/2/3
-  tierValue: [1, 5, 25]     # Wert Stufe 1/2/3
-  mergeCount: 5              # so viele gleiche Früchte verschmelzen zur nächsten Stufe
-  mergeCheck: 0.5             # s zwischen Verschmelz-Prüfungen
+  tierScale: [1, 1.6, 2.3, 3.1]   # Größe Stufe 1/2/3/4 (25.11.2026: 4. Stufe, weil ab 3 verschmolzen wird)
+  tierValue: [1, 3, 9, 27]   # Wert Stufe 1/2/3/4 (25.11.2026: vorher [1, 5, 25] bei 5er-Verschmelzen; Wert bleibt erhalten)
+  mergeCount: 3              # 25.11.2026 Basti: 5 -> 3, so viele gleiche Früchte verschmelzen zur nächsten Stufe (weniger Objekte, weniger Netz)
+  mergeCheck: 0.25           # s zwischen Verschmelz-Prüfungen (25.11.2026: 0,5 -> 0,25, schneller)
+  mergeRadius: 1.5           # m, 25.11.2026: gleiche Früchte in diesem Umkreis verschmelzen, egal von welchem Feld (vorher nur Früchte desselben Felds)
   cornerScatter: 0.45         # m, Früchte fallen so weit um die Feldecke, an der der Rand-Impuls ankommt
 
 plants:

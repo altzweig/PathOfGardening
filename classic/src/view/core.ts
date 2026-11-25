@@ -293,6 +293,44 @@ export function makeBar(w: number, h: number, color: number) {
   bg.renderOrder = 998; fg.renderOrder = 999; sh.renderOrder = 999;
   g.add(bg, fg, sh); g.userData = { fg, sh, w }; barGroup.add(g); return g;
 }
+/** 25.11.2026: all enemy health bars in ONE draw call. Before, every enemy carried its own bar = 3 meshes (background,
+ *  fill, shield) as scene objects: with 117 enemies 351 extra objects whose matrices, billboard rotation and
+ *  transparency sorting ran every frame, plus up to 351 draw calls. Now each visible bar is one instance; the shader
+ *  turns it towards the camera and paints background / fill / shield from the instance values. */
+export const enemyBars = (() => {
+  const N = 512, geo = new THREE.InstancedBufferGeometry(); geo.copy(new THREE.PlaneGeometry(1, 1) as any); geo.instanceCount = 0;
+  const pos = new Float32Array(N * 3), bar = new Float32Array(N * 4), col = new Float32Array(N * 3);
+  const aPos = new THREE.InstancedBufferAttribute(pos, 3), aBar = new THREE.InstancedBufferAttribute(bar, 4), aCol = new THREE.InstancedBufferAttribute(col, 3);
+  for (const a of [aPos, aBar, aCol]) a.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('iPos', aPos); geo.setAttribute('iBar', aBar); geo.setAttribute('iCol', aCol);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
+    vertexShader: `attribute vec3 iPos; attribute vec4 iBar; attribute vec3 iCol; varying vec2 vUv; varying vec4 vBar; varying vec3 vCol;
+      void main() { vUv = uv; vBar = iBar; vCol = iCol;
+        vec4 c = modelViewMatrix * vec4(iPos, 1.0); // bar size + .04 frame, billboard in view space
+        c.xy += position.xy * vec2(iBar.x + .04, iBar.y + .04 + (iBar.w >= 0. ? iBar.y * .9 : 0.));
+        gl_Position = projectionMatrix * c; }`,
+    fragmentShader: `varying vec2 vUv; varying vec4 vBar; varying vec3 vCol;
+      void main() { // vBar: width, height, fill 0..1, shield 0..1 (-1 none); frame of .02 m around the bar
+        float W = vBar.x + .04, sh = vBar.w >= 0. ? vBar.y * .9 : 0., H = vBar.y + .04 + sh;
+        float x = (vUv.x * W - .02) / vBar.x, y = (vUv.y * H - .02) / vBar.y;
+        vec4 c = vec4(0., 0., 0., .65);
+        if (x >= 0. && x <= 1. && y >= 0. && y <= 1. && x <= vBar.z) c = vec4(vCol, 1.);
+        else if (vBar.w > 0. && x >= 0. && x <= vBar.w && y > 1.35 && y <= 1.8) c = vec4(.5, .85, 1., .9);
+        gl_FragColor = c; }`,
+  });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 999; scene.add(mesh);
+  const tc = new THREE.Color(); let n = 0;
+  return {
+    begin() { n = 0; },
+    add(x: number, y: number, z: number, w: number, h: number, frac: number, shield: number, color: number) {
+      if (n >= N) return; tc.set(color);
+      pos[n * 3] = x; pos[n * 3 + 1] = y; pos[n * 3 + 2] = z; bar[n * 4] = w; bar[n * 4 + 1] = h; bar[n * 4 + 2] = clamp(frac, 0, 1); bar[n * 4 + 3] = shield;
+      col[n * 3] = tc.r; col[n * 3 + 1] = tc.g; col[n * 3 + 2] = tc.b; n++;
+    },
+    end() { geo.instanceCount = n; for (const a of [aPos, aBar, aCol]) { a.clearUpdateRanges?.(); a.needsUpdate = true; } mesh.visible = n > 0; },
+  };
+})();
 export function setBar(bar: THREE.Group, frac: number, shield = -1) {
   const { fg, sh, w } = bar.userData; frac = clamp(frac, 0, 1);
   fg.scale.x = Math.max(.0001, w * frac); fg.position.x = -w * (1 - frac) / 2;

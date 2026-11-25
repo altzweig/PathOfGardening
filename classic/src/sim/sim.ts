@@ -677,17 +677,25 @@ export class Sim {
     }
     this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: fr.tier, x: r2(p.x), z: r2(p.z) });
   }
+  /** 25.11.2026 (Basti): fruits merge from 3 on, more often and from a bigger radius (fruit.mergeRadius): the same kind
+   *  and tier lying within that distance of the oldest one join, whatever field they came from -> far fewer objects. */
   mergeFruit() {
-    const M = this.cfg.fruit.mergeCount;
-    for (const f of this.fields) for (let tier = 0; tier < this.cfg.fruit.tierValue.length - 1; tier++) {
-      const ot = outType(this.cfg, f.type), list = this.fruits.filter(x => x.src === f.slot && x.type === ot && x.state === 'ground' && x.tier === tier && x.sk === undefined);
-      if (list.length < M) continue;
-      list.sort((a, b) => a.born - b.born); const grp = list.slice(0, M), ax = grp[0].x, az = grp[0].z;
-      for (const x of grp) { x.state = 'merge'; x.mt = 0; x.tx = ax; x.tz = az; }
-      this.merges.push({ t: .28, f, tier: tier + 1, x: ax, z: az });
+    const F = this.cfg.fruit, M = F.mergeCount, R2 = (F.mergeRadius ?? 1.2) ** 2;
+    for (let tier = 0; tier < F.tierValue.length - 1; tier++) {
+      const list = this.fruits.filter(x => x.state === 'ground' && x.tier === tier && x.sk === undefined && x.xv === undefined && !x.nx && x.xm === undefined).sort((a, b) => a.born - b.born);
+      const used = new Set<Fruit>();
+      for (const a of list) {
+        if (used.has(a)) continue;
+        const grp = [a];
+        for (const b of list) { if (grp.length >= M) break; if (b !== a && !used.has(b) && b.type === a.type && (b.x - a.x) ** 2 + (b.z - a.z) ** 2 <= R2) grp.push(b); }
+        if (grp.length < M) continue;
+        const ax = a.x, az = a.z;
+        for (const x of grp) { used.add(x); x.state = 'merge'; x.mt = 0; x.tx = ax; x.tz = az; }
+        this.merges.push({ t: .2, type: a.type, src: a.src, tier: tier + 1, x: ax, z: az });
+      }
     }
   }
-  private merges: { t: number; f: Field; tier: number; x: number; z: number }[] = [];
+  private merges: { t: number; type: FruitType; src: number; tier: number; x: number; z: number }[] = [];
 
   // ---------- xp & level ----------
   addXP(v: number) {
@@ -2547,7 +2555,7 @@ export class Sim {
     this.mergeT -= dt; if (this.mergeT <= 0) { this.mergeT = this.cfg.fruit.mergeCheck; this.mergeFruit(); }
     for (let i = this.merges.length - 1; i >= 0; i--) {
       const mg = this.merges[i]; mg.t -= dt; if (mg.t > 0) continue; this.merges.splice(i, 1);
-      const ot = outType(this.cfg, mg.f.type), fr = this.spawnFruit(ot, mg.tier, mg.x, .3, mg.z, mg.x, mg.z, mg.f.slot); fr.vx = fr.vz = 0; fr.vy = 3;
+      const ot = mg.type, fr = this.spawnFruit(ot, mg.tier, mg.x, .3, mg.z, mg.x, mg.z, mg.src); fr.vx = fr.vz = 0; fr.vy = 3;
       this.emit({ k: 'merge', x: r2(mg.x), z: r2(mg.z), t: FRUITS.indexOf(ot) });
     }
     const PL = this.cfg.player;

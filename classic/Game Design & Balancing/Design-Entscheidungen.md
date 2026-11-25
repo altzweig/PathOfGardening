@@ -606,3 +606,10 @@ Ersetzt das bisherige Level-up-Kartensystem (Feldbonus / neues Feld / Waffe).
 - Gespeichert wird der komplette Spielzustand (auch laufende Welle, Gegner, Händler) bei jeder neuen Welle, alle 30 s (`save.autosave`), beim Pausieren, über "Speichern" im Pausemenü, beim Verlassen und beim Schließen des Tabs.
 - Hauptmenü: "Weiterspielen" (neuester Stand, mit Welle/Level/Zeit), "Neues Spiel", "Spielstände" (Liste, Löschen mit zweitem Tippen).
 - Nur normale Solo-Spiele (kein Testmodus, kein Waffentest, kein Koop). Game over löscht den Stand. Geladen wird immer mit der aktuellen balancing.yaml.
+
+## Performance statt Kleinigkeiten (25.11.2026)
+- Basti: alles darf sich ändern, wenn es spürbar Leistung bringt. Nur die Gegnerzahl bleibt.
+- Tiere low poly mit gebackener Fell-Textur, Umriss im Material (keine zweite Hülle), Schatten von einer Ultra-Low-Poly-Variante.
+- Lebensbalken nur bei verletzten Tieren. Höchstens 8 Leichen gleichzeitig, der Rest verpufft.
+- Früchte verschmelzen ab 3 (vorher 5), schneller und aus 1,5 m Umkreis, auch feldübergreifend. 4 Stufen (1/3/9/27).
+- Analyse und Messwerte: docs/design-kosten.md.

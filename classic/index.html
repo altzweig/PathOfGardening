@@ -86,7 +86,9 @@
     <section id="mMain">
       <div id="mLogo" class="rise r1"><div class="mKicker"><svg class="mLeaf" viewBox="0 0 120 24" aria-hidden="true"><path d="M2 12h44M74 12h44" stroke="currentColor" stroke-width="1"/><path d="M60 3c-8 2-12 6-12 9 0 3 4 7 12 9 8-2 12-6 12-9 0-3-4-7-12-9z" fill="currentColor" opacity=".9"/><path d="M60 5v14" stroke="#05080b" stroke-width="1"/><circle cx="46" cy="12" r="1.6" fill="currentColor"/><circle cx="74" cy="12" r="1.6" fill="currentColor"/></svg></div><h1>Path<span>Of</span>Gardening</h1><div class="mRule"></div></div>
       <nav id="mNav" class="rise r2">
+        <button class="mi" id="contBtn" hidden>Weiterspielen</button>
         <button class="mi main" id="soloBtn">Spielen</button>
+        <button class="mi" id="savesBtn" hidden>Spielstände</button>
         <button class="mi" id="coopBtn">Koop</button>
         <button class="mi" id="wtestBtn">Waffentest</button>
         <button class="mi" id="testBtn">Testmodus</button>
@@ -94,6 +96,14 @@
       </nav>
       <div class="err" id="menuErr" hidden></div>
     </section>
+  </div>
+
+  <div class="ov" id="saves" hidden>
+    <h2>Spielstände</h2>
+    <div class="col">
+      <div id="savesList"></div>
+      <button class="btn sec" id="savesBack">Zurück</button>
+    </div>
   </div>
 
   <div class="ov" id="coop" hidden>
@@ -165,6 +175,7 @@
     <h2>Pause</h2>
     <div class="col">
       <button class="btn" id="resumeBtn">Weiter</button>
+      <button class="btn sec" id="pSaveBtn">Speichern</button>
       <button class="btn sec" id="pCtrlBtn">Steuerung</button>
       <button class="btn sec" id="pQualBtn">Grafik</button>
       <button class="btn sec" id="pSndBtn">Ton</button>

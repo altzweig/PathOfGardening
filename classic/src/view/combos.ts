@@ -100,8 +100,8 @@ export function projMesh(kind: number): THREE.Object3D {
       for (let i = 0; i < 4; i++) { const d = V(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); seg(arcs, ADD(0xfffbe0, .9), .006, [0, 0, 0], [d.x * .12, d.y * .12, d.z * .12]); }
       g.userData.arcs = arcs; g.userData.pulse = true; break;
     }
-    case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .07, .07, .07, 0, 0, 0, false); break; // blueberry pellet
-    case 11: part(g, BERRY_GEO.black, PEL_BLACK, .07, .07, .07, 0, 0, 0, false); break; // blackberry pellet
+    case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .056, .056, .056, 0, 0, 0, false); break; // blueberry pellet (25.11.2026: 8 smaller berries per shot, .07 -> .056)
+    case 11: part(g, BERRY_GEO.black, PEL_BLACK, .056, .056, .056, 0, 0, 0, false); break; // blackberry pellet
     case 12: part(g, GEO.sph, GRAIN, .056, .056, .12, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff0b0, .35), .08, .08, .24, 0, 0, -.09, false); break; // 24.11.2026 grains 1.6x bigger // Körner-MP: wheat grain with a faint streak
     default: part(g, GEO.sph, PROJ_CRAN, .07, .07, .07, 0, 0, 0, false);
   }

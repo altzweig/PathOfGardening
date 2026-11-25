@@ -5,6 +5,7 @@
 // into those frame numbers, like animate() did with the bones, but without touching a single bone on the CPU.
 import * as THREE from 'three';
 import type { EnemyType } from '../config';
+import { outlineU } from './outline';
 import { ANIMAL_EYE, GAIT, SHADOW_LAYER, SPINE_TEX, bakeAnimal, template, type AnimIn, type Baked, type Clip } from './animals';
 
 const CAP: Record<string, number> = { boss: 8 };
@@ -34,13 +35,13 @@ function skinShader(sh: { vertexShader: string; uniforms: Record<string, THREE.I
 function bodyMat(tex: THREE.Texture, map: THREE.Texture, toad: boolean) {
   const mat = new THREE.MeshStandardMaterial({ map, roughness: toad ? .5 : .92, metalness: 0, transparent: toad });
   mat.onBeforeCompile = sh => {
-    skinShader(sh, tex);
-    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying vec4 vEmis; varying vec4 vRim;\nvoid main() {')
+    skinShader(sh, tex); sh.uniforms.uOutl = outlineU;
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying vec4 vEmis; varying vec4 vRim; uniform float uOutl;\nvoid main() {')
       .replace('#include <map_fragment>', '#include <map_fragment>\n  diffuseColor.a *= vEmis.a;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vEmis.rgb;')
       // outline in the material (rim): where the surface turns away from the camera the colour goes to the ink
       .replace('#include <opaque_fragment>', `float rimK = 1.0 - abs(dot(normalize(normal), geometryViewDir));
-        outgoingLight = mix(outgoingLight, vRim.rgb, smoothstep(vRim.w, vRim.w + .06, rimK));
+        outgoingLight = mix(outgoingLight, vRim.rgb, uOutl * smoothstep(vRim.w, vRim.w + .06, rimK));
         #include <opaque_fragment>`);
   };
   mat.customProgramCacheKey = () => 'herdBody' + (toad ? 't' : '');

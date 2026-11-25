@@ -7,7 +7,7 @@ import { buildFarmer } from './farmer';
 import { ANIMAL_EYE, makeAnimalShell, type Animal } from './animals';
 import type { Look } from '../look';
 import { BERRY_DATA } from './berryModels';
-import { GEO, M, TINE_GAP, envU, part, rakeTines, rand, windU } from './core';
+import { GEO, M, TINE_GAP, envU, outlineU, part, rakeTines, rand, windU } from './core';
 
 // Fruit lying on the ground glows; fruit still on the bush does not.
 const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, fegg: 0xfff4e0,
@@ -265,10 +265,10 @@ function outlineMat(color: number, width: number, glow = true) {
   const key = color + ':' + width + ':' + glow; let m = outlineMats.get(key);
   if (!m) {
     m = new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: new THREE.Color(color) }, uW: { value: width }, uTime: windU, uDay: envU.uDay },
+      uniforms: { uColor: { value: new THREE.Color(color) }, uW: { value: width }, uTime: windU, uDay: envU.uDay, uOutl: outlineU },
       side: THREE.BackSide, toneMapped: false, fog: false,
       // works for rigid and skinned meshes (the skinning chunks are only active on a SkinnedMesh)
-      vertexShader: `uniform float uW; uniform float uDay;
+      vertexShader: `uniform float uW; uniform float uDay; uniform float uOutl;
         #include <common>
         #include <skinning_pars_vertex>
         void main(){
@@ -278,7 +278,7 @@ function outlineMat(color: number, width: number, glow = true) {
           #include <begin_vertex>
           #include <skinning_vertex>
           vec4 wp=modelMatrix*vec4(transformed,1.); vec3 n=normalize(mat3(modelMatrix)*objectNormal);
-          wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; }`,
+          wp.xyz+=n*uW*(1.+.5*uDay); gl_Position=projectionMatrix*viewMatrix*wp; if(uOutl<.5) gl_Position=vec4(0.,0.,2.,1.); }`, // outlines off: outside the clip space
       fragmentShader: glow ? `uniform vec3 uColor; uniform float uTime; uniform float uDay; void main(){ gl_FragColor=vec4(uColor*(1.9+.35*sin(uTime*3.)+uDay*.8),1.); }`
         : `uniform vec3 uColor; void main(){ gl_FragColor=vec4(uColor,1.); }`, // plain dark ink line (23.11.2026: clearer silhouettes, no glow)
     });

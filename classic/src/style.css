@@ -1126,3 +1126,69 @@ body[data-input=touch] #tut,body[data-input=touch] #tutCatch,body[data-input=tou
 @media (orientation:landscape) and (max-height:500px){#coBody{max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px)}}
 /* 25.11.2026: very flat phones held sideways: card tops stay clear of the HUD bar */
 @media (orientation:landscape) and (max-height:360px){#levelup.hexMode{padding-top:calc(env(safe-area-inset-top,0px) + 34px)}.hcard{--hx:74px}}
+
+/* ================= Optionen-Panel (25.11.2026): one panel with tabs (Grafik, Ton, Steuerung, Spiel, Cheats, Credits) ================= */
+#options{padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));box-sizing:border-box;justify-content:center}
+#opPanel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"h" "t" "b" "f";gap:12px;
+  width:min(820px,100%);height:min(760px,100%);box-sizing:border-box;padding:16px clamp(12px,2.5vw,24px);border-radius:18px;
+  background:linear-gradient(180deg,#121a21f2,#0a0f14f7);border:1px solid #e3b96440;box-shadow:0 20px 60px #000c,inset 0 1px 0 #ffffff12}
+#opPanel>h2{grid-area:h;justify-content:center}
+#opTabs{grid-area:t;display:flex;gap:6px;border-bottom:1px solid #e3b96433;padding-bottom:10px}
+.opTab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:10px;border:1px solid transparent;background:none;
+  color:var(--mut);font:700 14px var(--f-body);letter-spacing:.02em;cursor:pointer;transition:color .15s,background .15s,border-color .15s}
+.opTab svg{width:24px;height:24px}
+.opTab span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.opTab:hover{color:var(--parch)}
+.opTab.on{color:var(--gold);background:linear-gradient(180deg,#e3b9641f,#e3b96408);border-color:#e3b96466;box-shadow:inset 0 -2px 0 var(--gold)}
+.opTab:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#opBody{grid-area:b;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;padding:2px 4px 2px 2px;scrollbar-width:thin;scrollbar-color:#e3b96455 transparent}
+.opPage{display:flex;flex-direction:column;gap:8px}
+#opFoot{grid-area:f;display:flex;gap:12px;justify-content:flex-end}
+#opFoot .btn{padding:11px 26px}
+.opH{margin:10px 2px 0;font:700 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--gold-dim)}
+.opRow{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding:9px 14px;border-radius:12px;
+  background:linear-gradient(180deg,#1d262ecc,#11171ccc);border:1px solid #e3b96426;font:700 17px var(--f-body);color:var(--parch)}
+.opRow>span{flex:1 1 auto}
+.seg{display:flex;flex-wrap:wrap;gap:4px;padding:3px;border-radius:11px;background:#0b1016;border:1px solid #e3b96433}
+.seg button{min-width:44px;padding:7px 12px;border-radius:8px;border:none;background:none;color:var(--mut);font:700 15px var(--f-body);cursor:pointer;font-variant-numeric:tabular-nums;transition:background .15s,color .15s}
+.seg button:hover{color:var(--parch)}
+.seg button.on{background:linear-gradient(180deg,#f3d58f,#c99a45);color:#1a1206;box-shadow:0 2px 0 #6b4f1f}
+.opSl{display:flex;align-items:center;gap:12px;flex:0 1 340px;min-width:180px}
+.opSl input{flex:1;min-width:0;height:28px;accent-color:var(--gold);cursor:pointer;touch-action:pan-x}
+.opSl output{width:3ch;text-align:right;font-variant-numeric:tabular-nums;color:var(--gold)}
+.opGrp{display:flex;flex-direction:column;gap:8px;transition:opacity .2s}
+.opGrp.off{opacity:.4;pointer-events:none}
+/* embedded pages: controls drawing, cheats, credits fill the panel */
+.opPage[data-p="ctrl"]{align-items:center;gap:10px;height:100%}
+#options #ctrlView{width:100%;flex:1 1 0;min-height:0;max-height:none}
+#options #ctrlView svg{width:100%;height:100%;max-height:none} /* the whole drawing fits the page (viewBox keeps its shape) */
+#options #coBody{width:100%;max-height:none;overflow:visible}
+#options #credView{width:100%;max-height:none;overflow:visible}
+#options .tab{padding:7px 22px;font-size:16px}
+#fpsMeter{position:fixed;left:max(8px,env(safe-area-inset-left,0px));bottom:max(6px,env(safe-area-inset-bottom,0px));z-index:30;pointer-events:none;
+  font:700 12px var(--f-body);color:#b8f08a;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;opacity:.85}
+/* phones held upright: tabs as icons with small names, rows stack when the control is wide */
+@media (max-width:560px){
+  #opPanel{padding:12px 10px;gap:8px;border-radius:14px}
+  #opTabs{gap:2px}
+  .opTab{font-size:10.5px;letter-spacing:0;padding:6px 1px}.opTab svg{width:22px;height:22px}
+  .opTab span{text-overflow:clip}
+  .opRow{padding:8px 10px;font-size:16px}
+  .opRow.opWide{flex-direction:column;align-items:stretch}
+  .opRow.opWide .seg{justify-content:space-between}.opRow.opWide .seg button{flex:1 1 0;padding:7px 4px}
+  .opRow.opSlRow{flex-wrap:nowrap}.opSl{min-width:0;flex:1 1 60%}
+  .seg button{min-width:38px;padding:7px 9px;font-size:14px}
+  #opFoot .btn{flex:1;padding:10px 12px}
+}
+/* phones held sideways: tabs become a column on the left, the title goes, the page gets the whole height */
+@media (orientation:landscape) and (max-height:500px){
+  #opPanel{height:100%;width:min(900px,100%);grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"t b" "t f";padding:10px;gap:8px 12px}
+  #opPanel>h2{display:none}
+  #opTabs{flex-direction:column;border-bottom:none;border-right:1px solid #e3b96433;padding:0 10px 0 0;overflow:auto;gap:4px}
+  .opTab{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:8px;padding:6px 10px;font-size:14px}
+  .opTab svg{width:20px;height:20px}
+  .opTab.on{box-shadow:inset -2px 0 0 var(--gold)}
+  .opRow{padding:6px 10px;font-size:15px}
+  .seg button{padding:5px 9px;font-size:14px}
+  #opFoot .btn{padding:8px 20px;font-size:15px}
+}

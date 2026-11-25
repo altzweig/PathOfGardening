@@ -3,6 +3,20 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 let AC: AudioContext | null = null, master: GainNode, noiseBuf: AudioBuffer;
 export const audio = { on: true };
+/** volumes 0..1 per group (Optionen > Ton, 25.11.2026): master, effects (game + buildings), ambience (forest loops + calls),
+ *  ui (menu clicks, pause swooshes). bgMute = silent while the tab / app is in the background */
+export const vol = { master: 1, fx: 1, amb: 1, ui: 1, bgMute: true };
+let fxBus: GainNode, ambBus: GainNode, uiBus: GainNode;
+/** where the synthesized tone() / noise() calls go (sfx() switches it to the UI bus for "ui." sounds) */
+let out: GainNode;
+let bgHidden = false;
+const MASTER = .65;
+export function applyVolumes() {
+  if (!AC) return; const t = AC.currentTime;
+  master.gain.setTargetAtTime(MASTER * vol.master * (vol.bgMute && bgHidden ? 0 : 1), t, .03);
+  fxBus.gain.setTargetAtTime(vol.fx, t, .03); ambBus.gain.setTargetAtTime(vol.amb, t, .03); uiBus.gain.setTargetAtTime(vol.ui, t, .03);
+}
+document.addEventListener('visibilitychange', () => { bgHidden = document.hidden; applyVolumes(); });
 const last: Record<string, number> = {};
 /** volume multiplier for the next tone()/noise() calls (positional building sounds) */
 let busVol = 1;
@@ -11,9 +25,11 @@ export function initAudio() {
   if (AC) { AC.resume(); return; }
   try {
     AC = new (window.AudioContext || (window as any).webkitAudioContext)();
-    master = AC.createGain(); master.gain.value = 0.65;
+    master = AC.createGain(); master.gain.value = MASTER * vol.master;
     const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
     master.connect(comp); comp.connect(AC.destination);
+    const bus = (v: number) => { const g = AC!.createGain(); g.gain.value = v; g.connect(master); return g; };
+    fxBus = bus(vol.fx); ambBus = bus(vol.amb); uiBus = bus(vol.ui); out = fxBus;
     noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     void loadSamples();
@@ -32,7 +48,7 @@ function tone({ type = 'sine', f = 440, f2 = null, t = .12, vol = .2, at = .004,
   let lastNode: AudioNode = o;
   if (vib) { const l = A.createOscillator(); l.frequency.value = vibF; const lg = A.createGain(); lg.gain.value = vib; l.connect(lg); lg.connect(o.frequency); l.start(n); l.stop(n + t + .05); }
   if (filt) { const bq = A.createBiquadFilter(); bq.type = filt.type; bq.frequency.value = filt.f; bq.Q.value = filt.q || 1; lastNode.connect(bq); lastNode = bq; }
-  lastNode.connect(g); g.connect(master); o.start(n); o.stop(n + t + .05);
+  lastNode.connect(g); g.connect(out); o.start(n); o.stop(n + t + .05);
 }
 interface NoiseO { t?: number; vol?: number; type?: BiquadFilterType; f?: number; f2?: number | null; q?: number; when?: number; at?: number }
 function noise({ t = .2, vol = .2, type = 'lowpass', f = 1200, f2 = null, q = .8, when = 0, at = .004 }: NoiseO) {
@@ -41,7 +57,7 @@ function noise({ t = .2, vol = .2, type = 'lowpass', f = 1200, f2 = null, q = .8
   const bq = A.createBiquadFilter(); bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f, n);
   if (f2) bq.frequency.exponentialRampToValueAtTime(f2, n + t);
   const g = A.createGain(); g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(Math.max(.0002, vol * busVol), n + at); g.gain.exponentialRampToValueAtTime(.0001, n + t);
-  s.connect(bq); bq.connect(g); g.connect(master); s.start(n, rand(0, .5)); s.stop(n + t + .05);
+  s.connect(bq); bq.connect(g); g.connect(out); s.start(n, rand(0, .5)); s.stop(n + t + .05);
 }
 // Shepard pop: octave partials under a bell curve -> seemingly endlessly rising pickup sound
 let popStep = 0;
@@ -49,7 +65,7 @@ function shepardPop(big: boolean) {
   const A = AC!, step = popStep++, n = A.currentTime, p = (step % 12) / 12;
   const out = A.createGain(); const peak = big ? .38 : .26;
   out.gain.setValueAtTime(.0001, n); out.gain.exponentialRampToValueAtTime(peak, n + .005); out.gain.exponentialRampToValueAtTime(.0001, n + (big ? .32 : .2));
-  out.connect(master);
+  out.connect(fxBus);
   for (let k = 0; k < 7; k++) {
     const f = 110 * Math.pow(2, k + p);
     const l = Math.log2(f / 110) - 3; const a = Math.exp(-(l * l) / (2 * .95 * .95));
@@ -295,7 +311,8 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
     pan = Math.max(-1, Math.min(1, (x - lx) / 12)) * .75;
     if (att <= .01) return;
   }
-  if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) f(); }
+  const bus = key.startsWith('ui.') ? uiBus : key.startsWith('calls.') ? ambBus : fxBus;
+  if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) { out = bus; try { f(); } finally { out = fxBus; } } }
   const files = (e.files || []).filter(f => bufs.has(f)); if (!files.length) return;
   let pick = files[Math.floor(Math.random() * files.length)];
   if (files.length > 1 && pick === lastPick.get(key)) pick = files[(files.indexOf(pick) + 1) % files.length];
@@ -310,7 +327,7 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
   let node: AudioNode = g;
   if (AC.createStereoPanner) { const sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
   if (e.lp) { const bq = AC.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = e.lp; bq.Q.value = .5; src.connect(bq); bq.connect(g); } else src.connect(g);
-  node.connect(master); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
+  node.connect(bus); src.start(now + (e.delay ? e.delay[0] + Math.random() * (e.delay[1] - e.delay[0]) : 0));
 }
 /** looping sounds (e.g. the flamethrower roar), one per id: fades in/out, follows its world position */
 const loops = new Map<string, { src: AudioBufferSourceNode; g: GainNode; pan: StereoPannerNode | null; vol: number }>();
@@ -330,7 +347,7 @@ export function loopSfx(id: string, key: string, on: boolean, x = lx, z = lz) {
   const g = AC.createGain(); g.gain.setValueAtTime(.0001, now); g.gain.linearRampToValueAtTime(vol, now + fade);
   let node: AudioNode = g, sp: StereoPannerNode | null = null;
   if (AC.createStereoPanner) { sp = AC.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
-  src.connect(g); node.connect(master); src.start(now, Math.random() * src.buffer.duration);
+  src.connect(g); node.connect(fxBus); src.start(now, Math.random() * src.buffer.duration);
   loops.set(id, { src, g, pan: sp, vol });
 }
 function stopLoop(id: string, fade = .12) {
@@ -347,7 +364,7 @@ function startAmbient() {
     const e = SC.ambient[k]; if (!e?.file || !bufs.has(e.file)) continue;
     const src = AC.createBufferSource(); src.buffer = bufs.get(e.file)!; src.loop = true;
     const g = AC.createGain(), vol = (e.vol ?? .2) * (SC.master ?? 1); g.gain.value = vol * ambShare(e.at);
-    src.connect(g); g.connect(master); src.start(0, Math.random() * src.buffer.duration); ambNodes.push(src); ambGains.push({ g, vol, at: e.at || '' });
+    src.connect(g); g.connect(ambBus); src.start(0, Math.random() * src.buffer.duration); ambNodes.push(src); ambGains.push({ g, vol, at: e.at || '' });
   }
   ambOn = ambNodes.length > 0;
 }

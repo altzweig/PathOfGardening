@@ -5,7 +5,7 @@
 // GitHub); the game reads that file at start. "Im Spiel testen" opens the game with the browser draft (?boden=entwurf).
 import './editor.css';
 import * as THREE from 'three';
-import { applyQuality, camera, composer, gfx, isTouch, renderer, resize, scene } from '../view/core';
+import { applyQuality, camera, composer, isTouch, renderer, resize, scene, setPreset } from '../view/core';
 import { buildWorld, setBoden, setEarthSpots, updateFog, updateGround, BodenHandle } from '../view/world';
 import { updateDayNight } from '../view/daynight';
 import { MAX_TEX, TerrainInfo, swatchUrl, terrainList } from '../view/terrain';
@@ -77,7 +77,7 @@ class Editor {
 
   async boot() {
     const q = new URLSearchParams(location.search).get('q');
-    gfx.quality = q === 'hoch' || q === 'mittel' || q === 'niedrig' ? q : isTouch ? 'mittel' : 'hoch'; gfx.auto = false; applyQuality();
+    setPreset(q === 'hoch' || q === 'mittel' || q === 'niedrig' ? q : isTouch ? 'mittel' : 'hoch'); applyQuality();
     const cfg = await loadBalancing();
     this.H = hexR(cfg); this.slots = slotPositions(cfg).filter(s => !s.forest);
     buildWorld();

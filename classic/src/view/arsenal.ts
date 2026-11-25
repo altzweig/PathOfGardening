@@ -398,6 +398,18 @@ export function cranGun() {
   }
   return { g, anim: a };
 }
+/** Weizen-Schrotflinte (25.11.2026, Werkbank-Techtree): the berry blunderbuss loaded with wheat grains (golden funnel / muzzle
+ *  fill) and two wheat ears tied to the stock with twine, so it reads apart from the berry gun */
+export function wheatShotgun() {
+  const K = kit(), m = cranGun(); tintBerries(m.g, 'wheat');
+  for (const [x, rz] of [[.035, -.35], [-.035, .35]] as [number, number][]) {
+    const ear = new THREE.Group(); ear.position.set(x * 1.3, .03, -.2); ear.rotation.set(-.2, 0, rz); ear.scale.setScalar(1.6); m.anim.add(ear);
+    mesh(ear, new THREE.CylinderGeometry(.0025, .0025, .17, 5), K.chiliGold, 0, 0, -.02).rotation.x = Math.PI / 2;
+    for (let i = 0; i < 9; i++) mesh(ear, sph(8, 6), K.chiliGold, (i % 2 ? 1 : -1) * .006, 0, .03 + i * .011, .006, .006, .011);
+  }
+  wrapZ(m.anim, K.twine, .04, -.23, -.19, 0, 0);
+  return m;
+}
 /** Körner-MP (23.11.2026): wooden submachine gun that shoots wheat grains. Ash stock and body, walnut pistol grip and fore grip,
  *  turned wooden barrel in a perforated brass shroud, a drum magazine of grain with a glass window, a wheat ear tied to the stock. */
 export function grainSmg() {
@@ -578,7 +590,9 @@ export function comboModel(cid: ComboId, a: THREE.Group): ComboModel {
 const GUN_BERRY = 'Material.004', GUN_METAL = 'Material.006';
 const BERRY_TINT: Record<string, THREE.MeshStandardMaterial> = {};
 /** gun berry material per berry: body colour and roughness of Bastis berry models (berryModels.ts), a touch of glow so dark berries still read */
+let WHEAT_TINT: THREE.MeshStandardMaterial | null = null;
 function berryTint(kind: string) {
+  if (kind === 'wheat') return WHEAT_TINT ??= new THREE.MeshStandardMaterial({ color: 0xe0b44a, roughness: .55, emissive: 0xa07018, emissiveIntensity: .14, flatShading: true }); // 25.11.2026 Weizen-Schrotflinte: golden grains in the funnel
   const k = (kind in BERRY_DATA ? kind : 'cran') as keyof typeof BERRY_DATA, d = BERRY_DATA[k];
   const glow: Record<string, [number, number]> = { blue: [0x2440ff, .08], cran: [0xe0104a, .08], black: [0x4a1a5a, .12] };
   return BERRY_TINT[k] ??= new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(...d.body, THREE.LinearSRGBColorSpace), roughness: d.rough, emissive: glow[k][0], emissiveIntensity: glow[k][1] });

@@ -11,10 +11,11 @@ import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { Act, bind as bindKey, resetKeys } from './input/keys';
 import { Tutorial } from './ui/tutorial';
+import { TechTree, researchBar } from './ui/techtree';
 import { SettingsPages, TAB_ICONS, Tab, disp, fpsFrame, loadSettings } from './ui/settings';
 import { creditsHtml } from './ui/credits';
 import { ambient, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
-import { Client, Host, LobbyPlayer } from './net/net';
+import { Client, Host, LobbyPlayer, ToHost } from './net/net';
 import { GuestSync, MV, NetCfg, Rewind, guestQ, lerpSnap, netCfg, sharedQ } from './net/sync';
 import { predictStep } from './sim/move';
 import type { Player } from './sim/sim';
@@ -44,6 +45,7 @@ class Game {
   tut!: Tutorial;
   bulbs = new Bulbs();
   shop = new WerkstattUI(this.bulbs);
+  tree = new TechTree(); // 25.11.2026 Werkbank-Techtree: panel, pickup popup, HUD button
   private frozen = false; // pause / level-up state, for the slow-down + speed-up sounds
   me = 0;
   // co-op (25.11.2026 Koop-Netcode): fixed simulation ticks, snapshots between them drawn interpolated
@@ -72,7 +74,13 @@ class Game {
       else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
       else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
     };
-    this.input.onPause = () => { if (!$('#options').hidden && this.mode === 'idle') { this.closeOptions(); return; } if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } this.togglePause(); };
+    this.input.onPause = () => { if (!$('#options').hidden && this.mode === 'idle') { this.closeOptions(); return; } if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } if (this.myRo() > 0 && $('#pause').hidden && $('#options').hidden) { this.tree.onClose(); return; } this.togglePause(); };
+    // 25.11.2026 Werkbank-Techtree: choose / finish / close / open go the same way as pick / buy / place (sim on the host, message from a guest)
+    this.tree.onChoose = node => { sfx('ui.confirm'); this.rsAct({ t: 'rsChoose', node }); };
+    this.tree.onFinish = () => { initAudio(); sfx('ui.ideaClaim'); this.rsAct({ t: 'rsFinish' }); };
+    this.tree.onClose = () => { sfx('ui.click'); this.rsAct({ t: 'rsClose' }); };
+    this.tree.onOpen = () => { initAudio(); if (this.myRo() > 0 || this.view.snap?.ph !== 'play' || !$('#pause').hidden || this.building) return; sfx('ui.click'); this.input.releaseAll(); this.rsAct({ t: 'rsOpen' }); };
+    this.input.onTree = () => { if (this.mode === 'idle' || !$('#pause').hidden || !$('#options').hidden || !$('#cheat').hidden) return; const ro = this.myRo(); if (ro === 1) this.tree.onClose(); else if (ro === 0) this.tree.onOpen(); };
     this.shop.onBuy = i => { if (this.mode === 'client') this.client?.send({ t: 'buy', i }); else this.sim?.buy(this.me, i); };
     this.shop.onClose = () => this.closeShop();
     this.shop.onReroll = () => { initAudio(); if (this.mode === 'client') this.client?.send({ t: 'reroll' }); else this.sim?.reroll(this.me); };
@@ -112,7 +120,7 @@ class Game {
   /** garden behind the menus */
   idle() {
     this.mode = 'idle'; this.sim = new Sim(this.cfg); this.view.reset(); this.view.me = -1; this.view.smooth = false;
-    this.input.enabled = false; show('#hud', false);
+    this.input.enabled = false; show('#hud', false); this.tree.reset();
   }
   private wire() {
     const click = (id: string, f: () => void) => $(id).addEventListener('click', () => { initAudio(); ambient(true); sfx('ui.click'); f(); });
@@ -220,6 +228,17 @@ class Game {
     addEventListener('resize', () => { if (!$('#options').hidden && this.opTab === 'ctrl' && document.querySelector('.tab.on')?.getAttribute('data-tab') === 'mobile') this.ctrlTab('mobile'); });
   }
   private touchSel = -1;
+  /** 25.11.2026 Werkbank-Techtree: own research UI state (0 closed, 1 panel, 2 pickup popup) */
+  private myRo() { return this.mode === 'idle' ? 0 : (this.view.snap?.me[this.me]?.ro ?? 0); }
+  private rsAct(m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) { if (this.mode === 'client') this.client?.send(m); else this.rsDo(this.me, m); }
+  /** host / solo: a research action of a player */
+  private rsDo(id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) {
+    const sim = this.sim; if (!sim) return;
+    if (m.t === 'rsChoose') { if (typeof m.node === 'number') sim.chooseResearch(id, m.node); }
+    else if (m.t === 'rsFinish') sim.finishIdea(id);
+    else if (m.t === 'rsClose') sim.closeResearch(id);
+    else sim.openResearch(id);
+  }
   closeShop() { initAudio(); sfx('ui.click'); if (this.mode === 'client') this.client?.send({ t: 'shopClose' }); else this.sim?.closeShop(this.me); }
   private doPlace(slot: number) {
     if (this.mode === 'client') this.client?.send({ t: 'place', slot }); else this.sim?.place(this.me, slot);
@@ -284,7 +303,7 @@ class Game {
   }
   enterGame() {
     this.exitBuild(); this.startCheats = false;
-    only(null); show('#hud'); this.hud.reset(); this.tut.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
+    only(null); show('#hud'); this.hud.reset(); this.tree.reset(); this.tut.reset(); this.bulbs.reset(); this.shop.reset(); this.hud.names = (this.view.cfg.names.items ?? {}) as Record<string, string>; this.view.reset(); this.view.me = this.me;
     this.input.enabled = true; this.luShownFor = ''; this.overShown = false; this.syncBuildBtn();
     try { if (this.input.isTouch && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch { /* ignore */ }
     try { (navigator as any).wakeLock?.request('screen').catch(() => {}); } catch { /* ignore */ }
@@ -369,6 +388,7 @@ class Game {
     h.onBuy = (id, i) => this.sim?.buy(id, i);
     h.onShopClose = id => this.sim?.closeShop(id);
     h.onReroll = id => this.sim?.reroll(id);
+    h.onResearch = (id, m) => this.rsDo(id, m);
     h.onJoin = (p, again) => { if (p.tok) this.coopToks.set(p.id, p.tok); if (this.mode === 'host' && this.sim && !again) this.seat(p); };
     h.onLeave = (id, gone) => {
       if (this.mode !== 'host' || !this.sim) return;
@@ -595,7 +615,7 @@ class Game {
   private activeWeapon(): Weapon { const s = this.view.snap; const pr = s?.me[this.me]; return pr ? WEAPONS[pr.ac] : 'rake'; }
   frame(dt: number, headless = false) {
     const menusOpen = !$('#pause').hidden || !$('#options').hidden || !$('#cheat').hidden || this.sbOpen || this.building;
-    this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open;
+    this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open && !this.myRo(); // 25.11.2026: techtree panel / pickup popup open: no moving, no shooting
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
     } else if (this.mode === 'host' && this.host) {
@@ -629,10 +649,10 @@ class Game {
     if (headless) return;
     const s = this.view.snap;
     // soft sound when the game eases into a pause (level-up, menu) and out of it again
-    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1));
+    const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1) || (s.me[this.me]?.ro ?? 0) > 0);
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open;
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me, researchBar(this.view.cfg, s)); this.tree.update(s, this.me, this.view.cfg); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open || this.tree.open;
         this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
         if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
     else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }

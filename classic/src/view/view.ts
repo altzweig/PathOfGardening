@@ -25,12 +25,12 @@ const lavaTex = (() => {
   }
   return new THREE.CanvasTexture(cv);
 })();
-import { BUILD_SND_EVERY, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
+import { BUILD_SND_EVERY, benchWork, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FireSprites, FlameFx, GroundHeat, flameLight, makeFlame, resetFlameLight, updateFlame } from './flame';
-import { fruitIcon, mini, skillIcon } from '../ui/icons';
+import { fieldArt, fruitIcon, mini, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, enemyBars, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
-  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer,
+  part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer, envU,
 } from './core';
 import { ASP_TIP_BUSH, BUSH_MAT, juiceBottle, CHILI_STEM, EYE_COL, FRUIT_COL, FRUIT_HEX, PLAYER_RING, PROJ_ASP, PROJ_ASP_TIP, PlantMats, ELITE_COL, INK, buildEnemy, buildPlant, buildPlayer, fruitMesh, EnemyParts } from './models';
 import { DEATH_TIME, setRim } from './animals';
@@ -50,7 +50,13 @@ import { FlourFX } from './flourfx';
 import { MinePool } from './minepool';
 import { EggFX, fryingPan } from './eggfx';
 import { friedEgg, rawEgg } from './eggfx';
-import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries } from './arsenal';
+import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries, wheatShotgun } from './arsenal';
+// 25.11.2026 Werkbank-Techtree (P4): workbench + hammer + work dust, pea pistol, cabbage wall pool (P2 assets)
+import { BENCH_TOP, XP_GOLD, createHammer, createWorkbench, hammerSwing, type Workbench } from './workbench';
+import { DUST_CAP, createDust } from './dustfx';
+import { createWallPool, type WallPiece } from './wallpool';
+import { peaPistol, peaProjectile, type PeaPistol } from './peapistol';
+import { setCraftEnv, setCraftLight } from './craftkit';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Held, animBomb, animHeld, animNode, animProj, bombMesh, buildHeld, clearComboFx, comboEvent, comboOf, nodeMesh, projMesh, updateComboFx } from './combos';
 const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('cam')?.split(',').map(Number) ?? null : null;
@@ -58,13 +64,21 @@ const DBG_CAM = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 const EGG_BK = BK.indexOf('egg');
 const NUM_COL: Record<string, string> = { w: '#fff4d6', r: '#ffe3a0', g: '#c8ff9a', p: '#ff8090', b: '#ff6b7a', c: '#c8ff80', f: '#ffb35c', h: '#ff6b5a', v: '#9cff60', y: '#ffe23a', z: '#bfe4ff', o: '#ffa040', t: '#c89aff', i: '#bfe8ff' };
 
-interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s.dk */ dk?: number; chiliH?: THREE.Group; tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number }
+interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s.dk */ dk?: number; chiliH?: THREE.Group; tool?: { pivot: THREE.Group; sickle: THREE.Group; hrake: THREE.Group; grip: THREE.Object3D }; toolK?: number; swSide?: number; swLast?: number; sack?: THREE.Group; pan?: ReturnType<typeof fryingPan>; panT?: number; sling?: ReturnType<typeof eggSling>; slingT?: number; gun?: { g: THREE.Group; anim: THREE.Group }; smg?: { g: THREE.Group; anim: THREE.Group }; cabH?: THREE.Group; cw?: Held; cwT?: number; heatT?: number; twist?: number; xbow?: { g: THREE.Group; bolt: THREE.Group }; flame?: { fx: FlameFx; gun: THREE.Group; ang: number; was: boolean }; rig: Rig; lookKey: string; walk: number; label?: THREE.Sprite; wandGrip: THREE.Object3D; stepN?: number; g: THREE.Group; body: THREE.Group; rake: THREE.Group; head: THREE.Group; wand: THREE.Group; wandTip: THREE.Object3D; lemonMat: THREE.MeshStandardMaterial; stars: THREE.Group; ring: THREE.Mesh; bar: THREE.Group; cbar?: THREE.Group; hbar?: THREE.Group; s: PSnap; x: number; z: number; rot: number; recoil: number;
+  /** 25.11.2026 Werkbank-Techtree: Erbsenpistole (+ ms of the last shot), Weizen-Schrotflinte, Steinkohle cabbage in the hand (+ ms of the last post),
+   *  hammer at the bench: pivot + model, swing phase, work blend 0..1, hit point on the bench top (world), dust slot */
+  pea?: PeaPistol; peaT?: number; wgun?: { g: THREE.Group; anim: THREE.Group }; wallH?: THREE.Group; wallT?: number;
+  ham?: { pivot: THREE.Group; h: ReturnType<typeof createHammer> }; hph?: number; bwk?: number; hx?: number; hz?: number; dustI?: number; lean?: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; key: string; st: AnimState; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
 const mineObj = (hot: boolean) => new THREE.Mesh(GEO.sph, new THREE.MeshStandardMaterial({ color: hot ? 0xff7a20 : 0xff2040, emissive: hot ? 0xff4a00 : 0xff1030, emissiveIntensity: 1.6 }));
+/** 25.11.2026 Weizen-Schrotflinte pellet: golden, glowing a little like the other projectiles */
+const WSHOT_GRAIN = M(0xe8b850, { e: 0xb88018, ei: .45, r: .5, flat: false });
 /** projectile mesh by sim kind (0 asparagus bolt, 1 cranberry, 2+ combos) */
 function projObj(kind: number): THREE.Object3D {
+      if (kind === 13) return peaProjectile(); // 25.11.2026 Erbsenpistole: one big glossy pea
+      if (kind === 14) { const g = new THREE.Group(); part(g, GEO.sph, WSHOT_GRAIN, .032, .032, .062, 0, 0, 0, false); return g; } // Weizen-Schrotflinte: a plump golden grain (no additive streak: 8 per shot would bloom into a white blob)
       if (kind >= 2) return projMesh(kind);
       if (kind !== 0) return fruitMesh('cran', .72, false, true); // 25.11.2026: smaller shotgun berries (.9 -> .72)
       const m = new THREE.Group();
@@ -83,12 +97,12 @@ const CROP_DEAD = .35;
 /** growth stages of every plant except wheat (24.11.2026): size of the plant while tiny / small (ripe = 1), h = extra height factor, f = fruit size when ripe */
 const CROP_STAGE: Record<string, { 0: number; 1: number; f: number; h?: number }> = {
   def: { 0: .3, 1: .55, f: 1.15 }, blue: { 0: .3, 1: .55, f: 1.4 }, black: { 0: .3, 1: .55, f: 1.35 }, cran: { 0: .3, 1: .55, f: 1.45 },
-  asp: { 0: .5, 1: .75, f: 1.15, h: .5 }, cab: { 0: .3, 1: .55, f: 1 },
+  asp: { 0: .5, 1: .75, f: 1.15, h: .5 }, cab: { 0: .3, 1: .55, f: 1 }, pea: { 0: .3, 1: .55, f: 1.3 },
 };
 /** ripe berry bush: leaves a bit desaturated and browner */
 const ripeTint = (c: THREE.Color) => { const o = { h: 0, s: 0, l: 0 }; c.getHSL(o); return new THREE.Color().setHSL(o.h - .05, o.s * .7, o.l * 1.06).lerp(DRY_COL, .12); };
 const UNRIPE: Partial<Record<FruitType, THREE.Material>> = {
-  blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), black: M(0x9a3a34, { r: .4 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a),
+  blue: M(0x7fae4a, { r: .5 }), cran: M(0x9ab84a, { r: .5 }), black: M(0x9a3a34, { r: .4 }), chili: M(0x4f9a2a, { r: .4 }), lemon: M(0x6aa83a, { r: .5 }), wheat: M(0x8ab84a), asp: M(0x6a9a3a), pea: M(0x5f9a3c, { r: .5 }),
 };
 const THORN_VINE = M(0x4a2a2a, { r: .7 }), THORN_SPIKE = M(0xd8c0a8, { r: .5 }), THORN_LEAF = M(0x2a4a30, { r: .7 });
 let THORN_GEO: { vine: THREE.BufferGeometry; spikes: [number, number, number, number, number][] } | null = null;
@@ -247,12 +261,20 @@ export class GameView {
   }
   private fieldKey = '';
   private frameId = 0;
+  /** 25.11.2026 Werkbank on its hex slot (s.bn): model + the idea hanging on it */
+  private bench: { g: THREE.Group; wb: Workbench; slot: number; x: number; z: number } | null = null;
+  /** grey work dust in front of every hammering player (one instanced draw, dustfx.ts) */
+  private benchDust = createDust(scene, { dayU: envU.uDay });
+  /** Steinkohle posts + links (one instanced pool, wallpool.ts); first sync after a load / join without the build-up animation */
+  private wallPool = createWallPool(scene);
+  private wallInit = false; private wallSig = NaN; private wallList: WallPiece[] = [];
   localAim: LocalAim = { weapon: null, x: 0, z: 1, show: false };
   onEvent: (e: Ev) => void = () => {};
 
   constructor() {
     buildWorld();
-    setArsenalEnv(new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture); // reflections for the weapon props
+    const envTex = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
+    setArsenalEnv(envTex); setCraftEnv(envTex); // reflections for the weapon props (arsenal + Werkbank kit)
     this.heat = new GroundHeat(scene); this.fire = new FireSprites(scene);
     scene.add(this.dyn); scene.add(flameLight); // shared flamethrower light, always there (see flame.ts)
     // Händler (24.11.2026): squeaks and rumble follow the cart, quieter far from the own player
@@ -307,7 +329,7 @@ export class GameView {
     if (!type || !this.cfg) return;
     const H = hexR(this.cfg);
     for (const s of this.slots) {
-      const g = new THREE.Group(); g.position.set(s.x, .06, s.z); g.visible = this.free && this.tool !== 'build' ? !s.chest && (!s.forest || this.fields.has(this.slots.indexOf(s))) : slotFits(this.cfg, s, type); // nut trees only in the forest, everything else only in the garden
+      const g = new THREE.Group(); g.position.set(s.x, .06, s.z); g.visible = this.free && this.tool !== 'build' ? !s.chest && !s.bench && (!s.forest || this.fields.has(this.slots.indexOf(s))) : slotFits(this.cfg, s, type); // nut trees only in the forest, everything else only in the garden
       const fill = new THREE.Mesh(new THREE.CircleGeometry(H * .93, 6, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .06, depthWrite: false }));
       const line = new THREE.Mesh(new THREE.RingGeometry(H * .86, H * .95, 6, 1, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false }));
       fill.rotation.x = line.rotation.x = -Math.PI / 2;
@@ -511,6 +533,8 @@ export class GameView {
   reset() {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
+    for (const id of this.players.keys()) benchWork('p' + id, false);
+    this.bench = null; this.benchDust.clear(); this.wallPool.clear(); this.wallInit = false; this.wallSig = NaN; this.wallList.length = 0;
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     for (const n of this.juiceTxt) n.el.remove(); this.juiceTxt.length = 0; for (const el of this.pressEls.values()) el.remove(); this.pressEls.clear(); this.jcPrev = [];
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
@@ -529,6 +553,8 @@ export class GameView {
       const g = new THREE.Group(), H = hexR(this.cfg), bed = buildBed(H, []); g.add(bed); this.chestFn = chestModel(g); this.dyn.add(g); this.chest = g;
     }
     this.chestN = s.ch ?? 0;
+    this.applyBench(s);
+    this.applyWalls(s);
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -549,7 +575,7 @@ export class GameView {
       if (!this.smooth || Math.hypot(ps.x - v.x, ps.z - v.z) > 3) { v.x = ps.x; v.z = ps.z; }
       v.s = ps;
     }
-    for (const [pid, v] of this.players) if (!seenP.has(pid)) { this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); if (v.cbar) barGroup.remove(v.cbar); if (v.hbar) barGroup.remove(v.hbar); this.players.delete(pid); }
+    for (const [pid, v] of this.players) if (!seenP.has(pid)) { benchWork('p' + pid, false); if (v.dustI !== undefined) this.benchDust.set(v.dustI, 0, 0, 0, false); this.dyn.remove(v.g, v.ring); if (v.label) this.dyn.remove(v.label); disposeFarmer(v.rig); if (v.flame) { this.dyn.remove(v.flame.fx.g, v.flame.gun); loopSfx('flame' + pid, 'weapons.chiliLoop', false); } barGroup.remove(v.bar); if (v.cbar) barGroup.remove(v.cbar); if (v.hbar) barGroup.remove(v.hbar); this.players.delete(pid); }
     // fields
     const slots = this.slots;
     const seenF = new Set<number>();
@@ -576,11 +602,12 @@ export class GameView {
       v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
     }
     for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
-    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(','); if (fk + (s.ch !== undefined) !== this.fieldKey) {
-      this.fieldKey = fk + (s.ch !== undefined); syncTorches([], hexR(this.cfg)); // no torches at the beds any more
+    const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(',') + (s.ch !== undefined) + (s.bn ?? -1); if (fk !== this.fieldKey) {
+      this.fieldKey = fk; syncTorches([], hexR(this.cfg)); // no torches at the beds any more
       // wet earth around and between the fields (and the chest), meadow everywhere else
       const H = hexR(this.cfg), es = s.fi.map(f => this.slots[f[0]]).filter(Boolean).map(sl => ({ x: sl.x, z: sl.z, r: H * 1.3 }));
       if (s.ch !== undefined) es.push({ x: 0, z: 0, r: H * 1.3 });
+      const bs = this.slots[s.bn ?? -1]; if (bs) es.push({ x: bs.x, z: bs.z, r: H * 1.3 }); // Werkbank: on earth like the chest
       setEarthSpots(es);
     }
     // cabbage poison pools
@@ -653,7 +680,9 @@ export class GameView {
       const warn = b[4] || b[6] ? b[5] : 0; (ring.material as THREE.MeshBasicMaterial).opacity = warn ? .15 + .35 * warn * (.6 + .4 * Math.sin(performance.now() / 40)) : 0;
     });
     // projectiles / bombs / mines
-    this.sync(this.projs, s.pj, id, p => p[0], p => projObj(p[1]), (v, p) => { v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); } if (p[1] >= 2) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
+    this.sync(this.projs, s.pj, id, p => p[0], p => projObj(p[1]), (v, p) => { v.kind = p[1]; v.tx = p[2]; v.ty = p[3]; v.tz = p[4]; v.m.rotation.y = p[5]; if (p[1] === 0 || p[1] === 4) { const w = p[6] || 1; v.m.scale.set(w, w, 1); }
+      if (p[1] === 13) { v.m.scale.setScalar(p[6] || 1); v.m.rotation.x += this.dtLast * 14; return; } // pea: rolls forward through the air
+      if (p[1] >= 2 && p[1] < 13) animProj(p[1], v.m, v.x, v.y, v.z, p[5], p[6], this.dtLast); });
     this.minePool.sync(s.bo.filter(b => b[9]), this.smooth); // contact mines lying around: instanced pool (minepool.ts)
     this.sync(this.bombs, s.bo.filter(b => !b[9]), id, b => b[0], (b) => b[6] === EGG_BK ? rawEgg() : b[6] ? bombMesh(b[6], b[8]) : fruitMesh('cab', b[4] ? .6 : 1, false, !b[9]), (v, b) => {
       v.tx = b[1]; v.ty = b[2]; v.tz = b[3];
@@ -669,6 +698,34 @@ export class GameView {
     // Shockgun berries lying on the ground
     this.sync(this.snodes, s.sn || [], id, n => n[0], () => nodeMesh(), (v, n) => { v.tx = n[1]; v.ty = .08; v.tz = n[2]; animNode(v.m, n[1], n[2], n[3]); });
     for (const e of s.ev) this.event(e);
+  }
+  /** 25.11.2026 Werkbank on slot s.bn (earth hex like the chest, sign + bar facing the camera at +z); the idea being researched
+   *  hangs on it (icon from the techtree node), the bar shows its progress, ready = glows and swings */
+  private applyBench(s: Snap) {
+    const sl = this.slots[s.bn ?? -1];
+    if (this.bench && (!sl || this.bench.slot !== s.bn)) { this.dyn.remove(this.bench.g); this.bench = null; }
+    if (!sl) return;
+    if (!this.bench) {
+      const g = new THREE.Group(); g.position.set(sl.x, 0, sl.z); g.add(buildBed(hexR(this.cfg), []));
+      const wb = createWorkbench({ xpColor: XP_GOLD }); g.add(wb.group); this.dyn.add(g);
+      this.bench = { g, wb, slot: s.bn!, x: sl.x, z: sl.z };
+    }
+    const wb = this.bench.wb, rs = s.rs, cur = rs?.[0] ?? -1, node = cur >= 0 ? this.cfg.research?.nodes[cur] : undefined;
+    if (!node) { wb.setIdea(null); wb.setProgress(0); wb.setReady(false); return; }
+    const ref = node.ref ?? '', N = this.cfg.names;
+    const label = node.kind === 'speed' ? 'Forschungstempo' : node.kind === 'field' ? N.fields?.[ref as FruitType] ?? N.plants?.[ref as FruitType] ?? ref : N.skills?.[ref as Weapon] ?? ref;
+    const color = node.kind === 'field' ? FRUIT_COL[ref as FruitType] : node.kind === 'weapon' ? FRUIT_COL[(ref === 'wshot' ? 'wheat' : ref === 'wall' ? 'cab' : ref) as FruitType] : undefined;
+    wb.setIdea(node.kind === 'speed' ? { glyph: '\u23E9', color: '#ffd21f', label } : { svg: node.kind === 'field' ? fieldArt(ref) : skillIcon(ref), color: color ?? '#ffd21f', label });
+    const ready = !!rs![1]; wb.setReady(ready); wb.setProgress(ready ? 1 : s.rp?.[cur] ?? 0);
+  }
+  /** 25.11.2026 Steinkohle posts: synced into the instanced pool only when something changed (cheap signature) */
+  private applyWalls(s: Snap) {
+    const wl = s.wl ?? []; let sig = wl.length;
+    for (const w of wl) sig = (sig * 31 + w[0] * 7 + Math.round(w[3] * 10) * 13 + Math.round(w[1] * 50) * 3 + Math.round(w[2] * 50)) | 0;
+    if (sig === this.wallSig && this.wallInit) return;
+    this.wallSig = sig; const L = this.wallList; L.length = wl.length;
+    for (let i = 0; i < wl.length; i++) { const w = wl[i]; L[i] = { id: w[0], x: w[1], z: w[2], hp: w[3], maxHp: w[4] }; }
+    this.wallPool.sync(L, this.cfg.skills.wall?.linkDist ?? 1, !this.wallInit); this.wallInit = true;
   }
   private sync<T>(map: Map<number, JView>, arr: T[], id: number, key: (t: T) => number, make: (t: T) => THREE.Object3D, upd: (v: JView, t: T) => void) {
     for (const t of arr) {
@@ -705,7 +762,7 @@ export class GameView {
     }
     // rim kept only as data holder for the rarity colour (no visible UI line any more)
     const rim = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: RARITY_COL[0] })); rim.visible = false;
-    const mats = { leaf: M(type === 'blue' ? 0x264a2c : type === 'black' ? 0x1f3a32 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x3f8a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'blue' ? 0x3f8a3a : type === 'black' ? 0x3c3a2c : type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
+    const mats = { leaf: M(type === 'pea' ? 0x2f7428 : type === 'blue' ? 0x264a2c : type === 'black' ? 0x1f3a32 : type === 'asp' ? 0x6aa83c : type === 'cran' ? 0x3f8a2a : type === 'lemon' ? 0x3d6a2a : type === 'chili' ? 0x2c6328 : type === 'nut' ? 0x3f6a2c : 0x4f8a35), head: M(type === 'pea' ? 0x5aa840 : type === 'blue' ? 0x3f8a3a : type === 'black' ? 0x3c3a2c : type === 'lemon' ? 0x5a4026 : type === 'chili' ? 0x3f7a2a : type === 'nut' ? 0x4a3220 : 0x9ad870) };
     const plant = new THREE.Group(); g.add(plant); const fruits: THREE.Mesh[] = [];
     if (type === 'nut') { // one broadleaf tree from the nature pack in the middle (loaded async), nuts hanging in its crown
       const tree = new THREE.Group(); tree.rotation.y = rand(0, 7); plant.add(tree);
@@ -1006,7 +1063,12 @@ export class GameView {
         break;
       }
       case 'punches': play('punches', e.n); this.shake = Math.min(.22, this.shake + .05 + e.n * .03); break;
-      case 'impact': punchStar(e.x, e.z, .45); break;
+      case 'impact': punchStar(e.x, e.z, .45); // 25.11.2026 c 4 = pea (green splat), c 5 = wheat grain (golden chaff)
+        if (e.c === 4) { burst(V(e.x, .45, e.z), 0x8fd050, 10, 2, .1, .3); decal(e.x, e.z, 0x6aa83a, .12, 1.2, { op: .5 }); }
+        else if (e.c === 5) burst(V(e.x, .45, e.z), 0xe8c060, 4, 1.4, .05, .25);
+        break;
+      case 'wallPut': { const pv = this.players.get(e.p); if (pv) pv.wallT = performance.now(); break; } // the sound comes from the sim (weapons.wall)
+      case 'wallHit': { const w = this.snap?.wl?.find(q => q[0] === e.i); if (w) sfx('wall.hit', w[1], w[2]); break; }
       case 'swipe': {
         rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.diameter);
         break;
@@ -1031,7 +1093,8 @@ export class GameView {
           for (let i = 0; i < 18; i++) { const an = i / 18 * Math.PI * 2; PART.spawn(V(e.x, .7, e.z), V(Math.cos(an) * 3.6, .5, Math.sin(an) * 3.6), 0xf4efe4, .3, .5, { drag: 3 }); }
           break;
         }
-        const col = e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
+        if (e.w === 'pea') { const pv = this.players.get(e.p); if (pv) pv.peaT = performance.now(); } // slide blows back (animBaseHeld)
+        const col = e.w === 'pea' ? 0x9ad860 : e.w === 'wshot' ? 0xe8c060 : e.w === 'asp' ? 0xb8ff70 : e.w === 'cran' ? 0xff4060 : e.w === 'chili' ? 0xff7a20 : e.w === 'lemon' ? 0xfff070 : 0xc8ff90;
         burst(V(e.x, .75, e.z), col, 10, 2.2, .2, .22); PART.spawn(V(e.x, .75, e.z), V(0, 0, 0), col, .9, .12);
         const pv = this.players.get(e.p); if (pv) { pv.recoil = e.w === 'lemon' ? .04 : .12; if (e.w === 'lemon') pv.lemonMat.emissiveIntensity = .55; } // wand: the lemon flares up
         break;
@@ -1176,8 +1239,12 @@ export class GameView {
       for (const f of FRUITS) add(fruitMesh(f, 1));
       this.herd.warm([...ENEMIES.filter(e => e !== 'squirrel'), 'boss']); // instanced animals: one of each species (baked motion)
       add(merchantWarm()); // Händler: paled colours, golden sweep, tarp dissolve
+      // 25.11.2026 Werkbank-Techtree: pea pistol + pea, wheat shotgun, workbench (sign, bar, glow), hammer, pea vines
+      add(peaPistol().g); add(peaProjectile()); add(wheatShotgun().g); add(createWorkbench({ xpColor: XP_GOLD }).group); add(createHammer().g);
+      add(buildPlant('pea', { leaf: M(0x4f9a3a), head: M(0x6ab84a) }).g);
     } catch (e) { console.warn('prewarm', e); }
     this.minePool.warm(); // instanced variant of the cabbage material
+    this.benchDust.warm(); this.wallPool.warm(); // work dust + cabbage wall: one invisible instance each
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
     G.scale.setScalar(1e-4); G.position.set(0, -.5, 0); scene.add(G);
@@ -1186,9 +1253,10 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); merchantReset();
+    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; merchantReset();
   }
   frame(dt: number) {
+    dt = Math.max(0, dt); // 25.11.2026: the first rAF after a long prewarm can hand in a negative dt (timers ran backwards: red hurt screen)
     resetFlameLight();
     windU.value += dt; this.flourFx.frame(dt); this.eggFx.frame(dt); this.minePool.frame(dt, this.smooth ? 1 - Math.exp(-dt * 16) : 1);
     this.heat.update(dt, performance.now() / 1000); this.fire.setScale(pxScale); this.fire.update(dt);
@@ -1213,7 +1281,8 @@ export class GameView {
       }
       for (const v of this.projs.values()) {
         v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z);
-        if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.m.children.length > 1 ? 0x9cff60 : 0xff3050, .14, .22);
+        if (v.kind === 14) { if (Math.random() < .25) PART.spawn(v.m.position, V(0, .1, 0), 0xe8c060, .07, .18); } // wheat pellets: faint chaff
+        else if (Math.random() < .7) PART.spawn(v.m.position, V(0, .15, 0), v.kind === 13 ? 0x9ad860 : v.m.children.length > 1 ? 0x9cff60 : 0xff3050, v.kind === 13 ? .2 : .14, .22);
       }
       for (const map of [this.bombs, this.mines, this.pools, this.bbombs]) for (const v of map.values()) { v.x = lerp(v.x, v.tx, k); v.y = lerp(v.y, v.ty, k); v.z = lerp(v.z, v.tz, k); v.m.position.set(v.x, v.y, v.z); }
       for (const [, f] of this.fields) { f.bar.quaternion.copy(camera.quaternion); this.animField(f, dt); }
@@ -1223,9 +1292,10 @@ export class GameView {
     this.updateOverlay();
     this.updateAim();
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
-    updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day);
+    updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day); setCraftLight(dayNow().day);
     this.night = 1 - dayNow().day;
     this.chestFn?.(dt, this.chestN);
+    this.bench?.wb.update(dt, camera); this.benchDust.update(dt); this.wallPool.update(dt);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     const night = 1 - dayNow().day;
@@ -1248,16 +1318,29 @@ export class GameView {
     const x = v.x + Math.sin(a) * centre, z = v.z + Math.cos(a) * centre;
     const i = slotAt(this.cfg, this.slots, x, z); if (i < 0) return 0;
     const f = this.fields.get(i); if (!f || !f.alive) return 0;
-    return f.ftype === 'wheat' ? 1 : f.ftype === 'blue' || f.ftype === 'black' || f.ftype === 'cran' ? 2 : 0;
+    return f.ftype === 'wheat' ? 1 : f.ftype === 'blue' || f.ftype === 'black' || f.ftype === 'cran' || f.ftype === 'pea' ? 2 : 0; // 25.11.2026 peas: hand rake like the berries
   }
   private animPlayer(v: PView, dt: number, k: number) {
     const s = v.s, ox = v.x, oz = v.z;
     v.x = lerp(v.x, s.x, k); v.z = lerp(v.z, s.z, k);
     const spd = dt > 0 ? Math.hypot(v.x - ox, v.z - oz) / dt : 0;
     v.walk = lerp(v.walk, s.al ? clamp(spd / 2.2, 0, 1) : 0, 1 - Math.exp(-dt * 10));
-    v.g.position.set(v.x, 0, v.z); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(v.x, .035, v.z);
+    // 25.11.2026 Werkbank: hammering player steps up to the bench top (visual only, <= ~.5 m) and faces the spot the hammer hits
+    const bw = !!s.bw && !!s.al && !!this.bench;
+    v.bwk = clamp((v.bwk ?? 0) + (bw ? dt : -dt) * 5, 0, 1);
+    let px = v.x, pz = v.z, workRot: number | null = null;
+    if (this.bench && v.bwk > 0) {
+      const B = this.bench, lx = v.x - B.x, lz = v.z - B.z, hx = clamp(lx, -.55, .55), hz = clamp(lz, -.2, .2); // nearest point of the bench top
+      let dx = lx - hx, dz = lz - hz; const L = Math.hypot(dx, dz);
+      if (L < .05) { const l2 = Math.hypot(lx, lz) || 1; dx = lx / l2; dz = lz / l2; } else { dx /= L; dz /= L; }
+      v.hx = B.x + hx; v.hz = B.z + hz;
+      const e = v.bwk * v.bwk * (3 - 2 * v.bwk);
+      px = lerp(v.x, v.hx + dx * .62, e); pz = lerp(v.z, v.hz + dz * .62, e);
+      if (bw) workRot = Math.atan2(-dx, -dz);
+    }
+    v.g.position.set(px, 0, pz); v.g.visible = !!s.al; v.ring.visible = !!s.al; v.ring.position.set(px, .035, pz);
     const swinging = s.sw > 0;
-    v.rot = lerpAngle(v.rot, swinging ? s.sd : s.f, swinging ? .55 : .25); // a running stroke turns with the player at once
+    v.rot = lerpAngle(v.rot, workRot ?? (swinging ? s.sd : s.f), swinging ? .55 : .25); // a running stroke turns with the player at once
     const sp = s.sp || 0; // Mehlsack: one full turn, fast start, soft stop; Bratpfanne: whips round and stops almost dead
     v.g.rotation.y = v.rot + (sp > 0 ? (s.sk ? Math.min(1, Math.pow(sp, 1.15) * 1.04) : 1 - Math.pow(1 - sp, 2.2)) * Math.PI * 2 : 0);
     v.body.position.y = s.al ? Math.abs(Math.sin(s.wk)) * .05 : 0;
@@ -1316,9 +1399,10 @@ export class GameView {
     this.animBaseHeld(v);
     this.animCombo(v, dt);
     // the rake goes away while another weapon is in the hand (wand, crossbow, flamethrower)
-    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible || v.sling?.g.visible || v.chiliH?.visible);
-    if (v.tool) v.tool.pivot.visible = !!s.rh && !!v.toolK && (s.sw > 0 || !otherHeld);
-    v.rake.visible = !v.toolK && !!s.rh && (s.sw > 0 || !otherHeld);
+    const otherHeld = !!(v.wand.visible || v.xbow?.g.visible || v.flame?.gun.visible || v.cw?.g.visible || v.gun?.g.visible || v.smg?.g.visible || v.cabH?.visible || v.sack?.visible || v.pan?.g.visible || v.sling?.g.visible || v.chiliH?.visible || v.pea?.g.visible || v.wgun?.g.visible || v.wallH?.visible);
+    if (v.tool) v.tool.pivot.visible = !bw && !!s.rh && !!v.toolK && (s.sw > 0 || !otherHeld);
+    v.rake.visible = !bw && !v.toolK && !!s.rh && (s.sw > 0 || !otherHeld);
+    this.animHammer(v, dt, bw);
     this.poseFarmer(v, dt);
     const other = s.id !== this.me;
     if (v.label) { v.label.visible = other && !!s.al; v.label.position.set(v.x, 1.86, v.z); }
@@ -1341,13 +1425,41 @@ export class GameView {
     } else if (v.hbar) v.hbar.visible = false;
   }
   /** held weapon models that hang on the back while the weapon is put away (24.11.2026) */
-  private carried(v: PView) { return [v.cw?.g, v.gun?.g, v.smg?.g, v.cabH, v.sack, v.pan?.g, v.sling?.g, v.xbow?.g, v.chiliH]; }
+  private carried(v: PView) { return [v.cw?.g, v.gun?.g, v.smg?.g, v.cabH, v.sack, v.pan?.g, v.sling?.g, v.xbow?.g, v.chiliH, v.pea?.g, v.wgun?.g, v.wallH]; }
+  /** 25.11.2026 Werkbank: hammer in the +x hand, blows at ~2 per second (hammerSwing), each landing knocks the bench, puffs the
+   *  grey dust in front of the player and plays a blow; saw / screw noises run in a loose cycle (audio.benchWork) */
+  private animHammer(v: PView, dt: number, bw: boolean) {
+    const s = v.s, B = this.bench;
+    if (v.dustI === undefined) { const used = new Set([...this.players.values()].map(q => q.dustI)); for (let i = 0; i < DUST_CAP; i++) if (!used.has(i)) { v.dustI = i; break; } }
+    benchWork('p' + s.id, bw, v.hx ?? v.x, v.hz ?? v.z, 1);
+    if (bw && !v.ham) {
+      const pivot = new THREE.Group(); pivot.position.set(.17, 1.0, .1); pivot.rotation.order = 'YXZ'; pivot.rotation.y = -.12; v.g.add(pivot);
+      const h = createHammer(); h.g.position.z = .06; pivot.add(h.g); v.ham = { pivot, h };
+    }
+    if (v.ham) {
+      v.ham.pivot.visible = bw;
+      if (bw && B) {
+        const p0 = v.hph ?? 0, p1 = p0 + dt * 2, sw = hammerSwing(p1); v.hph = p1 % 64;
+        v.ham.pivot.rotation.x = sw.pitch; v.lean = sw.lean;
+        if (Math.floor(p0 - .68) < Math.floor(p1 - .68)) { // the blow lands (window crossed, also at low frame rates)
+          B.wb.hit(1); if (v.dustI !== undefined) this.benchDust.pulse(v.dustI, 1);
+          sfx('bench.hit', v.hx!, v.hz!, s.id === this.me ? 1 : .6, rand(.75, 1));
+        }
+      } else { v.hph = 0; v.lean = 0; }
+    }
+    if (v.dustI !== undefined) {
+      const k = Math.hypot((v.hx ?? 0) - v.g.position.x, (v.hz ?? 0) - v.g.position.z) || 1;
+      this.benchDust.set(v.dustI, (v.hx ?? 0) + ((v.hx ?? 0) - v.g.position.x) / k * .05, BENCH_TOP, (v.hz ?? 0) + ((v.hz ?? 0) - v.g.position.z) / k * .05, bw && (v.bwk ?? 0) > .5, .75);
+    }
+  }
   /** legs walk with the walk phase; hands grip whatever is in use (rake handle, wand, crossbow, flamethrower) via IK */
   private poseFarmer(v: PView, dt: number) {
     if (!v.g.visible) return;
     const R = v.rig, s = v.s;
     animateLegs(R, dt, s.wk, v.walk);
     R.torso.rotation.y += v.twist || 0; // rake stroke: upper body turns with the swing
+    const ham = v.ham?.pivot.visible ? v.ham : null;
+    if (ham) R.torso.rotation.x += (v.lean ?? 0) * (v.bwk ?? 0); // hammering: leans over the bench
     v.g.updateMatrixWorld(true);
     const back = 1 - (v.dk ?? 0), held = this.carried(v);
     if (held.some(o => o?.visible)) { carryApply(held, back, v.g, R.torso); v.g.updateMatrixWorld(true); }
@@ -1360,13 +1472,17 @@ export class GameView {
       else if (v.xbow && v.xbow.g.visible) { t0 = v.xbow.g.localToWorld(V(0, -.075, -.17)); t1 = v.xbow.g.localToWorld(V(0, -.035, .1)); }
       else if (v.gun && v.gun.g.visible) { t0 = v.gun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.gun.anim.localToWorld(V(0, -.01, .12)); }
       else if (v.smg && v.smg.g.visible) { t0 = v.smg.anim.localToWorld(V(0, -.09, -.07)); t1 = v.smg.anim.localToWorld(V(0, -.07, .1)); }
+      else if (v.pea && v.pea.g.visible) { v.pea.anim.updateMatrixWorld(true); t0 = v.pea.anim.localToWorld(v.pea.t0.clone()); t1 = v.pea.anim.localToWorld(v.pea.t1.clone()); }
+      else if (v.wgun && v.wgun.g.visible) { t0 = v.wgun.anim.localToWorld(V(0, -.09, -.165)); t1 = v.wgun.anim.localToWorld(V(0, -.01, .12)); }
+      else if (v.wallH && v.wallH.visible) { t0 = v.wallH.localToWorld(V(.02, -.09, 0)); }
       else if (v.cabH && v.cabH.visible) { t0 = v.cabH.localToWorld(V(.02, -.09, 0)); }
       else if (v.sack && v.sack.visible) { t0 = v.sack.localToWorld(V(0, .01, 0)); }
       else if (v.pan && v.pan.g.visible) { v.pan.g.updateMatrixWorld(true); t0 = v.pan.pan.localToWorld(V(0, .05, -.4)); }
       else if (v.sling && v.sling.g.visible) { v.sling.g.updateMatrixWorld(true); t0 = v.sling.anim.localToWorld(V(0, -.05, 0)); t1 = v.sling.pouch.localToWorld(V(0, 0, -.02)); } // grip + the hand drawing the band
       if (back > .25) t1 = null;
     }
-    if (!t0 && v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
+    if (ham) { ham.pivot.updateMatrixWorld(true); t0 = ham.h.anim.localToWorld(ham.h.grip.clone()); t1 = v.g.localToWorld(V(-.2, BENCH_TOP + .07, .67)); } // the other hand holds the board
+    else if (!t0 && v.tool?.pivot.visible) { v.tool.pivot.updateMatrixWorld(true); t0 = v.tool.grip.getWorldPosition(V()); }
     else if (!t0 && v.rake.visible) {
       const sz = Math.max(.05, v.rake.scale.z);
       t0 = v.rake.localToWorld(V(0, 0, .2 / sz)); t1 = v.rake.localToWorld(V(0, 0, .44 / sz));
@@ -1422,6 +1538,25 @@ export class GameView {
       else if (k < .6) { S.setPull((k - .35) / .25); S.egg.visible = true; }
       else { S.setPull(1); S.egg.visible = true; }
       S.anim.rotation.x = k < .3 ? -Math.sin(k / .3 * Math.PI) * .15 : 0; // little kick of the fork
+    }
+    // 25.11.2026 Werkbank-Techtree: Erbsenpistole (slide blows back, the pea in the muzzle is gone for a moment), Weizen-Schrotflinte
+    // (berry gun with golden grains + wheat ears), Steinkohle (a cabbage in the hand, pressed down onto the ground with every post)
+    const peaOn = al && aw === 'pea';
+    if (peaOn && !v.pea) { const m = peaPistol(); m.g.position.set(.2, .9, .3); v.g.add(m.g); v.pea = m; }
+    if (v.pea) {
+      v.pea.g.visible = peaOn;
+      const r = Math.max(0, 1 - (performance.now() - (v.peaT ?? -1e4)) / 250);
+      v.pea.slide.position.z = -Math.min(1, r * 2) * .035; v.pea.anim.rotation.x = -r * .25; v.pea.anim.position.z = -r * .05; v.pea.loaded.visible = r < .3;
+    }
+    const wsOn = al && aw === 'wshot';
+    if (wsOn && !v.wgun) { const m = wheatShotgun(); m.g.position.set(.2, .78, .22); v.g.add(m.g); v.wgun = m; }
+    if (v.wgun) { v.wgun.g.visible = wsOn; v.wgun.anim.position.z = -v.recoil * .5; v.wgun.anim.rotation.x = -v.recoil * 2; }
+    const wallOn = al && aw === 'wall';
+    if (wallOn && !v.wallH) { const c = cabHeld(); c.scale.setScalar(.8); c.position.set(.25, .86, .24); v.g.add(c); v.wallH = c; }
+    if (v.wallH) {
+      v.wallH.visible = wallOn;
+      const k = (performance.now() - (v.wallT ?? -1e4)) / 1000, d = k < .3 ? Math.sin(k / .3 * Math.PI) : 0; // set down: a quick dip forward
+      v.wallH.position.set(.25, .86 - d * .3, .24 + d * .12); v.wallH.rotation.x = d * .6;
     }
     if (v.sack) { v.sack.visible = sackOn; const sp = v.s.sp || 0; v.sack.rotation.z = sp > 0 ? -Math.sin(sp * Math.PI) * 1.3 : lerp(v.sack.rotation.z, Math.sin(performance.now() / 260) * .06, .2); v.sack.position.x = .26 + (sp > 0 ? Math.sin(sp * Math.PI) * .22 : 0); }
   }

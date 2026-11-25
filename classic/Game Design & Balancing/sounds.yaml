@@ -144,6 +144,8 @@ weapons:
   overheat:   { files: [flame_end_1, flame_end_2], vol: 0.3, pitch: [1.5, 1.8], gap: 0.5 }      # Körner-MP läuft heiß: zischt und blockiert
   cooled:     { files: [wood_2, wood_4], vol: 0.25, pitch: [1.6, 1.8], gap: 0.5 }               # wieder abgekühlt: Klack
   pea:        { synth: peaShot, svol: 1.0, gap: 0.08 }                                          # 25.11.2026 Erbsenpistole: dumpfer Holz-/Metall-Knall (prozedural)
+  wall:       { synth: wallPlace, svol: 0.8, gap: 0.05 }                                        # 25.11.2026 Schlüssel der Sim (layWall) = wall.place
+  wallBreak:  { synth: wallBreak, svol: 1.0, gap: 0.05 }                                        # 25.11.2026 Schlüssel der Sim (removeWall) = wall.break
 
 bench:
   # 25.11.2026 Werkbank-Forschung (prozedural, audio.ts): Hammer kommt aus der Animation, Säge + Schrauben spielt benchWork() im Zyklus
@@ -151,6 +153,11 @@ bench:
   saw:   { synth: benchSaw, svol: 0.75 }                # ein Sägezug (hin oder her)
   screw: { synth: benchScrew, svol: 0.8, gap: 0.2 }     # Ratsche + gelegentliches Quietschen
   ready: { synth: ideaReady, svol: 1.0, gap: 1 }        # Idee fertig: warmes "Ding"
+
+research:
+  # 25.11.2026 Schlüssel der Sim (tickResearch): fertig = bench.ready, Abholen (Popup geht auf) = ui.ideaClaim
+  ready:  { synth: ideaReady, svol: 1.0, gap: 1 }       # Idee an der Werkbank fertig
+  pickup: { synth: ideaClaim, svol: 0.8, gap: 0.5 }     # fertige Idee abgeholt
 
 wall:
   # 25.11.2026 Steinkohl-Mauer (prozedural)

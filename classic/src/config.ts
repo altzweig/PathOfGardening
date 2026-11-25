@@ -96,7 +96,8 @@ export interface Balancing {
   research?: ResearchCfg;
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
-  names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
+  names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>>;
+    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp', string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
     /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
     sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };

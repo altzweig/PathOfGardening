@@ -17,6 +17,14 @@ progression: research
 
 names:
   merchant: Der Händler kommt!   # 24.11.2026 kurze Einblendung, wenn der Händler am Rand auftaucht (einziger Text dazu)
+  research:          # 25.11.2026 Techtree-UI (nur Namen, keine Erklärtexte)
+    title: Forschung
+    speed: Forschungstempo
+    field: Feld
+    weapon: Waffe
+    finish: Fertigstellen
+    level: Stufe
+    hp: Leben
   skills:
     rake: Harke
     pea: Erbsenpistole     # 25.11.2026 Startwaffe

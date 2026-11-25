@@ -99,10 +99,13 @@ export class Orbs {
     if (import.meta.env.DEV) (window as any).__orbs = this; // screenshots: __orbs.force = [hp, xp]
   }
   force: [number, number] | null = null;
-  update(hp: number, xp: number, lv: number, shield = -1, stamina = -1, drained = false) {
+  private lk = '';
+  /** label (25.11.2026 Werkbank-Techtree): research mode, the badge shows the icon of the idea being researched instead of the level */
+  update(hp: number, xp: number, lv: number, shield = -1, stamina = -1, drained = false, label: { key: string; html: string } | null = null) {
     if (this.force) [hp, xp] = this.force;
     this.hp.set(hp); this.xp.set(xp); this.hp.setArc(shield); this.xp.setArc(stamina, drained);
-    if (lv !== this.lv) { if (this.lv >= 0 && lv > this.lv) this.xp.snap(); this.lv = lv; (document.getElementById('orbLv')!).textContent = String(lv); }
+    if (label) { if (label.key !== this.lk) { if (this.lk) this.xp.snap(); this.lk = label.key; this.lv = -1; const b = document.getElementById('orbLv')!; b.innerHTML = label.html; b.classList.add('ic'); } }
+    else if (lv !== this.lv) { if (this.lv >= 0 && lv > this.lv) this.xp.snap(); this.lv = lv; this.lk = ''; const b = document.getElementById('orbLv')!; b.textContent = String(lv); b.classList.remove('ic'); }
     const now = performance.now(), dt = Math.min(.1, (now - this.last) / 1000); this.last = now;
     if (document.body.dataset.input !== 'pc') return;
     this.hp.tick(dt, now / 1000); this.xp.tick(dt, now / 1000 + 3.1);

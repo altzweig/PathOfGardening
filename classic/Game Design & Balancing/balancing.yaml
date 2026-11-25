@@ -317,7 +317,7 @@ skills:
     damage: 2.8            # je Beere (25.11.2026 Basti: -30 %, vorher 4)
     range: 6.5             # m
     cooldown: 0.625
-    ammoPerShot: 1.33      # 25.11.2026 Basti: 8 statt 6 Beeren pro Schuss = höherer Verbrauch (1 -> 1,33 Beeren je Schuss). 23.11.2026 Sim-Balancing: 6 -> 1
+    ammoPerShot: 1         # 25.11.2026 Basti: zurück auf 1 (1,33 getestet: Bot 30 % der Kampfzeit ohne Munition, 0 % Siege). 23.11.2026 Sim-Balancing: 6 -> 1
     pellets: 8             # 25.11.2026 Basti: 6 -> 8, dafür kleiner
     cone: 45
     spreadSigma: 11

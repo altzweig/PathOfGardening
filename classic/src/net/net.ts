@@ -119,6 +119,13 @@ export class Host {
     const js = JSON.stringify(m), big = bytes(js) > LIMIT;
     for (const p of this.players) if (p.conn && p.conn.open) { if (big) sendJson(p.conn, m, js); else p.conn.send(m); }
   }
+  /** 25.11.2026: each guest gets only its own private part (weapons, cards, merchant bench); of the others only
+   *  "has picked" for the level-up dots. With 4 players this halves the snapshot (~10 KB -> ~5 KB, 20 per second). */
+  sendSnap(s: Snap) {
+    const others: Record<number, any> = {};
+    for (const k in s.me) others[k] = { pk: s.me[k].pk };
+    for (const p of this.players) if (p.conn && p.conn.open) sendJson(p.conn, { t: 's', s: { ...s, me: { ...others, [p.id]: s.me[p.id] } } } as ToClient);
+  }
   start() { this.started = true; this.broadcast({ t: 'start' }); }
   close() { this.broadcast({ t: 'bye' }); setTimeout(() => { this.peer?.destroy(); this.peer = null; }, 200); }
 }

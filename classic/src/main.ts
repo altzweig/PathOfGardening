@@ -424,7 +424,7 @@ class Game {
       if (!headless) this.view.apply(snap);
       if (this.mode === 'host' && this.host) {
         this.netEvents.push(...snap.ev); this.netAcc += dt;
-        if (this.netAcc >= 1 / this.cfg.coop.snapshotRate) { this.netAcc = 0; this.host.broadcast({ t: 's', s: { ...snap, ev: this.netEvents } }); this.netEvents = []; }
+        if (this.netAcc >= 1 / this.cfg.coop.snapshotRate) { this.netAcc = 0; this.host.sendSnap({ ...snap, ev: this.netEvents }); this.netEvents = []; }
       }
     } else if (this.mode === 'client' && this.client) {
       const it: Intent = this.input.intent(this.activeWeapon());

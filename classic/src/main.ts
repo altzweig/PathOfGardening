@@ -13,7 +13,10 @@ import { Act, bind as bindKey, resetKeys } from './input/keys';
 import { Tutorial, setTutorialOn, tutorialOn } from './ui/tutorial';
 import { creditsHtml } from './ui/credits';
 import { ambient, audio, initAudio, play, setSoundConfig, sfx, tickAmbient, tickAudio } from './audio';
-import { Client, Host } from './net/net';
+import { Client, Host, LobbyPlayer } from './net/net';
+import { GuestSync, MV, NetCfg, Rewind, guestQ, lerpSnap, netCfg, sharedQ } from './net/sync';
+import { predictStep } from './sim/move';
+import type { Player } from './sim/sim';
 import { StartMenu } from './ui/startmenu';
 import { Look, loadLook } from './look';
 import { CHEAT_WEAPONS, loadCheats, saveCheats } from './ui/cheats';
@@ -43,8 +46,14 @@ class Game {
   shop = new WerkstattUI(this.bulbs);
   private frozen = false; // pause / level-up state, for the slow-down + speed-up sounds
   me = 0;
-  private netAcc = 0; private inAcc = 0; private netEvents: Ev[] = [];
-  private lastIntent = '';
+  // co-op (25.11.2026 Koop-Netcode): fixed simulation ticks, snapshots between them drawn interpolated
+  private nc!: NetCfg; private tickAcc = 0; private netTick = 0; private sendAcc = 0;
+  private prevSnap: Snap | null = null; private curSnap: Snap | null = null; private viewEv: Ev[] = [];
+  private rewind: Rewind | null = null; private gsync: GuestSync | null = null;
+  /** guests whose figure waits for them (connection lost, or a saved co-op game not joined yet), by token */
+  private parked = new Map<string, Player>();
+  /** co-op save: token per player id (so a guest gets its figure back) */
+  private coopToks = new Map<number, string>();
   private luShownFor = '';
   private overShown = false;
   private placeShown: string | null = null;
@@ -235,12 +244,17 @@ class Game {
   private saveId = ''; private saveStarted = 0; private saveT = 0; private saveWave = -1;
   private newSaveId() { this.saveId = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); this.saveStarted = Date.now(); this.saveT = 0; this.saveWave = -1; }
   /** only normal solo games are saved (no test mode, no weapon test room, no co-op) */
-  private canSave() { return this.mode === 'solo' && !this.testMode && !this.sandbox && !!this.sim && !!this.saveId && this.sim.phase !== 'over' && !this.sim.startPick; }
+  private canSave() { return (this.mode === 'solo' || (this.mode === 'host' && !!this.host?.started)) && !this.testMode && !this.sandbox && !!this.sim && !!this.saveId && this.sim.phase !== 'over' && !this.sim.startPick; }
   autosave(force = false) {
     if (!this.canSave()) return false;
     if (!force && this.building) return false;
     this.saveT = 0; this.saveWave = this.sim!.wave;
-    return saveGame(this.saveId, this.saveStarted, this.sim!, this.look);
+    if (this.mode !== 'host') return saveGame(this.saveId, this.saveStarted, this.sim!, this.look);
+    // co-op (25.11.2026): the host saves the whole game, guests that are away included, with their tokens
+    const sim = this.sim!, away = [...this.parked.values()].filter(p => !sim.player(p.id));
+    const seats = [...sim.players, ...away].filter(p => p.id !== this.me && this.coopToks.has(p.id)).map(p => ({ id: p.id, tok: this.coopToks.get(p.id)!, color: p.color }));
+    sim.players.push(...away);
+    try { return saveGame(this.saveId, this.saveStarted, sim, this.look, seats); } finally { sim.players.splice(sim.players.length - away.length, away.length); }
   }
   /** every cfg.save.autosave s of play and whenever a new wave starts */
   private tickSave(dt: number) {
@@ -252,6 +266,11 @@ class Game {
   loadSave(id: string) {
     const g = loadGame(id, this.cfg);
     if (!g) { deleteSave(id); this.renderMenuSaves(); return; }
+    if (g.coop) { // co-op game: open the lobby again, the guests get their figures back when they join
+      this.saveId = g.info.id; this.saveStarted = g.info.started || Date.now(); this.saveT = 0; this.saveWave = g.sim.wave;
+      this.coopToks = new Map(g.coop.map(c => [c.id, c.tok]));
+      this.hostGame(g.sim, g.coop); return;
+    }
     this.endSandbox(); this.testMode = false; show('#cheatBtn', false);
     this.mode = 'solo'; this.me = g.sim.players[0]?.id ?? 0; this.sim = g.sim;
     this.saveId = g.info.id; this.saveStarted = g.info.started || Date.now(); this.saveT = 0; this.saveWave = g.sim.wave;
@@ -268,7 +287,7 @@ class Game {
   }
   private openSaves() {
     const l = listSaves(); if (!l.length) return;
-    $('#savesList').innerHTML = l.map(s => `<div class="svRow"><button class="btn svLoad" data-id="${s.id}"><b>${esc(s.name || '—')}</b><small>${saveLine(s)}</small></button><button class="btn sec svDel" data-id="${s.id}" aria-label="Löschen">✕</button></div>`).join('');
+    $('#savesList').innerHTML = l.map(s => `<div class="svRow"><button class="btn svLoad" data-id="${s.id}"><b>${s.coop ? `<span class="svCoop">${mini('player').repeat(Math.min(4, s.coop))}</span>` : ''}${esc(s.name || '—')}</b><small>${saveLine(s)}</small></button><button class="btn sec svDel" data-id="${s.id}" aria-label="Löschen">✕</button></div>`).join('');
     $('#savesList').querySelectorAll<HTMLElement>('.svLoad').forEach(b => b.addEventListener('click', () => { initAudio(); sfx('ui.confirm'); this.loadSave(b.dataset.id!); }));
     $('#savesList').querySelectorAll<HTMLElement>('.svDel').forEach(b => b.addEventListener('click', () => {
       sfx('ui.click'); const row = b.parentElement!;
@@ -282,38 +301,102 @@ class Game {
     if (this.mode === 'solo') return this.startSolo();
     if (this.mode === 'host' && this.host) { this.startHost(); }
   }
-  async hostGame() {
+  private coopLoad: Sim | null = null; private skipStart = false;
+  async hostGame(saved?: Sim, seats?: { id: number; tok: string; color: number }[]) {
     $('#coopErr').hidden = true; ($('#hostBtn') as HTMLButtonElement).disabled = true;
     const h = new Host(this.cfg); this.host = h; h.players[0].look = this.look;
+    this.coopLoad = saved ?? null; if (!saved) this.coopToks.clear();
+    if (saved && seats) { for (const c of seats) h.reserved.set(c.tok, { id: c.id, color: c.color }); h.reserveIds(Math.max(0, ...saved.players.map(p => p.id), ...seats.map(c => c.id)) + 1); }
     try { await h.open(); }
     catch { ($('#hostBtn') as HTMLButtonElement).disabled = false; $('#coopErr').hidden = false; $('#coopErr').textContent = '✕'; this.host = null; return; }
     ($('#hostBtn') as HTMLButtonElement).disabled = false;
     h.onChange = () => { this.view.setLooks(h.players); this.renderLobby(); };
-    h.onIntent = (id, it) => this.sim?.setIntent(id, it);
     h.onPick = (id, key) => this.sim?.pick(id, key);
     h.onPlace = (id, slot) => this.sim?.place(id, slot);
     h.onBuy = (id, i) => this.sim?.buy(id, i);
     h.onShopClose = id => this.sim?.closeShop(id);
     h.onReroll = id => this.sim?.reroll(id);
-    h.onJoin = p => { if (this.mode === 'host' && this.sim) this.sim.addPlayer(p.id, p.color); };
-    h.onLeave = id => { if (this.mode === 'host' && this.sim) this.sim.removePlayer(id); };
+    h.onJoin = (p, again) => { if (p.tok) this.coopToks.set(p.id, p.tok); if (this.mode === 'host' && this.sim && !again) this.seat(p); };
+    h.onLeave = (id, gone) => {
+      if (this.mode !== 'host' || !this.sim) return;
+      const pl = this.sim.player(id); if (!pl) return;
+      if (gone) { this.sim.setIntent(id, { ...pl.intent, mx: 0, mz: 0, fire: null }); return; } // waits net.reconnectWindow s
+      const tok = this.coopToks.get(id); this.sim.removePlayer(id); if (tok) this.parked.set(tok, pl); // gone for good: kept for a later return
+    };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');
   }
   startHost() {
     const h = this.host!; this.mode = 'host'; this.me = 0;
-    this.sim = new Sim(this.cfg);
-    for (const p of h.players) this.sim.addPlayer(p.id, p.color);
-    h.start(); this.netEvents = []; this.view.smooth = false; this.enterGame();
+    const loaded = this.coopLoad; this.coopLoad = null;
+    if (loaded) { // saved co-op game: players not here yet wait (parked) until they join
+      this.sim = loaded; this.parked.clear();
+      for (const pl of [...loaded.players]) if (pl.id !== 0 && !h.players.some(p => p.id === pl.id)) { const tok = this.coopToks.get(pl.id); loaded.removePlayer(pl.id); if (tok) this.parked.set(tok, pl); }
+      const host = loaded.players.find(p => p.id === 0); if (!host) loaded.addPlayer(0, 0);
+      for (const p of h.players) if (!loaded.player(p.id)) this.seat(p);
+    } else {
+      this.newSaveId(); this.parked.clear();
+      this.sim = new Sim(this.cfg);
+      for (const p of h.players) this.sim.addPlayer(p.id, p.color);
+    }
+    this.startNet(); h.start(); this.view.smooth = false; this.enterGame();
+  }
+  /** a guest joins the running game: its own figure back if it had one, else a new one */
+  private seat(p: LobbyPlayer) {
+    const sim = this.sim!; if (sim.player(p.id)) return;
+    const old = p.tok ? this.parked.get(p.tok) : undefined;
+    if (old) { this.parked.delete(p.tok!); old.id = p.id; old.color = p.color; sim.restorePlayer(old); }
+    else sim.addPlayer(p.id, p.color);
+  }
+  private startNet() {
+    this.nc = netCfg(this.cfg); this.tickAcc = 0; this.sendAcc = 0; // netTick keeps counting over restarts (guests' clocks) this.prevSnap = this.curSnap = null; this.viewEv = [];
+    this.rewind = new Rewind(this.nc);
+    const sim = this.sim!, h = this.host!;
+    // lag compensation: a guest's attacks are worked out against where the guest saw the animals
+    sim.rewindFor = p => { const g = h.players.find(q => q.id === p.id)?.net; return g && this.rewind ? this.rewind.apply(g.view, this.netTick, sim.enemies) : null; };
+  }
+  /** one fixed simulation tick of the host: guests' inputs, simulate, snapshot, send */
+  private hostTick(it: Intent) {
+    const sim = this.sim!, h = this.host!, dt = 1 / this.nc.simHz;
+    for (const p of h.peers) { const gi = p.net.nextIntent(); if (gi) sim.setIntent(p.id, gi); }
+    sim.setIntent(this.me, it);
+    sim.update(dt); this.netTick++;
+    this.rewind?.record(this.netTick, sim.enemies);
+    const snap = sim.snapshot(); this.prevSnap = this.curSnap; this.curSnap = snap; this.viewEv.push(...snap.ev);
+    for (const p of h.peers) p.net.queueEvents(this.netTick, snap.ev);
+    this.sendAcc += dt;
+    if (this.sendAcc >= 1 / this.nc.sendHz - 1e-6) {
+      this.sendAcc -= 1 / this.nc.sendHz; if (this.sendAcc > dt) this.sendAcc = 0;
+      const sh = sharedQ(snap);
+      for (const p of h.peers) {
+        const pl = sim.player(p.id);
+        const mv: MV | null = pl ? [pl.x, pl.z, pl.face, pl.walk, pl.sta, pl.staT, pl.staX ? 1 : 0, pl.sprint ? 1 : 0, sim.stunF(pl), pl.kb ? 1 : 0, pl.alive ? 1 : 0] : null;
+        p.net.sendSnap(this.netTick, guestQ(sh, snap.me, p.id, mv));
+      }
+    }
+  }
+  /** the own figure drawn where it is now: the last tick + the movement since (no wait for the next tick) */
+  private ownNow(s: Snap, at: { x: number; z: number; face: number; walk: number } | null, it: Intent): Snap {
+    if (!at) return s;
+    return { ...s, pl: s.pl.map(p => p.id !== this.me ? p : { ...p, x: at.x, z: at.z, wk: at.walk, f: it.aim ? Math.atan2(it.ax, it.az) : it.fire ? p.f : at.face }) };
   }
   joinGame() {
     const code = ($('#codeIn') as HTMLInputElement).value.trim().toUpperCase();
     if (code.length < 4) return;
     $('#coopErr').hidden = true; ($('#joinBtn') as HTMLButtonElement).disabled = true;
-    const c = new Client(); this.client = c;
-    c.onWelcome = () => { c.send({ t: 'hello', look: this.look }); ($('#joinBtn') as HTMLButtonElement).disabled = false; this.me = c.id; this.view.setConfig(c.cfg!); $('#lobbyCode').textContent = code; show('#lobbyStart', false); only('#lobby'); this.renderLobby(); };
-    c.onLobby = () => { this.view.setLooks(c.lobby); this.renderLobby(); };
-    c.onStart = () => { this.mode = 'client'; this.view.smooth = true; this.enterGame(); };
-    c.onSnap = s => { if (this.mode === 'client') this.view.apply(s); };
+    const c = new Client(); this.client = c; c.look = this.look; this.gsync = null; this.skipStart = false;
+    c.onWelcome = again => {
+      this.nc = netCfg(c.cfg!);
+      const clock = () => performance.now() / 1000;
+      if (this.gsync && again) this.gsync.reset(); // came back after a lost connection: same figure, fresh snapshots
+      else this.gsync = new GuestSync(c.cfg!, this.nc, c.id, b => c.link.u(b), clock);
+      this.gsync.id = c.id;
+      const g = this.gsync; c.onData = b => g.onMessage(b);
+      if (again && this.mode === 'client') { this.skipStart = true; return; }
+      ($('#joinBtn') as HTMLButtonElement).disabled = false; this.me = c.id; this.view.setConfig(c.cfg!); $('#lobbyCode').textContent = code; show('#lobbyStart', false); only('#lobby'); this.renderLobby();
+    };
+    c.onLobby = () => { this.view.setLooks(c.lobby); if (this.mode !== 'client') this.renderLobby(); };
+    c.onStart = () => { this.gsync?.reset(); if (this.skipStart) { this.skipStart = false; return; } this.mode = 'client'; this.tickAcc = 0; this.view.smooth = false; this.enterGame(); };
+    c.onRetry = () => {};
     c.onClose = r => {
       ($('#joinBtn') as HTMLButtonElement).disabled = false;
       this.client = null; this.idle(); only('#coop');
@@ -325,6 +408,7 @@ class Game {
     this.autosave(true);
     if (this.host) { this.host.close(); this.host = null; }
     if (this.client) { const c = this.client; this.client = null; c.onClose = () => {}; c.close(); }
+    this.gsync = null; this.coopLoad = null; this.parked.clear();
     this.testMode = false; show('#cheatBtn', false); this.endSandbox(); this.exitBuild(); show('#buildBtn', false);
     this.idle(); this.view.setConfig(this.cfg); only('#menu'); this.renderMenuSaves();
   }
@@ -467,7 +551,18 @@ class Game {
     this.input.enabled = (this.mode !== 'idle') && !menusOpen && $('#levelup').hidden && $('#over').hidden && this.view.snap?.ph !== 'lvl' && !this.shop.open;
     if (this.mode === 'idle') {
       if (this.sim) this.view.apply(this.sim.snapshot());
-    } else if (this.mode === 'solo' || this.mode === 'host') {
+    } else if (this.mode === 'host' && this.host) {
+      const sim = this.sim!, it = this.input.intent(this.activeWeapon()), DT = 1 / this.nc.simHz;
+      this.tickAcc += dt; let n = 0;
+      while (this.tickAcc >= DT) { this.tickAcc -= DT; this.hostTick(it); if (++n >= 6) { this.tickAcc = 0; break; } }
+      if (!headless) this.tickSave(dt);
+      if (!headless && this.curSnap) {
+        const a = this.prevSnap ?? this.curSnap, k = this.tickAcc / DT;
+        const p = sim.player(this.me); let at: { x: number; z: number; face: number; walk: number } | null = null;
+        if (p && p.alive) { const st = { x: p.x, z: p.z, face: p.face, walk: p.walk, sta: p.sta, staT: p.staT, staX: p.staX, sprint: p.sprint }; if (!p.kb) predictStep(this.cfg, st, it, this.tickAcc, { sf: sim.stunF(p), kb: false, chest: sim.chestOn, sb: sim.sb }); at = st; }
+        this.view.apply({ ...this.ownNow(lerpSnap(a, this.curSnap, k), at, it), ev: this.viewEv }); this.viewEv = [];
+      }
+    } else if (this.mode === 'solo') {
       const sim = this.sim!;
       if (this.startCheats && this.mode === 'solo' && !sim.startPick && sim.phase === 'play') { this.startCheats = false; this.applyStartCheats(); }
       const it = this.input.intent(this.activeWeapon());
@@ -477,15 +572,12 @@ class Game {
       if (!headless) this.tickSave(dt);
       const snap = sim.snapshot();
       if (!headless) this.view.apply(snap);
-      if (this.mode === 'host' && this.host) {
-        this.netEvents.push(...snap.ev); this.netAcc += dt;
-        if (this.netAcc >= 1 / this.cfg.coop.snapshotRate) { this.netAcc = 0; this.host.sendSnap({ ...snap, ev: this.netEvents }); this.netEvents = []; }
-      }
-    } else if (this.mode === 'client' && this.client) {
-      const it: Intent = this.input.intent(this.activeWeapon());
-      this.inAcc += dt; const js = JSON.stringify(it);
-      const urgent = !!it.fire && !this.lastIntent.includes('"fire":"');
-      if ((this.inAcc >= 1 / 30 || urgent) && (js !== this.lastIntent || this.inAcc > .25)) { this.inAcc = 0; this.lastIntent = js; this.client.send({ t: 'in', i: it }); }
+    } else if (this.mode === 'client' && this.client && this.gsync) {
+      const g = this.gsync, it: Intent = this.input.intent(this.activeWeapon()), DT = 1 / this.nc.simHz;
+      this.tickAcc += dt; let n = 0;
+      while (this.tickAcc >= DT) { this.tickAcc -= DT; g.tick(it, g.renderTick); if (++n >= 6) { this.tickAcc = 0; break; } }
+      const s = g.sample();
+      if (s) this.view.apply(this.ownNow(s, g.ownPos(it, this.tickAcc / DT, dt), it));
     }
     if (headless) return;
     const s = this.view.snap;

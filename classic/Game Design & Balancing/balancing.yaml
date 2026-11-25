@@ -164,7 +164,24 @@ coop:
   xpYieldExponent: 0.5      #  x1,41       x1,73       x2,00   Blaubeer-Wachstum (Menge)
   xpValueExponent: 0.5      #  x1,41       x1,73       x2,00   XP pro Blaubeere
   enemyDamageExponent: 0.0  #  x1          x1          x1      Gegnerschaden
-  snapshotRate: 20          # Netz-Updates pro Sekunde vom Host
+  snapshotRate: 20          # (alt, ersetzt durch net.sendHz)
+
+# Koop-Netcode (25.11.2026, docs/koop-netcode.md). Nur Koop, Solo läuft wie bisher.
+net:
+  simHz: 30                 # feste Simulationsschritte pro Sekunde beim Host (unabhängig von den FPS)
+  sendHz: 20                # Snapshots pro Sekunde an jeden Gast
+  interpDelay: 0.1          # s: andere Figuren und Tiere sieht der Gast so weit in der Vergangenheit (glatt)
+  maxExtrapolate: 0.25      # s: so lange wird bei fehlenden Paketen weitergerechnet, dann steht das Bild
+  fullEvery: 2              # s: spätestens dann ein Vollsnapshot (sonst nur Änderungen)
+  hashEvery: 1              # s: Prüfsumme des Spielzustands (Host = Gast?)
+  ringTicks: 96             # Ticks Snapshot-Verlauf für Deltas (3,2 s)
+  inputRedundancy: 5        # jedes Eingabepaket wiederholt die letzten 5 Eingaben (Verlust kostet nichts)
+  maxInputQueue: 4          # mehr wartende Eingaben (Lag-Spitze) werden übersprungen
+  snapDist: 0.5             # m: größere Abweichung der eigenen Figur springt, kleinere wird weich angeglichen
+  smoothTime: 0.1           # s: so lange dauert das weiche Angleichen
+  rewindMax: 0.2            # s: Treffer des Gastes werden höchstens so weit zurückgerechnet (Lag Compensation)
+  reconnectWindow: 30       # s: so lange wartet die Figur auf einen Gast, dessen Verbindung abgerissen ist
+  unreliable: true          # Bewegung/Snapshots ohne Neusenden (false = alles zuverlässig, zum Vergleich)
 
 xp:
   # Benötigte XP für Stufe L:  round(base * growth^(L-1) + linear * (L-1))

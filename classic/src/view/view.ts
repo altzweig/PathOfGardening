@@ -55,6 +55,8 @@ import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grain
 import { BENCH_TOP, XP_GOLD, createHammer, createWorkbench, hammerSwing, type Workbench } from './workbench';
 import { DUST_CAP, createDust } from './dustfx';
 import { createWallPool, type WallPiece } from './wallpool';
+import { createSackPool, type SackPiece } from './sackpool';
+import { sackSpot } from '../sim/sacks';
 import { peaPistol, peaProjectile, type PeaPistol } from './peapistol';
 import { setCraftEnv, setCraftLight } from './craftkit';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -268,6 +270,9 @@ export class GameView {
   /** Steinkohle posts + links (one instanced pool, wallpool.ts); first sync after a load / join without the build-up animation */
   private wallPool = createWallPool(scene);
   private wallInit = false; private wallSig = NaN; private wallList: WallPiece[] = [];
+  /** 26.11.2026 Mehlsäcke stacks (sackpool.ts) + aim preview of the local player */
+  private sackPool = createSackPool(scene);
+  private sackInit = false; private sackSig = NaN; private sackList: SackPiece[] = [];
   localAim: LocalAim = { weapon: null, x: 0, z: 1, show: false };
   onEvent: (e: Ev) => void = () => {};
 
@@ -534,7 +539,7 @@ export class GameView {
     for (const c of [...this.dyn.children]) this.dyn.remove(c);
     for (const c of [...barGroup.children]) barGroup.remove(c);
     for (const id of this.players.keys()) benchWork('p' + id, false);
-    this.bench = null; this.benchDust.clear(); this.wallPool.clear(); this.wallInit = false; this.wallSig = NaN; this.wallList.length = 0;
+    this.bench = null; this.benchDust.clear(); this.wallPool.clear(); this.wallInit = false; this.wallSig = NaN; this.wallList.length = 0; this.sackPool.clear(); this.sackInit = false; this.sackSig = NaN; this.sackList.length = 0;
     for (const n of this.nums) n.el.remove(); this.nums.length = 0;
     for (const n of this.juiceTxt) n.el.remove(); this.juiceTxt.length = 0; for (const el of this.pressEls.values()) el.remove(); this.pressEls.clear(); this.jcPrev = [];
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
@@ -555,6 +560,7 @@ export class GameView {
     this.chestN = s.ch ?? 0;
     this.applyBench(s);
     this.applyWalls(s);
+    this.applySacks(s);
     // players
     const seenP = new Set<number>();
     for (const ps of s.pl) {
@@ -713,9 +719,12 @@ export class GameView {
     const wb = this.bench.wb, rs = s.rs, cur = rs?.[0] ?? -1, node = cur >= 0 ? this.cfg.research?.nodes[cur] : undefined;
     if (!node) { wb.setIdea(null); wb.setProgress(0); wb.setReady(false); return; }
     const ref = node.ref ?? '', N = this.cfg.names;
-    const label = node.kind === 'speed' ? 'Forschungstempo' : node.kind === 'field' ? N.fields?.[ref as FruitType] ?? N.plants?.[ref as FruitType] ?? ref : N.skills?.[ref as Weapon] ?? ref;
-    const color = node.kind === 'field' ? FRUIT_COL[ref as FruitType] : node.kind === 'weapon' ? FRUIT_COL[(ref === 'wshot' ? 'wheat' : ref === 'wall' ? 'cab' : ref) as FruitType] : undefined;
-    wb.setIdea(node.kind === 'speed' ? { glyph: '\u23E9', color: '#ffd21f', label } : { svg: node.kind === 'field' ? fieldArt(ref) : skillIcon(ref), color: color ?? '#ffd21f', label });
+    // 26.11.2026 Einzelbäume: buildings like fields, an upgrade shows its weapon (+ the upgrade's name)
+    const place = node.kind === 'field' || node.kind === 'building', wpn = node.kind === 'upgrade' ? ref.slice(0, ref.indexOf('_')) : ref;
+    const label = node.kind === 'speed' ? 'Forschungstempo' : place ? N.fields?.[ref as FruitType] ?? N.plants?.[ref as FruitType] ?? ref
+      : node.kind === 'upgrade' ? `${N.skills?.[wpn as Weapon] ?? wpn} · ${N.upgrades?.[ref] ?? N.upgrades?.[ref.slice(ref.indexOf('_') + 1)] ?? ''} ${node.lv ?? ''}` : N.skills?.[ref as Weapon] ?? ref;
+    const color = place ? FRUIT_COL[ref as FruitType] : node.kind === 'weapon' || node.kind === 'upgrade' ? FRUIT_COL[(wpn === 'wshot' ? 'wheat' : wpn === 'wall' ? 'cab' : wpn === 'sack' ? 'flour' : wpn) as FruitType] : undefined;
+    wb.setIdea(node.kind === 'speed' ? { glyph: '\u23E9', color: '#ffd21f', label } : { svg: place ? fieldArt(ref) : skillIcon(wpn), color: color ?? '#ffd21f', label });
     const ready = !!rs![1]; wb.setReady(ready); wb.setProgress(ready ? 1 : s.rp?.[cur] ?? 0);
   }
   /** 25.11.2026 Steinkohle posts: synced into the instanced pool only when something changed (cheap signature) */
@@ -726,6 +735,27 @@ export class GameView {
     this.wallSig = sig; const L = this.wallList; L.length = wl.length;
     for (let i = 0; i < wl.length; i++) { const w = wl[i]; L[i] = { id: w[0], x: w[1], z: w[2], hp: w[3], maxHp: w[4] }; }
     this.wallPool.sync(L, this.cfg.skills.wall?.linkDist ?? 1, !this.wallInit); this.wallInit = true;
+  }
+  /** 26.11.2026 Mehlsäcke: stacks into the pool when something changed; preview where the local player would put the next stack */
+  private applySacks(s: Snap) {
+    const sk = s.sk ?? [], len = hexR(this.cfg); let sig = sk.length;
+    for (const k of sk) sig = (sig * 31 + k[0] * 7 + Math.round(k[4]) * 13) | 0;
+    if (sig !== this.sackSig || !this.sackInit) {
+      this.sackSig = sig; const L = this.sackList; L.length = sk.length;
+      for (let i = 0; i < sk.length; i++) { const k = sk[i]; L[i] = { id: k[0], x: k[1], z: k[2], ang: k[3], hp: k[4], maxHp: k[5] }; }
+      this.sackPool.sync(L, len, !this.sackInit); this.sackInit = true;
+    }
+    const me = s.pl.find(q => q.id === this.me), pr = s.me[this.me], si = SKILLS.indexOf('sack');
+    let at: { x: number; z: number; ang: number; ok: boolean } | null = null;
+    if (me && me.al && me.aw !== undefined && WEAPONS[me.aw] === 'sack' && s.ph === 'play' && (s.sk?.length ?? 0) < (this.cfg.skills.sack?.max ?? 200)) {
+      const built = new Set<number>(); for (const f of s.fi) built.add(f[0]);
+      this.slots.forEach((sl, i) => { if (sl.chest || sl.bench) built.add(i); });
+      const taken = new Set(sk.map(k => `${Math.round(k[1] * 100)}|${Math.round(k[2] * 100)}`));
+      const e = sackSpot(this.cfg, this.slots, i => built.has(i), taken, me.x, me.z, Math.sin(me.f), Math.cos(me.f));
+      // the midpoint in the snapshot is rounded to cm, the key of a fresh edge too: an edge that already has sacks is never offered
+      if (e && !sk.some(k => Math.hypot(k[1] - e.mx, k[2] - e.mz) < .05)) at = { x: e.mx, z: e.mz, ang: e.ang, ok: !pr || (pr.am?.[si] ?? 0) >= (pr.co?.[si] ?? 0) };
+    }
+    this.sackPool.ghost(at, len);
   }
   private sync<T>(map: Map<number, JView>, arr: T[], id: number, key: (t: T) => number, make: (t: T) => THREE.Object3D, upd: (v: JView, t: T) => void) {
     for (const t of arr) {
@@ -1068,6 +1098,7 @@ export class GameView {
         else if (e.c === 5) burst(V(e.x, .45, e.z), 0xe8c060, 4, 1.4, .05, .25);
         break;
       case 'wallPut': { const pv = this.players.get(e.p); if (pv) pv.wallT = performance.now(); break; } // the sound comes from the sim (weapons.wall)
+      case 'sackHit': { const k = this.snap?.sk?.find(q => q[0] === e.i); if (k) sfx('sack.hit', k[1], k[2]); break; } // 26.11.2026 Mehlsäcke
       case 'wallHit': { const w = this.snap?.wl?.find(q => q[0] === e.i); if (w) sfx('wall.hit', w[1], w[2]); break; }
       case 'swipe': {
         rakeSweep(e.x, e.z, e.a, e.r || this.cfg.rake.range, e.w || this.cfg.rake.diameter);
@@ -1244,7 +1275,7 @@ export class GameView {
       add(buildPlant('pea', { leaf: M(0x4f9a3a), head: M(0x6ab84a) }).g);
     } catch (e) { console.warn('prewarm', e); }
     this.minePool.warm(); // instanced variant of the cabbage material
-    this.benchDust.warm(); this.wallPool.warm(); // work dust + cabbage wall: one invisible instance each
+    this.benchDust.warm(); this.wallPool.warm(); this.sackPool.warm(); // work dust + cabbage wall: one invisible instance each
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
     G.scale.setScalar(1e-4); G.position.set(0, -.5, 0); scene.add(G);
@@ -1253,7 +1284,7 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; merchantReset();
+    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; this.sackPool.clear(); this.sackSig = NaN; merchantReset();
   }
   frame(dt: number) {
     dt = Math.max(0, dt); // 25.11.2026: the first rAF after a long prewarm can hand in a negative dt (timers ran backwards: red hurt screen)
@@ -1295,7 +1326,7 @@ export class GameView {
     updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day); setCraftLight(dayNow().day);
     this.night = 1 - dayNow().day;
     this.chestFn?.(dt, this.chestN);
-    this.bench?.wb.update(dt, camera); this.benchDust.update(dt); this.wallPool.update(dt);
+    this.bench?.wb.update(dt, camera); this.benchDust.update(dt); this.wallPool.update(dt); this.sackPool.update(dt);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
     const night = 1 - dayNow().day;
@@ -1511,7 +1542,7 @@ export class GameView {
     if (v.smg) { v.smg.g.visible = smgOn; v.smg.anim.position.z = -v.recoil * .4; v.smg.anim.rotation.x = -v.recoil * .8 + (smgOn && v.recoil > 0 ? Math.sin(performance.now() / 18) * .015 : 0); }
     if (cabOn && !v.cabH) { const c = cabHeld(); c.position.set(.25, .86, .24); v.g.add(c); v.cabH = c; }
     if (v.cabH) v.cabH.visible = cabOn && v.recoil < .02; // thrown away, the next one is in the hand right after
-    const sackOn = al && aw === 'flour';
+    const sackOn = al && (aw === 'flour' || aw === 'sack'); // 26.11.2026 Mehlsäcke: the same sack in the hand
     if (sackOn && !v.sack) { const m = flourSack(); m.position.set(.26, .86, .1); v.g.add(m); v.sack = m; }
     const panOn = al && aw === 'pan';
     if (panOn && !v.pan) { const m = fryingPan(); m.g.position.set(.24, .84, .3); v.g.add(m.g); v.pan = m; }

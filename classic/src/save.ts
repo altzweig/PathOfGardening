@@ -153,7 +153,7 @@ function migrateV1(sim: Sim, cfg: Balancing) {
   sim.benchSlot = bi;
   const rs = newRState(), types = new Set(sim.fields.filter(f => f.alive).map(f => f.type as string)), learned = new Set<string>();
   for (const p of sim.players) for (const k of Object.keys(p.skills)) if (p.skills[k as SkillId].learned) learned.add(k);
-  for (const n of rNodes(cfg)) if (!n.start && n.kind !== 'speed' && n.ref && ((n.kind === 'field' && types.has(n.ref)) || (n.kind === 'weapon' && learned.has(n.ref)))) rs.done.push(n.id);
+  for (const n of rNodes(cfg)) if (!n.start && n.kind !== 'speed' && n.ref && (((n.kind === 'field' || n.kind === 'building') && types.has(n.ref)) || (n.kind === 'weapon' && learned.has(n.ref)))) rs.done.push(n.id);
   rs.n = rs.done.length; sim.rs = rs;
   for (const p of sim.players) { if (!p.skills.pea.learned) sim.giveWeapon(p, 'pea', R.startShots ?? 10); p.offers = null; p.placing = null; p.picked = false; p.shopOpen = false; p.shop = null; }
   const pea = cfg.arena.startField?.type ?? 'pea';

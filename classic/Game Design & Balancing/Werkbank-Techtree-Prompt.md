@@ -124,3 +124,7 @@ Offen:
 - **Balancing-Ziel (Welle 35–45) nicht erreicht:** mit Pistole, Startmunition, Forschungszeit und Bot erreicht der Bot Median Welle 16 (vorher 9); auch mit sofort allem erforscht oder doppeltem Schaden nur 16–18. Es fehlt eine wachsende Stellschraube (Upgrades/Feldstufen gibt es im Techtree nicht). Vorschlag siehe Design-Entscheidungen „Balancing Erbsenstart“. Entscheidung durch Basti.
 - Gegner kollidieren nicht mit der Werkbank; Kohlminen dürfen auf Feldern liegen (`skills.cab.onFields`).
 - Mauer kostet bei 260 Gegnern und 200 Pfosten ca. +0,8 ms je Sim-Tick.
+
+Stand 26.11.2026 (Einzelbäume):
+- Techtree in kleine Bäume pro Frucht mit Reitern umgebaut, Gebäude (Mühle, Bäckerei …) und Waffen-Upgrades als Knoten, Upgrade-Ketten aus `count`. Mehlsäcke als Barriere an Feldkanten ersetzen den Mehlstaub. Details in Design-Entscheidungen „Techtree in Einzelbäumen pro Frucht, Mehlsäcke“.
+- Upgrades heben den Bot nicht über Welle 16; Balancing-Ziel weiter offen.

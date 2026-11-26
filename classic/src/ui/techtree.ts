@@ -4,7 +4,7 @@
 // (main.ts: sim call on the host / solo, net message on a guest). No explanation texts: names, icons and values only.
 import { AMMO_OF, Balancing, FruitType, ResearchNode, SkillId, ammoPool } from '../config';
 import type { Snap } from '../sim/snap';
-import { nodeAvailable, nodeDone, rNodes, rsFromSnap, segmentOpen } from '../sim/research';
+import { isPlaceNode, nodeAvailable, nodeDone, nodeMul, rNodes, rsFromSnap, segmentOpen } from '../sim/research';
 import { fieldArt, fruitIcon, mini, skillIcon } from './icons';
 
 type RS = ReturnType<typeof rsFromSnap>;
@@ -14,20 +14,60 @@ const nf = (n: number, d = 0) => n.toLocaleString('de-DE', { maximumFractionDigi
 /** compact time: 25 s, 1:40 min-style for long ones */
 const tfmt = (s: number) => s < 100 ? `${Math.ceil(s - 1e-6)} s` : s < 3600 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : `${nf(s / 3600, 1)} h`;
 
+/** 26.11.2026 upgrade node: weapon of the upgrade key ("pea_dmg" -> pea) and its kind ("dmg") */
+const upSplit = (key: string) => { const i = key.indexOf('_'); return [key.slice(0, i), key.slice(i + 1)] as [string, string]; };
+/** name of an upgrade (names.upgrades: full key first, then the part after "_") */
+export function upName(cfg: Balancing, key: string) { const U = cfg.names.upgrades ?? {}, [, k] = upSplit(key); return U[key] ?? U[k] ?? k; }
+/** icon + what one level of an upgrade adds (shown on the chip / in the popup; all numbers from balancing.yaml) */
+export function upInfo(cfg: Balancing, key: string, lv = 1): { icon: string; txt: string } {
+  const U = cfg.upgrades as any, S = cfg.skills as any, [w, k] = upSplit(key), pc = (v: number) => `+${nf(v * 100)} %`;
+  switch (key) {
+    case 'sack_hp': return { icon: mini('heart'), txt: `+${nf(S.sack.hpStep)}` };
+    case 'sack_heal': return { icon: mini('repair'), txt: `+${nf(S.sack.repairStep)}/min` };
+    case 'sack_cost': return { icon: mini('cost'), txt: `−${nf(S.sack.costStep)}` };
+    case 'wall_hp': return { icon: mini('heart'), txt: `+${nf(S.wall.hpStep ?? 0)}` };
+    case 'cab_rng': return { icon: mini('radius'), txt: pc(U.rangePerLevel) };
+    case 'cab_mini': return { icon: mini('mini'), txt: `+${nf(U.cabMini.step)}` };
+    case 'cab_pois': return { icon: mini('poison'), txt: pc(U.cabPoison.step) };
+    case 'cab_gas': return { icon: mini('poison'), txt: pc(U.cabGas.step) };
+    case 'chili_sweep': return { icon: mini('sweep'), txt: `+${nf(U.chiliSweep.sweepStep)}°` };
+    case 'chili_tick': return { icon: mini('fire'), txt: `−${nf((1 - U.chiliTick.factor) * 100)} %` };
+    case 'lemon_tgt': return { icon: mini('chain'), txt: `+${nf(U.lemonTargets.step)}` };
+    case 'lemon_xfer': return { icon: mini('chain'), txt: pc(U.lemonTransfer.step) };
+    case 'lemon_eff': return { icon: mini('chain'), txt: pc(U.lemonEfficiency.step) };
+    case 'lemon_rng': return { icon: mini('radius'), txt: pc(U.rangePerLevel) };
+    case 'asp_pierce': return { icon: mini('pierce'), txt: lv >= (U.aspPierce?.max ?? 4) ? '∞' : `+${nf(U.aspPierce.step)}` };
+    case 'asp_pb': return { icon: mini('pierce'), txt: pc(U.aspPierceBonus.step) };
+    case 'asp_salvo': { const sh = U.aspSalvo.shots as number[], a = lv > 1 ? sh[lv - 2] : S.asp.burstShots; return { icon: mini('pellet'), txt: `${a} → ${sh[Math.min(lv, sh.length) - 1]}` }; }
+    case 'asp_size': return { icon: mini('size'), txt: pc(U.aspSize.step) };
+  }
+  void w;
+  if (k === 'dmg') return { icon: mini('dmg'), txt: pc(U.damagePerLevel) };
+  if (k === 'rng') return { icon: mini('range'), txt: pc(U.rangePerLevel) };
+  if (k === 'cd') return { icon: mini('cd'), txt: `−${nf(U.cooldownPerLevel * 100)} %` };
+  if (k === 'pel') return { icon: mini('pellet'), txt: `+${nf(U.cranPellets.step)}` };
+  if (k === 'pierce') return { icon: mini('pierce'), txt: pc(U.cranPierce.step) };
+  if (k === 'dur') return { icon: mini('fire'), txt: pc(U.wheatDuration?.step ?? .25) };
+  return { icon: mini('up'), txt: '' };
+}
 export function nodeName(cfg: Balancing, n: ResearchNode) {
   const N = cfg.names;
   if (n.kind === 'speed') return N.research?.speed ?? 'Forschungstempo';
-  if (n.kind === 'field') return (N.fields as Record<string, string>)[n.ref ?? ''] ?? n.ref ?? n.id;
+  if (isPlaceNode(n)) return (N.fields as Record<string, string>)[n.ref ?? ''] ?? n.ref ?? n.id;
+  if (n.kind === 'upgrade') return upName(cfg, n.ref ?? '');
   return (N.skills as Record<string, string>)[n.ref ?? ''] ?? n.ref ?? n.id;
 }
-export function nodeIcon(n: ResearchNode) { return n.kind === 'speed' ? mini('tempo') : n.kind === 'field' ? fieldArt(n.ref ?? '') : skillIcon(n.ref ?? ''); }
+export function nodeIcon(n: ResearchNode, cfg?: Balancing) {
+  if (n.kind === 'upgrade') return cfg ? upInfo(cfg, n.ref ?? '', n.lv).icon : mini('up');
+  return n.kind === 'speed' ? mini('tempo') : isPlaceNode(n) ? fieldArt(n.ref ?? '') : skillIcon(n.ref ?? '');
+}
 
 /** XP bar / orb in research mode: progress of the idea being researched (0..1), complete, icon of the idea (bulb = nothing chosen) */
 export function researchBar(cfg: Balancing, s: Snap): { frac: number; ready: boolean; key: string; icon: string; text: string } | null {
   if (!s.rs) return null;
   const ns = rNodes(cfg), ci = s.rs[0] ?? -1, n = ci >= 0 ? ns[ci] : null, ready = !!s.rs[1];
   const frac = n ? (ready ? 1 : Math.min(1, s.rp?.[ci] ?? 0)) : 0;
-  return { frac, ready, key: n ? n.id : '-', icon: n ? nodeIcon(n) : mini('bulb'), text: n ? (ready ? '100 %' : `${Math.floor(frac * 100)} %`) : '' };
+  return { frac, ready, key: n ? n.id : '-', icon: n ? (n.kind === 'upgrade' ? skillIcon(upSplit(n.ref ?? '')[0]) : nodeIcon(n)) : mini('bulb'), text: n ? (ready ? '100 %' : `${Math.floor(frac * 100)} %`) : '' };
 }
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
@@ -37,20 +77,24 @@ export class TechTree {
   onFinish: () => void = () => {};
   onClose: () => void = () => {};
   onOpen: () => void = () => {};
-  private root: HTMLElement; private panel: HTMLElement; private scroll: HTMLElement; private canvas: HTMLElement; private pop: HTMLElement;
+  private root: HTMLElement; private panel: HTMLElement; private scroll: HTMLElement; private canvas: HTMLElement; private pop: HTMLElement; private tabs: HTMLElement; private speed: HTMLButtonElement;
   private btn: HTMLButtonElement;
   private key = ''; private popKey = ''; private ro = 0; private lay: ReturnType<TechTree['layout']> | null = null;
+  /** 26.11.2026 Einzelbäume: tree shown (tab), chosen by the player (kept while the panel is open) */
+  private tab = ''; private tabPicked = false;
   private nodeEls: HTMLElement[] = []; private wantFront = false; private finishSent = false;
   private drag: { x: number; y: number; sl: number; st: number; moved: boolean; id: number; vx: number; vy: number; t: number; lx: number; ly: number } | null = null; private dragEnd = -1e9; private glide = 0;
 
   constructor() {
     const hud = $('#hud');
     this.root = document.createElement('div'); this.root.id = 'rsTree'; this.root.hidden = true;
-    this.root.innerHTML = `<div class="rtPanel" role="dialog"><div class="rtHead"><i class="rtHi">${mini('bulb')}</i><b class="rtTitle"></b><span class="rtTempo"></span>
+    this.root.innerHTML = `<div class="rtPanel" role="dialog"><div class="rtHead"><i class="rtHi">${mini('bulb')}</i><b class="rtTitle"></b><div class="rtTabs" role="tablist"></div>
+      <button class="rtSpeed"></button>
       <button class="rtClose" aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button></div>
       <div class="rtScroll"><div class="rtCanvas"></div></div></div>`;
     hud.appendChild(this.root);
     this.panel = this.root.querySelector('.rtPanel')!; this.scroll = this.root.querySelector('.rtScroll')!; this.canvas = this.root.querySelector('.rtCanvas')!;
+    this.tabs = this.root.querySelector('.rtTabs')!; this.speed = this.root.querySelector('.rtSpeed')!;
     this.pop = document.createElement('div'); this.pop.id = 'rsPop'; this.pop.hidden = true; hud.appendChild(this.pop);
     // HUD button (phone + mouse): opens the panel anywhere; next to the pause button
     this.btn = document.createElement('button'); this.btn.className = 'ibtn'; this.btn.id = 'rsBtn'; this.btn.hidden = true; this.btn.setAttribute('aria-label', 'Techtree');
@@ -59,6 +103,16 @@ export class TechTree {
     this.btn.addEventListener('click', () => this.onOpen());
     this.root.querySelector('.rtClose')!.addEventListener('click', () => { if (this.ro === 1) this.onClose(); });
     this.root.addEventListener('click', e => { if (e.target === this.root && this.ro === 1) this.onClose(); }); // click on the dark backdrop
+    // tabs: one small tree per fruit
+    this.tabs.addEventListener('click', e => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('.rtTab'); if (!b || this.ro !== 1) return;
+      if (b.dataset.t !== this.tab) { this.tab = b.dataset.t!; this.tabPicked = true; this.key = ''; this.wantFront = true; this.scroll.scrollLeft = 0; this.scroll.scrollTop = 0; }
+    });
+    // Forschungstempo in the header (always available)
+    this.speed.addEventListener('click', () => {
+      if (this.ro !== 1) return; const i = +(this.speed.dataset.i ?? -1);
+      if (i >= 0 && (this.speed.classList.contains('avail') || this.speed.classList.contains('cur'))) { this.speed.classList.add('chosen'); this.onChoose(i); } else this.deny(this.speed);
+    });
     // node click (delegated): only available ones; a mouse drag is no click
     this.canvas.addEventListener('click', e => {
       if (performance.now() - this.dragEnd < 350) return; // end of a drag, no click
@@ -66,12 +120,13 @@ export class TechTree {
       if (b.classList.contains('avail') || b.classList.contains('cur')) { b.classList.add('chosen'); this.onChoose(+b.dataset.i!); }
       else this.deny(b);
     });
-    // mouse wheel scrolls sideways
+    // mouse wheel scrolls sideways (vertical if the tree is taller than the panel and not wider)
     this.scroll.addEventListener('wheel', e => {
       e.stopPropagation(); // not the game zoom behind
-      const sc = this.scroll; if (sc.scrollWidth <= sc.clientWidth) return;
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { sc.scrollLeft += e.deltaY; e.preventDefault(); }
+      const sc = this.scroll, wide = sc.scrollWidth > sc.clientWidth + 1, tall = sc.scrollHeight > sc.clientHeight + 1;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { if (tall && !e.shiftKey) sc.scrollTop += e.deltaY; else if (wide) sc.scrollLeft += e.deltaY; e.preventDefault(); } // Shift + wheel: sideways
     }, { passive: false });
+    this.tabs.addEventListener('wheel', e => { e.stopPropagation(); if (this.tabs.scrollWidth > this.tabs.clientWidth) { this.tabs.scrollLeft += e.deltaY + e.deltaX; e.preventDefault(); } }, { passive: false });
     // drag to scroll with mouse and finger (own code instead of native touch panning: the game turns touch-action off on the page), with a short glide
     this.scroll.addEventListener('pointerdown', e => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -96,14 +151,29 @@ export class TechTree {
     };
     addEventListener('pointerup', end); addEventListener('pointercancel', end);
     addEventListener('resize', () => { this.key = ''; this.popKey = ''; });
-    // PC: Enter = "Fertigstellen" in the popup
-    addEventListener('keydown', e => { if (this.ro === 2 && !this.pop.hidden && (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.repeat) { e.preventDefault(); this.finish(); } });
+    // PC: Enter = "Fertigstellen" in the popup; 1..9 / Q E = switch the tree
+    addEventListener('keydown', e => {
+      if (this.ro === 2 && !this.pop.hidden && (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.repeat) { e.preventDefault(); this.finish(); }
+      if (this.ro === 1 && !e.repeat && /^[1-9]$/.test(e.key)) { const b = this.tabs.querySelectorAll<HTMLElement>('.rtTab')[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
+    });
   }
   get open() { return this.ro > 0; }
-  reset() { this.key = ''; this.popKey = ''; this.ro = 0; this.root.hidden = true; this.pop.hidden = true; this.btn.hidden = true; document.body.classList.remove('rsMode', 'rsOpen'); }
+  reset() { this.key = ''; this.popKey = ''; this.ro = 0; this.tab = ''; this.tabPicked = false; this.root.hidden = true; this.pop.hidden = true; this.btn.hidden = true; document.body.classList.remove('rsMode', 'rsOpen'); }
 
   private deny(b: HTMLElement) { b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny'); }
   private finish() { if (this.finishSent) return; this.finishSent = true; this.pop.querySelector('.rpGo')?.classList.add('done'); this.onFinish(); }
+
+  /** the trees (tabs); without research.trees one tree with every node (old yaml) */
+  private trees(cfg: Balancing) { const T = cfg.research?.trees; return T?.length ? T : [{ id: '', icon: 'pea', segment: 1 }]; }
+  private inTree(n: ResearchNode, t: string) { return n.kind !== 'speed' && (t === '' || n.tree === t); }
+  /** tab to show when the panel opens: the tree of the idea in work, else the first open tree with something to choose */
+  private pickTab(cfg: Balancing, st: RS) {
+    const T = this.trees(cfg), ns = rNodes(cfg), cur = ns.find(n => n.id === st.cur && n.kind !== 'speed');
+    if (cur) return cur.tree ?? T[0].id;
+    if (this.tab && T.some(t => t.id === this.tab)) return this.tab;
+    const av = T.find(t => ns.some(n => this.inTree(n, t.id) && n.kind !== 'upgrade' && nodeAvailable(cfg, st, n.id))) ?? T.find(t => ns.some(n => this.inTree(n, t.id) && nodeAvailable(cfg, st, n.id)));
+    return (av ?? T[0]).id;
+  }
 
   /** every frame (cheap when nothing changed) */
   update(s: Snap, me: number, cfg: Balancing) {
@@ -115,23 +185,25 @@ export class TechTree {
     document.body.classList.toggle('rsOpen', ro > 0);
     this.btn.hidden = !(ro === 0 && s.ph === 'play' && !!pr && pr.pc < 0);
     this.btn.classList.toggle('ready', st.ready);
-    if (ro === 0) { this.root.hidden = true; this.pop.hidden = true; this.finishSent = false; return; }
-    if (was === 0) this.wantFront = true;
+    if (ro === 0) { this.root.hidden = true; this.pop.hidden = true; this.finishSent = false; this.tabPicked = false; return; }
+    if (was === 0) { this.wantFront = true; this.tab = this.pickTab(cfg, st); this.key = ''; }
+    else if (!this.tabPicked) { const t = this.pickTab(cfg, st); if (t !== this.tab) { this.tab = t; this.key = ''; this.wantFront = true; } } // follows the idea in work until the player picks a tab
     this.root.hidden = false;
     this.root.classList.toggle('dim', ro === 2);
-    // panel structure (rebuilt only when the tree state or the screen size changes)
+    // panel structure (rebuilt only when the tree state, the tab or the screen size changes)
     const L = this.layout(cfg);
-    const key = `${L.key}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}`;
-    if (key !== this.key) { const sl = this.scroll.scrollLeft; this.key = key; this.build(cfg, st, L); this.scroll.scrollLeft = sl; }
+    const key = `${L.key}|${this.tab}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}`;
+    if (key !== this.key) { const sl = this.scroll.scrollLeft, sy = this.scroll.scrollTop; this.key = key; this.build(cfg, st, L); this.scroll.scrollLeft = sl; this.scroll.scrollTop = sy; }
     // progress of every node (another player may be hammering while this one looks)
     const ns = rNodes(cfg);
-    this.nodeEls.forEach((el, i) => {
-      const p = Math.min(1, s.rp?.[i] ?? 0), v = p.toFixed(3);
+    this.nodeEls.forEach(el => {
+      const i = +el.dataset.i!, p = Math.min(1, s.rp?.[i] ?? 0), v = p.toFixed(3);
       if (el.dataset.p !== v) {
         el.dataset.p = v; el.style.setProperty('--p', v);
-        const c = el.querySelector('.rtCost span'); if (c && !el.classList.contains('done')) c.textContent = tfmt(st.cost * (1 - p));
+        const c = el.querySelector('.rtCost span'); if (c && !el.classList.contains('done')) c.textContent = tfmt(st.cost * nodeMul(cfg, ns[i]) * (1 - p));
       }
     });
+    { const tb = this.tabs.querySelector<HTMLElement>('.rtTab.cur'); if (tb) { const ci = s.rs![0] ?? -1; tb.style.setProperty('--p', (Math.min(1, s.rp?.[ci] ?? 0)).toFixed(3)); } }
     if (this.wantFront && this.scroll.clientWidth) { this.wantFront = false; this.toFront(cfg, st); }
     // pickup popup
     if (ro === 2) {
@@ -142,20 +214,15 @@ export class TechTree {
     } else { this.pop.hidden = true; this.popKey = ''; this.finishSent = false; }
   }
 
-  /** sizes from the screen: rows fill the height (40..60 px nodes), columns scroll sideways */
+  /** sizes from the screen: node size from the height, rows of a fixed height (the tree scrolls both ways) */
   private layout(cfg: Balancing) {
-    const ns = rNodes(cfg), rows = Math.max(...ns.map(n => n.row)) + 1, cols = Math.max(...ns.map(n => n.col)) + 1;
+    void cfg;
     const vw = innerWidth, vh = innerHeight, small = vh < 520 || vw < 720;
-    const head = small ? 46 : 56, maxH = small ? vh : Math.min(vh * .86, 760);
-    const availH = maxH - head - (small ? 10 : 28);
-    const cellH = Math.max(50, Math.min(small ? 92 : 100, availH / rows));
-    const N = Math.round(Math.max(40, Math.min(small ? 52 : 60, cellH - 12)));
-    const labW = small ? 108 : 128, pillW = N + labW, gap = small ? 30 : 48, pad = small ? 14 : 26;
-    const W = pad * 2 + cols * pillW + (cols - 1) * gap, H = rows * cellH + 8;
-    return { key: `${vw}x${vh}`, rows, cols, cellH, N, pillW, gap, pad, W, H, small, head };
+    const head = small ? 50 : 60;
+    const N = small ? (vh < 380 ? 42 : 48) : 56, U = Math.round(N * .74), cellH = Math.max(N, U + 30) + (small ? 8 : 14);
+    const labW = small ? 104 : 124, pillW = N + labW, chipW = U + 14, gap = small ? 26 : 40, cgap = small ? 6 : 10, pad = small ? 12 : 22;
+    return { key: `${vw}x${vh}`, cellH, N, U, pillW, chipW, gap, cgap, pad, small, head };
   }
-  private x(L: NonNullable<TechTree['lay']>, col: number) { return L.pad + col * (L.pillW + L.gap); }
-  private y(L: NonNullable<TechTree['lay']>, row: number) { return 4 + row * L.cellH + (L.cellH - L.N) / 2; }
 
   private state(cfg: Balancing, st: RS, n: ResearchNode): St {
     if (nodeDone(cfg, st, n.id)) return 'done';
@@ -165,92 +232,131 @@ export class TechTree {
 
   private build(cfg: Balancing, st: RS, L: ReturnType<TechTree['layout']>) {
     this.lay = L;
-    const ns = rNodes(cfg), N = cfg.names.research ?? {};
-    this.root.querySelector('.rtTitle')!.textContent = N.title ?? '';
-    const R = cfg.research!, tempo = Math.pow(1 + R.speedPerLevel, st.speedLv);
-    this.root.querySelector('.rtTempo')!.innerHTML = `<i>${mini('tempo')}</i>${nf(tempo * 100)} %`;
-    this.panel.style.setProperty('--n', L.N + 'px'); this.panel.style.setProperty('--cw', L.W + 'px'); this.panel.style.setProperty('--head', L.head + 'px');
+    const all = rNodes(cfg), NR = cfg.names.research ?? {}, R = cfg.research!, T = this.trees(cfg);
+    this.root.querySelector('.rtTitle')!.textContent = NR.title ?? '';
+    this.panel.style.setProperty('--n', L.N + 'px'); this.panel.style.setProperty('--u', L.U + 'px'); this.panel.style.setProperty('--head', L.head + 'px');
     this.panel.classList.toggle('small', L.small);
-    const C = this.canvas; C.style.width = L.W + 'px'; C.style.height = L.H + 'px';
-    const sts = ns.map(n => this.state(cfg, st, n));
+    // ---- tabs ----
+    this.tabs.innerHTML = T.map(t => {
+      const tn = all.filter(n => this.inTree(n, t.id)), open = segmentOpen(cfg, st, t.segment);
+      const cur = tn.some(n => n.id === st.cur), av = open && tn.some(n => nodeAvailable(cfg, st, n.id) && n.id !== st.cur);
+      const done = tn.filter(n => nodeDone(cfg, st, n.id)).length;
+      const cls = ['rtTab', t.id === this.tab ? 'sel' : '', open ? '' : 'lock', cur ? 'cur' : '', cur && st.ready ? 'ready' : '', av ? 'avail' : ''].join(' ');
+      return `<button class="${cls}" data-t="${esc(t.id)}" role="tab" aria-selected="${t.id === this.tab}" aria-label="${esc((cfg.names.fields as any)[t.icon] ?? t.id)}">
+        <span class="rtTabIc">${fruitIcon(t.icon)}</span>${open ? '' : `<b class="rtBadge lk">${mini('lock')}</b>`}${cur ? `<i class="rtTabRing"></i>` : ''}
+        <small>${done}/${tn.length}</small></button>`;
+    }).join('');
+    const selTab = this.tabs.querySelector<HTMLElement>('.rtTab.sel'); if (selTab) { const tb = this.tabs, x = selTab.offsetLeft; if (x < tb.scrollLeft || x + selTab.offsetWidth > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = x - 8; }
+    // ---- Forschungstempo (header) ----
+    const sp = all.find(n => n.kind === 'speed'), spi = sp ? all.indexOf(sp) : -1;
+    if (sp) {
+      const s0 = this.state(cfg, st, sp), tempo = Math.pow(1 + R.speedPerLevel, st.speedLv);
+      this.speed.hidden = false; this.speed.dataset.i = String(spi); this.speed.className = `rtSpeed rtNode2 ${s0}`;
+      this.speed.dataset.p = ''; this.speed.setAttribute('aria-label', nodeName(cfg, sp));
+      this.speed.innerHTML = `<i class="rtSpIc">${mini('tempo')}<b class="rtBadge lv">${st.speedLv}</b></i><span class="rtSpTx"><b>${nf(tempo * 100)} %</b>${s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><small>+${nf(R.speedPerLevel * 100)} %</small><i>${mini('cd')}</i><span>${tfmt(st.cost * (1 - Math.min(1, (st.work[sp.id] ?? 0) / st.cost)))}</span></span>`}</span><i class="rtBar"></i>`;
+    } else this.speed.hidden = true;
+    // ---- the tree of the selected tab ----
+    const tree = T.find(t => t.id === this.tab) ?? T[0], ns = all.filter(n => this.inTree(n, tree.id)), sts = new Map(ns.map(n => [n.id, this.state(cfg, st, n)] as const));
+    const byId = new Map(ns.map(n => [n.id, n] as const));
+    // x of a node: right after the node it needs (chains of chips sit close together), roots on the left
+    const X = new Map<string, number>(), W = (n: ResearchNode) => n.kind === 'upgrade' ? L.chipW : L.pillW;
+    const xOf = (n: ResearchNode, depth = 0): number => {
+      const got = X.get(n.id); if (got !== undefined) return got;
+      const pre = (n.needs ?? []).map(id => byId.get(id)).filter(Boolean) as ResearchNode[];
+      let x = L.pad;
+      if (pre.length && depth < 40) x = Math.max(...pre.map(q => xOf(q, depth + 1) + W(q) + (n.kind === 'upgrade' && q.kind === 'upgrade' ? L.cgap : L.gap)));
+      X.set(n.id, x); return x;
+    };
+    for (const n of ns) xOf(n);
+    const rows = Math.max(1, ...ns.map(n => n.row + 1)), Wc = Math.max(L.pad * 2 + L.pillW, ...ns.map(n => X.get(n.id)! + W(n) + L.pad)), Hc = rows * L.cellH + 10;
+    this.panel.style.setProperty('--cw', Math.max(Wc, L.small ? 0 : 780) + 'px');
+    const C = this.canvas; C.style.width = Wc + 'px'; C.style.height = Hc + 'px';
+    const cy = (n: ResearchNode) => 5 + n.row * L.cellH + L.cellH / 2;
     let html = '';
-    // top row: research itself
-    html += `<div class="rtBand" style="top:4px;height:${L.cellH}px"></div>`;
-    // segments: divider + locked overlay with what opens it
-    const segs = [...new Set(ns.map(n => n.segment))].sort((a, b) => a - b);
-    const segX: Record<number, number> = {};
-    for (const sg of segs) { const c = Math.min(...ns.filter(n => n.segment === sg && n.row > 0).map(n => n.col)); segX[sg] = c <= 0 ? 0 : this.x(L, c) - L.gap / 2; }
-    segs.forEach((sg, k) => {
-      const x0 = segX[sg], x1 = k + 1 < segs.length ? segX[segs[k + 1]] : L.W, top = 4 + L.cellH;
-      if (k > 0) html += `<div class="rtDiv" style="left:${x0}px;top:${top}px;height:${L.H - top}px"></div>`;
-      if (!segmentOpen(cfg, st, sg)) {
-        const S = (R.segments ?? []).find(q => q.id === sg), from = S?.from ?? [];
-        const got = (kind: string) => ns.filter(n => n.kind === kind && !n.start && from.includes(n.segment) && st.done.includes(n.id)).length;
-        const req = [S?.needFields ? `<span><i class="rtHex"></i>${Math.min(got('field'), S.needFields)}/${S.needFields}</span>` : '', S?.needWeapons ? `<span><i>${skillIcon('pea')}</i>${Math.min(got('weapon'), S.needWeapons)}/${S.needWeapons}</span>` : ''].join('');
-        html += `<div class="rtLock" style="left:${x0 + 2}px;top:${top}px;width:${x1 - x0 - 4}px;height:${L.H - top}px"><div class="rtLockChip"><i>${mini('lock')}</i>${req}</div></div>`;
-      }
-    });
-    // links needs -> node (S-curves between the columns); roots of a later segment start at its divider
+    // locked tree: overlay with what opens it
+    if (!segmentOpen(cfg, st, tree.segment)) {
+      const S = (R.segments ?? []).find(q => q.id === tree.segment), from = S?.from ?? [];
+      const got = (fields: boolean) => all.filter(n => (fields ? isPlaceNode(n) : n.kind === 'weapon') && !n.start && from.includes(n.segment) && st.done.includes(n.id)).length;
+      const req = [S?.needFields ? `<span><i class="rtHex"></i>${Math.min(got(true), S.needFields)}/${S.needFields}</span>` : '', S?.needWeapons ? `<span><i>${skillIcon('pea')}</i>${Math.min(got(false), S.needWeapons)}/${S.needWeapons}</span>` : ''].join('');
+      html += `<div class="rtLock" style="left:4px;top:2px;right:4px;bottom:2px"><div class="rtLockChip"><i>${mini('lock')}</i>${req}</div></div>`;
+    }
+    // links needs -> node
     let svg = '';
-    const cy = (n: ResearchNode) => this.y(L, n.row) + L.N / 2;
-    ns.forEach((n, i) => {
-      const cls = sts[i] === 'done' ? 'done' : sts[i] === 'lock' ? 'lock' : 'open';
-      const x2 = this.x(L, n.col), y2 = cy(n);
-      const from = (n.needs ?? []).map(id => ns.find(q => q.id === id)).filter(Boolean) as ResearchNode[];
-      for (const f of from) {
-        const x1 = this.x(L, f.col) + L.pillW, y1 = cy(f), dx = Math.max(12, (x2 - x1) * .55);
-        svg += `<path class="${cls}" d="M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}"/>`;
+    for (const n of ns) {
+      const s0 = sts.get(n.id)!, cls = s0 === 'done' ? 'done' : s0 === 'lock' ? 'lock' : 'open', x2 = X.get(n.id)!, y2 = cy(n);
+      for (const id of n.needs ?? []) {
+        const f = byId.get(id); if (!f) continue;
+        const x1 = X.get(f.id)! + W(f) - (f.kind === 'upgrade' ? (L.chipW - L.U) / 2 : 0), y1 = cy(f), xe = x2 + (n.kind === 'upgrade' ? (L.chipW - L.U) / 2 : 0), dx = Math.max(10, (xe - x1) * .55);
+        svg += y1 === y2 ? `<path class="${cls}" d="M${x1} ${y1} H${xe}"/>` : `<path class="${cls}" d="M${x1} ${y1} C${x1 + dx} ${y1} ${xe - dx} ${y2} ${xe} ${y2}"/>`;
       }
-      if (!from.length && n.row > 0 && segX[n.segment] > 0) { const x1 = segX[n.segment]; svg += `<path class="${cls}" d="M${x1} ${y2} H${x2}"/><circle class="${cls}" cx="${x1}" cy="${y2}" r="3.5"/>`; }
-    });
-    html += `<svg class="rtLinks" width="${L.W}" height="${L.H}" viewBox="0 0 ${L.W} ${L.H}">${svg}</svg>`;
+    }
+    html += `<svg class="rtLinks" width="${Wc}" height="${Hc}" viewBox="0 0 ${Wc} ${Hc}">${svg}</svg>`;
     // nodes
-    ns.forEach((n, i) => {
-      const s = sts[i], name = nodeName(cfg, n);
-      const badge = s === 'done' ? `<b class="rtBadge ok">${mini('check')}</b>` : s === 'lock' ? `<b class="rtBadge lk">${mini('lock')}</b>` : n.kind === 'speed' && st.speedLv > 0 ? `<b class="rtBadge lv">${st.speedLv}</b>` : '';
-      const sub = s === 'done' ? '' : s === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(st.cost * (1 - Math.min(1, (st.work[n.id] ?? 0) / st.cost)))}</span></span>`;
-      html += `<button class="rtNode ${s} k-${n.kind}" data-i="${i}" style="left:${this.x(L, n.col)}px;top:${this.y(L, n.row)}px;width:${L.pillW}px" ${s === 'lock' || s === 'done' ? 'aria-disabled="true"' : ''}>
-        <span class="rtIc"><span class="rtIcIn">${nodeIcon(n)}</span>${badge}</span>
-        <span class="rtTx"><b>${esc(name)}</b>${n.kind === 'speed' ? `<small>+${nf(R.speedPerLevel * 100)} %</small>` : ''}${sub}</span><i class="rtBar"></i></button>`;
-    });
+    for (const n of ns) {
+      const i = all.indexOf(n), s0 = sts.get(n.id)!, x = X.get(n.id)!, y = cy(n), left = Math.max(0, 1 - Math.min(1, (st.work[n.id] ?? 0) / (st.cost * nodeMul(cfg, n))));
+      const badge = s0 === 'done' ? `<b class="rtBadge ok">${mini('check')}</b>` : s0 === 'lock' ? `<b class="rtBadge lk">${mini('lock')}</b>` : '';
+      const sub = s0 === 'done' ? '' : s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(st.cost * nodeMul(cfg, n) * left)}</span></span>`;
+      if (n.kind === 'upgrade') {
+        const inf = upInfo(cfg, n.ref ?? '', n.lv), first = (n.lv ?? 1) === 1;
+        html += `<button class="rtNode k-upgrade ${s0}" data-i="${i}" style="left:${x}px;top:${y - L.U / 2 - (first ? 15 : 0)}px;width:${L.chipW}px" title="${esc(upName(cfg, n.ref ?? ''))} ${n.lv}/${n.count}">
+          ${first ? `<span class="rtCap">${esc(upName(cfg, n.ref ?? ''))}</span>` : ''}<span class="rtIc"><span class="rtIcIn">${inf.icon}</span>${badge || `<b class="rtLvN">${n.lv}</b>`}</span>
+          <span class="rtUpTx">${s0 === 'done' ? `<em>${esc(inf.txt)}</em>` : sub}</span></button>`;
+      } else {
+        html += `<button class="rtNode ${s0} k-${n.kind}${isPlaceNode(n) ? ' k-field' : ''}" data-i="${i}" style="left:${x}px;top:${y - L.N / 2}px;width:${L.pillW}px" ${s0 === 'lock' || s0 === 'done' ? 'aria-disabled="true"' : ''}>
+          <span class="rtIc"><span class="rtIcIn">${nodeIcon(n, cfg)}</span>${badge}</span>
+          <span class="rtTx"><b>${esc(nodeName(cfg, n))}</b>${sub}</span><i class="rtBar"></i></button>`;
+      }
+    }
     C.innerHTML = html;
-    this.nodeEls = [...C.querySelectorAll<HTMLElement>('.rtNode')];
+    this.nodeEls = [...C.querySelectorAll<HTMLElement>('.rtNode'), ...(sp ? [this.speed] : [])];
   }
-  /** scroll so the current idea (or the first one that can be chosen) and the column after it are in view */
+  /** scroll so the current idea (or the first one that can be chosen) is in view, as far left / up as fits */
   private toFront(cfg: Balancing, st: RS) {
     const L = this.lay; if (!L) return;
-    const all = rNodes(cfg), ns = all.filter(n => n.kind !== 'speed');
-    const cur = all.find(n => n.id === st.cur), av = ns.filter(n => nodeAvailable(cfg, st, n.id));
-    const col = cur ? cur.col : av.length ? Math.min(...av.map(n => n.col)) : all.find(n => n.kind === 'speed')?.col ?? 0;
-    this.scroll.scrollLeft = Math.max(0, Math.min(this.x(L, col) - L.pad, this.x(L, col + 1) + L.pillW + L.pad - this.scroll.clientWidth)); // the front and the column behind it, as much on the left as fits
+    const els = [...this.canvas.querySelectorAll<HTMLElement>('.rtNode')];
+    const el = els.find(e => e.classList.contains('cur') || e.classList.contains('ready')) ?? els.find(e => e.classList.contains('avail') && !e.classList.contains('k-upgrade')) ?? els.find(e => e.classList.contains('avail'));
+    void cfg; void st;
+    if (!el) { this.scroll.scrollLeft = 0; this.scroll.scrollTop = 0; return; }
+    const x = el.offsetLeft, y = el.offsetTop, sc = this.scroll;
+    sc.scrollLeft = Math.max(0, Math.min(x - L.pad - L.pillW - L.gap, x + el.offsetWidth + L.pad - sc.clientWidth)); // the node and the one before it, as much on the left as fits
+    sc.scrollTop = Math.max(0, Math.min(y - L.cellH, y + el.offsetHeight + 10 - sc.clientHeight));
   }
 
   private buildPopup(cfg: Balancing, n: ResearchNode, st: RS) {
     const NR = cfg.names.research ?? {}, W = cfg.werkstatt?.names ?? {}, H = cfg.names.hints ?? {};
     const chip = (icon: string, val: string, label = '') => `<span class="rpSt"><i>${icon}</i><span>${label ? `<small>${esc(label)}</small>` : ''}<b>${val}</b></span></span>`;
-    let kind = '', stats: string[] = [], fx = '';
+    let kind = '', stats: string[] = [], fx = '', title = nodeName(cfg, n), icon = nodeIcon(n, cfg), kcls = n.kind;
     if (n.kind === 'speed') {
       const k = 1 + cfg.research!.speedPerLevel, a = Math.pow(k, st.speedLv), b = a * k;
       kind = NR.speed ?? '';
       stats = [chip(mini('tempo'), `+${nf(cfg.research!.speedPerLevel * 100)} %`), chip(mini('cd'), `${nf(a * 100)} % → <em>${nf(b * 100)} %</em>`), chip(`<b class="rpLv">${st.speedLv + 1}</b>`, `${NR.level ?? ''} ${st.speedLv} → <em>${st.speedLv + 1}</em>`)];
+    } else if (n.kind === 'building') { // 26.11.2026 Mühle / Bäckerei: what goes in, what comes out, how long
+      const B = (cfg.buildings as any)[n.ref ?? ''] ?? {};
+      kind = NR.building ?? ''; kcls = 'field';
+      const ins = B.needs ? Object.entries(B.needs as Record<string, number>).map(([t, v]) => chip(fruitIcon(t), `${nf(v)} ×`, (cfg.names.items as any)?.[t] ?? (cfg.names.plants as any)?.[t] ?? '')) : [];
+      stats = [...ins, chip(fruitIcon(B.makes), `→ ${nf(B.amount ?? 1)}`, (cfg.names.items as any)?.[B.makes] ?? ''), chip(mini('cd'), `${nf(B.time ?? B.interval ?? 1, 1)} s`, W.harvest)];
     } else if (n.kind === 'field') {
       const t = n.ref as FruitType, P = (cfg.plants as any)[t] ?? { interval: 1 }, C = cfg.fields.cycle, np = C?.plants ?? 6;
       kind = NR.field ?? '';
       stats = [chip(mini('cd'), `${nf(P.grow ?? C?.grow ?? P.interval, 1)} s`, W.grow), chip(mini('rake'), `${nf(np * (P.strokes ?? 1) * cfg.rake.cooldown, 1)} s`, W.harvest), chip(fruitIcon(t), String(np * (P.amount ?? 1)), W.yield)];
+    } else if (n.kind === 'upgrade') { // 26.11.2026 one level of a weapon upgrade
+      const [w] = upSplit(n.ref ?? ''), inf = upInfo(cfg, n.ref ?? '', n.lv);
+      kind = (cfg.names.skills as Record<string, string>)[w] ?? NR.upgrade ?? ''; icon = skillIcon(w);
+      stats = [chip(inf.icon, `<em>${esc(inf.txt)}</em>`, upName(cfg, n.ref ?? '')), chip(`<b class="rpLv">${n.lv}</b>`, `${n.lv} / ${n.count}`, NR.level)];
     } else {
       const id = n.ref as SkillId, S = (cfg.skills as any)[id] ?? {}, pool = ammoPool(id), ft = AMMO_OF[pool] ?? pool;
       kind = NR.weapon ?? '';
       const pel = id === 'wshot' || id === 'blue' || id === 'cran' ? S.pellets : 0;
       if (S.damage > 0) stats.push(chip(mini('dmg'), pel ? `${nf(S.damage, 1)} × ${pel}` : nf(S.damage, 1), W.dmg));
-      if (S.cooldown > 0) stats.push(chip(mini('cd'), `${nf(S.cooldown, 2)} s`, H.cd ?? W.cd));
-      if (id === 'wall' && S.hp) stats.push(chip(mini('heart'), nf(S.hp), NR.hp));
+      if (S.cooldown > 0 && id !== 'sack') stats.push(chip(mini('cd'), `${nf(S.cooldown, 2)} s`, H.cd ?? W.cd));
+      if ((id === 'wall' || id === 'sack') && S.hp) stats.push(chip(mini('heart'), nf(S.hp), NR.hp));
       if (S.ammoPerShot > 0) stats.push(chip(fruitIcon(ft), `${nf(S.ammoPerShot, 1)}`, W.ammo));
       if (S.range > 0 && id !== 'wall') stats.push(chip(mini('range'), `${nf(S.range, 1)} m`, W.rng));
       fx = (cfg.names.effects as Record<string, string> | undefined)?.[id] ?? '';
     }
-    this.pop.innerHTML = `<div class="rpCard k-${n.kind}"><div class="rpScroll">
-      <div class="rpIc"><span class="rpIcIn">${nodeIcon(n)}</span></div>
-      <div class="rpKind">${esc(kind)}</div><h3>${esc(nodeName(cfg, n))}</h3>
+    this.pop.innerHTML = `<div class="rpCard k-${kcls}"><div class="rpScroll">
+      <div class="rpIc"><span class="rpIcIn">${icon}</span></div>
+      <div class="rpKind">${esc(kind)}</div><h3>${esc(title)}</h3>
       ${fx ? `<div class="rpFx">${esc(fx)}</div>` : ''}<div class="rpStats">${stats.join('')}</div></div>
       <button class="btn rpGo">${esc(NR.finish ?? 'Fertigstellen')}</button></div>`;
     this.pop.querySelector('.rpGo')!.addEventListener('click', () => this.finish());

@@ -3,7 +3,8 @@
 import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry, ammoPool } from '../config';
 import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 import { benchPush, chestPush, clampArena, normMove, sprintStep, walkStep } from './move';
-import { newRState, nodeAvailable, nodeDone, researchCost, rIndex, rNode, rNodes, RState, segmentOpen } from './research';
+import { edgeKey, sackSpot, segDist, type Edge } from './sacks';
+import { applyResearchCfg, isPlaceNode, newRState, nodeAvailable, nodeCost, nodeCount, nodeDone, researchCost, rIndex, rNode, rNodes, RState, segmentOpen } from './research';
 export { nodeAvailable, nodeDone, researchCost, segmentOpen } from './research';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -21,6 +22,8 @@ export const TILE_TYPES: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', '
 const coopCrop = (t: FruitType) => isBerry(t) || t === 'pea';
 /** 25.11.2026 Steinkohle: one wall post */
 export interface WallPiece { id: number; x: number; z: number; hp: number; maxHp: number }
+/** 26.11.2026 Mehlsäcke: one stack of three sacks on the edge between built slot a and free slot b (-1 outside), key = edgeKey of its midpoint */
+export interface SackStack { id: number; a: number; b: number; key: string; x1: number; z1: number; x2: number; z2: number; mx: number; mz: number; ang: number; hp: number; maxHp: number }
 /** neighbour bonus one tile gives to itself and every adjacent tile of the same type: bonusBase + upgrade bonus of its level
  *  (level 1: +5 %, 2: +8 %, 3: +12 %, 4: +17 %, 5: +23 % ... the step grows by 1 point per level) */
 export function tileContrib(cfg: Balancing, level: number) {
@@ -181,6 +184,8 @@ interface Enemy {
   /** Körner-MP: grain damage not shown yet, time of the last number */ gs?: number; gt?: number;
   /** 25.11.2026 Steinkohle: post it attacks (id, 0 none), post touched this tick, s stuck at the wall, best distance to its target while stuck, side it goes round (+-1) */
   wAtk?: number; wTouch?: number; wT?: number; wD?: number; wSide?: number;
+  /** 26.11.2026 Mehlsäcke: stack it gnaws at, s stuck at one, best distance to its target meanwhile, side it walks along */
+  sAtk?: number; sT?: number; sD?: number; sSide?: number;
 }
 /** projectile kinds (snapshot index = position): combo kinds after asp/cran */
 export const PK = ['asp', 'cran', 'jam', 'spike', 'sour', 'lance', 'hot', 'rocket', 'shock', 'ball', 'blue', 'black', 'wheat', 'pea', 'wshot'] as const; // 25.11.2026 pea = Erbse (Erbsenpistole), wshot = grain pellet (Weizen-Schrotflinte)
@@ -263,11 +268,13 @@ export class Sim {
   benchSlot = -1;
   /** Steinkohle posts, oldest first */
   walls: WallPiece[] = [];
+  /** 26.11.2026 Mehlsäcke stacks, oldest first */
+  sacks: SackStack[] = [];
   /** spatial hash of the posts (1 m cells) and links between posts (rebuilt when posts come or go) */
   private wallGrid = new Map<number, WallPiece[]>(); private wallLinks = new Map<number, WallPiece[]>(); private wallDirty = true;
 
   constructor(cfg: Balancing, opts: { sandbox?: boolean } = {}) {
-    this.cfg = cfg;
+    this.cfg = cfg; applyResearchCfg(cfg); // 26.11.2026 research recipes (Bäckerei without the well)
     this.slots = slotPositions(cfg);
     this.waveT = cfg.waves.firstWave; // countdown to wave 1 (we start "in a pause" before wave 1)
     if (opts.sandbox) { this.sb = { rate: 20, type: 'random', acc: .8, hour: 5, W: 13, D: 8.5, weapon: 'rake', freeze: false }; return; }
@@ -311,6 +318,7 @@ export class Sim {
     if (this.rsMode) { // 25.11.2026: every researched weapon (start: Erbsenpistole) with some ammo
       const R = this.cfg.research!;
       for (const n of rNodes(this.cfg)) if (n.kind === 'weapon' && n.ref && nodeDone(this.cfg, this.rs, n.id)) this.giveWeapon(p, n.ref as SkillId, n.start ? R.startShots ?? 10 : R.weaponShots ?? 10);
+      for (const n of rNodes(this.cfg)) if (n.kind === 'upgrade' && n.ref && nodeDone(this.cfg, this.rs, n.id)) this.applyOffer(p, n.ref); // 26.11.2026 the team's upgrades
     } else this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
     this.players.push(p);
     if (!this.sb && this.merchant && this.merchant.st <= 1) this.genShop(p); // joined while the merchant is here
@@ -363,6 +371,7 @@ export class Sim {
     if (f) this.fields.splice(this.fields.indexOf(f), 1);
     for (let i = this.bombs.length - 1; i >= 0; i--) { const b = this.bombs[i]; if (b.mine && slotAt(this.cfg, this.slots, b.x, b.z) === slot) { this.bombs.splice(i, 1); this.burst(b.x, .2, b.z, 0x6fbf3a, 8, 1, .1, .4); } } // a tile built on top removes the mine
     for (const w of [...this.walls]) if (slotAt(this.cfg, this.slots, w.x, w.z) === slot) this.removeWall(w, false); // 25.11.2026 ... and the Steinkohle posts on it
+    for (const k of [...this.sacks]) if (k.b === slot) this.removeSack(k, false); // 26.11.2026 Mehlsäcke on that side: the edge is inside the garden now
     const iv = isBuilding(type) ? (this.cfg.buildings[type].interval ?? 0) : this.cfg.plants[type]?.interval ?? 1;
     f = { slot, type, x: s.x, z: s.z, hp: hp0, maxHp: hp0, alive: true, t: rand(0, iv), shake: 0, poison: [], rarity: 0, prog: 0, edge: Math.floor(rand(0, 6)), tilledT: 0, tilledBy: -1, starter: false, inb: {}, work: 0, broken: false, boost: 0, cyc: 0, ct: rand(0, 1.5) };
     this.fields.push(f);
@@ -395,11 +404,11 @@ export class Sim {
   /** can a tile of type t go onto this slot: free slot = new level-1 tile, same type below the top = next tile of it; never over another type */
   slotOK(t: FruitType, slot: number) {
     const s = this.slots[slot]; if (!slotFits(this.cfg, s, t)) return false;
-    if (this.chainLeft(t) <= 0) return false;
+    if (!this.rsMode && this.chainLeft(t) <= 0) return false; // 26.11.2026 research: the techtree is the gate, no chain rules
     const f = this.fieldAt(slot);
     if (f) return this.cfg.fields.stacking !== false && f.alive && f.type === t && f.rarity < this.maxR; // 25.11.2026 stacking: false = no tile levels
     if (this.cfg.fields.unique && this.fields.some(o => o.alive && o.type === t)) return false; // 25.11.2026: every field type only once
-    const nx = this.cfg.chains?.[t]?.nextTo; // stage 2 (Bäckerei): new tile only next to its secondary building (Brunnen)
+    const nx = this.rsMode ? undefined : this.cfg.chains?.[t]?.nextTo; // stage 2 (Bäckerei): new tile only next to its secondary building (Brunnen)
     return !nx || this.fields.some(o => o.alive && o.type === nx && hexDist(s, this.slots[o.slot]) === 1);
   }
   placeSlots(t: FruitType) { const out: number[] = []; for (let i = 0; i < this.slots.length; i++) if (this.slotOK(t, i)) out.push(i); return out; }
@@ -809,8 +818,8 @@ export class Sim {
     const fl = this.chiliGeom(s.sweepLv), C = S.chili, tick = Math.max(U.chiliTick.min, C.burnTick * Math.pow(U.chiliTick.factor, s.tickLv));
     return {
       ...fl, tick,
-      dmg: B.damage * dm, dmgPct: dm, range, cd, cost: B.ammoPerShot, dur: id === 'wheat' ? S.wheat.heatTime * (1 + (U.wheatDuration?.step ?? .25) * (s.durLv ?? 0)) : 0,
-      need: id === 'wall' ? B.ammoPerShot * 3 /* Steinkohle: ready with 3 posts */ : Math.ceil(Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots - 1e-9), shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
+      dmg: B.damage * dm, dmgPct: dm, range, cd: id === 'sack' ? B.cooldown : cd, cost: id === 'sack' ? Math.max(S.sack.minCost ?? 1, B.ammoPerShot - S.sack.costStep * s.lvCd) : B.ammoPerShot, dur: id === 'wheat' ? S.wheat.heatTime * (1 + (U.wheatDuration?.step ?? .25) * (s.durLv ?? 0)) : 0,
+      need: id === 'wall' ? B.ammoPerShot * 3 /* Steinkohle: ready with 3 posts */ : id === 'sack' ? Math.max(S.sack.minCost ?? 1, B.ammoPerShot - S.sack.costStep * s.lvCd) /* Mehlsäcke: one stack */ : Math.ceil(Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots - 1e-9), shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: (id === 'blue' ? S.blue.pellets : id === 'wshot' ? S.wshot.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
@@ -1318,8 +1327,9 @@ export class Sim {
     // 24.11.2026 (Basti): the Körner-MP no longer overheats, it only gets less precise the longer it fires
     if (id === 'cab' && !s.combo && !this.canLayMine(p)) return false; // mines: not on tiles, not on top of each other
     if (id === 'wall' && !this.wallSpot(p)) return false; // Steinkohle: not on tiles, not right next to the last post
+    if (id === 'sack' && !this.sackEdge(p)) return false; // 26.11.2026 Mehlsäcke: only on a free tile edge within reach
     const st = this.stats(id, s);
-    const d = dir || this.aimDir(p, this.thrown(s, id) ? st.throwDist : st.range);
+    const d = id === 'sack' ? [Math.sin(p.face), Math.cos(p.face)] as [number, number] : dir || this.aimDir(p, this.thrown(s, id) ? st.throwDist : st.range);
     s.firing = true; p.aimX = d[0]; p.aimZ = d[1];
     this.fireSkill(p, id, d[0], d[1]);
     return true;
@@ -1329,7 +1339,7 @@ export class Sim {
     const s = p.skills[id], st = this.stats(id, s), S = this.cfg.skills;
     p.ammo[this.ak(p, id)] -= st.cost; s.cdT = st.cd; p.face = Math.atan2(dx, dz); p.handT = .9; // another weapon in the hand: rake put away
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
-    if (id !== 'chili' && id !== 'wall') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot; wall: event wallPut
+    if (id !== 'chili' && id !== 'wall' && id !== 'sack') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot; wall: event wallPut
     if (id === 'asp') {
       this.aspBolt(p, dx, dz, st, false);
       s.burst = st.shots - 1; s.burstT = st.gap; // rest of the salvo follows in the player update
@@ -1354,6 +1364,8 @@ export class Sim {
       this.sfx('weapons.pea', p.x, p.z); this.burst(fx, fy, fz, 0x9ad860, 6, 2, .12, .25);
     } else if (id === 'wall') { // 25.11.2026 Steinkohle: one post where the player is (just behind him)
       this.layWall(p);
+    } else if (id === 'sack') { // 26.11.2026 Mehlsäcke: three sacks on the free tile edge in front of the player
+      this.laySack(p);
     } else if (id === 'lemon') {
       this.lemonBall(p, dx, dz, st);
     } else if (id === 'chili') {
@@ -1920,6 +1932,7 @@ export class Sim {
     let vx = tx - e.x, vz = tz - e.z; const d = Math.hypot(vx, vz); if (d < .001) return d;
     vx /= d; vz /= d;
     if (this.walls.length && e.type !== 'toad') [vx, vz] = this.wallAvoid(e, vx, vz, d); // 25.11.2026 walk round Steinkohle posts
+    if (this.sacks.length && this.sackSolid(e)) [vx, vz] = this.sackAvoid(e, vx, vz, d); // 26.11.2026 ... and along Mehlsäcke
     e.face = Math.atan2(vx, vz);
     if (d > stop) { const s = Math.min(speed * dt, d - stop); e.x += vx * s; e.z += vz * s; e.walk += dt * speed * 4; }
     return d;
@@ -2010,6 +2023,7 @@ export class Sim {
       const sf = this.stunF(e); e.stun = Math.max(0, e.stun - dt); dt *= sf; if (dt <= 0) return;
     }
     if (e.wAtk && this.wallAttack(e, dt)) return; // 25.11.2026 hacking at a Steinkohle post in its way
+    if (e.sAtk && this.sackAttack(e, dt)) return; // 26.11.2026 gnawing at Mehlsäcke in its way
     if (this.baits.length && !e.fleeing && (!e.boss || this.cfg.skills.pan.boss) && e.state !== 'climb' && (e.type !== 'sheep' || e.state === 'approach') && this.lure(e, dt)) return;
     e.bait = 0;
     if (e.boss) return this.bossAI(e, dt);
@@ -2678,6 +2692,7 @@ export class Sim {
       if (d < m && d > .001) { const k = (m - d) / d * .5; a.x -= dx * k; a.z -= dz * k; b.x += dx * k; b.z += dz * k; }
     }
     if (this.walls.length) for (const e of this.enemies) if (!e.dead) this.wallCollide(e, dt); // 25.11.2026 Steinkohle: solid for animals (not toads)
+    if (this.sacks.length) { this.tickSacks(dt); for (const e of this.enemies) if (!e.dead) this.sackCollide(e, dt); } // 26.11.2026 Mehlsäcke: solid, self repair
     // burning pools (Kimchi)
     for (let i = this.pools.length - 1; i >= 0; i--) {
       const pl = this.pools[i]; pl.t -= dt; pl.tickT -= dt;
@@ -3117,6 +3132,13 @@ export class Sim {
       case 'cab_mini': s.minis += U.cabMini.step; break;
       case 'cab_gas': s.gasLv++; break;
       case 'cab_pois': s.poisLv++; break;
+      case 'sack_hp': s.lvDmg++; break;   // 26.11.2026 Mehlsäcke: +HP per stack
+      case 'sack_heal': s.lvRange++; break; // ... self repair per minute
+      case 'sack_cost': s.lvCd++; break;  // ... one flour less per stack
+      case 'wall_hp': s.lvDmg++; break;   // Steinkohle: +HP per post
+      default: if (s) { // 26.11.2026 Techtree: the common upgrades of every other weapon (pea_dmg, wshot_pel ...)
+        if (b === 'dmg') s.lvDmg++; else if (b === 'rng') s.lvRange++; else if (b === 'cd') s.lvCd++; else if (b === 'pel') s.extraPel++; else if (b === 'pierce') s.cranPierceLv++; else if (b === 'dur') s.durLv = (s.durLv ?? 0) + 1;
+      }
     }
   }
 
@@ -3133,6 +3155,8 @@ export class Sim {
   }
   /** s of work the next idea costs now (whole team) */
   rsCost() { return researchCost(this.cfg, this.rs, this.n); }
+  /** 26.11.2026 s of work one node costs now (upgrades: cheaper, growing along their chain) */
+  rsCostOf(id: string | null) { return nodeCost(this.cfg, this.rs, id, this.n); }
   /** may this player hammer at the bench now: an idea is chosen and not complete, he is close to the bench, no research UI open */
   canWork(p: Player) {
     const b = this.benchCircle(); if (!b || !p.alive || !this.rs.cur || this.rs.ready || p.rsUi || this.phase !== 'play') return false;
@@ -3145,7 +3169,7 @@ export class Sim {
     const n = this.players.filter(p => p.alive && p.benchWork).length;
     if (n && st.cur && !st.ready) {
       st.work[st.cur] = (st.work[st.cur] ?? 0) + dt * n;
-      if (st.work[st.cur] >= this.rsCost()) { st.ready = true; this.emit({ k: 'rsReady', n: rIndex(this.cfg, st.cur) }); this.sfx('research.ready', b.x, b.z); }
+      if (st.work[st.cur] >= this.rsCostOf(st.cur)) { st.ready = true; this.emit({ k: 'rsReady', n: rIndex(this.cfg, st.cur) }); this.sfx('research.ready', b.x, b.z); }
     }
     for (const p of this.players) {
       const d = Math.hypot(p.x - b.x, p.z - b.z) - b.r;
@@ -3161,7 +3185,7 @@ export class Sim {
     const p = this.player(id); if (!p || !this.rsMode || p.rsUi !== 1) return false;
     const nid = typeof node === 'number' ? rNodes(this.cfg)[node]?.id : node;
     if (!nid || !nodeAvailable(this.cfg, this.rs, nid)) return false;
-    this.rs.cur = nid; this.rs.ready = (this.rs.work[nid] ?? 0) >= this.rsCost();
+    this.rs.cur = nid; this.rs.ready = (this.rs.work[nid] ?? 0) >= this.rsCostOf(nid);
     p.rsUi = 0; p.rsLock |= 1;
     this.emit({ k: 'rsChoose', p: p.id, n: rIndex(this.cfg, nid) });
     return true;
@@ -3173,13 +3197,21 @@ export class Sim {
     const node = rNode(this.cfg, st.cur); if (!node) return false;
     const R = this.cfg.research!, idx = rIndex(this.cfg, node.id);
     st.cur = null; st.ready = false; st.work[node.id] = 0;
-    if (node.kind === 'speed') { st.speedLv++; if (R.speedCounts !== false) st.n++; }
-    else { if (!st.done.includes(node.id)) st.done.push(node.id); st.n++; }
+    st.n += nodeCount(this.cfg, node);
+    if (node.kind === 'speed') st.speedLv++;
+    else if (!st.done.includes(node.id)) st.done.push(node.id);
     p.rsUi = 1;
     if (node.kind === 'weapon' && node.ref) for (const q of this.players) this.giveWeapon(q, node.ref as SkillId, R.weaponShots ?? 10);
-    if (node.kind === 'field' && node.ref) this.rsStartPlace(p, node.ref as FruitType); // straight into placing (the existing place mode)
+    if (node.kind === 'upgrade' && node.ref) this.rsUpgrade(node.ref); // 26.11.2026 weapon upgrade for the whole team
+    if (isPlaceNode(node) && node.ref) this.rsStartPlace(p, node.ref as FruitType); // straight into placing (the existing place mode)
     this.emit({ k: 'rsDone', p: p.id, n: idx }); // 26.11.2026 no extra sound here: the button already plays ui.ideaClaim
     return true;
+  }
+  /** 26.11.2026 a researched weapon upgrade: every player gets it (the techtree is shared); Mehlsack HP raises the stacks already standing */
+  private rsUpgrade(key: string) {
+    for (const q of this.players) this.applyOffer(q, key);
+    if (key === 'sack_hp') { const S = this.cfg.skills.sack; for (const k of this.sacks) { k.maxHp += S.hpStep; k.hp += S.hpStep; } }
+    if (key === 'wall_hp') { const W = this.cfg.skills.wall; for (const w of this.walls) { w.maxHp += W.hpStep ?? 0; w.hp += W.hpStep ?? 0; } }
   }
   /** 26.11.2026 a researched field goes into the place mode for this player (phase 'lvl', everyone else waits) */
   private rsStartPlace(p: Player, t: FruitType) {
@@ -3212,9 +3244,10 @@ export class Sim {
     const st = this.rs, A = this.cfg.cheats?.ammo ?? 100;
     for (const n of rNodes(this.cfg)) {
       if (n.kind === 'speed' || nodeDone(this.cfg, st, n.id)) continue;
-      st.done.push(n.id); st.n++; st.work[n.id] = 0; if (st.cur === n.id) { st.cur = null; st.ready = false; }
+      st.done.push(n.id); st.n += nodeCount(this.cfg, n); st.work[n.id] = 0; if (st.cur === n.id) { st.cur = null; st.ready = false; }
       if (n.kind === 'weapon' && n.ref) for (const q of this.players) { this.giveWeapon(q, n.ref as SkillId, 0); q.ammo[ammoPool(n.ref as SkillId)] = Math.max(q.ammo[ammoPool(n.ref as SkillId)], A); }
-      if (n.kind === 'field' && n.ref) { const t = n.ref as FruitType, sl = this.placeSlots(t).sort((a, b) => Math.hypot(this.slots[a].x, this.slots[a].z) - Math.hypot(this.slots[b].x, this.slots[b].z))[0]; if (sl !== undefined) this.placeField(sl, t); }
+      if (n.kind === 'upgrade' && n.ref) this.rsUpgrade(n.ref);
+      if (isPlaceNode(n) && n.ref) { const t = n.ref as FruitType, sl = this.placeSlots(t).sort((a, b) => Math.hypot(this.slots[a].x, this.slots[a].z) - Math.hypot(this.slots[b].x, this.slots[b].z))[0]; if (sl !== undefined) this.placeField(sl, t); }
     }
   }
   private cheatResearch(what: string, d: number) {
@@ -3224,7 +3257,7 @@ export class Sim {
     if (what === 'all') { this.researchAll(); return; }
     if (what === 'next') { // the current idea (or the first available one) complete at once
       if (!st.cur) st.cur = rNodes(this.cfg).find(n => n.kind !== 'speed' && nodeAvailable(this.cfg, st, n.id))?.id ?? null;
-      if (st.cur) { st.work[st.cur] = this.rsCost(); st.ready = true; }
+      if (st.cur) { st.work[st.cur] = this.rsCostOf(st.cur); st.ready = true; }
     }
   }
 
@@ -3247,7 +3280,7 @@ export class Sim {
   }
   layWall(p: Player) {
     const at = this.wallSpot(p); if (!at) return;
-    const W = this.cfg.skills.wall, w: WallPiece = { id: this.nid++, x: at[0], z: at[1], hp: W.hp, maxHp: W.hp };
+    const W = this.cfg.skills.wall, hp = W.hp + (W.hpStep ?? 0) * p.skills.wall.lvDmg, w: WallPiece = { id: this.nid++, x: at[0], z: at[1], hp, maxHp: hp }; // 26.11.2026 + Techtree HP upgrade
     this.walls.push(w); this.wallDirty = true;
     while (this.walls.length > W.max) this.removeWall(this.walls[0], false); // the oldest one goes
     this.emit({ k: 'wallPut', p: p.id, i: w.id, x: r2(w.x), z: r2(w.z) }); this.sfx('weapons.wall', w.x, w.z);
@@ -3335,6 +3368,97 @@ export class Sim {
     return true;
   }
 
+  // ---------- 26.11.2026 Mehlsäcke (stacks of three flour sacks on free tile edges) ----------
+  /** a slot with something on it: field / building (also wilted), chest, Werkbank */
+  builtSlot = (i: number) => !!this.slots[i] && (!!this.slots[i].chest || !!this.slots[i].bench || this.fields.some(f => f.slot === i));
+  private sackKeys() { return new Set(this.sacks.map(k => k.key)); }
+  /** the free edge this player would put sacks on now (in front of him, within skills.sack.reach), null = none */
+  sackEdge(p: Player): Edge | null {
+    if (this.sacks.length >= (this.cfg.skills.sack?.max ?? 200)) return null;
+    return sackSpot(this.cfg, this.slots, this.builtSlot, this.sackKeys(), p.x, p.z, Math.sin(p.face), Math.cos(p.face));
+  }
+  /** stats of the team's sacks (upgrades are shared, the best player's levels count) */
+  sackStats() {
+    const S = this.cfg.skills.sack, lv = (k: 'lvDmg' | 'lvRange') => Math.max(0, ...this.players.map(p => p.skills.sack?.[k] ?? 0));
+    return { hp: S.hp + S.hpStep * lv('lvDmg'), repair: S.repairStep * lv('lvRange') / 60 };
+  }
+  laySack(p: Player) {
+    const e = this.sackEdge(p); if (!e) return;
+    const hp = this.sackStats().hp;
+    const k: SackStack = { id: this.nid++, a: e.a, b: e.b, key: edgeKey(e.mx, e.mz), x1: e.x1, z1: e.z1, x2: e.x2, z2: e.z2, mx: e.mx, mz: e.mz, ang: e.ang, hp, maxHp: hp };
+    this.sacks.push(k);
+    this.emit({ k: 'sackPut', p: p.id, i: k.id, x: r2(k.mx), z: r2(k.mz) }); this.sfx('weapons.sack', k.mx, k.mz);
+    this.burst(k.mx, .3, k.mz, 0xf4eee0, 14, 1.4, .12, .6, { g: 2 });
+  }
+  removeSack(k: SackStack, broken: boolean) {
+    const i = this.sacks.indexOf(k); if (i < 0) return;
+    this.sacks.splice(i, 1);
+    this.emit({ k: broken ? 'sackBreak' : 'sackGone', i: k.id, x: r2(k.mx), z: r2(k.mz) });
+    if (broken) { this.burst(k.mx, .4, k.mz, 0xf6f1e6, 30, 2.4, .2, .9, { g: 1 }); this.sfx('weapons.sackBreak', k.mx, k.mz); }
+  }
+  hurtSack(k: SackStack, dmg: number) {
+    k.hp -= dmg; this.num(k.mx, k.mz, dmg, 'f'); this.emit({ k: 'sackHit', i: k.id });
+    if (k.hp <= 0) this.removeSack(k, true);
+  }
+  /** self repair (Techtree upgrade): HP per minute */
+  private tickSacks(dt: number) {
+    const r = this.sackStats().repair; if (r <= 0) return;
+    for (const k of this.sacks) if (k.hp < k.maxHp) k.hp = Math.min(k.maxHp, k.hp + r * dt);
+  }
+  /** blocked by sacks: everyone but hopping toads (and squirrels in their tree); animals running off with loot or leaving get through */
+  private sackSolid(e: Enemy) { return e.type !== 'toad' && !this.inTree(e) && !e.fleeing && !(e.leave > 0); }
+  /** walking direction along the sacks ahead (like wallAvoid): once a stack blocks the way, the animal follows it to one side */
+  private sackAvoid(e: Enemy, vx: number, vz: number, d: number): [number, number] {
+    const T = this.cfg.skills.sack.thick, look = Math.min(d, e.r + T + 1);
+    let hit: SackStack | null = null, nearest = 1e9;
+    for (const k of this.sacks) {
+      if (Math.abs(k.mx - e.x) > look + 1.6 || Math.abs(k.mz - e.z) > look + 1.6) continue;
+      for (let s = .25; s <= 1.001; s += .25) { // a few points along the way ahead
+        const px = e.x + vx * look * s, pz = e.z + vz * look * s, [dd] = segDist(px, pz, k.x1, k.z1, k.x2, k.z2);
+        if (dd < e.r + T) { if (look * s < nearest) { nearest = look * s; hit = k; } break; }
+      }
+    }
+    if (!hit) { e.sSide = 0; return [vx, vz]; }
+    const sx = hit.x2 - hit.x1, sz = hit.z2 - hit.z1, sl = Math.hypot(sx, sz) || 1, ux = sx / sl, uz = sz / sl;
+    if (!e.sSide) { const dot = ux * vx + uz * vz; e.sSide = dot > .05 ? 1 : dot < -.05 ? -1 : (e.id % 2 ? 1 : -1); }
+    const k = clamp(1 - nearest / Math.max(.1, look), .4, 1), ax = vx * (1 - k) + ux * e.sSide * k * 1.3, az = vz * (1 - k) + uz * e.sSide * k * 1.3, l = Math.hypot(ax, az) || 1;
+    return [ax / l, az / l];
+  }
+  /** the stacks are solid lines; stuck at one for stuckTime s, or it lies between the animal and a close target -> gnaw at it */
+  private sackCollide(e: Enemy, dt: number) {
+    if (!this.sackSolid(e)) return;
+    const S = this.cfg.skills.sack, T = S.thick;
+    let touch: SackStack | null = null, td = 1e9;
+    for (const k of this.sacks) {
+      if (Math.abs(k.mx - e.x) > 1.6 || Math.abs(k.mz - e.z) > 1.6) continue;
+      const [dd, cx, cz] = segDist(e.x, e.z, k.x1, k.z1, k.x2, k.z2), m = e.r + T;
+      if (dd < m) {
+        if (dd > 1e-3) { e.x = cx + (e.x - cx) * m / dd; e.z = cz + (e.z - cz) * m / dd; }
+        else { const nx = -(k.z2 - k.z1), nz = k.x2 - k.x1, nl = Math.hypot(nx, nz) || 1; e.x = cx + nx / nl * m; e.z = cz + nz / nl * m; }
+        if (dd < td) { td = dd; touch = k; }
+      }
+    }
+    const tk = touch as SackStack | null;
+    if (!tk) { e.sT = Math.max(0, (e.sT ?? 0) - dt); if (!e.sT) e.sD = undefined; return; }
+    if (e.sAtk || e.wAtk) return;
+    const tp = this.targetPos(e.target); if (!tp) return;
+    const dT = dist(e, tp);
+    if (e.sD === undefined || dT < e.sD - .3) { e.sD = dT; e.sT = 0; } else e.sT = (e.sT ?? 0) + dt;
+    // the stack between the animal and its close target: the line animal -> target crosses the sack line
+    const cross = (ax: number, az: number, bx: number, bz: number, cx: number, cz: number) => (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+    const inWay = dT < S.blockRange && cross(e.x, e.z, tp.x, tp.z, tk.x1, tk.z1) * cross(e.x, e.z, tp.x, tp.z, tk.x2, tk.z2) <= 0 && cross(tk.x1, tk.z1, tk.x2, tk.z2, e.x, e.z) * cross(tk.x1, tk.z1, tk.x2, tk.z2, tp.x, tp.z) <= 0;
+    if ((e.sT ?? 0) >= S.stuckTime || inWay) { e.sAtk = tk.id; e.atkT = Math.min(e.atkT, .3); }
+  }
+  /** gnaws at the stack until it breaks (melee damage like on fields); false = nothing (left) to gnaw at */
+  private sackAttack(e: Enemy, dt: number) {
+    const S = this.cfg.skills.sack, E = this.cfg.enemies, k = this.sacks.find(x => x.id === e.sAtk);
+    if (!k || !this.sackSolid(e) || segDist(e.x, e.z, k.x1, k.z1, k.x2, k.z2)[0] > e.r + S.thick + .4) { e.sAtk = 0; e.sT = 0; e.sD = undefined; return false; }
+    const [, cx, cz] = segDist(e.x, e.z, k.x1, k.z1, k.x2, k.z2);
+    e.face = Math.atan2(cx - e.x, cz - e.z); e.atkT -= dt;
+    if (e.atkT <= 0) { e.atkT = E.meleeInterval; e.lunge = .2; this.sfx(e.type + '.fieldAttack', e.x, e.z); this.hurtSack(k, E.meleeDamage * e.dmgMul); }
+    return true;
+  }
+
   // ---------- snapshot ----------
   snapshot(): Snap {
     const ev = this.events; this.events = [];
@@ -3406,14 +3530,15 @@ export class Sim {
     };
   }
   /** 25.11.2026 research + Steinkohle part of the snapshot (see Snap rs / rd / rp / bn / wl) */
-  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl'> {
+  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl' | 'sk'> {
     const ns = rNodes(this.cfg), st = this.rs, c = this.rsCost();
     return {
       rs: [rIndex(this.cfg, st.cur), st.ready ? 1 : 0, st.speedLv, st.n, r2(c), this.players.find(p => p.rsUi === 2)?.id ?? -1],
       rd: ns.map(n => nodeDone(this.cfg, st, n.id) ? 1 : 0),
-      rp: ns.map(n => Math.round(Math.min(1, (st.work[n.id] ?? 0) / c) * 1000) / 1000),
+      rp: ns.map(n => Math.round(Math.min(1, (st.work[n.id] ?? 0) / this.rsCostOf(n.id)) * 1000) / 1000),
       bn: this.benchSlot,
       wl: this.walls.map(w => [w.id, r2(w.x), r2(w.z), Math.ceil(w.hp), w.maxHp]),
+      sk: this.sacks.map(k => [k.id, r2(k.mx), r2(k.mz), r2(k.ang), Math.ceil(k.hp), k.maxHp]),
     };
   }
   slotPos() { return this.slots; }

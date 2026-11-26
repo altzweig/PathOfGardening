@@ -146,6 +146,8 @@ weapons:
   pea:        { synth: peaShot, svol: 1.0, gap: 0.08 }                                          # 25.11.2026 Erbsenpistole: dumpfer Holz-/Metall-Knall (prozedural)
   wall:       { synth: wallPlace, svol: 0.8, gap: 0.05 }                                        # 25.11.2026 Schlüssel der Sim (layWall) = wall.place
   wallBreak:  { synth: wallBreak, svol: 1.0, gap: 0.05 }                                        # 25.11.2026 Schlüssel der Sim (removeWall) = wall.break
+  sack:       { synth: sackPlace, svol: 0.9, gap: 0.05 }                                        # 26.11.2026 Mehlsäcke gestapelt (laySack, prozedural)
+  sackBreak:  { synth: sackBreak, svol: 1.0, gap: 0.05 }                                        # 26.11.2026 Mehlsäcke zerrissen (removeSack)
 
 bench:
   # 25.11.2026 Werkbank-Forschung (prozedural, audio.ts): Hammer kommt aus der Animation, Säge + Schrauben spielt benchWork() im Zyklus
@@ -164,6 +166,10 @@ wall:
   place: { synth: wallPlace, svol: 0.8, gap: 0.05 }     # Stück gesetzt: dumpfes Kohl-Plopp
   hit:   { synth: wallHit, svol: 0.6, gap: 0.12 }       # Gegner beißt/schlägt auf die Mauer
   break: { synth: wallBreak, svol: 1.0, gap: 0.05 }     # Stück zerbricht: Krautknacken
+
+sack:
+  # 26.11.2026 Mehlsäcke (prozedural)
+  hit:   { synth: sackHit, svol: 0.6, gap: 0.12 }       # ein Tier nagt am Sack
 
 boss:
   spit: { files: [pool_1, pool_2, pool_3], vol: 0.35, pitch: [0.55, 0.75], gap: 0.06 }      # spuckt Blaubeer-Bomben

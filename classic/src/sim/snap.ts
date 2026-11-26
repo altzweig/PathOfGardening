@@ -101,4 +101,6 @@ export interface Snap {
   bn?: number;
   /** Steinkohle posts: [id, x, z, hp, maxHp], oldest first; posts closer than skills.wall.linkDist are connected (the view draws the links) */
   wl?: number[][];
+  /** 26.11.2026 Mehlsäcke stacks: [id, midpoint x, z, angle of the edge line (atan2 dx, dz), hp, maxHp], oldest first; a stack is a field side long */
+  sk?: number[][];
 }

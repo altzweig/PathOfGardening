@@ -2,7 +2,7 @@ import YAML from 'yaml';
 
 /** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
 /** 25.11.2026 Werkbank-Techtree: pea = Erbsenpistole (start weapon), wshot = Weizen-Schrotflinte (wheat ammo), wall = Steinkohle (cabbage ammo) */
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat' | 'sling' | 'pea' | 'wshot' | 'wall';
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat' | 'sling' | 'pea' | 'wshot' | 'wall' | 'sack'; // 26.11.2026 sack = Mehlsäcke (barrier at field edges, flour ammo)
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat' | 'pea'; // 25.11.2026 pea = Erbsenfeld
@@ -10,7 +10,7 @@ export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitc
 export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat', 'sling', 'pea', 'wshot', 'wall']; // 24.11.2026 sling = Eierschleuder, 25.11.2026 pea/wshot/wall (appended: snapshot indices)
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat', 'sling', 'pea', 'wshot', 'wall', 'sack']; // 24.11.2026 sling = Eierschleuder, 25.11.2026 pea/wshot/wall (appended: snapshot indices)
 /** 23.11.2026: one shotgun (skill 'blue', the start weapon) fires whichever berry is selected; the berries are only its ammo
  *  (cran and black are no weapons of their own any more): blue = freeze, black = thorn bind, cran = bleeding */
 export type Berry = 'blue' | 'black' | 'cran';
@@ -18,7 +18,7 @@ export const BERRIES: Berry[] = ['blue', 'black', 'cran'];
 export const isBerry = (t: string): t is Berry => t === 'blue' || t === 'black' || t === 'cran';
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
 export const isGun = (id: string): id is 'cran' | 'blue' | 'wshot' => id === 'cran' || id === 'blue' || id === 'wshot'; // 25.11.2026 + Weizen-Schrotflinte (grains, no berry debuffs)
-export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling', 'pea', 'wshot', 'wall']; // appended only (snapshot / intent indices)
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling', 'pea', 'wshot', 'wall', 'sack']; // appended only (snapshot / intent indices)
 /** 25.11.2026: weapons that share the ammo pool of another weapon (p.ammo key): Weizen-Schrotflinte shoots the wheat of the MP, Steinkohle uses cabbage */
 export const AMMO_POOL: Partial<Record<SkillId, SkillId>> = { wshot: 'wheat', wall: 'cab' };
 export const ammoPool = (id: SkillId): SkillId => AMMO_POOL[id] ?? id;
@@ -31,12 +31,12 @@ export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?:
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
-export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan' | 'sling' | 'wshot' | 'wall'> => t !== 'flour' && (SKILLS as string[]).includes(t);
+export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan' | 'sling' | 'wshot' | 'wall' | 'sack'> => t !== 'flour' && (SKILLS as string[]).includes(t);
 /** Mehlsack (23.11.2026): flour from the mill is its ammo once the sack is learned */
 export const FLOUR_SACK = 'flour' as const;
 /** weapons whose ammo is a product (not a fruit of their own): Mehlsack = flour (mill), Spiegeleischleuder = fried eggs (Spiegeleierei) */
-export const AMMO_OF: Partial<Record<SkillId, FruitType>> = { flour: 'flour', pan: 'fegg', sling: 'egg' };
-export const SOURCE_OF: Partial<Record<SkillId, BuildingType>> = { flour: 'mill', pan: 'kitchen', sling: 'hens' };
+export const AMMO_OF: Partial<Record<SkillId, FruitType>> = { flour: 'flour', pan: 'fegg', sling: 'egg', sack: 'flour' };
+export const SOURCE_OF: Partial<Record<SkillId, BuildingType>> = { flour: 'mill', pan: 'kitchen', sling: 'hens', sack: 'mill' };
 /** combo weapons: two fruit weapons merged into one (main weapon keeps its slot, the sub weapon's slot gets free) */
 export type ComboId = 'jam' | 'cole' | 'sour' | 'lance' | 'cabboom' | 'shock' | 'hot' | 'rocket' | 'kimchi' | 'chilight';
 export const COMBOS: ComboId[] = ['jam', 'cole', 'sour', 'lance', 'cabboom', 'shock', 'hot', 'rocket', 'kimchi', 'chilight'];
@@ -77,7 +77,12 @@ export interface EnemyCfg {
 }
 /** 25.11.2026 Werkbank-Techtree: one node of the tree. kind field: ref = FruitType of the field; weapon: ref = SkillId; speed: Forschungstempo (repeatable).
  *  needs: all of these must be researched (AND); start: researched from the beginning; segment / row / col: layout of the tree (row 0 = top row) */
-export interface ResearchNode { id: string; kind: 'field' | 'weapon' | 'speed'; ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean }
+export interface ResearchNode { id: string; kind: 'field' | 'building' | 'weapon' | 'upgrade' | 'speed'; ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean;
+  /** 26.11.2026 Einzelbäume: the tree (tab) the node belongs to (research.trees id); upgrade: count = how many in a row (expanded into a chain id.1 .. id.count),
+   *  after expanding: lv = place in the chain (1..count), chain = id of the yaml entry */
+  tree?: string; count?: number; lv?: number; chain?: string }
+/** 26.11.2026 one small tree per fruit: tab icon = fruit (icon), opens with the segment */
+export interface ResearchTree { id: string; icon: string; segment: number }
 /** segment rule: open once needFields fields and needWeapons weapons of the segments in `from` are researched (start nodes do not count) */
 export interface ResearchSegment { id: number; needFields?: number; needWeapons?: number; from?: number[] }
 export interface ResearchCfg {
@@ -89,6 +94,10 @@ export interface ResearchCfg {
   /** Werkbank: hex slot [q, r] next to the chest; solid circle radius m; "runs against it" = within touch m of its edge; works (hold the harvest action) within work m of its centre */
   bench: { slot: [number, number]; radius: number; touch: number; work: number };
   segments: ResearchSegment[]; nodes: ResearchNode[];
+  /** 26.11.2026 Einzelbäume: tabs (one tree per fruit) */ trees?: ResearchTree[];
+  /** upgrade nodes: cost x upgradeCost x (1 + upgradeGrowth)^(place in chain - 1); a finished upgrade counts as upgradeCount ideas for costGrowth */
+  upgradeCost?: number; upgradeGrowth?: number; upgradeCount?: number;
+  /** buildings in research mode need other goods than in the xp flow (Bäckerei: only flour, no well) */ buildingNeeds?: Partial<Record<BuildingType, Partial<Record<FruitType, number>>>>;
 }
 export interface Balancing {
   /** 25.11.2026: 'research' = Werkbank-Techtree (no level-up cards, no ideas, no merchant, start: pea field + Erbsenpistole + bench), 'xp' = the old flow */
@@ -97,7 +106,7 @@ export interface Balancing {
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
   names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>>;
-    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp', string>> };
+    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp' | 'building' | 'upgrade' | 'repair' | 'cost', string>>; /** 26.11.2026 upgrade node names (offer key) */ upgrades?: Record<string, string> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
     /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
     sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };
@@ -133,7 +142,10 @@ export interface Balancing {
     /** 25.11.2026 Steinkohle (wall posts, cabbage ammo): post radius m, HP, max posts (the oldest goes), posts within linkDist m are connected;
      *  cooldown 0 = auto: linkDist * linkShare / sprint speed (gapless at full sprint); no new post within minGap m of another; behind = m behind the player;
      *  enemies stuck for stuckTime s at a post (or with the post between them and a target closer than blockRange m) attack it */
-    wall: { damage: number; range: number; cooldown: number; ammoPerShot: number; radius: number; hp: number; max: number; linkDist: number; linkShare: number; minGap: number; behind: number; stuckTime: number; blockRange: number };
+    wall: { damage: number; range: number; cooldown: number; ammoPerShot: number; radius: number; hp: number; max: number; linkDist: number; linkShare: number; minGap: number; behind: number; stuckTime: number; blockRange: number; /** 26.11.2026 Techtree upgrade: +hpStep HP per level */ hpStep?: number };
+    /** 26.11.2026 Mehlsäcke: three sacks stacked along one free edge of a tile (a field side long); ammoPerShot flour; hp per stack;
+     *  hpStep / repairStep (HP per minute) / costStep per upgrade level; reach = m from the player to the edge; thick = m collision half width */
+    sack: { damage: number; range: number; cooldown: number; ammoPerShot: number; hp: number; hpStep: number; repairStep: number; costStep: number; minCost: number; reach: number; thick: number; max: number; stuckTime: number; blockRange: number };
     /** Brombeere (shotgun ammo): Dornenfessel - duration s, slow, physical damage per s (tick s), one neighbour within radius m gets it too */
     black: { duration: number; slow: number; dps: number; tick: number; radius: number };
     /** Mehlsack: spin throw -> flour cloud (life s, last fade s); fire ignites it -> burn front sweeps outwards at frontSpeed m/s */

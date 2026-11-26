@@ -1,10 +1,10 @@
 // PC key bindings (24.11.2026 Basti): every action has one key, changeable on the controls page, saved in localStorage.
-export type Act = 'up' | 'down' | 'left' | 'right' | 'harvest' | 'sprint' | 'nextP' | 'nextS' | 'berry' | 'keys' | 'cheat'
+export type Act = 'up' | 'down' | 'left' | 'right' | 'harvest' | 'sprint' | 'nextP' | 'nextS' | 'berry' | 'keys' | 'cheat' | 'tree'
   | 's1' | 's2' | 's3' | 's4' | 's5' | 's6' | 's7' | 's8' | 's9' | 's10';
 export const SLOT_ACTS: Act[] = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10'];
 export const DEFAULT_KEYS: Record<Act, string> = {
   up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
-  harvest: 'Space', sprint: 'ShiftLeft', nextP: 'KeyQ', nextS: 'KeyE', berry: 'KeyR', keys: 'AltLeft', cheat: 'KeyT',
+  harvest: 'Space', sprint: 'ShiftLeft', nextP: 'KeyQ', nextS: 'KeyE', berry: 'KeyR', keys: 'AltLeft', cheat: 'KeyT', tree: 'KeyF', // 25.11.2026 tree: Techtree (Forschung) auf/zu
   s1: 'Digit1', s2: 'Digit2', s3: 'Digit3', s4: 'Digit4', s5: 'Digit5', s6: 'Digit6', s7: 'Digit7', s8: 'Digit8', s9: 'Digit9', s10: 'Digit0',
 };
 const LS = 'pog-classic.keys';

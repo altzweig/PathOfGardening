@@ -1,33 +1,37 @@
 import YAML from 'yaml';
 
 /** fruit weapons (id = ammo fruit); blue = Blaubeer-Schrotflinte (22.11.2026, start weapon) */
-export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat' | 'sling';
+/** 25.11.2026 Werkbank-Techtree: pea = Erbsenpistole (start weapon), wshot = Weizen-Schrotflinte (wheat ammo), wall = Steinkohle (cabbage ammo) */
+export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flour' | 'pan' | 'black' | 'wheat' | 'sling' | 'pea' | 'wshot' | 'wall';
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
-export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat';
+export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat' | 'pea'; // 25.11.2026 pea = Erbsenfeld
 export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitchen'; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Basti)
 export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
-export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat', 'sling']; // 24.11.2026 sling = Eierschleuder (appended: snapshot indices)
+export const SKILLS: SkillId[] = ['asp', 'cran', 'cab', 'lemon', 'chili', 'blue', 'flour', 'pan', 'black', 'wheat', 'sling', 'pea', 'wshot', 'wall']; // 24.11.2026 sling = Eierschleuder, 25.11.2026 pea/wshot/wall (appended: snapshot indices)
 /** 23.11.2026: one shotgun (skill 'blue', the start weapon) fires whichever berry is selected; the berries are only its ammo
  *  (cran and black are no weapons of their own any more): blue = freeze, black = thorn bind, cran = bleeding */
 export type Berry = 'blue' | 'black' | 'cran';
 export const BERRIES: Berry[] = ['blue', 'black', 'cran'];
 export const isBerry = (t: string): t is Berry => t === 'blue' || t === 'black' || t === 'cran';
 /** shotguns share the pellet code: cranberries bleed + pop when missed, blueberries freeze */
-export const isGun = (id: string): id is 'cran' | 'blue' => id === 'cran' || id === 'blue';
-export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling'];
+export const isGun = (id: string): id is 'cran' | 'blue' | 'wshot' => id === 'cran' || id === 'blue' || id === 'wshot'; // 25.11.2026 + Weizen-Schrotflinte (grains, no berry debuffs)
+export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling', 'pea', 'wshot', 'wall']; // appended only (snapshot / intent indices)
+/** 25.11.2026: weapons that share the ammo pool of another weapon (p.ammo key): Weizen-Schrotflinte shoots the wheat of the MP, Steinkohle uses cabbage */
+export const AMMO_POOL: Partial<Record<SkillId, SkillId>> = { wshot: 'wheat', wall: 'cab' };
+export const ammoPool = (id: SkillId): SkillId => AMMO_POOL[id] ?? id;
 export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen'];
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'egg', 'juice', 'bread', 'fegg'];
-export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS];
+export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS, 'pea']; // pea appended 25.11.2026 (snapshot indices)
 export const isBuilding = (t: FruitType | null | undefined): t is BuildingType => !!t && (BUILDINGS as string[]).includes(t);
 /** one building: source (interval: makes one item every x s by itself) or processor (needs/needsAny -> makes, time s) */
 export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; /** items per finished batch (Spiegeleierei: 3) */ amount?: number; /** hens: eggs are stacked into a square pyramid of so many layers next to the coop (instead of lying scattered) */ stack?: number; buffer?: number; hp?: number; /** Brunnen (23.11.2026): production bonus of every crop field per well level 1/2/3 (best well counts) */ cropBonus?: number[] }
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
-export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan' | 'sling'> => t !== 'flour' && (SKILLS as string[]).includes(t);
+export const isWeaponFruit = (t: FruitType): t is Exclude<SkillId, 'pan' | 'sling' | 'wshot' | 'wall'> => t !== 'flour' && (SKILLS as string[]).includes(t);
 /** Mehlsack (23.11.2026): flour from the mill is its ammo once the sack is learned */
 export const FLOUR_SACK = 'flour' as const;
 /** weapons whose ammo is a product (not a fruit of their own): Mehlsack = flour (mill), Spiegeleischleuder = fried eggs (Spiegeleierei) */
@@ -71,10 +75,29 @@ export interface EnemyCfg {
   /** formation of the pack: snake (raccoon: amplitude m, wavelength m), ring (panda: radius m), lanes (toad: lane width m) */
   formation?: { kind: 'snake' | 'ring' | 'lanes' | 'loose'; size?: number; wave?: number; stagger?: number };
 }
+/** 25.11.2026 Werkbank-Techtree: one node of the tree. kind field: ref = FruitType of the field; weapon: ref = SkillId; speed: Forschungstempo (repeatable).
+ *  needs: all of these must be researched (AND); start: researched from the beginning; segment / row / col: layout of the tree (row 0 = top row) */
+export interface ResearchNode { id: string; kind: 'field' | 'weapon' | 'speed'; ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean }
+/** segment rule: open once needFields fields and needWeapons weapons of the segments in `from` are researched (start nodes do not count) */
+export interface ResearchSegment { id: number; needFields?: number; needWeapons?: number; from?: number[] }
+export interface ResearchCfg {
+  /** s of active work (1 worker) for the first idea; every researched idea +costGrowth (multiplicative); every Forschungstempo level +speedPerLevel speed */
+  baseTime: number; costGrowth: number; speedPerLevel: number; /** Forschungstempo levels count as researched ideas for costGrowth */ speedCounts?: boolean;
+  /** cost x players^coopExponent (0 = same cost in co-op) */ coopExponent?: number;
+  /** shots of ammo the start weapons / a researched weapon bring along (x ammoPerShot) */ startShots?: number; weaponShots?: number;
+  /** fruit the animals drop (was: the berry of the nearest shotgun) */ dropFruit?: FruitType;
+  /** Werkbank: hex slot [q, r] next to the chest; solid circle radius m; "runs against it" = within touch m of its edge; works (hold the harvest action) within work m of its centre */
+  bench: { slot: [number, number]; radius: number; touch: number; work: number };
+  segments: ResearchSegment[]; nodes: ResearchNode[];
+}
 export interface Balancing {
+  /** 25.11.2026: 'research' = Werkbank-Techtree (no level-up cards, no ideas, no merchant, start: pea field + Erbsenpistole + bench), 'xp' = the old flow */
+  progression?: 'xp' | 'research';
+  research?: ResearchCfg;
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
-  names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>> };
+  names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>>;
+    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp', string>> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
     /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
     sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };
@@ -82,12 +105,13 @@ export interface Balancing {
   net?: Partial<import('./net/sync').NetCfg>;
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
   xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
-  arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[] };
+  arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[];
+    /** 25.11.2026 research mode: the one start field and its hex slot [q, r] (neighbour of the chest) */ startField?: { type: FruitType; slot: [number, number] } };
   /** Lager-Truhe in the centre (23.11.2026): holds all resources of the players; raccoons steal from it (max thieves on a circle around it) */
   chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number; /** s a raccoon chases a player for its one attack before it goes to the chest (24.11.2026) */ attackFirst?: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
-  fields: { hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number } };
+  fields: { /** 25.11.2026: false = no building onto a field of the same type (no tile levels); unique = every field type only once */ stacking?: boolean; unique?: boolean; hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number } };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; mergeRadius?: number; cornerScatter: number };
   plants: Partial<Record<FruitType, { interval: number; /** crop cycle s of this plant (else fields.cycle) */ grow?: number; harvest?: number; /** rake strokes per plant (24.11.2026, default 1) */ strokes?: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
   buildings: Record<BuildingType, BuildingCfg>;
@@ -101,7 +125,15 @@ export interface Balancing {
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; /** s per bleeding tick (only while moving) */ bleedTick?: number; splashDelay: number; splashDamage: number; splashRadius: number };
     lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
-    blue: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; freeze: number; /** physical damage x this against frozen animals */ frozenBonus?: number };
+    blue: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; freeze: number; /** physical damage x this against frozen animals */ frozenBonus?: number; /** 25.11.2026: berries it may fire (Beerengewehr: only blue) */ ammo?: Berry[] };
+    /** 25.11.2026 Erbsenpistole: one big pea, no pierce; width = hit width m, speed m/s */
+    pea: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; width: number };
+    /** 25.11.2026 Weizen-Schrotflinte: grain shot cone like the berry shotgun (no debuffs), wheat ammo */
+    wshot: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number };
+    /** 25.11.2026 Steinkohle (wall posts, cabbage ammo): post radius m, HP, max posts (the oldest goes), posts within linkDist m are connected;
+     *  cooldown 0 = auto: linkDist * linkShare / sprint speed (gapless at full sprint); no new post within minGap m of another; behind = m behind the player;
+     *  enemies stuck for stuckTime s at a post (or with the post between them and a target closer than blockRange m) attack it */
+    wall: { damage: number; range: number; cooldown: number; ammoPerShot: number; radius: number; hp: number; max: number; linkDist: number; linkShare: number; minGap: number; behind: number; stuckTime: number; blockRange: number };
     /** Brombeere (shotgun ammo): Dornenfessel - duration s, slow, physical damage per s (tick s), one neighbour within radius m gets it too */
     black: { duration: number; slow: number; dps: number; tick: number; radius: number };
     /** Mehlsack: spin throw -> flour cloud (life s, last fade s); fire ignites it -> burn front sweeps outwards at frontSpeed m/s */
@@ -114,7 +146,7 @@ export interface Balancing {
     /** Eierschleuder (24.11.2026): wooden slingshot, raw eggs (hens) as ammo; the egg bursts where it lands (radius m, +radiusStep per
      *  upgrade) and gives everything hit the cabbage poison debuff (cab.poison*), sulphur yellow; range = max throw distance m */
     sling: { damage: number; range: number; radius: number; radiusStep: number; cooldown: number; ammoPerShot: number; aimCone?: number };
-    cab: { damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; mineLife?: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
+    cab: { /** 25.11.2026: radius m of the cabbage model: mines may touch (centres >= 2 x mineSize apart), never lie inside each other; onFields = may be laid on fields too */ mineSize?: number; onFields?: boolean; damage: number; radius: number; cooldown: number; ammoPerShot: number; chargeTime: number; throwMin: number; throwMax: number; mineSpacing: number; mineTrigger: number; maxMines: number; mineLife?: number; poisonDuration: number; poisonTick: number; poisonTickDamage: number; poisonSlow: number; gasRadius?: number; miniRadiusFactor: number; miniDamageFactor: number };
   };
   upgrades: {
     offersPerLevel: number; damagePerLevel: number; rangePerLevel: number; cooldownPerLevel: number;
@@ -139,7 +171,7 @@ export interface Balancing {
   /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   /** step-by-step hints from the start of a game (24.11.2026), see balancing.yaml */
-  tutorial?: { harvest: string; attack: string; switch: string; secondary: string; hp: string; shield: string; xp: string; stamina: string; lvNew: string; lvBuild: string; lvNeighbour: string; lvWeapon: string; genus?: Record<string, 'm' | 'f' | 'n' | 'p'> };
+  tutorial?: { harvest: string; attack: string; switch: string; secondary: string; hp: string; shield: string; xp: string; stamina: string; lvNew: string; lvBuild: string; lvNeighbour: string; lvWeapon: string; /** 26.11.2026 Werkbank-Techtree start (…Touch: phone wording) */ rsXp?: string; rsHarvest?: string; rsHarvestTouch?: string; rsShoot?: string; rsShootTouch?: string; rsBench?: string; rsChoose?: string; rsChooseTouch?: string; rsWork?: string; rsWorkTouch?: string; rsPickup?: string; rsTree?: string; rsTreeTouch?: string; genus?: Record<string, 'm' | 'f' | 'n' | 'p'> };
   /** max weapons; primary / secondary: which group of the 10-slot bar a weapon goes to (24.11.2026) */
   weaponSlots?: { max: number; primary?: SkillId[]; secondary?: SkillId[] };
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */

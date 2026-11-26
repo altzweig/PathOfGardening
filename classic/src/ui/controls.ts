@@ -1,5 +1,5 @@
 // Visual controls page (the only place in the game that explains input).
-import { fruitIcon, skillIcon } from './icons';
+import { bulb, fruitIcon, skillIcon } from './icons';
 import { Act, SLOT_ACTS, keyLabel, keys } from '../input/keys';
 
 const GOLD = '#e3b964', TXT = '#efe3c8', MUT = '#a59a86';
@@ -25,7 +25,7 @@ const mouseSvg = (x: number, y: number, s: number, side: 'l' | 'r' | '') => `<g 
 export function pcControls() {
   // weapon bar: 2 groups of 5 slots, the key of each slot under it
   const S = 58, G = 10, gx = [120, 560];
-  const PRIM = ['blue', 'asp', 'wheat', 'chili', 'lemon'], SEC = ['cab', 'flour', 'sling', 'pan', 'cran'];
+  const PRIM = ['pea', 'wshot', 'wheat', 'chili', 'lemon'], SEC = ['cab', 'wall', 'flour', 'sling', 'pan']; // 25.11.2026 Techtree-Waffen
   let bar = '';
   for (let g = 0; g < 2; g++) for (let k = 0; k < 5; k++) {
     const x = gx[g] + k * (S + G), w = (g ? SEC : PRIM)[k], sel = k === 0;
@@ -57,6 +57,8 @@ export function pcControls() {
   ${kc(40, 636, 'sprint', 110, 56)}${label(170, 674, 'Sprinten', 'start', 24)}
   <!-- Esc -->
   ${key(360, 636, 80, 56, 'Esc', true, 22)}${label(460, 674, 'Pause', 'start', 24)}
+  <!-- 25.11.2026 Werkbank-Techtree: open / close the techtree anywhere -->
+  ${kc(600, 636, 'tree', 64, 56)}${icon(bulb(), 684, 638, 40)}${label(722, 674, 'Techtree', 'start', 24)}
   <!-- mouse: aim + zoom -->
   ${mouseSvg(800, 350, .62, '')}
   ${label(846, 530, 'Mausrad: Zoom', 'middle', 22)}
@@ -94,9 +96,11 @@ export function mobileControls() {
   <g transform="translate(870 290)"><circle r="34" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/>
     <g transform="translate(-20 -20) scale(1.67)"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g></g>
   ${label(870, 228, 'Waffe wechseln', 'middle', 24)}
-  ${icon(skillIcon('blue'), 740, 130, 40)}<text x="786" y="158" font-size="26" fill="${MUT}">›</text>
-  ${icon(skillIcon('asp'), 800, 130, 40)}<text x="846" y="158" font-size="26" fill="${MUT}">›</text>
-  ${icon(skillIcon('wheat'), 860, 130, 40)}
+  <g transform="translate(560 118)"><rect x="-30" y="-30" width="60" height="60" rx="14" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/>${icon(bulb(), -16, -21, 32)}</g>
+  ${label(560, 186, 'Techtree', 'middle', 24)}
+  ${icon(skillIcon('pea'), 740, 130, 40)}<text x="786" y="158" font-size="26" fill="${MUT}">›</text>
+  ${icon(skillIcon('wshot'), 800, 130, 40)}<text x="846" y="158" font-size="26" fill="${MUT}">›</text>
+  ${icon(skillIcon('wall'), 860, 130, 40)}
 </svg>`;
 }
 
@@ -111,9 +115,9 @@ function mobilePortrait() {
   ${label(300, 200, 'tippen = 1 Schuss', 'middle', 32, TXT)}
   ${label(300, 246, 'halten = Dauerfeuer', 'middle', 32, TXT)}
   ${label(300, 292, 'ziehen = zielen', 'middle', 32, TXT)}
-  ${icon(skillIcon('blue'), 190, 340, 56)}<text x="256" y="380" font-size="34" fill="${MUT}">›</text>
-  ${icon(skillIcon('asp'), 272, 340, 56)}<text x="338" y="380" font-size="34" fill="${MUT}">›</text>
-  ${icon(skillIcon('wheat'), 354, 340, 56)}
+  ${icon(skillIcon('pea'), 190, 340, 56)}<text x="256" y="380" font-size="34" fill="${MUT}">›</text>
+  ${icon(skillIcon('wshot'), 272, 340, 56)}<text x="338" y="380" font-size="34" fill="${MUT}">›</text>
+  ${icon(skillIcon('wall'), 354, 340, 56)}
   <!-- left: move -->
   <rect x="60" y="470" width="250" height="330" rx="26" fill="${GOLD}" opacity=".07" stroke="${GOLD}" stroke-opacity=".35" stroke-width="2" stroke-dasharray="10 8"/>
   ${label(185, 530, 'Laufen', 'middle', 38)}
@@ -123,6 +127,8 @@ function mobilePortrait() {
   <circle cx="215" cy="678" r="30" fill="${GOLD}"/>
   <!-- right: switch weapon, shoot, harvest -->
   ${label(540, 560, 'Waffe wechseln', 'end', 28)}
+  <g transform="translate(494 96)"><rect x="-30" y="-30" width="60" height="60" rx="14" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/>${icon(bulb(), -16, -21, 32)}</g>
+  ${label(494, 160, 'Techtree', 'middle', 24)}
   <g transform="translate(480 640)"><circle r="40" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/><g transform="translate(-24 -24) scale(2)">${cyc}</g></g>
   ${label(370, 790, 'Beere', 'middle', 24, MUT)}
   <g transform="translate(370 870)"><circle r="54" fill="#1d252d" stroke="#ff4d5e" stroke-width="4"/>${icon(skillIcon('blue'), -36, -36, 72)}

@@ -12,6 +12,8 @@ export class Input {
   enabled = false;
   onPause: () => void = () => {};
   onCheat: () => void = () => {};
+  /** 25.11.2026 Werkbank-Techtree: the tree key opens / closes the panel (also while the input is off, i.e. with the panel open) */
+  onTree: () => void = () => {};
   /** Alt: show the key of every slot on the weapon bar (default off) */
   onKeysToggle: () => void = () => {};
   /** set while the controls page waits for a new key: the next key press goes there instead of the game */
@@ -59,6 +61,7 @@ export class Input {
       else if (a === 'nextS' && this.enabled) { this.cycS++; this.used.nextS++; }
       else if (a === 'berry' && this.enabled) this.berry++; // shotgun: next berry
       else if (a === 'cheat') this.onCheat();
+      else if (a === 'tree') this.onTree();
       else { const i = SLOT_ACTS.indexOf(a); if (i >= 0 && this.enabled) { this.pick++; this.pickS = i; this.used.pick[i]++; } }
     });
     addEventListener('keyup', e => {

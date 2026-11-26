@@ -8,6 +8,7 @@
 import type { Balancing } from '../config';
 import type { Intent, Priv, Snap } from '../sim/snap';
 import { MoveCtx, MoveState, predictStep } from '../sim/move';
+import { slotPositions } from '../sim/sim';
 import { Q, R, TABLES, decEvents, decInput, decSnapHead, encEvents, encInput, encSnap, hashQ, quantIntent, readDelta, toQ, fromQ, MSG, msgType } from './proto';
 
 /** network parameters (balancing.yaml -> net) */
@@ -100,7 +101,7 @@ export class GuestSync {
 
   constructor(private cfg: Balancing, private nc: NetCfg, public id: number, private send: (b: Uint8Array) => void, private clock: () => number) {}
 
-  reset() { this.got.clear(); this.newest = 0; this.needFull = true; this.buf = []; this.evq = []; this.evDone = 0; this.off = -1e9; this.pending = []; this.pred = null; this.mv = null; }
+  reset() { this.got.clear(); this.newest = 0; this.needFull = true; this.buf = []; this.evq = []; this.evDone = 0; this.off = -1e9; this.pending = []; this.pred = null; this.mv = null; this.bench = null; this.benchN = -2; }
   onMessage(b: Uint8Array) {
     this.stats.bytes += b.length;
     const t = msgType(b);
@@ -121,6 +122,7 @@ export class GuestSync {
     if (sample > this.off || now - this.offT > 4) { this.off = sample; this.offT = now; } else this.off -= .02 / this.nc.sendHz; // slow drift so a jump in delay does not freeze the view
     if (h.tick <= this.newest) { this.stats.late++; } else {
       this.newest = h.tick;
+      this.setBench(q.sc.bn);
       this.reconcile(h.ack, q.sc.mv as MV | undefined);
     }
     const s = fromQ(q);
@@ -134,7 +136,14 @@ export class GuestSync {
   hostTick(now = this.clock()) { return now * this.nc.simHz + this.off; }
 
   // ---------- own figure ----------
-  private ctx(): MoveCtx { const m = this.mv; return { sf: m ? m[8] : 1, kb: m ? !!m[9] : false, chest: !!this.cfg.chest, sb: null }; }
+  private ctx(): MoveCtx { const m = this.mv; return { sf: m ? m[8] : 1, kb: m ? !!m[9] : false, chest: !!this.cfg.chest, sb: null, bench: this.bench }; }
+  /** 26.11.2026 the Werkbank is solid for the prediction too (hex slot bn of the snapshot, like Sim.benchCircle) */
+  private bench: { x: number; z: number; r: number } | null = null; private benchN = -2; private slotsXZ: { x: number; z: number }[] | null = null;
+  private setBench(bn: unknown) {
+    const n = typeof bn === 'number' ? bn : -1; if (n === this.benchN) return; this.benchN = n;
+    const R = this.cfg.research; if (n < 0 || !R) { this.bench = null; return; }
+    const sl = (this.slotsXZ ??= slotPositions(this.cfg))[n]; this.bench = sl ? { x: sl.x, z: sl.z, r: R.bench.radius } : null;
+  }
   private canPredict() { const m = this.mv; return !!m && !!m[10] && !m[9]; }
   private fromMV(m: MV): MoveState { return { x: m[0], z: m[1], face: m[2], walk: m[3], sta: m[4], staT: m[5], staX: !!m[6], sprint: !!m[7] }; }
   /** host answered up to input ack: start from its state, replay the inputs it has not used yet */

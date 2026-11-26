@@ -1,4 +1,6 @@
-import { AMMO_OF, BERRIES, COMBOS, FRUITS, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { AMMO_OF, BERRIES, COMBOS, FRUITS, ammoPool, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+/** fruit shown as a weapon's ammo (25.11.2026: shared pools, Schrotflinte = Weizen, Steinkohle = Kohl) */
+const ammoFruit = (id: SkillId) => { const p = ammoPool(id); return AMMO_OF[p] ?? p; };
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
 import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
@@ -28,7 +30,7 @@ export class Hud {
       if (secs > A.lowSeconds) st.armed = true; // refilled: warn again next time
       else if (st.armed) { st.armed = false; st.vis = Math.max(st.vis, A.lowShow); }
       const key = w + am + (secs <= A.lowSeconds ? 'l' : '');
-      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(w)}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
+      if (key !== st.key) { st.key = key; el.innerHTML = `${fruitIcon(ammoFruit(w as SkillId))}<span>${am}</span>`; el.classList.toggle('low', secs <= A.lowSeconds); }
       target = st.vis > 0 ? 1 : 0;
     }
     st.vis = Math.max(0, st.vis - dt);
@@ -93,7 +95,7 @@ export class Hud {
       an.style.opacity = op.toFixed(3); an.style.transform = `translate(-50%,-50%) scale(${sc.toFixed(3)})`;
     }
     if (!announcing && st.ann > 0 && !s.wp) { st.ann = -1; }
-    if (wt < 0 || document.body.classList.contains('sandbox') || s.ph === 'over' || announcing || (!!s.wp && next > s.wn)) { el.hidden = true; st.sec = -1; st.wp = s.wp; return; }
+    if (wt < 0 || wt > 5999 || document.body.classList.contains('sandbox') || s.ph === 'over' || announcing || (!!s.wp && next > s.wn)) { el.hidden = true; st.sec = -1; st.wp = s.wp; return; }
     const sec = Math.ceil(wt - 1e-3), red = !s.wp && sec <= (W.redFrom ?? 3);
     if (st.wp === 0 && s.wp === 1) play('cdEnd'); // fight countdown ran out
     st.wp = s.wp; el.hidden = false;
@@ -113,19 +115,24 @@ export class Hud {
     clearTimeout(this.toastT); this.toastT = window.setTimeout(() => { el.classList.remove('in'); el.classList.add('out'); this.toastT = window.setTimeout(() => { el.hidden = true; }, 450); }, 3600);
   }
   reset() { clearTimeout(this.toastT); ($('#toast')).hidden = true; this.cd = { sec: -1, ann: -1, wp: -1 }; ($('#wann')).hidden = true; this.cache = {}; this.wasReady = {}; this.resKey = ''; }
-  private set(id: string, key: string, v: string, html = false) {
-    if (this.cache[key] === v) return; this.cache[key] = v; const el = $(id); if (html) el.innerHTML = v; else el.textContent = v;
+  /** html: v is markup; show: other content for the element, cached under v (icon keyed by name) */
+  private set(id: string, key: string, v: string, html = false, show?: string) {
+    if (this.cache[key] === v) return; this.cache[key] = v; const el = $(id); if (show !== undefined) el.innerHTML = show; else if (html) el.innerHTML = v; else el.textContent = v;
   }
-  update(s: Snap, me: number) {
+  /** rb (25.11.2026 Werkbank-Techtree): research mode, the XP bar / orb shows the progress of the idea being researched, the level badge its icon */
+  update(s: Snap, me: number, rb: { frac: number; ready: boolean; key: string; icon: string; text: string } | null = null) {
     const pr = s.me[me], ps = s.pl.find(p => p.id === me);
     if (!pr || !ps) return;
-    ($('#xpfill')).style.width = Math.min(100, s.xp / s.nx * 100).toFixed(1) + '%';
-    this.set('#xptext', 'xp', `${s.xp} / ${s.nx}`); this.set('#lvl', 'lv', String(s.lv));
+    const xf = rb ? rb.frac : s.xp / s.nx;
+    ($('#xpfill')).style.width = Math.min(100, xf * 100).toFixed(1) + '%';
+    if (rb) { this.set('#xptext', 'xp', rb.text); this.set('#lvl', 'lv', 'r:' + rb.key, false, rb.icon); }
+    else { this.set('#xptext', 'xp', `${s.xp} / ${s.nx}`); this.set('#lvl', 'lv', String(s.lv)); }
+    if (this.cache.rsReady !== String(!!rb?.ready)) { this.cache.rsReady = String(!!rb?.ready); for (const id of ['#xpbar', '#lvl', '#orbXp']) document.querySelector(id)?.classList.toggle('rsReady', !!rb?.ready); }
     ($('#hpfill')).style.width = (ps.hp / ps.mhp * 100) + '%';
     this.set('#hptext', 'hp', ps.al ? `${ps.hp} / ${ps.mhp}${ps.sh ? ` +${ps.sh}` : ''}` : '');
     const shf = ps.ms ? (ps.al ? (ps.sh ?? 0) / ps.ms : 0) : -1; // 24.11.2026 energy shield (blue) + stamina (yellow) on the orb rims
     ($('#shfill')).style.width = (Math.max(0, shf) * 100) + '%';
-    this.orbs.update(ps.al ? ps.hp / ps.mhp : 0, s.xp / s.nx, s.lv, shf, ps.sa ?? -1, !!ps.sx); // PC: orbs instead of the bars
+    this.orbs.update(ps.al ? ps.hp / ps.mhp : 0, xf, s.lv, shf, ps.sa ?? -1, !!ps.sx, rb ? { key: rb.key, html: rb.icon } : null); // PC: orbs instead of the bars
     const m = Math.floor(s.t / 60), sec = Math.floor(s.t % 60); this.set('#timer', 'tm', `${m}:${String(sec).padStart(2, '0')}`);
     // ammo chips for fields that exist
     // ammo chips for fruit weapons with a field, then the goods in the bag (wheat, products) while there are any
@@ -182,7 +189,7 @@ export class Hud {
       const f = el.querySelector<HTMLElement>('.wf')!, ic = el.querySelector<HTMLElement>('.wa i')!, sp = el.querySelector('.wa span')!;
       if (!id) { if (f.dataset.k) { f.dataset.k = ''; f.innerHTML = ''; ic.dataset.k = ''; ic.innerHTML = ''; sp.textContent = ''; } el.classList.remove('sel', 'empty'); continue; }
       const ai = id === 'blue' ? SKILLS.indexOf(BERRIES[ps.be ?? 0]) : i;
-      const ft = id === 'blue' ? BERRIES[ps.be ?? 0] : AMMO_OF[id] ?? id; // shotgun: selected berry; Mehlsack / Pfanne / Schleuder: their goods
+      const ft = id === 'blue' ? BERRIES[ps.be ?? 0] : ammoFruit(id); // shotgun: selected berry; Mehlsack / Pfanne / Schleuder: their goods
       const cb = pr.cb?.[i] ?? -1, fk = cb >= 0 ? COMBOS[cb] : id;
       if (f.dataset.k !== fk) { f.dataset.k = fk; f.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); }
       if (ic.dataset.k !== ft) { ic.dataset.k = ft; ic.innerHTML = fruitIcon(ft); }

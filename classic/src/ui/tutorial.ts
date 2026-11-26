@@ -1,4 +1,4 @@
-// Tutorial (24.11.2026 Basti, PC). One thing at a time:
+// Tutorial (24.11.2026 Basti, PC; 26.11.2026 Werkbank-Techtree start for PC and touch, see updateResearch). One thing at a time:
 //  start: HP orb (arrow left) -> shield -> XP orb (arrow right) -> stamina / sprint -> [Space] harvest -> [left click] attack (once the shotgun has ammo)
 //  first level-up: new field next to / onto a field -> higher levels unlock buildings -> neighbours of the same kind boost each other -> weapons of the offered fields at the merchant
 //  2nd weapon: [Q] or its number key.
@@ -42,6 +42,7 @@ export class Tutorial {
   reset() {
     this.active = tutorialOn(); this.cards = []; this.cardShown = ''; this.txt = '';
     this.startDone = this.lvDone = this.swDone = false; this.step = 'harvest'; this.armed = false; this.second = null;
+    this.rs = 'harvest'; this.rsAm = -1; this.rsDone0 = -1; this.rsT = 0;
     this.rebase(); this.render(null, '');
   }
   stop() { this.active = false; this.cards = []; this.render(null, ''); }
@@ -52,8 +53,10 @@ export class Tutorial {
   update(s: Snap, me: number, cfg: Balancing, lvOffers: string[] | null, menu = false) {
     const T = cfg.tutorial, pr: any = s.me[me];
     if (this.active && !ON) this.stop(); // switched off in the pause menu
-    if (!this.active || !T || !pr || this.input.isTouch || menu || s.ph === 'over') { this.render(null, ''); return; }
+    const rsm = !!s.rs && !!cfg.research, touch = this.input.isTouch;
+    if (!this.active || !T || !pr || (touch && !rsm) || menu || s.ph === 'over') { this.render(null, ''); return; }
     const u = this.input.used, b = this.base, ps = s.pl.find(p => p.id === me) as any;
+    if (rsm) { this.updateResearch(s, pr, ps, cfg, touch); return; }
     // --- queue explanation cards ---
     if (!this.startDone && s.ph === 'play' && !this.cards.length) {
       this.startDone = true;
@@ -107,6 +110,45 @@ export class Tutorial {
     }
     this.checkEnd();
   }
+  // ---- 26.11.2026 Werkbank-Techtree start: harvest peas -> shoot the Erbsenpistole -> to the bench -> choose an idea -> hammer -> pick it up.
+  // Steps are read from the snapshot (works the same with keys and touch buttons); touch gets the prompts only (no explanation cards).
+  private rs: 'harvest' | 'shoot' | 'bench' | 'choose' | 'work' | 'pickup' | 'tree' | 'done' = 'harvest';
+  private rsAm = -1; private rsDone0 = -1; private rsT = 0;
+  private updateResearch(s: Snap, pr: any, ps: any, cfg: Balancing, touch: boolean) {
+    const T = cfg.tutorial!, t = (k: string) => fmt((touch ? (T as any)[k + 'Touch'] : undefined) ?? (T as any)[k] ?? '');
+    if (!this.startDone && s.ph === 'play' && !this.cards.length) {
+      this.startDone = true; this.lvDone = true;
+      if (!touch) {
+        this.cards.push({ html: fmt(T.hp), where: 'hp' });
+        if (ps?.ms || cfg.player.shield) this.cards.push({ html: fmt(T.shield), where: 'hp' });
+        this.cards.push({ html: fmt(T.rsXp ?? T.xp), where: 'xp' });
+        if (ps?.sa !== undefined || cfg.player.sprint) this.cards.push({ html: fmt(T.stamina), where: 'xp', key: 'sprint' });
+      }
+    }
+    const c = this.cards[0];
+    if (c) { if (touch) { this.cards = []; } else { if (c.key === 'sprint' && this.input.used.sprint > this.base.sprint) { this.next(); return; } if (s.ph !== 'play') { this.render(null, ''); return; } this.render(c, c.html); return; } }
+    if (s.ph !== 'play' || !ps?.al) { this.render(null, ''); return; }
+    const pi = SKILLS.indexOf('pea'), am = pr.am?.[pi] ?? 0, cost = pr.co?.[pi] ?? 3, rs = s.rs!, ro = pr.ro ?? 0, nd = (s.rd ?? []).reduce((a: number, x: number) => a + x, 0);
+    if (this.rsDone0 < 0) this.rsDone0 = nd;
+    const ideaDone = nd > this.rsDone0;
+    if (this.rs === 'harvest') { if (this.rsAm < 0) this.rsAm = am; if (am > this.rsAm || ideaDone) { this.rs = 'shoot'; this.rsAm = am; } else { this.rsAm = Math.min(this.rsAm, am); this.prompt(t('rsHarvest')); return; } }
+    if (this.rs === 'shoot') {
+      if (am < this.rsAm - cost + .5 || ideaDone) { this.rs = 'bench'; }
+      else { this.rsAm = Math.max(this.rsAm, am); if (am < cost) { this.prompt(t('rsHarvest')); return; } this.prompt(t('rsShoot')); return; }
+    }
+    if (this.rs === 'bench') { if (ro > 0 || rs[0] >= 0 || ideaDone) this.rs = 'choose'; else { this.prompt(t('rsBench')); return; } }
+    if (this.rs === 'choose') { if (rs[0] >= 0 || ideaDone) this.rs = 'work'; else { this.prompt(ro ? '' : t('rsChoose')); return; } }
+    if (this.rs === 'work') {
+      if (rs[1] || ideaDone) this.rs = 'pickup';
+      else { if (ps.bw) this.rsT = 1; this.prompt(this.rsT ? '' : t('rsWork')); return; }
+    }
+    if (this.rs === 'pickup') { if (ideaDone) { this.rs = 'tree'; this.rsT = 0; } else { this.prompt(ro === 2 || s.rs![0] < 0 ? '' : t('rsPickup')); return; } }
+    if (this.rs === 'tree') { // once: the techtree opens from anywhere too; gone after a while or when it was opened
+      if (ro > 0 || this.rsT > 7) this.rs = 'done'; else { this.rsT += 1 / 60; this.prompt(t('rsTree')); return; }
+    }
+    this.swDone = true; this.step = 'done';
+    this.prompt(''); this.checkEnd();
+  }
   /** everything shown once: the tutorial switches itself off (on again in the options) */
   private checkEnd() { if (this.startDone && this.lvDone && this.swDone && this.step === 'done' && !this.cards.length) { setTutorialOn(false); this.stop(); } }
   private prompt(html: string) { this.render(null, html); }
@@ -126,7 +168,7 @@ export class Tutorial {
 
 /** {x} placeholders (keys from the current binding), [x] drawn as a key cap, <-  -> as arrows */
 function fmt(t: string, v: Record<string, string> = {}) {
-  const all: Record<string, string> = { harvest: keyLabel(KB.harvest), sprint: keyLabel(KB.sprint), prim: 'Linksklick', sec: 'Rechtsklick', next: keyLabel(KB.nextP), ...v };
+  const all: Record<string, string> = { harvest: keyLabel(KB.harvest), sprint: keyLabel(KB.sprint), prim: 'Linksklick', sec: 'Rechtsklick', next: keyLabel(KB.nextP), tree: keyLabel(KB.tree), ...v };
   const esc = (x: string) => x.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
   return esc(t.replace(/\{(\w+)\}/g, (_, k) => all[k] ?? '')).replace(/\[([^\]]+)\]/g, '<kbd>$1</kbd>');
 }

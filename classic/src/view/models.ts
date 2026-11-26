@@ -12,7 +12,7 @@ import { GEO, M, TINE_GAP, envU, outlineU, part, rakeTines, rand, windU } from '
 // Fruit lying on the ground glows; fruit still on the bush does not.
 const ITEM_HEX = { wheat: 0xe8c060, flour: 0xf4eee0, water: 0x5ab8ff, milk: 0xf8f8f0, egg: 0xf2e2c4, juice: 0xc8305a, bread: 0xc88a40, cheese: 0xf6c838, fegg: 0xfff4e0,
   well: 0x7a8a9a, mill: 0xd8c8a8, press: 0x9a5a3a, bakery: 0xd87a3a, hens: 0xe8d8a8, cow: 0xf0f0e8, dairy: 0xf6d860, kitchen: 0xe0a060 };
-export const FRUIT_HEX: Record<FruitType, number> = { blue: 0x4a64f0, black: 0x5a2a6a, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
+export const FRUIT_HEX: Record<FruitType, number> = { pea: 0x7ac943, blue: 0x4a64f0, black: 0x5a2a6a, asp: 0x8fe36a, cran: 0xf0306a, cab: 0xb8f070, lemon: 0xffe44a, chili: 0xff3a1a, nut: 0xc08a4a, ...ITEM_HEX };
 export const FRUIT_COL: Record<FruitType, string> = Object.fromEntries(Object.entries(FRUIT_HEX).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])) as Record<FruitType, string>;
 const fbxCol = (k: keyof typeof BERRY_DATA) => new THREE.Color().setRGB(...BERRY_DATA[k].body, THREE.LinearSRGBColorSpace);
 export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>{
@@ -36,7 +36,10 @@ export const GROUND_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknow
   bread: new THREE.MeshStandardMaterial({ color: 0xb87a38, emissive: 0xc07a28, emissiveIntensity: .18, roughness: .7, flatShading: true }),
   cheese: new THREE.MeshStandardMaterial({ color: 0xf2c630, emissive: 0xf0b820, emissiveIntensity: .22, roughness: .5, flatShading: true }),
   fegg: new THREE.MeshStandardMaterial({ color: 0xfffaf0, emissive: 0xfff0d0, emissiveIntensity: .12, roughness: .4 }),
+  pea: new THREE.MeshStandardMaterial({ color: 0x6cb840, emissive: 0x3c8a1a, emissiveIntensity: .36, roughness: .45 }), // 25.11.2026 Erbsenschote: glows like the other lying crops
 };
+/** 25.11.2026 lying pea: the peas in the open pod a bit lighter and glossier than the pod */
+const PEA_SEED = new THREE.MeshStandardMaterial({ color: 0x9ae060, emissive: 0x4aa020, emissiveIntensity: .42, roughness: .3 });
 const GLASS = new THREE.MeshStandardMaterial({ color: 0xdff0ff, roughness: .1, transparent: true, opacity: .45 });
 const CORK = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: .8 });
 const BOWL = new THREE.MeshStandardMaterial({ color: 0xd8c8b0, roughness: .6, flatShading: true });
@@ -87,7 +90,18 @@ export const BUSH_MAT = <Record<FruitType, THREE.MeshStandardMaterial>><unknown>
   chili: new THREE.MeshStandardMaterial({ color: 0xc81a0a, roughness: .3, emissive: 0xff2000, emissiveIntensity: .45 }), // chilis glow slightly red, also on the plant
   nut: new THREE.MeshStandardMaterial({ color: 0x8a5a2a, roughness: .55 }),
   wheat: new THREE.MeshStandardMaterial({ color: 0xd8b050, roughness: .7, flatShading: true }),
+  pea: new THREE.MeshStandardMaterial({ color: 0xa6e05a, roughness: .32 }), // 25.11.2026 Erbsenschoten an der Ranke (lighter than the leaves)
 };
+/** 25.11.2026 Erbsenfeld: wooden stakes (teepee) the pea vines climb up; one shared helix for the vine around a stake */
+const PEA_STAKE = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: .85, flatShading: true }), PEA_TWINE = new THREE.MeshStandardMaterial({ color: 0xc8b088, roughness: .9 });
+const PEA_FLOWER = new THREE.MeshStandardMaterial({ color: 0xf4f0ff, emissive: 0xffffff, emissiveIntensity: .08, roughness: .6 });
+let PEA_VINE: THREE.BufferGeometry | null = null;
+const _up = new THREE.Vector3(0, 1, 0);
+/** cylinder (GEO.cyl, unit height) from a to b with radius r */
+function stick(g: THREE.Object3D, mat: THREE.Material, r: number, a: THREE.Vector3, b: THREE.Vector3, shadow = true) {
+  const d = b.clone().sub(a), m = part(g, GEO.cyl, mat, r, d.length(), r, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2, shadow);
+  m.quaternion.setFromUnitVectors(_up, d.normalize()); return m;
+}
 export const CHILI_STEM = new THREE.MeshStandardMaterial({ color: 0x3f7a2a, roughness: .6 });
 const THORN_CANE = new THREE.MeshStandardMaterial({ color: 0x5a2a30, roughness: .7 }), THORN = new THREE.MeshStandardMaterial({ color: 0xc8a890, roughness: .6 });
 export const ASP_TIP_GROUND = new THREE.MeshStandardMaterial({ color: 0x9a5cc0, emissive: 0x7a2aaa, emissiveIntensity: .45 });
@@ -120,6 +134,12 @@ export function fruitMesh(type: FruitType, scale: number, glow = true, proj = fa
     const b = part(g, GEO.capsule, mat, .034, .07, .034, 0, 0, 0); b.rotation.z = Math.PI / 2;
     const t = part(g, GEO.cone, mat, .032, .09, .032, .11, .012, 0); t.rotation.z = -Math.PI / 2 + .35;
     const st = part(g, GEO.cyl, CHILI_STEM, .012, .06, .012, -.1, .015, 0); st.rotation.z = Math.PI / 2 - .5;
+  }
+  else if (type === 'pea') { // 25.11.2026 Erbsenschote: plump pod lying on its side, split open on top, three peas inside, little stem
+    const pod = part(g, GEO.capsule, mat, .034, .042, .026, 0, 0, 0); pod.rotation.z = Math.PI / 2;
+    for (let i = -1; i <= 1; i++) part(g, GEO.sph, PEA_SEED, .027, .026, .027, i * .042, .016, 0);
+    const st = part(g, GEO.cone, NUT_CAP, .012, .04, .012, -.095, .012, 0); st.rotation.z = Math.PI / 2 + .4;
+    g.rotation.y = rand(0, 7);
   }
   else if (type === 'nut') { // hazelnut: round shell with a pale tip, ragged green husk on top
     part(g, GEO.sph, mat, .075, .07, .075, 0, 0, 0); part(g, GEO.cone, mat, .035, .05, .035, 0, .075, 0);
@@ -178,6 +198,29 @@ export function buildPlant(type: FruitType, mats: PlantMats) {
       const st = part(g, GEO.cyl, mats.leaf, .012, h, .012, Math.cos(a) * r, h / 2, Math.sin(a) * r); st.rotation.set(rand(-.12, .12), 0, rand(-.12, .12));
       fruits.push(part(g, GEO.capsule, BUSH_MAT.wheat, .03, .1, .03, Math.cos(a) * r + st.rotation.z * -h * .5, h + .06, Math.sin(a) * r + st.rotation.x * h * .5, false));
     }
+  } else if (type === 'pea') { // 25.11.2026 Erbsenranken: three stakes tied into a little teepee, green vines winding up them,
+    // paired leaves, a few white flowers, plump green pods hanging from the vines (fruits)
+    PEA_VINE ??= (() => { const pts: THREE.Vector3[] = []; for (let i = 0; i <= 48; i++) { const t = i / 48, a = t * Math.PI * 6; pts.push(new THREE.Vector3(Math.cos(a) * .045, t, Math.sin(a) * .045)); } return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, .012, 5, false); })();
+    const top = new THREE.Vector3(0, .9, 0), a0 = rand(0, 7);
+    for (let i = 0; i < 3; i++) {
+      const a = a0 + i / 3 * Math.PI * 2, foot = new THREE.Vector3(Math.cos(a) * .34, 0, Math.sin(a) * .34), tip = top.clone().addScaledVector(foot, -.15).setY(.98);
+      stick(g, PEA_STAKE, .016, foot, tip);
+      const d = tip.clone().sub(foot), L = d.length(), dir = d.clone().normalize();
+      const vine = new THREE.Mesh(PEA_VINE, mats.leaf); vine.position.copy(foot); vine.quaternion.setFromUnitVectors(_up, dir); vine.scale.set(1, L * .92, 1); vine.castShadow = true; g.add(vine);
+      const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(); // sideways to the stake
+      for (let k = 0; k < 5; k++) { // leaf pairs along the vine
+        const t = .16 + k * .16, c = foot.clone().addScaledVector(dir, L * t);
+        for (const sd of [-1, 1]) { const l = part(g, GEO.sph, k % 2 ? mats.head : mats.leaf, .062, .016, .038, c.x + side.x * sd * .07, c.y, c.z + side.z * sd * .07); l.rotation.set(rand(-.4, .4), Math.atan2(side.x, side.z) + Math.PI / 2, sd * .35); }
+      }
+      for (let k = 0; k < 3; k++) { // pods hang from the vine on the outside
+        const t = .3 + k * .2 + rand(-.04, .04), c = foot.clone().addScaledVector(dir, L * t), out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(.06).add(side.clone().multiplyScalar((k - 1) * .05));
+        const pod = part(g, GEO.capsule, BUSH_MAT.pea, .036, .05, .026, c.x + out.x * 1.6, c.y - .08, c.z + out.z * 1.6, false);
+        pod.rotation.set(rand(-.25, .25), rand(0, 7), rand(-.35, .35)); fruits.push(pod);
+      }
+      if (Math.random() < .8) part(g, GEO.sph, PEA_FLOWER, .028, .022, .028, foot.x + dir.x * L * .85 + side.x * .05, foot.y + dir.y * L * .85, foot.z + dir.z * L * .85 + side.z * .05, false);
+    }
+    for (let i = 0; i < 2; i++) { const tw = part(g, GEO.cyl, PEA_TWINE, .035, .025, .035, 0, .94 - i * .03, 0, false); tw.rotation.y = i; } // twine tying the stakes
+    for (let i = 0; i < 4; i++) { const a = rand(0, 7), r = rand(.05, .3); part(g, GEO.ico, mats.leaf, rand(.08, .12), rand(.05, .08), rand(.08, .12), Math.cos(a) * r, .05, Math.sin(a) * r); } // low leaves at the foot
   } else if (type === 'cab') {
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * Math.PI * 2, r = .42, x = Math.cos(a) * r, z = Math.sin(a) * r;

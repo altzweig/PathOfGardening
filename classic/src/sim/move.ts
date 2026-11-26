@@ -6,7 +6,7 @@ import type { Intent } from './snap';
 /** the part of a player the movement touches */
 export interface MoveState { x: number; z: number; face: number; walk: number; sta: number; staT: number; staX: boolean; sprint: boolean }
 /** what the movement needs from the rest of the game: stun factor 0..1 (1 = free), knocked back (the sim moves it), arena */
-export interface MoveCtx { sf: number; kb: boolean; chest: boolean; sb: { W: number; D: number } | null }
+export interface MoveCtx { sf: number; kb: boolean; chest: boolean; sb: { W: number; D: number } | null; /** 25.11.2026 Werkbank: solid circle (x, z, radius) */ bench?: { x: number; z: number; r: number } | null }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -36,6 +36,11 @@ export function chestPush(p: { x: number; z: number }) {
   const d = Math.hypot(p.x, p.z), R = .75;
   if (d < R) { const k = d > 1e-3 ? R / d : 0; p.x = d > 1e-3 ? p.x * k : 0; p.z = d > 1e-3 ? p.z * k : R; }
 }
+/** 25.11.2026 the Werkbank is solid like the chest (circle of radius r, player radius included) */
+export function benchPush(p: { x: number; z: number }, b: { x: number; z: number; r: number }) {
+  const dx = p.x - b.x, dz = p.z - b.z, d = Math.hypot(dx, dz);
+  if (d < b.r) { if (d > 1e-3) { p.x = b.x + dx * b.r / d; p.z = b.z + dz * b.r / d; } else p.z = b.z + b.r; }
+}
 export const normMove = (it: Intent): [number, number, number] => { let mx = it.mx, mz = it.mz; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; } return [mx, mz, ml]; };
 
 /** one step of the guest's own figure, the same order as Sim.updatePlayer (sprint, walk, arena, chest) */
@@ -45,4 +50,5 @@ export function predictStep(cfg: Balancing, p: MoveState, it: Intent, dt: number
   if (!c.kb) walkStep(cfg, p, it, mx, mz, ml, c.sf, dt);
   [p.x, p.z] = clampArena(cfg, c.sb, p.x, p.z);
   if (c.chest) chestPush(p);
+  if (c.bench) benchPush(p, c.bench);
 }

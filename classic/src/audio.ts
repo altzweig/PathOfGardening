@@ -257,11 +257,72 @@ export const SND: Record<string, (arg?: any) => void> = {
   /** small electric crackle (Shockgun berries) */
   zapS() { if (can('zapS', .08)) { noise({ t: .09, vol: .07, type: 'bandpass', f: rand(3000, 5000), q: 2 }); tone({ type: 'sawtooth', f: 180, f2: 120, t: .08, vol: .03 }); } },
   warn() { if (can('warn', .8)) { noise({ t: .6, vol: .05, type: 'bandpass', f: 500, f2: 900, q: 3 }); } },
+  // ---- Werkbank-Paket (P2, 25.11.2026): pea pistol, workbench, idea, cabbage wall. Volumes via sounds.yaml (svol) ----
+  /** Erbsenpistole: heavy and dull - deep body thump, a woody clack of the frame, a short metallic ring of the slide,
+   *  the slide snapping back a moment later. Every shot a little different (pitch, mix). */
+  peaShot() {
+    const v = rand(.92, 1.08), m = rand(.7, 1.1);
+    tone({ type: 'sine', f: 118 * v, f2: 42, t: .26, vol: .42, at: .003 });                                   // body thump
+    noise({ t: .18, vol: .26, type: 'lowpass', f: 1300 * v, f2: 140, at: .002 });                             // muffled blast
+    noise({ t: .045, vol: .2, type: 'bandpass', f: 1050 * v, q: 2.2, at: .001 }); tone({ type: 'triangle', f: 330 * v, f2: 170, t: .07, vol: .12 }); // wood clack
+    for (const [r, g] of [[1, 1], [2.76, .5], [5.4, .25]]) tone({ type: 'sine', f: 1650 * v * r, t: .22 * m / Math.sqrt(r), vol: .028 * g * m, at: .002, when: .004 }); // metallic ring
+    noise({ t: .03, vol: .09, type: 'bandpass', f: 2600 * v, q: 3, when: .085 + rand(0, .02), at: .001 }); tone({ type: 'square', f: 760 * v, f2: 520, t: .03, vol: .025, when: .09, filt: { type: 'bandpass', f: 1800, q: 2 } }); // slide back
+  },
+  /** hammer blow on the bench: wooden knock + a short bright tick of steel on a nail (s = 0..1 strength) */
+  benchHit(s = 1) {
+    const v = rand(.9, 1.1), k = .6 + .4 * s;
+    tone({ type: 'triangle', f: 210 * v, f2: 95, t: .11, vol: .2 * k }); noise({ t: .06, vol: .2 * k, type: 'bandpass', f: 850 * v, q: 1.8, at: .001 });
+    if (Math.random() < .75) { tone({ type: 'sine', f: 2650 * v, t: .1, vol: .035 * k, at: .001 }); tone({ type: 'sine', f: 4150 * v, t: .06, vol: .02 * k, at: .001 }); }
+    noise({ t: .12, vol: .05 * k, type: 'lowpass', f: 500, f2: 150, when: .01 });
+  },
+  /** one hand-saw stroke (dir 1 = push, -1 = pull): rasping band noise sweeping up / down, teeth clicking through it */
+  benchSaw(dir = 1) {
+    const T = rand(.26, .34), f0 = dir > 0 ? 1700 : 3100, f1 = dir > 0 ? 3200 : 1600;
+    noise({ t: T, vol: .11, type: 'bandpass', f: f0, f2: f1, q: 1.4, at: T * .35 });
+    noise({ t: T, vol: .05, type: 'highpass', f: 5200, at: T * .4 });
+    const n = 9 + Math.floor(rand(0, 4)); for (let i = 0; i < n; i++) noise({ t: .018, vol: rand(.025, .045), type: 'bandpass', f: rand(2600, 4200), q: 4, when: T * (.1 + .8 * i / n), at: .001 });
+  },
+  /** screwing: a quick ratchet (4-6 clicks), now and then a dry squeak of the screw biting into the wood */
+  benchScrew() {
+    const n = 4 + Math.floor(rand(0, 3)), sp = rand(.055, .075);
+    for (let i = 0; i < n; i++) { tone({ type: 'square', f: rand(820, 900), t: .022, vol: .028, when: i * sp, filt: { type: 'bandpass', f: 1600, q: 3 } }); noise({ t: .018, vol: .06, type: 'bandpass', f: 2400, q: 5, when: i * sp, at: .001 }); }
+    if (Math.random() < .5) { const f = rand(540, 680); tone({ type: 'sawtooth', f, f2: f * rand(1.2, 1.4), t: rand(.16, .24), vol: .016, at: .04, when: n * sp + .03, vib: 30, vibF: rand(22, 30), filt: { type: 'bandpass', f: f * 2.2, q: 3 } }); }
+  },
+  /** idea finished at the bench: warm bell "ding" (inharmonic partials, soft attack) over a small major chord */
+  ideaReady() {
+    for (const [r, g, t] of [[1, 1, 1.4], [2.0, .35, .9], [2.98, .18, .6], [4.1, .08, .4]]) tone({ type: 'sine', f: 784 * r, t, vol: .09 * g, at: .004 });
+    [392, 494, 587].forEach((f, i) => tone({ type: 'triangle', f, t: .9, vol: .04, at: .03, when: .05 + i * .03, filt: { type: 'lowpass', f: 1800 } }));
+    noise({ t: .6, vol: .02, type: 'highpass', f: 6500, when: .05, at: .2 });
+  },
+  /** "Fertigstellen": short warm fanfare (rising triad on soft horn-like tones) + a wooden knock */
+  ideaClaim() {
+    noise({ t: .05, vol: .14, type: 'bandpass', f: 900, q: 1.6, at: .002 }); tone({ f: 170, f2: 90, t: .09, vol: .12 });
+    [[523, 0, .22], [659, .1, .22], [784, .2, .25], [1047, .32, .7]].forEach(([f, w, t]) => {
+      tone({ type: 'sawtooth', f, t, vol: .035, at: .02, when: w + .03, filt: { type: 'lowpass', f: 1500, q: .7 } }); tone({ type: 'triangle', f, t, vol: .05, at: .01, when: w + .03 });
+    });
+    tone({ type: 'sine', f: 2093, t: .6, vol: .02, when: .36 }); noise({ t: .6, vol: .025, type: 'highpass', f: 7000, when: .35, at: .15 });
+  },
+  /** cabbage wall piece set down: dull leafy "plopp" with a short rustle */
+  wallPlace() {
+    const v = rand(.9, 1.12);
+    tone({ type: 'sine', f: 175 * v, f2: 68, t: .14, vol: .3, at: .003 }); noise({ t: .1, vol: .14, type: 'lowpass', f: 900 * v, f2: 200, at: .002 });
+    tone({ type: 'sine', f: 420 * v, f2: 260, t: .05, vol: .05 });
+    for (let i = 0; i < 4; i++) noise({ t: rand(.02, .04), vol: rand(.02, .04), type: 'bandpass', f: rand(2500, 5000), q: 3, when: .03 + rand(0, .1), at: .002 });
+  },
+  /** an enemy bites / hits the wall: soft crunchy thud */
+  wallHit() { tone({ type: 'sine', f: rand(130, 160), f2: 70, t: .08, vol: .14 }); noise({ t: .05, vol: .1, type: 'bandpass', f: rand(1800, 2600), q: 2, at: .002 }); },
+  /** cabbage wall breaks: crisp cabbage crunch (cracking leaves), a dull collapse, a leafy tail */
+  wallBreak() {
+    for (let i = 0; i < 7; i++) noise({ t: rand(.02, .05), vol: rand(.08, .15), type: 'bandpass', f: rand(1500, 3800), q: rand(2, 4), when: i * rand(.012, .03), at: .001 });
+    tone({ type: 'sine', f: 120, f2: 45, t: .22, vol: .24, when: .02 }); noise({ t: .2, vol: .14, type: 'lowpass', f: 800, f2: 150, when: .02 });
+    noise({ t: .45, vol: .05, type: 'bandpass', f: 3500, f2: 2200, q: .9, when: .08, at: .08 });
+  },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
 
 // ---------------- sample-based sounds (Game Design & Balancing/sounds.yaml) ----------------
-interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean; lp?: number }
+/** svol (25.11.2026): volume of the synth sound, distance-attenuated like the samples (without svol a synth plays at full volume) */
+interface SndEntry { files?: string[]; file?: string; vol?: number; pitch?: [number, number]; gap?: number; synth?: string; svol?: number; every?: [number, number]; chance?: number; delay?: [number, number]; rising?: boolean; lp?: number }
 const riseStep = new Map<string, { n: number; t: number }>();
 let SC: any = null;
 const bufs = new Map<string, AudioBuffer>();
@@ -285,7 +346,7 @@ function loadSamples() {
   })).then(() => { if (ambWanted) startAmbient(); });
   return loading;
 }
-const SYNTH_EXTRA: Record<string, () => void> = {
+const SYNTH_EXTRA: Record<string, (arg?: any) => void> = {
   playerDie() { tone({ type: 'triangle', f: 440, f2: 110, t: .7, vol: .14 }); tone({ type: 'sine', f: 220, f2: 55, t: .9, vol: .18, when: .1 }); noise({ t: .5, vol: .08, f: 900, f2: 120, when: .05 }); },
   /** flamethrower: breathy roar (low noise swell + hiss) */
   flame() { noise({ t: .22, vol: .1, type: 'lowpass', f: 700, f2: 380, at: .05 }); noise({ t: .14, vol: .035, type: 'bandpass', f: 2600, f2: 1800, q: .7, at: .03 }); },
@@ -297,7 +358,7 @@ function entry(key: string): SndEntry | null {
   if (!SC) return null; let o: any = SC; for (const p of key.split('.')) { o = o?.[p]; if (o === undefined) return null; } return o;
 }
 /** play a sound event from sounds.yaml at a world position (distance-attenuated, panned) */
-export function sfx(key: string, x?: number, z?: number, volMul = 1) {
+export function sfx(key: string, x?: number, z?: number, volMul = 1, synthArg?: any) {
   if (!AC || !audio.on || !SC) return;
   const e = entry(key); if (!e) return;
   const now = AC.currentTime;
@@ -312,7 +373,7 @@ export function sfx(key: string, x?: number, z?: number, volMul = 1) {
     if (att <= .01) return;
   }
   const bus = key.startsWith('ui.') ? uiBus : key.startsWith('calls.') ? ambBus : fxBus;
-  if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) { out = bus; try { f(); } finally { out = fxBus; } } }
+  if (e.synth) { const f = SND[e.synth] || SYNTH_EXTRA[e.synth]; if (f) { out = bus; if (e.svol !== undefined) busVol = e.svol * att * volMul; try { f(synthArg); } finally { out = fxBus; busVol = 1; } } }
   const files = (e.files || []).filter(f => bufs.has(f)); if (!files.length) return;
   let pick = files[Math.floor(Math.random() * files.length)];
   if (files.length > 1 && pick === lastPick.get(key)) pick = files[(files.indexOf(pick) + 1) % files.length];
@@ -389,6 +450,23 @@ export function tickAmbient(dt: number) {
   callT = c?.every ? c.every[0] + Math.random() * (c.every[1] - c.every[0]) : 20;
   if (!c) return;
   const a = Math.random() * Math.PI * 2; sfx('calls.' + key, lx + Math.cos(a) * 8, lz + Math.sin(a) * 8);
+}
+/** Werkbank (P2, 25.11.2026): the working noise of one player at the bench while the action is held. Call every frame with
+ *  on = working; intensity 0..1+ = tempo (more players / research speed). Plays saw strokes (push / pull, a few in a row) and
+ *  screw ratchets in a loose cycle via sounds.yaml bench.saw / bench.screw (synth, svol). The hammer blows come from the
+ *  animation: call sfx('bench.hit', x, z, 1, strength) on every impact (and optionally benchWork with hammer = true to let
+ *  this cycle play them too, e.g. for a player whose animation is not visible). */
+const bench = new Map<string, { next: number; saw: number; dir: number; hit: number }>();
+export function benchWork(id: string, on: boolean, x = lx, z = lz, intensity = 1, hammer = false) {
+  if (!on || !AC || !audio.on) { bench.delete(id); return; }
+  const n = AC.currentTime, k = Math.max(.3, Math.min(2, intensity));
+  let B = bench.get(id); if (!B) { B = { next: n + rand(.4, .8), saw: 0, dir: 1, hit: n + .1 }; bench.set(id, B); }
+  if (hammer && n >= B.hit) { sfx('bench.hit', x, z, 1, rand(.7, 1)); B.hit = n + rand(.42, .52) / k; }
+  if (n < B.next) return;
+  if (B.saw > 0) { sfx('bench.saw', x, z, 1, B.dir); B.dir = -B.dir; B.saw--; B.next = n + rand(.3, .36) / Math.sqrt(k); return; }
+  if (Math.random() < .55) { B.saw = 2 + Math.floor(rand(0, 4)); B.dir = 1; B.next = n + rand(.1, .3); }
+  else { sfx('bench.screw', x, z); B.next = n + rand(.6, 1.1) / k; }
+  if (Math.random() < .3) B.next += rand(.4, 1.2) / k; // little pauses: the cycle breathes
 }
 export const audioStats = () => ({ ctx: !!AC, samples: bufs.size, ambient: ambOn });
 

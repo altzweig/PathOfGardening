@@ -141,11 +141,12 @@ export const TABLES: Record<string, string> = {
   sn: 'upp' + 'f',                          // id x z ticks
   eg: 'uppp' + 'gfggg',                     // id x y z landed left out lure eaters
   cl: 'upp' + 'gggg' + 'pp',                // id x z r birth life ign ix iz
+  wl: 'upp' + 'uu',                         // 26.11.2026 Steinkohle posts: id x z hp maxHp (a post costs bytes once, then only hp changes)
 };
 export const TABLE_KEYS = Object.keys(TABLES) as (keyof Snap & string)[];
 /** player object keys in a fixed order (row index = position here) */
-export const PL_KEYS = ['id', 'c', 'x', 'z', 'f', 'be', 'hp', 'mhp', 'al', 'st', 'sa', 'sx', 'sh', 'ms', 'sw', 'sd', 'wk', 'rs', 'po', 'fl', 'ti', 'rr', 'ra', 'xb', 'fo', 'fa', 'fc', 'fw', 'fr', 'lw', 'aw', 'sp', 'sk', 'dk', 'rh', 'cw', 'ch', 'ht'] as const;
-const PL_T = 'uuppa' + 'g'.repeat(5) + 'f' + 'g'.repeat(3) + 'fgg' + 'g'.repeat(3) + 'f' + 'g'.repeat(4) + 'a' + 'g'.repeat(5) + 'f' + 'g'.repeat(10);
+export const PL_KEYS = ['id', 'c', 'x', 'z', 'f', 'be', 'hp', 'mhp', 'al', 'st', 'sa', 'sx', 'sh', 'ms', 'sw', 'sd', 'wk', 'rs', 'po', 'fl', 'ti', 'rr', 'ra', 'xb', 'fo', 'fa', 'fc', 'fw', 'fr', 'lw', 'aw', 'sp', 'sk', 'dk', 'rh', 'cw', 'ch', 'ht', 'bw'] as const; // 26.11.2026 bw (Werkbank hammering) appended
+const PL_T = 'uuppa' + 'g'.repeat(5) + 'f' + 'g'.repeat(3) + 'fgg' + 'g'.repeat(3) + 'f' + 'g'.repeat(4) + 'a' + 'g'.repeat(5) + 'f' + 'g'.repeat(6) + 'u'; // ... sk dk rh cw ch ht, bw
 const typeOf = (tb: string, i: number): FT => ((tb === 'pl' ? PL_T : TABLES[tb])[i] ?? 'g') as FT;
 
 export type Row = any[];
@@ -160,6 +161,8 @@ const qt = (v: number) => Math.round(v * STEP) / STEP;
 export function toQ(s: Snap): Q {
   const sc: Record<string, any> = {}, tb: Record<string, Row[] | undefined> = {};
   for (const k of Object.keys(s)) if (!(k in TABLES) && k !== 'ev' && (s as any)[k] !== undefined) sc[k] = (s as any)[k]; // absent = undefined (as after decoding)
+  // 26.11.2026 research progress per node (0..1, 3 decimals) as integer per mille: 1-2 bytes each instead of a float64
+  if (Array.isArray(sc.rp)) sc.rp = sc.rp.map((v: number) => typeof v === 'number' ? Math.round(v * 1000) : v);
   const t = s.t;
   for (const k of TABLE_KEYS) {
     const a = (s as any)[k] as any[] | undefined;
@@ -180,6 +183,7 @@ export function toQ(s: Snap): Q {
 /** back to a Snap for the view (times rebuilt from the snapshot time) */
 export function fromQ(q: Q, ev: Snap['ev'] = []): Snap {
   const s: any = { ...q.sc, ev };
+  if (Array.isArray(s.rp)) s.rp = s.rp.map((v: number) => typeof v === 'number' ? v / 1000 : v);
   const t = q.sc.t as number;
   for (const k of TABLE_KEYS) {
     const rows = q.tb[k]; if (!rows) { s[k] = undefined; continue; }

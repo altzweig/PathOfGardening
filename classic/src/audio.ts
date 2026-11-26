@@ -317,6 +317,20 @@ export const SND: Record<string, (arg?: any) => void> = {
     tone({ type: 'sine', f: 120, f2: 45, t: .22, vol: .24, when: .02 }); noise({ t: .2, vol: .14, type: 'lowpass', f: 800, f2: 150, when: .02 });
     noise({ t: .45, vol: .05, type: 'bandpass', f: 3500, f2: 2200, q: .9, when: .08, at: .08 });
   },
+  /** 26.11.2026 Mehlsäcke: three heavy sacks thud down one after another (soft cloth, a little flour puff) */
+  sackPlace() {
+    for (let i = 0; i < 3; i++) { const v = rand(.92, 1.08), w = i * .11;
+      tone({ type: 'sine', f: 120 * v, f2: 52, t: .16, vol: .3, at: .004, when: w }); noise({ t: .12, vol: .16, type: 'lowpass', f: 700 * v, f2: 160, at: .003, when: w });
+      noise({ t: .2, vol: .03, type: 'highpass', f: 4000, at: .05, when: w + .02 }); }
+  },
+  /** an animal gnaws at a sack: cloth tearing a little */
+  sackHit() { noise({ t: .07, vol: .1, type: 'bandpass', f: rand(2200, 3400), q: 1.5, at: .003 }); tone({ type: 'sine', f: rand(140, 170), f2: 80, t: .06, vol: .1 }); },
+  /** the stack bursts: cloth rips, sacks slump, a big flour puff hisses out */
+  sackBreak() {
+    for (let i = 0; i < 4; i++) noise({ t: rand(.03, .06), vol: rand(.1, .16), type: 'bandpass', f: rand(1800, 3200), q: 2, when: i * .025, at: .002 });
+    tone({ type: 'sine', f: 100, f2: 40, t: .28, vol: .26, when: .04 }); noise({ t: .25, vol: .15, type: 'lowpass', f: 600, f2: 120, when: .04 });
+    noise({ t: .7, vol: .07, type: 'highpass', f: 3000, f2: 6000, when: .08, at: .15 });
+  },
 };
 export function play(name: string, arg?: any) { if (!AC || !audio.on) return; const f = SND[name]; if (f) f(arg); }
 

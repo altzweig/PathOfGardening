@@ -25,7 +25,7 @@ const mouseSvg = (x: number, y: number, s: number, side: 'l' | 'r' | '') => `<g 
 export function pcControls() {
   // weapon bar: 2 groups of 5 slots, the key of each slot under it
   const S = 58, G = 10, gx = [120, 560];
-  const PRIM = ['pea', 'wshot', 'wheat', 'chili', 'lemon'], SEC = ['cab', 'wall', 'flour', 'sling', 'pan']; // 25.11.2026 Techtree-Waffen
+  const PRIM = ['pea', 'wshot', 'wheat', 'chili', 'lemon'], SEC = ['cab', 'wall', 'sack', 'sling', 'pan']; // 25.11.2026 Techtree-Waffen, 26.11.2026 Mehlsäcke statt Mehlsack
   let bar = '';
   for (let g = 0; g < 2; g++) for (let k = 0; k < 5; k++) {
     const x = gx[g] + k * (S + G), w = (g ? SEC : PRIM)[k], sel = k === 0;

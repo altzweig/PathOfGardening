@@ -36,6 +36,8 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     const ns = rNodes(cfg).filter(n => nodeAvailable(cfg, sim.rs, n.id)), own = new Set(learned().map(w => ammoPool(w) as string));
     const left = rNodes(cfg).filter(n => n.kind !== 'speed' && !nodeAvailable(cfg, sim.rs, n.id) && !sim.rs.done.includes(n.id) && !n.start).length + ns.filter(n => n.kind !== 'speed').length;
     const sc = (n: typeof ns[number]) => n.kind === 'speed' ? (o.rsSpeed === false ? -1 : left >= 4 && sim.rs.speedLv * 3 < sim.rs.done.length ? 2.5 : -1)
+      : n.kind === 'building' || n.ref === 'sack' || n.ref?.startsWith('sack_') ? -1 // 26.11.2026 the bot does not build mills / lay sacks
+      : n.kind === 'upgrade' ? (n.ref?.startsWith('wall_') ? .2 : (+(process.env.BOT_UP ?? 1.2)) + (n.ref?.endsWith('_dmg') ? .5 : n.ref?.endsWith('_cd') ? .3 : 0) - (n.lv ?? 1) * .05) // 26.11.2026 Einzelbäume: upgrades of the weapons it has
       : n.kind === 'field' ? 2 : n.ref === 'wall' ? 1 : own.has(ammoPool(n.ref as SkillId)) ? .5 : 3;
     return ns.filter(n => sc(n) >= 0).sort((a, b) => sc(b) - sc(a))[0];
   };

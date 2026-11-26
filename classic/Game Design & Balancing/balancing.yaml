@@ -25,6 +25,33 @@ names:
     finish: Fertigstellen
     level: Stufe
     hp: Leben
+    building: Gebäude     # 26.11.2026 Einzelbäume
+    upgrade: Verbesserung
+    repair: Reparatur
+    cost: Kosten
+  upgrades:          # 26.11.2026 Namen der Upgrade-Knoten im Techtree (Schlüssel = Waffe_Upgrade, sonst gilt der Teil nach "_")
+    dmg: Schaden
+    rng: Reichweite
+    cd: Feuerrate
+    pel: Schrot
+    pierce: Durchschlag
+    dur: Feuerdauer
+    hp: Leben
+    heal: Selbstreparatur
+    cost: Kosten
+    cab_rng: Radius
+    mini: Mini-Kohl
+    pois: Gift
+    gas: Kohlgas
+    sweep: Schwenk
+    tick: Brandtempo
+    tgt: Kettenziele
+    xfer: Rückblitz
+    eff: Effizienz
+    asp_pierce: Durchbohren
+    pb: Durchbohr-Schaden
+    salvo: Salve
+    size: Geschossgröße
   skills:
     rake: Harke
     pea: Erbsenpistole     # 25.11.2026 Startwaffe
@@ -33,6 +60,7 @@ names:
     blue: Beerengewehr     # 25.11.2026 (vorher Schrotflinte): nur noch Heidelbeeren
     black: Brombeeren
     flour: Mehlsack
+    sack: Mehlsäcke        # 26.11.2026 Barriere an Feldkanten (ersetzt im Forschungsspiel den Mehlstaub-Angriff)
     pan: Spiegeleischleuder
     sling: Eierschleuder
     asp: Spargel-Armbrust
@@ -153,6 +181,7 @@ names:
     pea: Großkaliber · 3 Erbsen je Schuss
     wshot: Körnerschrot
     wall: Mauer · Gegner laufen herum
+    sack: Barriere an der Feldkante · nur Frösche hüpfen drüber
 
 player:
   hp: 100
@@ -397,6 +426,22 @@ skills:
     behind: 0.25           # m hinter dem Spieler (in Laufrichtung) wird gesetzt
     stuckTime: 0.8         # s ohne Fortschritt an der Mauer -> das Tier greift den Pfosten an
     blockRange: 3          # m: liegt der Pfosten zwischen Tier und einem so nahen Ziel, greift es sofort an
+    hpStep: 10             # 26.11.2026 Techtree-Upgrade "Leben": +10 Leben je Stufe (auch für schon stehende Pfosten)
+  sack:                    # 26.11.2026 Mehlsäcke (Basti): ersetzt im Forschungsspiel den Mehlstaub-Angriff. Immer 3 Säcke übereinander auf EINER freien Feldkante
+    damage: 0              #   (ein Sack ist so lang wie eine Feldseite). Nur an Kanten zu einem freien Platz; wird dort ein Feld gebaut, verschwinden die Säcke.
+    range: 0               #   Tiere kommen nicht durch (nur Frösche hüpfen drüber, fliegende Tiere gibt es noch keine), sie nagen sich durch. Spieler laufen durch.
+    cooldown: 0.4          # s zwischen zwei Stapeln (gedrückt halten: an jeder Kante, an der man vorbeiläuft)
+    ammoPerShot: 10        # Mehl je Stapel (3 Säcke)
+    hp: 100                # Leben je Stapel
+    hpStep: 20             # Upgrade "Leben": +20 je Stufe (5x), auch für schon stehende Stapel
+    repairStep: 5          # Upgrade "Selbstreparatur": +5 Leben pro Minute je Stufe (5x)
+    costStep: 1            # Upgrade "Kosten": 1 Mehl weniger je Stufe (5x: 10 -> 5)
+    minCost: 1
+    reach: 1.8             # m vom Spieler bis zur Kante, auf die er die Säcke legt (die freie Kante vor ihm)
+    thick: 0.22            # m halbe Dicke für die Kollision
+    max: 200               # höchstens so viele Stapel
+    stuckTime: 0.8         # s ohne Fortschritt an den Säcken -> das Tier nagt sie an
+    blockRange: 3          # m: liegen die Säcke zwischen Tier und einem so nahen Ziel, nagt es sofort
   black:                   # 23.11.2026 Brombeere (Schrot-Munition, dunkelviolett): Dornenfessel
     duration: 4            # s (24.11.2026 Debuff-Sim: 3 -> 4)
     slow: 0.3              # 30 % langsamer (24.11.2026: 0.2 -> 0.3)
@@ -809,6 +854,7 @@ weaponNeeds:
   cab:   cab       # Kohlmine        <- Kohlfeld (ab Level 4)
   wheat: wheat     # Körner-MP       <- Getreidefeld (ab Level 2)
   flour: mill      # Mehlsack        <- Mühle (Weizen Stufe 3)
+  sack:  mill      # 26.11.2026 Mehlsäcke <- Mühle
   sling: hens      # Eierschleuder   <- Hühnergehege (derzeit nicht im Pool)
   pan:   kitchen   # Spiegeleischleuder <- Spiegeleierei (derzeit nicht im Pool)
   asp:   asp       # Spargel-Armbrust <- Spargelfeld (derzeit nicht im Pool)
@@ -940,7 +986,7 @@ weaponSlots:               # Waffen neben der Harke
   # 24.11.2026 (Basti): Leiste unten = 2 Gruppen à 5 Plätze. Plätze 1-5 Primärwaffen (Linksklick), Plätze 6-0 Sekundärwaffen (Rechtsklick).
   # Gelernte Waffen füllen ihre Gruppe in Lernreihenfolge; ist eine Gruppe voll, rutscht die Waffe in einen freien Platz der anderen.
   primary:   [pea, wshot, wheat, blue, asp, chili, lemon]   # 25.11.2026 + Erbsenpistole, Schrotflinte. Beerengewehr, Spargel-Armbrust, Maschinenpistole, Flammenwerfer, Citrateaser (mehr als 5: Rest rutscht nach rechts)
-  secondary: [cab, wall, flour, sling, pan, cran]     # Kohlmine, Steinkohle (25.11.2026), Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere
+  secondary: [cab, wall, sack, flour, sling, pan, cran]     # Kohlmine, Steinkohle (25.11.2026), Mehlsäcke (26.11.2026), Mehlsack, Eierschleuder, Spiegeleischleuder, Preiselbeere
 
 # ---------------------------------------------------------------------
 #  Kombiwaffen (17.11.2026, Bastis Tabelle "Waffenkombinationen")
@@ -1158,42 +1204,106 @@ fx:
 # ---------------------------------------------------------------------
 research:
   baseTime: 15             # s aktive Arbeit für die erste Idee (1 Spieler). 26.11.2026 Bot: 25 -> 15 (Kohlfeld kam erst in Welle ~13, jetzt ~6; Kohlmine Welle 15 -> 10)
-  costGrowth: 0.20         # +20 % je erforschter Idee (Startknoten zählen nicht)
+  costGrowth: 0.20         # +20 % je erforschter Idee (Startknoten zählen nicht; Upgrades zählen upgradeCount)
   speedPerLevel: 0.25      # Forschungstempo: +25 % Tempo je Stufe (beliebig oft erforschbar)
   speedCounts: true        # Forschungstempo-Stufen zählen als erforschte Idee (+20 % für die nächsten). 26.11.2026 so gewollt (Basti): je Stufe netto x1,25/1,2 = +4,2 % Tempo, lohnt sich ab ca. 10 noch offenen Ideen (siehe Design-Entscheidungen)
+  upgradeCost: 0.5         # 26.11.2026 Einzelbäume: ein Waffen-Upgrade kostet die Hälfte einer Idee ...
+  upgradeGrowth: 0.25      # ... +25 % je Stufe in seiner Reihe (1. Stufe 50 %, 5. Stufe 122 %) ...
+  upgradeCount: 0.25       # ... und zählt nur als Viertel-Idee für costGrowth (sonst würden ~130 Upgrades alles unbezahlbar machen)
   coopExponent: 0          # Kosten x Spielerzahl^Exponent (0 = gleiche Kosten im Koop, mehr Spieler forschen nur schneller)
   startShots: 20           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 20 x 3 = 60 Erbsen). 26.11.2026 Bot: 10 -> 20, die ersten Wellen ohne Munitionsnot
   weaponShots: 10          # eine erforschte Waffe bringt jedem Spieler so viele Schuss mit (x ammoPerShot, in den Munitionsvorrat der Waffe)
   dropFruit: pea           # besiegte Tiere lassen das fallen (vorher: Beere der nächsten Schrotflinte)
+  buildingNeeds:           # 26.11.2026 Gebäude im Forschungsspiel (ohne Brunnen): Bäckerei backt aus Mehl allein Brot
+    bakery: { flour: 2 }
   bench:                   # Werkbank: feste Kachel neben der Truhe, nicht bebaubar, fest wie die Truhe
     slot: [0, -1]          # Hexplatz [q, r] (oben links neben der Truhe); das Erbsenfeld liegt rechts (arena.startField)
     radius: 0.75           # m, fester Kreis (Spieler laufen nicht hindurch; Tiere schon)
     touch: 0.35            # m vom Rand: "läuft gegen die Werkbank" -> Abhol-Popup (fertige Idee) bzw. Auswahl (keine Forschung)
     work: 1.6              # m vom Mittelpunkt: hier wird gearbeitet (Aktion halten)
-  segments:                # Segment öffnet, sobald so viele Felder / Waffen aus den Segmenten "from" erforscht sind (Startknoten zählen nicht)
+  segments:                # Segment öffnet, sobald so viele Felder (inkl. Gebäude) / Waffen aus den Segmenten "from" erforscht sind (Startknoten zählen nicht)
     - { id: 1 }
     - { id: 2, needFields: 1, needWeapons: 1, from: [1] }
     - { id: 3, needWeapons: 1, from: [2] }
-  # Knoten: kind field (ref = Feldart) | weapon (ref = Waffe) | speed. needs = alle diese müssen erforscht sein (Waffe braucht ihr Feld).
-  # row/col = Platz im Baum (Reihe 0 = oberste Reihe "Forschung", Spalten von links nach rechts). start = von Anfang an erforscht.
+  # 26.11.2026 Einzelbäume (Basti): ein kleiner Baum pro Frucht, oben als Reiter mit Frucht-Icon. Ein Baum öffnet mit seinem Segment.
+  trees:
+    - { id: pea,   icon: pea,   segment: 1 }
+    - { id: wheat, icon: wheat, segment: 1 }
+    - { id: cab,   icon: cab,   segment: 1 }
+    - { id: chili, icon: chili, segment: 2 }
+    - { id: lemon, icon: lemon, segment: 2 }
+    - { id: blue,  icon: blue,  segment: 3 }
+    - { id: asp,   icon: asp,   segment: 3 }
+  # Knoten: kind field (ref = Feldart) | building (ref = Gebäude) | weapon (ref = Waffe) | upgrade (ref = Upgrade "Waffe_Art", count = so oft hintereinander) | speed.
+  # needs = alle diese müssen erforscht sein. row/col = Platz im eigenen Baum (Spalte 0 = links). start = von Anfang an erforscht.
+  # Gleiche Upgrades liegen hintereinander (count -> Kette id.1 ... id.count), unterschiedliche parallel untereinander. Ids der alten Knoten bleiben (Spielstände).
   nodes:
-    - { id: speed,   kind: speed,  segment: 1, row: 0, col: 0 }                                  # Forschungstempo, immer verfügbar, wiederholbar
-    - { id: f_pea,   kind: field,  ref: pea,   segment: 1, row: 1, col: 0, start: true }        # Erbsenfeld
-    - { id: w_pea,   kind: weapon, ref: pea,   segment: 1, row: 1, col: 1, needs: [f_pea], start: true }   # Erbsenpistole
-    - { id: f_wheat, kind: field,  ref: wheat, segment: 1, row: 2, col: 1, needs: [f_pea] }      # Zweig A: Weizenfeld
-    - { id: w_wshot, kind: weapon, ref: wshot, segment: 1, row: 2, col: 2, needs: [f_wheat] }    #   -> Schrotflinte (Weizenkörner)
-    - { id: w_wheat, kind: weapon, ref: wheat, segment: 1, row: 3, col: 2, needs: [f_wheat] }    #   -> Maschinenpistole
-    - { id: f_cab,   kind: field,  ref: cab,   segment: 1, row: 4, col: 1, needs: [f_pea] }      # Zweig B: Kohlfeld
-    - { id: w_cab,   kind: weapon, ref: cab,   segment: 1, row: 4, col: 2, needs: [f_cab] }      #   -> Kohlmine
-    - { id: w_wall,  kind: weapon, ref: wall,  segment: 1, row: 5, col: 2, needs: [f_cab] }      #   -> Steinkohle
-    - { id: f_chili, kind: field,  ref: chili, segment: 2, row: 2, col: 3 }                      # Segment 2: Chilifeld
-    - { id: w_chili, kind: weapon, ref: chili, segment: 2, row: 2, col: 4, needs: [f_chili] }    #   -> Flammenwerfer
-    - { id: f_lemon, kind: field,  ref: lemon, segment: 2, row: 4, col: 3 }                      # Zitronenfeld
-    - { id: w_lemon, kind: weapon, ref: lemon, segment: 2, row: 4, col: 4, needs: [f_lemon] }    #   -> Citrateaser
-    - { id: f_blue,  kind: field,  ref: blue,  segment: 3, row: 2, col: 5 }                      # Segment 3: Heidelbeerfeld
-    - { id: w_blue,  kind: weapon, ref: blue,  segment: 3, row: 2, col: 6, needs: [f_blue] }     #   -> Beerengewehr (nur Heidelbeeren)
-    - { id: f_asp,   kind: field,  ref: asp,   segment: 3, row: 4, col: 5 }                      # Spargelfeld
-    - { id: w_asp,   kind: weapon, ref: asp,   segment: 3, row: 4, col: 6, needs: [f_asp] }      #   -> Spargel-Armbrust
+    - { id: speed,   kind: speed,  segment: 1, row: 0, col: 0 }                                  # Forschungstempo (Kopfzeile des Panels), immer verfügbar, wiederholbar
+    # --- Erbse ---
+    - { id: f_pea,   kind: field,  ref: pea,   tree: pea, segment: 1, row: 0, col: 0, start: true }       # Erbsenfeld
+    - { id: w_pea,   kind: weapon, ref: pea,   tree: pea, segment: 1, row: 0, col: 1, needs: [f_pea], start: true }   # Erbsenpistole
+    - { id: u_pea_dmg, kind: upgrade, ref: pea_dmg, count: 5, tree: pea, segment: 1, row: 0, col: 2, needs: [w_pea] }
+    - { id: u_pea_rng, kind: upgrade, ref: pea_rng, count: 5, tree: pea, segment: 1, row: 1, col: 2, needs: [w_pea] }
+    - { id: u_pea_cd,  kind: upgrade, ref: pea_cd,  count: 5, tree: pea, segment: 1, row: 2, col: 2, needs: [w_pea] }
+    # --- Weizen (Basti: Weizenfeld -> Körnerpistole und Mühle, Mühle -> Mehlsäcke und Bäckerei; die Schrotflinte bleibt als dritter Ast) ---
+    - { id: f_wheat, kind: field,  ref: wheat, tree: wheat, segment: 1, row: 0, col: 0 }                                # Weizenfeld
+    - { id: w_wheat, kind: weapon, ref: wheat, tree: wheat, segment: 1, row: 0, col: 1, needs: [f_wheat] }             #   -> Maschinenpistole (Körner)
+    - { id: u_wheat_dmg, kind: upgrade, ref: wheat_dmg, count: 5, tree: wheat, segment: 1, row: 0, col: 2, needs: [w_wheat] }
+    - { id: u_wheat_rng, kind: upgrade, ref: wheat_rng, count: 5, tree: wheat, segment: 1, row: 1, col: 2, needs: [w_wheat] }
+    - { id: u_wheat_dur, kind: upgrade, ref: wheat_dur, count: 5, tree: wheat, segment: 1, row: 2, col: 2, needs: [w_wheat] }
+    - { id: b_mill,  kind: building, ref: mill, tree: wheat, segment: 1, row: 3, col: 1, needs: [f_wheat] }            #   -> Mühle
+    - { id: w_sack,  kind: weapon, ref: sack,  tree: wheat, segment: 1, row: 3, col: 2, needs: [b_mill] }              #        -> Mehlsäcke
+    - { id: u_sack_hp,   kind: upgrade, ref: sack_hp,   count: 5, tree: wheat, segment: 1, row: 3, col: 3, needs: [w_sack] }
+    - { id: u_sack_heal, kind: upgrade, ref: sack_heal, count: 5, tree: wheat, segment: 1, row: 4, col: 3, needs: [w_sack] }
+    - { id: u_sack_cost, kind: upgrade, ref: sack_cost, count: 5, tree: wheat, segment: 1, row: 5, col: 3, needs: [w_sack] }
+    - { id: b_bakery, kind: building, ref: bakery, tree: wheat, segment: 1, row: 6, col: 2, needs: [b_mill] }          #        -> Bäckerei
+    - { id: w_wshot, kind: weapon, ref: wshot, tree: wheat, segment: 1, row: 7, col: 1, needs: [f_wheat] }             #   -> Schrotflinte (Weizenkörner)
+    - { id: u_wshot_dmg,    kind: upgrade, ref: wshot_dmg,    count: 5, tree: wheat, segment: 1, row: 7, col: 2, needs: [w_wshot] }
+    - { id: u_wshot_pel,    kind: upgrade, ref: wshot_pel,    count: 5, tree: wheat, segment: 1, row: 8, col: 2, needs: [w_wshot] }
+    - { id: u_wshot_pierce, kind: upgrade, ref: wshot_pierce, count: 5, tree: wheat, segment: 1, row: 9, col: 2, needs: [w_wshot] }
+    # --- Kohl ---
+    - { id: f_cab,   kind: field,  ref: cab,   tree: cab, segment: 1, row: 0, col: 0 }                                  # Kohlfeld
+    - { id: w_cab,   kind: weapon, ref: cab,   tree: cab, segment: 1, row: 0, col: 1, needs: [f_cab] }                  #   -> Kohlmine
+    - { id: u_cab_dmg,  kind: upgrade, ref: cab_dmg,  count: 5, tree: cab, segment: 1, row: 0, col: 2, needs: [w_cab] }
+    - { id: u_cab_rng,  kind: upgrade, ref: cab_rng,  count: 5, tree: cab, segment: 1, row: 1, col: 2, needs: [w_cab] }
+    - { id: u_cab_mini, kind: upgrade, ref: cab_mini, count: 5, tree: cab, segment: 1, row: 2, col: 2, needs: [w_cab] }
+    - { id: u_cab_pois, kind: upgrade, ref: cab_pois, count: 5, tree: cab, segment: 1, row: 3, col: 2, needs: [w_cab] }
+    - { id: w_wall,  kind: weapon, ref: wall,  tree: cab, segment: 1, row: 4, col: 1, needs: [f_cab] }                  #   -> Steinkohle
+    - { id: u_wall_hp,  kind: upgrade, ref: wall_hp,  count: 5, tree: cab, segment: 1, row: 4, col: 2, needs: [w_wall] }
+    # --- Chili ---
+    - { id: f_chili, kind: field,  ref: chili, tree: chili, segment: 2, row: 0, col: 0 }                                # Chilifeld
+    - { id: w_chili, kind: weapon, ref: chili, tree: chili, segment: 2, row: 0, col: 1, needs: [f_chili] }             #   -> Flammenwerfer
+    - { id: u_chili_dmg,   kind: upgrade, ref: chili_dmg,   count: 5, tree: chili, segment: 2, row: 0, col: 2, needs: [w_chili] }
+    - { id: u_chili_rng,   kind: upgrade, ref: chili_rng,   count: 5, tree: chili, segment: 2, row: 1, col: 2, needs: [w_chili] }
+    - { id: u_chili_sweep, kind: upgrade, ref: chili_sweep, count: 5, tree: chili, segment: 2, row: 2, col: 2, needs: [w_chili] }
+    - { id: u_chili_tick,  kind: upgrade, ref: chili_tick,  count: 5, tree: chili, segment: 2, row: 3, col: 2, needs: [w_chili] }
+    # --- Zitrone ---
+    - { id: f_lemon, kind: field,  ref: lemon, tree: lemon, segment: 2, row: 0, col: 0 }                                # Zitronenfeld
+    - { id: w_lemon, kind: weapon, ref: lemon, tree: lemon, segment: 2, row: 0, col: 1, needs: [f_lemon] }             #   -> Citrateaser
+    - { id: u_lemon_dmg,  kind: upgrade, ref: lemon_dmg,  count: 5, tree: lemon, segment: 2, row: 0, col: 2, needs: [w_lemon] }
+    - { id: u_lemon_rng,  kind: upgrade, ref: lemon_rng,  count: 5, tree: lemon, segment: 2, row: 1, col: 2, needs: [w_lemon] }
+    - { id: u_lemon_cd,   kind: upgrade, ref: lemon_cd,   count: 5, tree: lemon, segment: 2, row: 2, col: 2, needs: [w_lemon] }
+    - { id: u_lemon_tgt,  kind: upgrade, ref: lemon_tgt,  count: 5, tree: lemon, segment: 2, row: 3, col: 2, needs: [w_lemon] }
+    - { id: u_lemon_xfer, kind: upgrade, ref: lemon_xfer, count: 5, tree: lemon, segment: 2, row: 4, col: 2, needs: [w_lemon] }
+    - { id: u_lemon_eff,  kind: upgrade, ref: lemon_eff,  count: 5, tree: lemon, segment: 2, row: 5, col: 2, needs: [w_lemon] }
+    # --- Heidelbeere ---
+    - { id: f_blue,  kind: field,  ref: blue,  tree: blue, segment: 3, row: 0, col: 0 }                                 # Heidelbeerfeld
+    - { id: w_blue,  kind: weapon, ref: blue,  tree: blue, segment: 3, row: 0, col: 1, needs: [f_blue] }               #   -> Beerengewehr (nur Heidelbeeren)
+    - { id: u_blue_dmg,    kind: upgrade, ref: blue_dmg,    count: 5, tree: blue, segment: 3, row: 0, col: 2, needs: [w_blue] }
+    - { id: u_blue_rng,    kind: upgrade, ref: blue_rng,    count: 5, tree: blue, segment: 3, row: 1, col: 2, needs: [w_blue] }
+    - { id: u_blue_cd,     kind: upgrade, ref: blue_cd,     count: 5, tree: blue, segment: 3, row: 2, col: 2, needs: [w_blue] }
+    - { id: u_blue_pel,    kind: upgrade, ref: blue_pel,    count: 5, tree: blue, segment: 3, row: 3, col: 2, needs: [w_blue] }
+    - { id: u_blue_pierce, kind: upgrade, ref: blue_pierce, count: 5, tree: blue, segment: 3, row: 4, col: 2, needs: [w_blue] }
+    # --- Spargel ---
+    - { id: f_asp,   kind: field,  ref: asp,   tree: asp, segment: 3, row: 0, col: 0 }                                  # Spargelfeld
+    - { id: w_asp,   kind: weapon, ref: asp,   tree: asp, segment: 3, row: 0, col: 1, needs: [f_asp] }                  #   -> Spargel-Armbrust
+    - { id: u_asp_dmg,    kind: upgrade, ref: asp_dmg,    count: 5, tree: asp, segment: 3, row: 0, col: 2, needs: [w_asp] }
+    - { id: u_asp_rng,    kind: upgrade, ref: asp_rng,    count: 5, tree: asp, segment: 3, row: 1, col: 2, needs: [w_asp] }
+    - { id: u_asp_cd,     kind: upgrade, ref: asp_cd,     count: 5, tree: asp, segment: 3, row: 2, col: 2, needs: [w_asp] }
+    - { id: u_asp_pierce, kind: upgrade, ref: asp_pierce, count: 4, tree: asp, segment: 3, row: 3, col: 2, needs: [w_asp] }   # 4. Stufe = alle Ziele
+    - { id: u_asp_pb,     kind: upgrade, ref: asp_pb,     count: 5, tree: asp, segment: 3, row: 4, col: 2, needs: [w_asp] }
+    - { id: u_asp_salvo,  kind: upgrade, ref: asp_salvo,  count: 5, tree: asp, segment: 3, row: 5, col: 2, needs: [w_asp] }
+    - { id: u_asp_size,   kind: upgrade, ref: asp_size,   count: 4, tree: asp, segment: 3, row: 6, col: 2, needs: [w_asp] }
 
 # Cheat-Optionen (24.11.2026, Optionen > Cheat-Optionen)
 cheats:

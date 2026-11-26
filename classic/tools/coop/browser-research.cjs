@@ -12,6 +12,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shot = async (pg, name) => { try { await pg.screenshot({ path: OUT + '/' + name, timeout: 90000 }); } catch { console.log('     (Screenshot ' + name + ' zu langsam, übersprungen)'); } };
 const errs = [];
 let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++; };
+// expanded node index (upgrade chains count N entries), as the snapshot uses it
+const XI = `(id => { let i = 0; for (const n of window.__pog.view.cfg.research.nodes) { if (n.id === id) return i; i += n.kind === 'upgrade' ? Math.max(1, n.count ?? 1) : 1; } return -1; })`;
 const until = async (pg, fn, arg, ms = 20000) => { try { await pg.waitForFunction(fn, arg, { timeout: ms, polling: 200 }); return true; } catch { return false; } };
 (async () => {
   const browser = await chromium.launch({ args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -42,9 +44,9 @@ const until = async (pg, fn, arg, ms = 20000) => { try { await pg.waitForFunctio
   ok(await until(G, () => window.__pog.view.snap.me[window.__pog.me]?.ro === 1 && !document.querySelector('#rsTree').hidden), 'Gast: Techtree-Panel offen (m.ro 1)');
   await shot(G, 'coop-gast-panel.png');
   // choose Weizenfeld (click its node)
-  await G.evaluate(() => { const cfg = window.__pog.view.cfg, i = cfg.research.nodes.findIndex(n => n.id === 'f_wheat'); document.querySelector(`#rsTree .rtNode[data-i="${i}"]`).dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); document.querySelector(`#rsTree .rtNode[data-i="${i}"]`).click(); });
+  await G.evaluate(xi => { const i = eval(xi)('f_wheat'); document.querySelector(`#rsTree .rtNode[data-i="${i}"]`).dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); document.querySelector(`#rsTree .rtNode[data-i="${i}"]`).click(); }, XI);
   let chosen = await until(G, () => window.__pog.view.snap.rs[0] >= 0, null, 8000);
-  if (!chosen) { await G.evaluate(() => { const cfg = window.__pog.view.cfg; window.__pog.client.send({ t: 'rsChoose', node: cfg.research.nodes.findIndex(n => n.id === 'f_wheat') }); }); chosen = await until(G, () => window.__pog.view.snap.rs[0] >= 0); console.log('     (Knoten per rsChoose-Nachricht gewählt, Klick kam nicht an)'); }
+  if (!chosen) { await G.evaluate(xi => window.__pog.client.send({ t: 'rsChoose', node: eval(xi)('f_wheat') }), XI); chosen = await until(G, () => window.__pog.view.snap.rs[0] >= 0); console.log('     (Knoten per rsChoose-Nachricht gewählt, Klick kam nicht an)'); }
   ok(chosen, 'Gast: Idee gewählt (rs[0])');
   // stand at the bench and hold the harvest key
   await H.evaluate(id => { const s = window.__pog.sim, b = s.benchCircle(), p = s.player(id); p.x = b.x + 1.2; p.z = b.z; }, gid);

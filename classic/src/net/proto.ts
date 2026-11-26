@@ -142,6 +142,7 @@ export const TABLES: Record<string, string> = {
   eg: 'uppp' + 'gfggg',                     // id x y z landed left out lure eaters
   cl: 'upp' + 'gggg' + 'pp',                // id x z r birth life ign ix iz
   wl: 'upp' + 'uu',                         // 26.11.2026 Steinkohle posts: id x z hp maxHp (a post costs bytes once, then only hp changes)
+  sk: 'upp' + 'a' + 'uu',                   // 26.11.2026 Mehlsäcke stacks: id x z angle hp maxHp
 };
 export const TABLE_KEYS = Object.keys(TABLES) as (keyof Snap & string)[];
 /** player object keys in a fixed order (row index = position here) */

@@ -1290,11 +1290,60 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .rtBadge.ok{background:#e3b964;box-shadow:0 0 8px #e3b964aa,0 1px 2px #000}
 .rtBadge.lk{background:#1a2027;border:1px solid #5a6470}
 .rtBadge.lv{background:var(--xp);border:1.5px solid #c9d4ff;color:#fff;font:700 12px/1 var(--f-display)}
+/* 26.11.2026 Einzelbäume: fruit tabs in the header, Forschungstempo as a header button, upgrade chips (same upgrades in a row) */
+.rtTabs{flex:1 1 auto;min-width:0;display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:6px 2px;align-self:stretch;align-items:center}
+.rtTabs::-webkit-scrollbar{display:none}
+.rtTab{--p:0;position:relative;flex:none;width:calc(var(--head) - 10px);height:calc(var(--head) - 10px);box-sizing:border-box;border-radius:12px;border:1.5px solid #4a5560;background:linear-gradient(180deg,#202932,#121820);
+  display:grid;place-items:center;padding:0;cursor:pointer;color:var(--parch);transition:transform .12s,border-color .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent}
+.rtTabIc{display:grid;place-items:center;width:74%;height:74%;margin-top:-6px}.rtTabIc svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px #000)}
+.rtTab small{position:absolute;left:0;right:0;bottom:1px;font:700 9.5px/1 var(--f-body);color:#9aa4ae;text-align:center;font-variant-numeric:tabular-nums}
+.rtTab:hover{border-color:#efe3c8}
+.rtTab.sel{border-color:var(--gold);background:linear-gradient(180deg,#3d3018,#1c160c);box-shadow:0 0 0 2px #e3b96444,0 0 14px #e3b96455}
+.rtTab.sel small{color:#ffe6a8}
+.rtTab.lock{filter:grayscale(.9);opacity:.6}
+.rtTab.lock .rtBadge{right:-4px;top:-4px;width:17px;height:17px}
+.rtTab.avail::after{content:"";position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#efe3c8;box-shadow:0 0 6px #efe3c8}
+.rtTab.cur{border-color:var(--xp2)}
+.rtTabRing{position:absolute;inset:-4px;border-radius:14px;pointer-events:none;background:conic-gradient(var(--xp2) calc(var(--p) * 360deg),#ffffff14 0);
+  -webkit-mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);padding:3px;box-sizing:border-box}
+.rtTab.ready{animation:rtReady 1s ease-in-out infinite alternate}
+.rtSpeed{--p:0;position:relative;flex:none;display:flex;align-items:center;gap:6px;height:calc(var(--head) - 14px);padding:0 12px 0 4px;border-radius:999px;border:1.5px solid #4a6dff77;
+  background:linear-gradient(180deg,#1b2440,#0e1424);color:#c9d4ff;font:inherit;cursor:pointer;transition:transform .12s,box-shadow .15s,border-color .15s;-webkit-tap-highlight-color:transparent}
+.rtSpIc{position:relative;display:grid;place-items:center;width:calc(var(--head) - 22px);height:calc(var(--head) - 22px)}.rtSpIc>svg{width:100%;height:100%;display:block}
+.rtSpIc .rtBadge{right:-6px;top:-6px;width:18px;height:18px;font-size:10.5px}
+.rtSpTx{display:flex;flex-direction:column;line-height:1.05}.rtSpTx>b{font:700 15px var(--f-body);font-variant-numeric:tabular-nums}
+.rtSpTx .rtCost small{font:700 11px var(--f-body);color:#9fb4ff;margin-right:4px}
+.rtSpeed .rtBar{left:14px;right:14px;bottom:3px}
+.rtSpeed[data-p=""] .rtBar,.rtSpeed[data-p="0.000"]:not(.cur) .rtBar{display:none}
+.rtSpeed.avail:hover,.rtSpeed.cur:hover{border-color:var(--gold);box-shadow:0 0 14px #e3b96455}
+.rtSpeed.cur,.rtSpeed.ready{border-color:var(--xp2);box-shadow:0 0 0 2px #4a6dff55,0 0 16px #4a6dff66}
+.rtSpeed.ready{animation:rtReady 1s ease-in-out infinite alternate}
+.rtSpeed.chosen{transform:scale(.96)}.rtSpeed.deny{animation:rtDeny .35s ease}
+.rtNode.k-upgrade{height:auto;flex-direction:column;gap:1px;padding:0;border:0;background:none;box-shadow:none;border-radius:0;align-items:center}
+.rtNode.k-upgrade .rtIc{width:var(--u);height:var(--u);margin:0;box-shadow:0 3px 8px #0009}
+.rtNode.k-upgrade .rtIcIn svg{width:64%;height:64%}
+.rtNode.k-upgrade.avail .rtIc{border-color:#efe3c8}
+.rtNode.k-upgrade.done .rtIc{border-color:#e3b964;background:radial-gradient(circle at 40% 30%,#5a4620,#1c160c 75%)}
+.rtNode.k-upgrade.cur .rtIc,.rtNode.k-upgrade.ready .rtIc{border-color:var(--xp2);background:radial-gradient(circle at 40% 30%,#2b3e9c,#0e1640)}
+.rtNode.k-upgrade.avail:hover,.rtNode.k-upgrade.cur:hover{box-shadow:none;transform:translateY(-2px)}
+.rtNode.k-upgrade.avail:hover .rtIc,.rtNode.k-upgrade.cur:hover .rtIc{border-color:var(--gold);box-shadow:0 0 14px #e3b96477}
+.rtNode.k-upgrade.cur,.rtNode.k-upgrade.ready{box-shadow:none;background:none}
+.rtNode.k-upgrade.ready{animation:none}.rtNode.k-upgrade.ready .rtIc{animation:rtReady 1s ease-in-out infinite alternate}
+.rtNode.k-upgrade .rtBadge{right:-4px;top:-4px;width:17px;height:17px}
+.rtLvN{position:absolute;right:-4px;bottom:-3px;min-width:16px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:#0b1016;border:1px solid #5a6470;color:#d8dde2;font:700 10px/14px var(--f-display);text-align:center}
+.rtNode.k-upgrade.avail .rtLvN,.rtNode.k-upgrade.cur .rtLvN{border-color:#efe3c8;color:#fff}
+.rtCap{height:14px;font:700 11px/14px var(--f-body);color:#d8ccb0;white-space:nowrap;letter-spacing:.02em;text-shadow:0 1px 2px #000;align-self:flex-start;margin-left:2px}
+.rtUpTx{min-height:14px;display:flex;justify-content:center}.rtUpTx .rtCost{font-size:10.5px}.rtUpTx .rtCost i{width:10px;height:10px}
+.rtUpTx em{font:700 10.5px var(--f-body);font-style:normal;color:#ffe27a}
+.rtNode.k-upgrade .rtBar{display:none}
+.rtNode.k-upgrade.cur .rtIc::after,.rtNode.k-upgrade.ready .rtIc::after{inset:-5px}
+.k-upgrade .rpIc{border-color:#9fb4ff}
 @media (max-height:519px),(max-width:719px){
   #rsTree{padding:0}
   .rtPanel{width:100%;height:100%;max-height:none;border-radius:0;border:0}
   .rtHead{padding:env(safe-area-inset-top,0px) max(6px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));height:calc(var(--head) + env(safe-area-inset-top,0px))}
   .rtTitle{font-size:16px}.rtTempo{font-size:13px}
+  .rtTitle,.rtHi{display:none}.rtHead{gap:6px}.rtSpTx>b{font-size:13px}.rtSpTx .rtCost small{display:none}
   .rtScroll{padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
   .rtTx b{font-size:12.5px}.rtCost{font-size:11.5px}.rtLockChip{font-size:13px}
 }

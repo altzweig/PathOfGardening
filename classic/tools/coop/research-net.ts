@@ -3,6 +3,7 @@
 // ToHost rsChoose/rsOpen/rsFinish messages do via Host.onResearch), hammers until it is done, picks it up and places
 // the field; then builds a Steinkohle wall. Checks after every step that the guest's decoded snapshot shows the same
 // research state (rs, rd, rp, bn), its own hammering (pl.bw), its own UI (me.ro) and the posts (wl) as the host.
+// 26.11.2026 Einzelbäume: also Mehlsäcke (sk) laid by both players, upgrades and a field built over a sack edge.
 // Usage (in classic/):
 //   npx esbuild tools/coop/research-net.ts --bundle --platform=node --format=cjs --outfile=tools/coop/research-net.cjs
 //   node tools/coop/research-net.cjs [ping ms] [loss %]
@@ -44,6 +45,8 @@ let fails = 0; const ok = (c: boolean, m: string) => { console.log((c ? 'ok   ' 
 const settle = () => step(Math.ceil(.6 * NC.simHz)); // > ping + interpolation delay
 const gp = () => guestSnap!.pl.find(p => p.id === GID)!;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** sack rows: the edge angle goes over the wire in 256 steps (1.4 deg) */
+const sameSk = (a?: number[][], b?: number[][]) => !!a && !!b && a.length === b.length && a.every((r, i) => r.every((v, j) => j === 3 ? Math.abs(Math.atan2(Math.sin(v - b[i][j]), Math.cos(v - b[i][j]))) < .03 : v === b[i][j]));
 
 step(30); settle();
 const bench = sim.benchCircle()!;
@@ -87,6 +90,13 @@ walkTo(-6, -6, .3); it = { ...it, fire: 'wall', mx: 1, mz: 0, sprint: true }; st
 ok((hostSnap!.wl?.length ?? 0) > 3 && same(guestSnap!.wl, hostSnap!.wl), `Mauer beim Gast: ${guestSnap!.wl?.length} Pfosten (Host ${hostSnap!.wl?.length}), gleich`);
 sim.walls[0].hp = 7; step(2); settle();
 ok(same(guestSnap!.wl, hostSnap!.wl), 'Mauer-Schaden kommt an (hp)');
-ok(g.stats.hashBad === 0, `Hash-Prüfung: ${g.stats.hashOk} gleich, ${g.stats.hashBad} abweichend; Ereignisse beim Gast: ${[...evSeen].filter(k => k.startsWith('rs') || k.startsWith('wall')).join(' ')}`);
+// 26.11.2026 Mehlsäcke: the guest lays stacks at the garden border (fire 'sack' while walking round), host and guest see the same
+p.ammo.sack = 999;
+const fi0 = sim.fields[0], sl0 = (sim as any).slots[fi0.slot];
+for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3 + Math.PI / 6; walkTo(sl0.x + Math.cos(a) * 1.0, sl0.z + Math.sin(a) * 1.0, .15); p.face = Math.atan2(Math.cos(a), Math.sin(a)); it = { ...it, fire: 'sack', mx: 0, mz: 0 }; step(NC.simHz * .5); it = { ...it, fire: null }; }
+settle();
+ok((hostSnap!.sk?.length ?? 0) > 0 && sameSk(guestSnap!.sk, hostSnap!.sk), `Mehlsäcke beim Gast: ${guestSnap!.sk?.length} Stapel (Host ${hostSnap!.sk?.length}), gleich`);
+if (sim.sacks.length) { sim.sacks[0].hp = 12; step(2); settle(); ok(sameSk(guestSnap!.sk, hostSnap!.sk), 'Mehlsack-Schaden kommt an (hp)'); }
+ok(g.stats.hashBad === 0, `Hash-Prüfung: ${g.stats.hashOk} gleich, ${g.stats.hashBad} abweichend; Ereignisse beim Gast: ${[...evSeen].filter(k => k.startsWith('rs') || k.startsWith('wall') || k.startsWith('sack')).join(' ')}`);
 console.log(`Bytes an den Gast: ${((h.bytesU + h.bytesR) / now / 1024).toFixed(2)} KB/s über ${now.toFixed(0)} s`);
 process.exit(fails ? 1 : 0);

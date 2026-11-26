@@ -395,9 +395,9 @@ rake:
 skills:
   readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
   asp:
-    damage: 15
+    damage: 19  # 26.11.2026 Basti: Startwerte 15 -> 19
     range: 7.5             # m (vorher 5 -> +50 %)
-    cooldown: 0.75         # s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
+    cooldown: 0.64  # 26.11.2026 Basti: Startwerte 0.75 -> 0.64. s pro Salve (vorher 0.25 s pro Schuss): 3 Bolzen je 0,75 s = Ø 4 Bolzen/s wie vorher
     burstShots: 3          # Armbrust schießt Salven aus 3 Spargel-Bolzen, dann Pause
     burstGap: 0.1          # s zwischen den Bolzen einer Salve (skaliert mit dem Abklingzeit-Upgrade) -> Pause 0,55 s
     ammoPerShot: 1         # je Bolzen (3 pro Salve)
@@ -406,9 +406,9 @@ skills:
     pierceFactor: 0.5      # Schaden nach jedem Durchbohren x 0.5
     width: 0.3             # m Trefferbreite des Geschosses (vorher 0.1 -> 3x breiter)
   blue:                    # 23.11.2026: DIE Schrotflinte (Startwaffe). Schießt die gewählte Beere: Blaubeere = Freeze, Brombeere = Dornenfessel, Preiselbeere = Bleeding
-    damage: 2.8            # je Beere (25.11.2026 Basti: -30 %, vorher 4)
+    damage: 3.5  # 26.11.2026 Basti: Startwerte 2.8 -> 3.5. je Beere (25.11.2026 Basti: -30 %, vorher 4)
     range: 6.5             # m
-    cooldown: 0.625
+    cooldown: 0.53  # 26.11.2026 Basti: Startwerte 0.625 -> 0.53
     ammoPerShot: 1         # 25.11.2026 Basti: zurück auf 1 (1,33 getestet: Bot 30 % der Kampfzeit ohne Munition, 0 % Siege). 23.11.2026 Sim-Balancing: 6 -> 1
     pellets: 8             # 25.11.2026 Basti: 6 -> 8, dafür kleiner
     cone: 45
@@ -417,16 +417,18 @@ skills:
     frozenBonus: 1.2       # 24.11.2026 Debuff-Sim: 1.5 -> 1.2. 23.11.2026: physischer Schaden (Harke, Schrot, Bolzen, Dornen) gegen Gefrorene x1,5
     ammo: [blue]           # 25.11.2026 Beerengewehr (Techtree Segment 3): schießt nur Heidelbeeren (ohne Eintrag: alle drei Beeren, alter Ablauf)
   pea:                     # 25.11.2026 Erbsenpistole (Startwaffe, Holzpistole mit erbsengrünem Schlitten): eine dicke Erbse, Desert-Eagle-Gefühl
-    damage: 20             # Einzelschaden. 26.11.2026 Bot: 14 -> 20, ein Schuss tötet Waschbären (8,4 Leben x Wellenfaktor 1 + 0,04 je Welle) bis Welle ~35 (mit 14: bis ~17), Pandas bis ~31
+    damage: 25  # 26.11.2026 Basti: Startwerte 20 -> 25. Einzelschaden. 26.11.2026 Bot: 14 -> 20, ein Schuss tötet Waschbären (8,4 Leben x Wellenfaktor 1 + 0,04 je Welle) bis Welle ~35 (mit 14: bis ~17), Pandas bis ~31
     range: 7               # m
-    cooldown: 0.65         # s, langsam
+    cooldown: 0.55  # 26.11.2026 Basti: Startwerte 0.65 -> 0.55. s, langsam
     ammoPerShot: 3         # Erbsen je Schuss (Basti)
     speed: 16              # m/s
-    width: 0.16            # m Trefferbreite der Erbse (kein Durchschlag)
+    width: 0.16            # m Trefferbreite der Erbse
+    pierce: 1              # 26.11.2026 Basti: durchschlägt zu Beginn 1 Tier und fliegt weiter ...
+    pierceFactor: 1        # ... mit vollem Schaden (1 = 100 %)
   wshot:                   # 25.11.2026 Schrotflinte (Weizen): Körner-Schrotkegel wie das Beerengewehr, ohne Beeren-Effekte. Munition = Weizen (wie die Maschinenpistole)
-    damage: 2.5            # je Korn
+    damage: 3.1  # 26.11.2026 Basti: Startwerte 2.5 -> 3.1. je Korn
     range: 6               # m
-    cooldown: 0.7          # s
+    cooldown: 0.6  # 26.11.2026 Basti: Startwerte 0.7 -> 0.6. s
     ammoPerShot: 3         # Weizen je Schuss
     pellets: 7             # Körner je Schuss
     cone: 40               # Grad
@@ -486,18 +488,18 @@ skills:
     maxLife: 20            # s, unberührte Eier verschwinden danach
     boss: false            # Bosse lassen sich nicht ablenken
   sling:                   # 24.11.2026 Eierschleuder (Holz-Zwille mit Lederband): Munition = rohe Eier aus dem Hühnergehege (Freischalt-Karte, sobald ein Hühnergehege steht)
-    damage: 10             # Explosionsschaden je Ei (Upgrade: +damagePerLevel)
+    damage: 12.5  # 26.11.2026 Basti: Startwerte 10 -> 12.5. Explosionsschaden je Ei (Upgrade: +damagePerLevel)
     radius: 0.7            # m Explosionsradius
     radiusStep: 0.1        # m mehr Radius je Upgrade
     range: 6.5             # m maximale Wurfweite (wie die Schrotflinte); trifft das Tier, das der Zielrichtung am nächsten ist
     aimCone: 30            # Grad: Tiere bis so weit neben der Zielrichtung werden angepeilt, sonst landet das Ei auf voller Weite
-    cooldown: 0.625        # s = blue.cooldown (Basti: gleiche Abklingzeit wie die Beeren-Schrotflinte). Upgrade: x (1 - cooldownPerLevel)
+    cooldown: 0.53  # 26.11.2026 Basti: Startwerte 0.625 -> 0.53. s = blue.cooldown (Basti: gleiche Abklingzeit wie die Beeren-Schrotflinte). Upgrade: x (1 - cooldownPerLevel)
     ammoPerShot: 1         # Eier je Schuss
     # Debuff = Kohl-Gift (cab.poisonDuration / poisonTick / poisonTickDamage / poisonSlow), nur in Schwefelgelb
   wheat:                   # 23.11.2026 Körner-MP aus Holz: Munition = Weizen (Getreidefeld), Freischalt-Karte wie die anderen Feldwaffen
-    damage: 2.0            # 24.11.2026: 1,6 -> 2. je Korn (wenig Schaden, dafür 10 Schuss/s)
+    damage: 2.5  # 26.11.2026 Basti: Startwerte 2.0 -> 2.5. 24.11.2026: 1,6 -> 2. je Korn (wenig Schaden, dafür 10 Schuss/s)
     range: 7.5             # m (etwas mehr als die Schrotflinte mit 6,5 m)
-    cooldown: 0.1          # s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
+    cooldown: 0.085  # 26.11.2026 Basti: Startwerte 0.1 -> 0.085. s pro Korn = 10 Körner/s (kein Abklingzeit-Upgrade)
     ammoPerShot: 1         # Weizen je Korn (Basti 23.11.2026: 1 Weizen = 1 Korn)
     speed: 24              # m/s, schnelle Körner
     heatTime: 3            # s Dauerfeuer bis zur vollen Streuung (Upgrade +25 %/Stufe). 24.11.2026 (Basti): überhitzt nicht mehr, man kann durchgehend schießen, wird nur ungenauer
@@ -507,9 +509,9 @@ skills:
     spreadMin: 1           # Grad Streuung kalt (sehr genau)
     spreadMax: 14          # Grad Streuung bei Dauerfeuer (wächst quadratisch mit der Hitze)
   flour:                   # 23.11.2026 Mehlsack: Munition = Mehl aus der Mühle (Freischalt-Karte, sobald eine Mühle steht)
-    damage: 30             # Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
+    damage: 37.5  # 26.11.2026 Basti: Startwerte 30 -> 37.5. Sofort-Feuerschaden, wenn die Flammenwelle ein Tier erreicht
     range: 1.04            # m, Radius der Mehlwolke um den Spieler (23.11.2026: 2/5 von 2,6; Reichweite-Upgrade vergrößert sie)
-    cooldown: 0.4          # s (23.11.2026: gedrückt halten -> im Laufen alle 0,4 s eine kleine Wolke, vorher 2,5 s)
+    cooldown: 0.34  # 26.11.2026 Basti: Startwerte 0.4 -> 0.34. s (23.11.2026: gedrückt halten -> im Laufen alle 0,4 s eine kleine Wolke, vorher 2,5 s)
     ammoPerShot: 1         # Mehl je Wolke (vorher 2 je großem Wurf)
     spin: 0                # s Drehung beim Werfen (23.11.2026 aus, damit man beim Streuen weiterläuft; vorher 0,45)
     life: 10               # 24.11.2026 Basti 6 -> 10. s hängt die Wolke in der Luft ...
@@ -519,9 +521,9 @@ skills:
     burnDps: 4             # ... mit so viel Schaden pro Sekunde
     maxClouds: 100         # 24.11.2026 16 -> 100 (Basti), 23.11.2026 4 -> 16 (kleine Wolken im Laufen); höchstens so viele unentzündete Wolken gleichzeitig (die älteste verschwindet)
   cran:
-    damage: 5              # je Projektil
+    damage: 6.25  # 26.11.2026 Basti: Startwerte 5 -> 6.25. je Projektil
     range: 7.00            # m (4,5 -> +50 %)
-    cooldown: 0.625        # -20 % Feuerrate (vorher 0.5)
+    cooldown: 0.53  # 26.11.2026 Basti: Startwerte 0.625 -> 0.53. -20 % Feuerrate (vorher 0.5)
     ammoPerShot: 6
     pellets: 6             # Beeren pro Schuss
     cone: 45               # Grad, maximaler Streukegel (±22,5 Grad), nichts fliegt weiter raus (17.11.2026: 80 -> 45, streut weniger)
@@ -533,21 +535,22 @@ skills:
     splashDamage: 0.25     # Platzschaden = Anteil des Beerenschadens (ohne Blutung); 17.11.2026: 50 -> 25 %, Upgrade bis 100 %
     splashRadius: 0.6      # m, Radius des roten Flecks / Platzschadens
   lemon:                   # Citrateaser (17.11.2026): Zauberstab, schießt einen langsamen Kugelblitz geradeaus
-    damage: 20             # Grundschaden: Direkttreffer = 100 %
-    cooldown: 1.0          # 1 Kugelblitz pro Sekunde
+    damage: 30  # 26.11.2026 Basti: Startwerte 20 -> 30. Grundschaden: Direkttreffer = 100 %
+    cooldown: 0.8  # 26.11.2026 Basti: Startwerte 1.0 -> 0.8. 1 Kugelblitz pro Sekunde
     ammoPerShot: 1
-    range: 6               # m Flugweite des Kugelblitzes
-    speed: 3.5             # m/s, langsam (6 m in ca. 1,7 s)
+    range: 8  # 26.11.2026 Basti: Startwerte 6 -> 8. m Flugweite des Kugelblitzes
+    speed: 4.5  # 26.11.2026 Basti: Startwerte 3.5 -> 4.5. m/s, langsam (6 m in ca. 1,7 s)
     ballRadius: 0.09       # m, Kugel ca. 18 cm groß (Optik + Kollision); Reichweite-Upgrade vergrößert stattdessen Kugel und tickRadius (+20 % je Stufe)
     tickInterval: 0.25     # s, im Flug trifft der Blitz alle 0,25 s ...
     tickRadius: 0.5        # m ... den nächsten Gegner in 0,5 m Umkreis ...
     tickDamage: 0.25       # ... mit 25 % Schaden
-    chainRadius: 2.5       # m, so weit springt der Kettenblitz nach einem Direkttreffer zum nächsten Gegner
+    chainRadius: 3.5  # 26.11.2026 Basti: Startwerte 2.5 -> 3.5. m, so weit springt der Kettenblitz nach einem Direkttreffer zum nächsten Gegner
+    chains: 2              # 26.11.2026 Basti: Kettenziele schon zu Beginn (vorher 0, nur per Upgrade); Upgrade lemonTargets +1 je Stufe
     chainDamage: 0.5       # Kettenziele und Rückblitz aufs Hauptziel: je 50 % Schaden (Upgrade Schadenseffizienz bis 100 %)
     dropLoot: true         # das direkt getroffene Tier lässt seine Beute fallen
   chili:                   # Flammenwerfer: Flammenkegel, der hin und her schwenkt und Gegner anzündet
     range: 3.5             # m, Flammenlänge
-    cooldown: 0.125        # s pro Flammenstoß -> 8 Chilis pro Sekunde
+    cooldown: 0.105  # 26.11.2026 Basti: Startwerte 0.125 -> 0.105. s pro Flammenstoß -> 8 Chilis pro Sekunde
     ammoPerShot: 1
     cone: 30               # Grad, Breite der Flamme
     sweep: 40              # Grad, so weit schwenkt die Flamme (Mitte = Zielrichtung)
@@ -555,8 +558,8 @@ skills:
     # Jeder Flammenstoß, der einen Gegner erwischt: Sofortschaden + 1 Brand-Stapel (max. burnStacks).
     # Brennen: pro Tick Stapel x burnDamage. Jeder neue Treffer frischt die Brenndauer auf; ohne Treffer erlischt es nach burnDuration.
     # Flächenbrand: stirbt ein brennender Gegner, springt das Feuer auf Gegner in spreadRadius über (Anteil spreadShare seiner Stapel, mind. 1).
-    damage: 1              # Sofortschaden je Treffer (8 Flammenstöße pro Sekunde)
-    burnDamage: 1.0        # Brandschaden je Stapel und Tick (24.11.2026 Basti: mehr Schaden pro Tick, 0,5 -> 1; Sim: Schrotflinte + Flammenwerfer Welle 39 -> 41)
+    damage: 1.25  # 26.11.2026 Basti: Startwerte 1 -> 1.25. Sofortschaden je Treffer (8 Flammenstöße pro Sekunde)
+    burnDamage: 1.25  # 26.11.2026 Basti: Startwerte 1.0 -> 1.25. Brandschaden je Stapel und Tick (24.11.2026 Basti: mehr Schaden pro Tick, 0,5 -> 1; Sim: Schrotflinte + Flammenwerfer Welle 39 -> 41)
     burnStacks: 6
     burnDuration: 3        # s Brenndauer nach dem letzten Treffer
     burnTick: 0.5          # s pro Brand-Tick
@@ -569,9 +572,9 @@ skills:
     mineTrigger: 0.45      # m, Tier berührt die Mine -> Explosion (Flächenschaden radius)
     maxMines: 100          # 24.11.2026 15 -> 100 (Basti): höchstens so viele Minen liegen gleichzeitig (die älteste verschwindet)
     mineLife: 60           # 24.11.2026 s, so lange liegt eine Mine, dann zerfällt sie ohne Explosion (schrumpft die letzten 0,6 s)
-    damage: 5
+    damage: 6.25  # 26.11.2026 Basti: Startwerte 5 -> 6.25
     radius: 1.9            # m, Explosionsradius (vorher 1.5; Fläche x1.6 -> Radius x1.26)
-    cooldown: 0.5          # 23.11.2026: 2 Minen pro Sekunde (vorher 1.0)
+    cooldown: 0.425  # 26.11.2026 Basti: Startwerte 0.5 -> 0.425. 23.11.2026: 2 Minen pro Sekunde (vorher 1.0)
     ammoPerShot: 1
     chargeTime: 1.0        # s Gedrückthalten bis zur vollen Ladung (Leiste über dem Spieler)
     throwMin: 1.5          # m Wurfweite ohne Ladung (kurzes Antippen)

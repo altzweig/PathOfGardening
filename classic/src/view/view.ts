@@ -1230,9 +1230,19 @@ export class GameView {
           const d = miss ? 0 : sg[4], from = d === 0 && tip ? tip.clone() : V(sg[0], .5, sg[1]);
           return [from, V(sg[2], miss ? .2 : .42, sg[3]), d];
         });
-        lightning(list, { fork: miss ? 1 : hits, width: miss ? .014 : .022 });
-        if (!miss) for (const sg of sgs) { burst(V(sg[2], .42, sg[3]), 0xc8d8ff, 5, 1.6, .06, .18); decal(sg[2], sg[3], 0x9fb8ff, .12, .25, { ring: true, add: true, grow: .45, op: .3 }); }
-        this.shake = Math.min(.2, this.shake + .02); break;
+        // 26.11.2026 Basti: much stronger look. Thick, bright yellow-white bolts with many forks; a direct hit (e.h) adds a second
+        // re-strike, a flash ring and a scorch on the ground at every target. Only additive particles / decals (no lights: prewarm rule)
+        const hv = !!e.h && !miss;
+        lightning(list, { fork: miss ? 1 : hits * 2 + (hv ? 3 : 1), width: miss ? .03 : hv ? .13 : .07, life: hv ? .4 : .3, core: 0xfff4b8, halo: 0xffc828, gain: hv ? 2.2 : 1.6 });
+        if (hv) lightning(list.map(([a, b, d]) => [a.clone(), b.clone(), d + 1] as [THREE.Vector3, THREE.Vector3, number]), { fork: hits + 1, width: .06, life: .3, core: 0xffffff, halo: 0xb8c8ff, gain: 1.5 });
+        if (!miss) for (const sg of sgs) {
+          const at = V(sg[2], .42, sg[3]);
+          burst(at, 0xfff2a0, hv ? 14 : 8, hv ? 3 : 2.2, .08, .26); burst(at, 0xc8d8ff, hv ? 8 : 4, 1.8, .06, .2);
+          decal(sg[2], sg[3], 0xffe070, .14, hv ? .35 : .25, { ring: true, add: true, grow: hv ? 1.1 : .7, op: hv ? .75 : .45 });
+          if (hv) decal(sg[2], sg[3], 0x2a2418, .16, 1.6, { op: .35 });
+        }
+        if (pv && tip) burst(tip, 0xfff6c0, 10, 2, .06, .2); // muzzle flash on the wand
+        this.shake = Math.min(.25, this.shake + (hv ? .06 : .03)); break;
       }
       case 'till': this.rakeStroke(e.s, e.a ?? 1, e.m ?? 63, e.w); break;
       case 'cropDone': this.cropEvent(e.s, false); break;

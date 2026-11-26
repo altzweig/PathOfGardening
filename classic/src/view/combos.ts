@@ -93,11 +93,13 @@ export function projMesh(kind: number): THREE.Object3D {
     }
     case 8: part(g, BERRY_GEO.cran, glow(0xffe23a, 0xffd000, 2.6, .3), .075, .075, .075, 0, 0, 0, false); part(g, GEO.sph, ADD(0xfff4a0, .4), .12, .12, .12, 0, 0, 0, false); break;
     case 9: { // ball lightning (lemon wand): white-hot core, yellow plasma shell, flickering arcs
-      part(g, GEO.sph, glow(0xffffff, 0xfff6c0, 4), .045, .045, .045, 0, 0, 0, false);
-      part(g, GEO.ico, ADD(0xffd830, .75), .085, .085, .085, 0, 0, 0, false);
-      part(g, GEO.sph, ADD(0xffe050, .25), .16, .16, .16, 0, 0, 0, false);
+      // 26.11.2026 Basti: bigger and brighter (core x1.6, shells x1.7, extra outer glow, 8 longer arcs); the ball also crackles (animProj)
+      part(g, GEO.sph, glow(0xffffff, 0xfff6c0, 4), .075, .075, .075, 0, 0, 0, false);
+      part(g, GEO.ico, ADD(0xffd830, .8), .15, .15, .15, 0, 0, 0, false);
+      part(g, GEO.sph, ADD(0xffe050, .3), .28, .28, .28, 0, 0, 0, false);
+      part(g, GEO.sph, ADD(0xfff0a0, .1), .5, .5, .5, 0, 0, 0, false);
       const arcs = new THREE.Group(); g.add(arcs);
-      for (let i = 0; i < 4; i++) { const d = V(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); seg(arcs, ADD(0xfffbe0, .9), .006, [0, 0, 0], [d.x * .12, d.y * .12, d.z * .12]); }
+      for (let i = 0; i < 8; i++) { const d = V(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), l = rand(.16, .26); seg(arcs, ADD(0xfffbe0, .9), .008, [0, 0, 0], [d.x * l, d.y * l, d.z * l]); }
       g.userData.arcs = arcs; g.userData.pulse = true; break;
     }
     case 10: part(g, BERRY_GEO.blue, PEL_BLUE, .056, .056, .056, 0, 0, 0, false); break; // blueberry pellet (25.11.2026: 8 smaller berries per shot, .07 -> .056)
@@ -124,7 +126,11 @@ export function animProj(kind: number, m: THREE.Object3D, x: number, y: number, 
   else if (kind === 9) { // ball lightning: pulsing, arcs spin and flicker, sparks fall off
     m.scale.setScalar((w || 1) * (1 + .12 * Math.sin(now * 31) + .06 * Math.sin(now * 53)));
     const a = m.userData.arcs as THREE.Object3D | undefined; if (a) { a.rotation.set(now * 7, now * 11, now * 5); a.visible = Math.random() < .8; }
-    if (Math.random() < dt * 40) PART.spawn(V(x + rand(-.06, .06), y + rand(-.06, .06), z + rand(-.06, .06)), V(rand(-.6, .6), rand(-.2, .6), rand(-.6, .6)), Math.random() < .5 ? 0xfff6a0 : 0xffffff, rand(.03, .06), rand(.12, .25), { a: .95 });
+    if (Math.random() < dt * 70) PART.spawn(V(x + rand(-.1, .1), y + rand(-.1, .1), z + rand(-.1, .1)), V(rand(-.9, .9), rand(-.2, .8), rand(-.9, .9)), Math.random() < .5 ? 0xfff6a0 : 0xffffff, rand(.04, .08), rand(.15, .3), { a: .95 });
+    if (Math.random() < dt * 9) { // crackle: short bolt out of the ball, mostly down to the ground
+      const a0 = V(x, y, z), an = rand(0, 7), r = rand(.35, .8);
+      lightning([[a0, V(x + Math.cos(an) * r, Math.random() < .6 ? .03 : y + rand(-.2, .3), z + Math.sin(an) * r), 0]], { fork: 2, width: .016, life: .16, core: 0xfffbe8, halo: 0xffd84a, gain: 1.3 });
+    }
   }
 }
 /** BK index: 1 cole (spiked time bomb), 2 cabboom (berry cabbage), 3 kimchi (red cabbage, splits) */

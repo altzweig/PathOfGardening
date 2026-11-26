@@ -955,7 +955,7 @@ export class Sim {
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: (id === 'blue' ? S.blue.pellets : id === 'wshot' ? S.wshot.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
-      minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv),
+      minis: s.minis, gas: Math.min(1, U.cabGas.step * s.gasLv), chains: (S.lemon.chains ?? 0) + U.lemonTargets.step * s.tgtLv, chainReturn: Math.min(1, U.lemonTransfer.step * s.xferLv),
       eat: id === 'pan' ? S.pan.eat + S.pan.eatStep * s.lvDmg : 0,
       blast: id === 'sling' ? S.sling.radius + S.sling.radiusStep * s.lvRange : 0,
       chainDmg: Math.min(1, S.lemon.chainDamage + U.lemonEfficiency.step * s.effLv), ballR: S.lemon.ballRadius * rm, tickR: S.lemon.tickRadius * rm, poisonMul: 1 + U.cabPoison.step * s.poisLv, throwDist: S.cab.throwMax, width: S.asp.width * size, size,
@@ -1299,8 +1299,8 @@ export class Sim {
       }
       last = nx;
     }
-    this.emit({ k: 'zap', s: [[r2(pr.x), r2(pr.z), r2(main.x), r2(main.z), 1], ...segs], t: 1 });
-    this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 14, 2.4, .1, .3);
+    this.emit({ k: 'zap', s: [[r2(pr.x), r2(pr.z), r2(main.x), r2(main.z), 1], ...segs], t: 1, h: 1 }); // h: direct hit (view: heavy strike + flash ring)
+    this.burst(pr.x, pr.y, pr.z, 0xfff0a0, 24, 3.2, .12, .35);
   }
   /** flamethrower burst: everything the cone swept over since the last burst catches fire (+1 stack) */
   flame(p: Player, dx: number, dz: number, st: SkillStats) {
@@ -1496,9 +1496,9 @@ export class Sim {
       this.projs.push({ id: this.nid++, kind: 'wheat', x: fx, y: fy, z: fz, dx: Math.sin(a), dz: Math.cos(a), speed: W.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 1, mine: 0, w: W.width ?? .07, hit: new Set() });
       this.sfx('weapons.grain', p.x, p.z);
       s.heat = Math.min(1, h + st.cd / st.dur); s.idle = 0;
-    } else if (id === 'pea') { // 25.11.2026 Erbsenpistole: one big heavy pea, no pierce
+    } else if (id === 'pea') { // 25.11.2026 Erbsenpistole: one big heavy pea; 26.11.2026 Basti: pierces pea.pierce enemies, damage x pierceFactor after each
       const E = S.pea;
-      this.projs.push({ id: this.nid++, kind: 'pea', x: fx, y: fy, z: fz, dx, dz, speed: E.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: 0, pf: 1, mine: 0, w: E.width, hit: new Set() });
+      this.projs.push({ id: this.nid++, kind: 'pea', x: fx, y: fy, z: fz, dx, dz, speed: E.speed, left: st.range, total: st.range, dmg: st.dmg, pierceLeft: E.pierce ?? 0, pf: E.pierceFactor ?? 1, mine: 0, w: E.width, hit: new Set() });
       this.sfx('weapons.pea', p.x, p.z); this.burst(fx, fy, fz, 0x9ad860, 6, 2, .12, .25);
     } else if (id === 'wall') { // 25.11.2026 Steinkohle: one post where the player is (just behind him)
       this.layWall(p);
@@ -2882,7 +2882,7 @@ export class Sim {
         } else if (pr.kind === 'pea' || pr.kind === 'wshot') { // 25.11.2026 Erbse (one big hit) / Weizen-Schrot (grain pellet, no debuff)
           this.hurtEnemy(e, pr.dmg, { color: 'w', src: pr.kind === 'pea' ? 'pea' : 'wheat', phys: true, punch: pr.kind === 'pea' });
           this.burst(e.x, .45, e.z, pr.kind === 'pea' ? 0x8fd050 : 0xe8c060, pr.kind === 'pea' ? 10 : 4, 1.8, pr.kind === 'pea' ? .1 : .06, .3); this.emit({ k: 'impact', x: r2(e.x), z: r2(e.z), c: pr.kind === 'pea' ? 4 : 5 });
-          if (pr.pierceLeft > 0) { pr.pierceLeft--; continue; }
+          if (pr.pierceLeft > 0) { pr.pierceLeft--; pr.dmg *= pr.pf; continue; }
           done = true; break;
         } else if (pr.kind === 'wheat') { // grain: small physical hit
           // 10 hits/s: no number per grain, the damage is summed up and shown every .35 s

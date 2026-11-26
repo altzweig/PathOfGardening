@@ -59,6 +59,7 @@ const own = g.ownPos(it, 0, 0)!, hp = sim.player(GID)!;
 ok(Math.hypot(own.x - bench.x, own.z - bench.z) >= bench.r - .02, `Vorhersage: Gast läuft nicht in die Werkbank (Abstand ${Math.hypot(own.x - bench.x, own.z - bench.z).toFixed(2)} m, Radius ${bench.r}), Host-Abweichung ${Math.hypot(own.x - hp.x, own.z - hp.z).toFixed(3)} m, Korrekturen ${g.stats.corrections}, gesprungen ${g.stats.snapsTo}`);
 ok(guestSnap!.me[GID]?.ro === 1, `Panel offen beim Gast (m.ro = ${guestSnap!.me[GID]?.ro})`);
 // rsChoose (Host.onResearch -> sim.chooseResearch)
+sim.rs.trees.push('wheat'); // 26.11.2026 trees start locked (seed search)
 const node = rIndex(cfg, 'f_wheat'); sim.chooseResearch(GID, node); settle();
 ok(guestSnap!.rs?.[0] === node && guestSnap!.me[GID]?.ro === 0, `Gast sieht gewählte Idee (rs[0] = ${guestSnap!.rs?.[0]}), Panel zu`);
 // hammer: hold the action at the bench

@@ -77,7 +77,7 @@ export interface EnemyCfg {
 }
 /** 25.11.2026 Werkbank-Techtree: one node of the tree. kind field: ref = FruitType of the field; weapon: ref = SkillId; speed: Forschungstempo (repeatable).
  *  needs: all of these must be researched (AND); start: researched from the beginning; segment / row / col: layout of the tree (row 0 = top row) */
-export interface ResearchNode { id: string; kind: 'field' | 'building' | 'weapon' | 'upgrade' | 'speed'; ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean;
+export interface ResearchNode { id: string; kind: 'field' | 'building' | 'weapon' | 'upgrade' | 'speed'; /** 26.11.2026 upgrade ref fld_<fruit> = field upgrade (cycle time) */ ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean;
   /** 26.11.2026 Einzelbäume: the tree (tab) the node belongs to (research.trees id); upgrade: count = how many in a row (expanded into a chain id.1 .. id.count),
    *  after expanding: lv = place in the chain (1..count), chain = id of the yaml entry */
   tree?: string; count?: number; lv?: number; chain?: string }
@@ -97,6 +97,12 @@ export interface ResearchCfg {
   /** 26.11.2026 Einzelbäume: tabs (one tree per fruit) */ trees?: ResearchTree[];
   /** upgrade nodes: cost x upgradeCost x (1 + upgradeGrowth)^(place in chain - 1); a finished upgrade counts as upgradeCount ideas for costGrowth */
   upgradeCost?: number; upgradeGrowth?: number; upgradeCount?: number;
+  /** 26.11.2026 (Basti) fixed research times in s (1 worker, before the level speed): weapon, field, building, weapon upgrade upgrade + upgradeStep x
+   *  upgrades of that weapon already researched, field upgrade fieldUp + fieldUpStep x its level so far. Without: the old cost formula */
+  times?: { weapon: number; field: number; building: number; upgrade: number; upgradeStep: number; fieldUp: number; fieldUpStep: number };
+  /** 26.11.2026 research speed +levelSpeed per character level above 1 (multiplies with Forschungstempo) */ levelSpeed?: number;
+  /** 26.11.2026 Samen-Suche at the chest: every tree but the start tree starts locked; s of work = base + step x trees already found */
+  seeds?: { base: number; step: number };
   /** buildings in research mode need other goods than in the xp flow (Bäckerei: only flour, no well) */ buildingNeeds?: Partial<Record<BuildingType, Partial<Record<FruitType, number>>>>;
 }
 export interface Balancing {
@@ -106,21 +112,30 @@ export interface Balancing {
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
   names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>>;
-    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp' | 'building' | 'upgrade' | 'repair' | 'cost', string>>; /** 26.11.2026 upgrade node names (offer key) */ upgrades?: Record<string, string> };
+    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp' | 'building' | 'upgrade' | 'repair' | 'cost' | 'seed' | 'mycel', string>>; /** 26.11.2026 upgrade node names (offer key) */ upgrades?: Record<string, string> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
     /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
     sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };
   /** Koop-Netcode (25.11.2026), see net/sync.ts NetCfg */
   net?: Partial<import('./net/sync').NetCfg>;
   coop: { maxPlayers: number; xpNeedExponent: number; enemyCountExponent: number; enemyHpExponent: number; xpYieldExponent: number; xpValueExponent: number; enemyDamageExponent: number; snapshotRate: number };
-  xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number };
+  xp: { base: number; growth: number; linear: number; gain?: number; fieldPerSecond?: number; /** XP per harvested plant and rake stroke (24.11.2026) */ perPlant?: number;
+    /** 26.11.2026 research mode: XP only from Myzel-XP orbs of killed animals (perKill x enemyXpMul / xpScale.base, elites x elite.xpMultiplier, boss x boss),
+     *  orbs fly to a player within magnet m; every level +hpPerLevel max HP, every mycelEvery levels one Myzelle */
+    orbs?: { perKill: number; boss: number; magnet: number; speed: number; life: number; maxPer: number };
+    hpPerLevel?: number; mycelEvery?: number };
+  /** 26.11.2026 Myzellen: up to max in a crop field; a ripe field harvests itself plant by plant in times[n - 1] s (n = Myzellen), flash s of lightning before each fruit */
+  mycel?: { max: number; times: number[]; flash: number };
   arena: { radius: number; fieldSize: number; fieldSlots: number; startFields: number; /** 23.11.2026: choose one of these start fields (instead of startFields blueberry fields) */ startChoice?: Berry[];
     /** 25.11.2026 research mode: the one start field and its hex slot [q, r] (neighbour of the chest) */ startField?: { type: FruitType; slot: [number, number] } };
   /** Lager-Truhe in the centre (23.11.2026): holds all resources of the players; raccoons steal from it (max thieves on a circle around it) */
-  chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number; /** s a raccoon chases a player for its one attack before it goes to the chest (24.11.2026) */ attackFirst?: number };
+  chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number; /** s a raccoon chases a player for its one attack before it goes to the chest (24.11.2026) */ attackFirst?: number;
+    /** 26.11.2026 research mode: the animals want to destroy the chest (0 HP = lost). hp, regen HP/s by itself, heal HP/s per player working at it, work = m from the centre */
+    hp?: number; regen?: number; heal?: number; work?: number };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
-  fields: { /** 25.11.2026: false = no building onto a field of the same type (no tile levels); unique = every field type only once */ stacking?: boolean; unique?: boolean; hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number } };
+  fields: { /** 25.11.2026: false = no building onto a field of the same type (no tile levels); unique = every field type only once */ stacking?: boolean; unique?: boolean; hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number };
+    /** 26.11.2026 Feld-Upgrades (Techtree): every level x factor on grow and harvest time, up to max levels */ upgrade?: { factor: number; max: number } };
   fruit: { tierScale: number[]; tierValue: number[]; mergeCount: number; mergeCheck: number; mergeRadius?: number; cornerScatter: number };
   plants: Partial<Record<FruitType, { interval: number; /** crop cycle s of this plant (else fields.cycle) */ grow?: number; harvest?: number; /** rake strokes per plant (24.11.2026, default 1) */ strokes?: number; unlockAt?: number; amount?: number; minLevel?: number; dropRadius?: [number, number]; magnet?: boolean; disabled?: boolean }>>;
   buildings: Record<BuildingType, BuildingCfg>;

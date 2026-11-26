@@ -128,3 +128,6 @@ Offen:
 Stand 26.11.2026 (Einzelbäume):
 - Techtree in kleine Bäume pro Frucht mit Reitern umgebaut, Gebäude (Mühle, Bäckerei …) und Waffen-Upgrades als Knoten, Upgrade-Ketten aus `count`. Mehlsäcke als Barriere an Feldkanten ersetzen den Mehlstaub. Details in Design-Entscheidungen „Techtree in Einzelbäumen pro Frucht, Mehlsäcke“.
 - Upgrades heben den Bot nicht über Welle 16; Balancing-Ziel weiter offen.
+
+Stand 26.11.2026 (Truhe, Myzel):
+- Feld-Upgrades „Zykluszeit“ (5 × −20 %), feste Forschungszeiten, Forschungstempo über die Stufe. Tiere greifen die Truhe an (0 = verloren), Arbeit an der Truhe heilt sie oder sucht Samen für neue Bäume. Myzel-XP aus Tieren, alle 3 Stufen eine Myzelle für die Autoernte. Details in Design-Entscheidungen „Feld-Upgrades, Truhe als Verlustbedingung, Myzel-XP und Myzellen“.

@@ -4,7 +4,7 @@ import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, En
 import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 import { benchPush, chestPush, clampArena, normMove, sprintStep, walkStep } from './move';
 import { edgeKey, sackSpot, segDist, type Edge } from './sacks';
-import { applyResearchCfg, isPlaceNode, newRState, nodeAvailable, nodeCost, nodeCount, nodeDone, researchCost, rIndex, rNode, rNodes, RState, segmentOpen } from './research';
+import { applyResearchCfg, fieldUpOf, isPlaceNode, newRState, nodeAvailable, nodeCost, nodeCount, nodeDone, researchCost, rIndex, rNode, rNodes, RState, seedCost, seedMode, seedTarget, segmentOpen, treeOpen } from './research';
 export { nodeAvailable, nodeDone, researchCost, segmentOpen } from './research';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -137,13 +137,19 @@ export interface Player {
   /** 25.11.2026 Werkbank: UI open (0 none, 1 techtree panel, 2 pickup popup), reopen locks (bit 1 panel, bit 2 popup: walk away first),
    *  placing a researched field right now, hammering at the bench this tick */
   rsUi: 0 | 1 | 2; rsLock: number; rsPlace: boolean; benchWork: boolean;
+  /** 26.11.2026 working at the chest this tick (heal / Samen-Suche), placing a Myzelle right now */
+  chestWork?: boolean; mycPlace?: boolean;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
   inb: Partial<Record<FruitType, number>>; work: number; broken: boolean; boost: number;
   /** Saftpresse: berry of the batch being pressed */ jb?: Berry;
   /** crop cycle (23.11.2026): cyc 0 = being harvested (harvest s), 1 = resting / growing back (rest s); ct = s into the phase */
-  cyc: number; ct: number }
+  cyc: number; ct: number;
+  /** 26.11.2026 Myzellen in this field, s into the auto harvest of the next plant, its lightning already shown */
+  myc?: number; at?: number; az?: boolean }
+/** 26.11.2026 Myzel-XP orb: flies out of a killed animal, lies glowing, flies to a player within magnet m (st 0 fly, 1 ground, 2 homing to player p) */
+interface XOrb { id: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; v: number; t: number; st: 0 | 1 | 2; p: number }
 interface BossState { st: 'collect' | 'charge' | 'attack'; t: number; berries: number; atk: number; spawned: number; next: number; hx: number; hz: number; hdx: number; hdz: number; ph: number; /** dodge (25.11.2026): s left, cooldown, direction */ dT?: number; dCd?: number; ddx?: number; ddz?: number }
 interface BerryBomb { id: number; fx: number; fz: number; x: number; z: number; flight: number; t: number; fuse: number; rain: boolean; dmg: number; r: number }
 interface Pool { id: number; x: number; z: number; r: number; t: number; tickT: number; ticks: number; dmg: number; dur: number; iv: number; fire?: { tick: number; dmgPct: number } }
@@ -266,6 +272,15 @@ export class Sim {
   rsPend: FruitType[] = [];
   /** Werkbank slot index (-1 none) */
   benchSlot = -1;
+  // ---------- 26.11.2026 Truhe als Ziel, Feld-Upgrades, Myzel-XP, Myzellen ----------
+  /** chest HP (research mode with chest.hp: 0 = lost) */
+  chestHp = 0;
+  /** Feld-Upgrade level per fruit (Techtree, team-wide) */
+  fieldLv: Partial<Record<FruitType, number>> = {};
+  /** Myzel-XP orbs lying / flying */
+  xorbs: XOrb[] = [];
+  /** Myzellen won (level-ups) still to be put into a field, player who earned the last one */
+  mycPend = 0; mycBy = -1;
   /** Steinkohle posts, oldest first */
   walls: WallPiece[] = [];
   /** 26.11.2026 Mehlsäcke stacks, oldest first */
@@ -285,6 +300,7 @@ export class Sim {
       this.benchSlot = this.slots.findIndex(s => s.bench);
       const SF = cfg.arena.startField, i = SF ? this.slots.findIndex(s => s.q === SF.slot[0] && s.r === SF.slot[1]) : -1;
       if (SF && i >= 0 && slotFits(cfg, this.slots[i], SF.type)) { const sf = this.placeField(i, SF.type); if (sf) sf.starter = true; }
+      this.chestHp = this.chestMax;
       return;
     }
     if (!cfg.arena.startChoice?.length) for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i) && !this.slots[i].chest) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
@@ -293,6 +309,8 @@ export class Sim {
   // ---------- coop scaling ----------
   get n() { return Math.max(1, this.players.length); }
   f(exp: number) { return coopF(this.n, exp); }
+  /** 26.11.2026 max HP of a player: player.hp + xp.hpPerLevel per team level above 1 (research mode) */
+  get maxHp() { return this.cfg.player.hp + (this.rsMode ? (this.cfg.xp.hpPerLevel ?? 0) * Math.max(0, this.level - 1) : 0); }
   need(L: number) { const X = this.cfg.xp; return Math.round((X.base * Math.pow(X.growth, L - 1) + X.linear * (L - 1)) * this.f(this.cfg.coop.xpNeedExponent)); }
 
   emit(e: Ev) { this.events.push(e); }
@@ -307,7 +325,7 @@ export class Sim {
     const P = this.cfg.player, a = this.players.length * Math.PI / 2;
     const mk = (): SkillState => ({ combo: '', merged: false, learned: false, lvDmg: 0, lvRange: 0, lvCd: 0, pierce: this.cfg.skills.asp.pierce, pierceBonus: 0, extraPel: 0, cranPierceLv: 0, mineLv: 0, minis: 0, gasLv: 0, poisLv: 0, effLv: 0, sizeLv: 0, salvoLv: 0, tgtLv: 0, xferLv: 0, sweepLv: 0, tickLv: 0, cdT: 0, firing: false, burst: 0, burstT: 0 });
     const p: Player = {
-      id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: P.hp, alive: true, deaths: 0, respawnT: 0,
+      id, color, x: this.players.length ? Math.cos(a) * .6 : 0, z: this.players.length ? Math.sin(a) * .6 : 0, face: 0, hp: this.maxHp, alive: true, deaths: 0, respawnT: 0,
       stun: 0, stunMax: 0, kb: null, poison: [], swing: 0, swingDir: 0, rakeHit: false, walk: 0, flash: 0, tillT: 0,
       cwT: 0, cwId: '', chW: '', chT: 0, thrK: 0, chAim: false,
       ammo: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, collected: Object.fromEntries(SKILLS.map(k => [k, 0])) as Record<SkillId, number>, skills: Object.fromEntries(SKILLS.map(k => [k, mk()])) as Record<SkillId, SkillState>, berry: 'blue', lastBerry: 0,
@@ -318,7 +336,7 @@ export class Sim {
     if (this.rsMode) { // 25.11.2026: every researched weapon (start: Erbsenpistole) with some ammo
       const R = this.cfg.research!;
       for (const n of rNodes(this.cfg)) if (n.kind === 'weapon' && n.ref && nodeDone(this.cfg, this.rs, n.id)) this.giveWeapon(p, n.ref as SkillId, n.start ? R.startShots ?? 10 : R.weaponShots ?? 10);
-      for (const n of rNodes(this.cfg)) if (n.kind === 'upgrade' && n.ref && nodeDone(this.cfg, this.rs, n.id)) this.applyOffer(p, n.ref); // 26.11.2026 the team's upgrades
+      for (const n of rNodes(this.cfg)) if (n.kind === 'upgrade' && n.ref && !fieldUpOf(n) && nodeDone(this.cfg, this.rs, n.id)) this.applyOffer(p, n.ref); // 26.11.2026 the team's upgrades (field upgrades are team-wide in fieldLv)
     } else this.learn(p, 'blue'); // the shotgun from the start (22.11.2026); fires the selected berry (23.11.2026)
     this.players.push(p);
     if (!this.sb && this.merchant && this.merchant.st <= 1) this.genShop(p); // joined while the merchant is here
@@ -342,6 +360,7 @@ export class Sim {
     if (this.player(p.id)) return;
     p.fresh = true; p.intent = emptyIntent(); this.players.push(p);
     p.rsUi = 0; p.rsLock = 0; p.benchWork = false; if (!this.rsLvl && p.rsPlace) { p.rsPlace = false; p.placing = null; }
+    p.mycPlace = false;
     if (this.rsLvl && !p.rsPlace) { p.offers = null; p.picked = true; }
     else if (this.phase === 'lvl' && !p.picked && !this.rsLvl) { p.offers = this.startPick ? this.startOffers() : this.offers(p); }
   }
@@ -435,7 +454,7 @@ export class Sim {
   cropPeriod(t: FruitType) {
     const P = this.cfg.plants[t]!; if (!this.cycle || forestType(this.cfg, t)) return P.interval;
     const c = this.cycOf({ type: t } as Field), n = this.plantsPer;
-    return (c.grow + n * this.strokesOf(t) * this.cfg.rake.cooldown) / n;
+    return (c.grow + n * this.strokesOf(t) * this.cfg.rake.cooldown * this.fieldF(t)) / n;
   }
   fieldOf(type: FruitType) { return !!this.fields.find(f => f.type === type); }
   /** field / building a weapon needs on the farm (balancing weaponNeeds, fallback: building of SOURCE_OF, else its own fruit field) */
@@ -452,7 +471,8 @@ export class Sim {
     return p.placeMode === 'stack' ? same : !same;
   }
   place(id: number, slot: number) {
-    const p = this.player(id); if (!p || !p.placing || this.phase !== 'lvl' || !this.canPlace(p, slot)) return;
+    const p = this.player(id); if (p && p.mycPlace && this.phase === 'lvl') { this.putMycel(p, slot); return; } // 26.11.2026 Myzelle
+    if (!p || !p.placing || this.phase !== 'lvl' || !this.canPlace(p, slot)) return;
     this.placeField(slot, p.placing); p.placing = null; p.picked = true;
     if (p.rsPlace) { p.rsPlace = false; p.rsUi = 1; this.emit({ k: 'rsPlaced', p: p.id, s: slot }); } // 25.11.2026 researched field is down: on to the next idea (panel)
     this.checkAllPicked();
@@ -465,12 +485,12 @@ export class Sim {
     this.num(f.x, f.z, dmg, 'f');
     if (f.hp <= 0 && isBuilding(f.type)) { // building: knocked out, stands still until it is repaired to full with the rake
       f.hp = 0; if (!f.broken) { f.broken = true; f.work = 0; this.burst(f.x, .8, f.z, 0x6a5a4a, 40, 3, .3, 1.2, { g: 3 }); this.emit({ k: 'broken', s: f.slot }); this.sfx('build.break', f.x, f.z); }
-      if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
+      if (!this.chestAtk && this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
     } else if (f.hp <= 0) { // fields do not break: they wilt at 0 HP, produce nothing and can be raked back to health (no XP)
       f.hp = 0;
       this.burst(f.x, .5, f.z, 0x8a6a3a, 40, 3, .25, 1, { g: 6 });
       this.emit({ k: 'fieldDead', s: f.slot }); this.sfx('plants.die.' + f.type, f.x, f.z);
-      if (this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
+      if (!this.chestAtk && this.fields.every(x => x.hp <= 0 || this.isForest(x))) this.gameOver();
     }
   }
   spawnFruit(type: FruitType, tier: number, fx: number, fy: number, fz: number, tx: number, tz: number, src: number, ty = 0) {
@@ -528,7 +548,9 @@ export class Sim {
    *  Raking while it grows speeds the growth up (rakeGrow x, 8 s -> 4 s). Trees (forest) keep producing steadily. */
   get cycle() { return this.cfg.fields.cycle; }
   /** grow / harvest s of a crop: per plant (plants.x.grow / harvest), else the default of fields.cycle */
-  cycOf(f: Field) { const C = this.cycle!, P = this.cfg.plants[f.type]; return { grow: P?.grow ?? C.grow, harvest: P?.harvest ?? C.harvest }; }
+  cycOf(f: Field) { const C = this.cycle!, P = this.cfg.plants[f.type], k = this.fieldF(f.type); return { grow: (P?.grow ?? C.grow) * k, harvest: (P?.harvest ?? C.harvest) * k }; }
+  /** 26.11.2026 Feld-Upgrades: grow and harvest time factor of a fruit (fields.upgrade.factor ^ level) */
+  fieldF(t: FruitType) { const U = this.cfg.fields.upgrade; return U ? Math.pow(U.factor, Math.min(U.max, this.fieldLv[t] ?? 0)) : 1; }
   growField(f: Field, k: number, dt: number) {
     const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
     if (!C || this.isForest(f)) { f.t -= k; while (f.t <= 0) { f.t += iv; this.produce(f); } return; }
@@ -547,13 +569,29 @@ export class Sim {
     const C = this.cycle, iv = this.cfg.plants[f.type]!.interval;
     if (C && !this.isForest(f)) {
       if (f.cyc !== 0) return;
-      const st = this.strokesOf(f.type), n = this.plantsPer * st;
-      f.ct++;
-      if (f.ct % st === 0) { const k = plantOrder(f.slot)[Math.floor(f.ct / st) - 1] ?? 0; const one = [0, 0, 0, 0, 0, 0]; one[k] = 1; this.produce(f, one); }
-      if (f.ct >= n) { f.cyc = 1; f.ct = 0; this.emit({ k: 'cropDone', s: f.slot }); }
+      // 26.11.2026 Feld-Upgrades: a stroke counts 1 / factor (level 5: ~3 strokes of work per stroke), so the harvest is shorter by the same factor
+      const st = this.strokesOf(f.type), a = Math.floor(f.ct / st + 1e-6);
+      f.ct += 1 / this.fieldF(f.type);
+      this.pickPlants(f, a, Math.min(this.plantsPer, Math.floor(f.ct / st + 1e-6)));
       void s; return;
     }
     f.t -= s; while (f.t <= 0) { f.t += iv; this.produce(f, tri); }
+  }
+  /** 26.11.2026 plants a..b-1 (plantOrder) of a ripe field are picked; all picked -> it grows again */
+  pickPlants(f: Field, a: number, b: number) {
+    for (let j = a; j < b; j++) { const k = plantOrder(f.slot)[j] ?? 0; const one = [0, 0, 0, 0, 0, 0]; one[k] = 1; this.produce(f, one); }
+    if (b >= this.plantsPer) { f.cyc = 1; f.ct = 0; f.at = 0; f.az = false; this.emit({ k: 'cropDone', s: f.slot }); }
+  }
+  /** 26.11.2026 Myzellen: s for one plant of the auto harvest (mycel.times by Myzellen, x Feld-Upgrade factor, spread over the plants), 0 = none */
+  mycIv(f: Field) { const M = this.cfg.mycel, n = f.myc ?? 0; if (!M || n <= 0 || !this.cycle || isBuilding(f.type) || this.isForest(f)) return 0; return M.times[Math.min(n, M.times.length) - 1] * this.fieldF(f.type) / this.plantsPer; }
+  /** a ripe field with Myzellen harvests itself: every mycIv s the next plant gets a yellow lightning (flash s), then its fruit pops out */
+  autoHarvest(f: Field, dt: number) {
+    const iv = this.mycIv(f); if (!iv || f.cyc !== 0 || f.hp <= 0) return;
+    const st = this.strokesOf(f.type), j = Math.floor(f.ct / st + 1e-6); if (j >= this.plantsPer) return;
+    f.at = (f.at ?? 0) + dt;
+    const fl = Math.min(this.cfg.mycel!.flash, iv * .8);
+    if (!f.az && f.at >= iv - fl) { f.az = true; this.emit({ k: 'myz', s: f.slot, j: plantOrder(f.slot)[j] ?? 0, d: r2(fl) }); }
+    if (f.at >= iv) { f.at -= iv; f.az = false; f.ct = (j + 1) * st; this.pickPlants(f, j, j + 1); }
   }
   /** short card line of a tile type: crop "2 {asp} / 10 s", source "{water} / 4 s", processor "3 {wheat} → {flour}" */
   tileLine(t: FruitType) {
@@ -719,14 +757,14 @@ export class Sim {
       this.emit({ k: 'juice', s: -1, p: p.id, b: fr.jb ?? 2, v: Math.round(xv * 10) / 10, x: r2(p.x), z: r2(p.z) });
       return;
     }
-    const v = fr.val, xp = fr.nx ? 0 : this.itemXP(fr.type) * (fr.xm ?? 1);
+    const v = fr.val, xp = fr.nx || this.rsMode ? 0 : this.itemXP(fr.type) * (fr.xm ?? 1); // 26.11.2026 research: XP only from Myzel-XP orbs
     if (xp > 0) { const xv = v * xp * (this.cfg.xp.gain ?? 1) * this.f(this.cfg.coop.xpValueExponent); this.collectedXP += v * xp; if (fr.src === -1) this.xpNow.e += xv; else this.xpNow.h += xv; this.addXP(xv); }
     if (fr.type === 'nut') p.nuts += v;
     else if (SKILLS.some(k => AMMO_OF[k] === fr.type && p.skills[k].learned)) { const k = SKILLS.find(k => AMMO_OF[k] === fr.type && p.skills[k].learned)!; p.ammo[k] += v; p.collected[k] += v; } // Mehl / Spiegeleier: ammo once their weapon is learned
     else if (isWeaponFruit(fr.type)) { const o = this.comboOwner(p, fr.type); if (o) p.ammo[o.id] += v * o.f; else p.ammo[fr.type] += v; p.collected[fr.type] += v; } // merged sub weapon: its fruit feeds the combo
     else { // wheat and goods: into the bag (to feed buildings), healing right away
       const I = this.cfg.items[fr.type] ?? {}; p.inv[fr.type] = (p.inv[fr.type] || 0) + v;
-      if (I.heal) p.hp = Math.min(this.cfg.player.hp, p.hp + I.heal * v);
+      if (I.heal) p.hp = Math.min(this.maxHp, p.hp + I.heal * v);
     }
     this.emit({ k: 'collect', p: p.id, t: FRUITS.indexOf(fr.type), tier: fr.tier, x: r2(p.x), z: r2(p.z) });
   }
@@ -750,11 +788,70 @@ export class Sim {
   }
   private merges: { t: number; type: FruitType; src: number; tier: number; x: number; z: number }[] = [];
 
+  // ---------- 26.11.2026 Myzel-XP + character level (research mode) ----------
+  /** a killed animal drops its XP as a few glowing yellow-purple orbs */
+  dropOrbs(e: Enemy) {
+    const O = this.cfg.xp.orbs; if (!O || this.sb) return;
+    const E = this.cfg.enemies, S = E.xpScale, w = this.enemyXpMul() / Math.max(.01, S?.base ?? 1);
+    const v = (e.boss ? O.boss : O.perKill * w * (e.elite ? E.elite.xpMultiplier : 1)) * this.f(this.cfg.coop.xpValueExponent);
+    if (!(v > 0)) return;
+    const k = Math.max(1, Math.min(O.maxPer, e.boss ? O.maxPer * 3 : e.elite ? O.maxPer : Math.ceil(v / 1.5)));
+    for (let i = 0; i < k; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(1, 2.2);
+      this.xorbs.push({ id: this.nid++, x: e.x, y: .5, z: e.z, vx: Math.cos(a) * sp, vy: rand(2.5, 3.6), vz: Math.sin(a) * sp, v: v / k, t: 0, st: 0, p: -1 });
+    }
+  }
+  /** orbs: hop out, lie glowing; a living player within magnet m pulls them in (after life s: the nearest player wherever he is) */
+  private tickOrbs(dt: number) {
+    const O = this.cfg.xp.orbs; if (!O || !this.xorbs.length) return;
+    for (let i = this.xorbs.length - 1; i >= 0; i--) {
+      const o = this.xorbs[i]; o.t += dt;
+      if (o.st === 0) { o.x += o.vx * dt; o.z += o.vz * dt; o.vy -= 9.8 * dt; o.y += o.vy * dt; if (o.y <= .25 && o.vy < 0) { o.y = .25; o.st = 1; } [o.x, o.z] = this.clampArena(o.x, o.z); continue; }
+      let pl = o.st === 2 ? this.player(o.p) : undefined;
+      if (!pl || !pl.alive) {
+        pl = undefined; let bd = o.t > O.life ? 1e9 : O.magnet;
+        for (const p of this.players) if (p.alive) { const d = Math.hypot(p.x - o.x, p.z - o.z); if (d < bd) { bd = d; pl = p; } }
+        o.st = pl ? 2 : 1; o.p = pl ? pl.id : -1;
+      }
+      if (!pl) continue;
+      const dx = pl.x - o.x, dz = pl.z - o.z, d = Math.hypot(dx, dz), sp = O.speed * Math.min(1, .35 + o.t * .5);
+      if (d < .35) { this.xorbs.splice(i, 1); this.addXP(o.v, pl.id); this.emit({ k: 'xo', p: pl.id }); continue; }
+      const m = Math.min(d, sp * dt); o.x += dx / d * m; o.z += dz / d * m; o.y += (.9 - o.y) * Math.min(1, dt * 6);
+    }
+  }
+  /** one level up: +HP for everyone (healed by that much), research a bit faster, every mycelEvery levels a Myzelle */
+  private levelUp(by: number) {
+    this.level++; this.rs.lv = this.level;
+    const X = this.cfg.xp, hp = X.hpPerLevel ?? 0;
+    for (const p of this.players) if (p.alive) p.hp = Math.min(this.maxHp, p.hp + hp);
+    this.emit({ k: 'lvUp', lv: this.level, p: by }); this.sfx('player.levelUp', 0, 0);
+    if (this.cfg.mycel && X.mycelEvery && this.level % X.mycelEvery === 0) { this.mycPend++; if (by >= 0) this.mycBy = by; }
+  }
+  /** Myzellen to place: the earning player (else the first one alive) goes into the top-down view as soon as nothing else is open */
+  private tickMycel() {
+    if (this.mycPend <= 0 || this.phase !== 'play' || this.players.some(p => p.rsUi === 2 || p.mycPlace)) return;
+    if (!this.mycSlots().length) return;
+    const p = [this.player(this.mycBy), ...this.players].find(q => q && q.alive && !q.rsUi && !q.rsPlace); if (!p) return;
+    p.mycPlace = true; p.placing = null; p.rsUi = 0;
+    this.rsLvl = true; this.phase = 'lvl';
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; }
+    this.emit({ k: 'mycel', p: p.id }); this.sfx('mycel.gain', p.x, p.z);
+  }
+  /** crop fields that can take one more Myzelle (not the chest, the bench, buildings or trees) */
+  mycSlots() { const M = this.cfg.mycel; if (!M) return []; return this.fields.filter(f => f.alive && !isBuilding(f.type) && !this.isForest(f) && (f.myc ?? 0) < M.max).map(f => f.slot); }
+  private putMycel(p: Player, slot: number) {
+    const f = this.fieldAt(slot); if (!f || !this.mycSlots().includes(slot)) return false;
+    f.myc = (f.myc ?? 0) + 1; f.at = 0; f.az = false; this.mycPend = Math.max(0, this.mycPend - 1);
+    p.mycPlace = false; p.picked = true;
+    this.emit({ k: 'mycIn', s: slot, n: f.myc }); this.sfx('mycel.place', f.x, f.z);
+    this.checkAllPicked(); return true;
+  }
+
   // ---------- xp & level ----------
-  addXP(v: number) {
+  addXP(v: number, by = -1) {
     if (this.sb) return;
     this.xp += v;
-    if (this.rsMode) { while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.level++; } return; } // 25.11.2026: XP / level only counted (boss timing, statistics), no cards, no ideas
+    if (this.rsMode) { while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.levelUp(by); } return; } // 26.11.2026: level = HP, research speed, Myzellen (no cards)
     while (this.xp >= this.need(this.level)) { this.xp -= this.need(this.level); this.level++; this.pendingLv++; for (const p of this.players) p.ideas++; this.emit({ k: 'idea' }); } // 23.11.2026: every level-up = 1 idea (light bulb) per player
     if (this.pendingLv > 0 && this.phase === 'play') this.openLevelUp();
   }
@@ -775,9 +872,9 @@ export class Sim {
   }
   private checkAllPicked() {
     if (this.rsLvl) { // 25.11.2026 research field placement: over once nobody places any more
-      if (this.players.some(p => p.rsPlace && p.placing)) return;
+      if (this.players.some(p => (p.rsPlace && p.placing) || p.mycPlace)) return;
       this.rsLvl = false; this.phase = 'play';
-      for (const p of this.players) { if (p.rsPlace) { p.rsPlace = false; p.rsUi = 1; } p.placing = null; p.offers = null; p.picked = false; }
+      for (const p of this.players) { if (p.rsPlace) { p.rsPlace = false; p.rsUi = 1; } p.placing = null; p.offers = null; p.picked = false; p.mycPlace = false; }
       return;
     }
     if (this.players.some(p => !p.picked)) return;
@@ -800,6 +897,41 @@ export class Sim {
     p.berry = t; this.startTypes.add(t);
   }
   get chestOn() { return !!this.cfg.chest && !this.sb; }
+  /** 26.11.2026 (Basti) research mode: the animals attack the chest instead of stealing; chest at 0 HP = lost */
+  get chestAtk() { return this.rsMode && this.chestOn && !!this.cfg.chest?.hp; }
+  get chestMax() { return this.cfg.chest?.hp ?? 0; }
+  /** an animal hits the chest */
+  hurtChest(e: Enemy, dmg: number) {
+    if (this.phase === 'over' || this.chestHp <= 0) return;
+    this.chestHp = Math.max(0, this.chestHp - dmg); e.lunge = .2;
+    this.emit({ k: 'chestHit', e: e.id }); this.sfx('chest.hit', 0, 0); this.num(0, 0, dmg, 'f');
+    if (this.chestHp <= 0) { this.burst(0, .6, 0, 0x6a4a2a, 60, 4, .3, 1.2, { g: 4 }); this.emit({ k: 'chestBreak' }); this.sfx('chest.break', 0, 0); this.gameOver(); }
+  }
+  /** may this player work at the chest now (hold the harvest action within chest.work m): heal it, or search seeds when it is whole */
+  canWorkChest(p: Player) {
+    if (!this.chestAtk || !p.alive || p.rsUi || this.phase !== 'play') return false;
+    if (Math.hypot(p.x, p.z) > (this.cfg.chest!.work ?? 1.6)) return false;
+    return this.chestHp < this.chestMax - 1e-6 || (seedMode(this.cfg) && !!seedTarget(this.cfg, this.rs));
+  }
+  /** chest heals itself (regen), workers heal it (heal each) or, whole, search seeds for the next tree (research.seeds) */
+  private tickChest(dt: number) {
+    if (!this.chestAtk || this.phase === 'over') return;
+    const C = this.cfg.chest!, n = this.players.filter(p => p.alive && p.chestWork).length, M = this.chestMax;
+    if (this.chestHp < M) { this.chestHp = Math.min(M, this.chestHp + ((C.regen ?? 0) + n * (C.heal ?? 0)) * dt); return; }
+    const tg = n && seedMode(this.cfg) ? seedTarget(this.cfg, this.rs) : null; if (!tg) return;
+    this.rs.sw += dt * n;
+    if (this.rs.sw >= seedCost(this.cfg, this.rs)) {
+      this.rs.sw = 0; this.rs.trees.push(tg); if (this.rs.seed === tg) this.rs.seed = null;
+      const T = this.cfg.research!.trees ?? [];
+      this.emit({ k: 'seed', t: T.findIndex(t => t.id === tg) }); this.sfx('research.seed', 0, 0); this.burst(0, 1, 0, 0x9fe060, 40, 3, .15, 1);
+    }
+  }
+  /** techtree: choose the tree the next seed search opens (index in research.trees, only locked ones) */
+  chooseSeed(id: number, tree: number) {
+    const p = this.player(id), T = this.cfg.research?.trees?.[tree]; if (!p || !T || !seedMode(this.cfg) || treeOpen(this.cfg, this.rs, T.id)) return false;
+    if (this.rs.seed !== T.id) { this.rs.seed = T.id; this.rs.sw = 0; }
+    this.emit({ k: 'rsSeed', p: p.id, t: tree }); return true;
+  }
   // ---------- skill stats ----------
   stats(id: SkillId, s: SkillState): SkillStats {
     const base = this.baseStats(id, s);
@@ -1004,6 +1136,7 @@ export class Sim {
     let np: Player | null = null, nd = 1e9; for (const p of this.players) { const d = dist(p, e); if (d < nd) { nd = d; np = p; } }
     const drop: FruitType = this.rsMode ? this.cfg.research!.dropFruit ?? 'pea' : np?.berry ?? 'blue'; // 25.11.2026 research: ammo of the start weapon
     const xm = this.enemyXpMul();
+    if (this.rsMode) this.dropOrbs(e);
     for (let i = 0; i < n; i++) { const a = rand(0, 7), d = rand(.2, .8); this.spawnFruit(drop, 0, e.x, .5, e.z, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, -1).xm = xm; }
     this.removeEnemy(e);
   }
@@ -1116,7 +1249,7 @@ export class Sim {
     if (f.alive) f.hp = Math.min(f.maxHp, f.hp + (F.tillHealField + up) * dt);
     for (const p of this.players) {
       if (!p.alive) continue;
-      if (p.id === f.tilledBy || this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z)) === f) p.hp = Math.min(this.cfg.player.hp, p.hp + (F.tillHealPlayer + up) * dt);
+      if (p.id === f.tilledBy || this.fieldAt(slotAt(this.cfg, this.slots, p.x, p.z)) === f) p.hp = Math.min(this.maxHp, p.hp + (F.tillHealPlayer + up) * dt);
     }
   }
   /** an enemy drops everything it carries (fruit flies off and can be picked up again) */
@@ -1248,6 +1381,7 @@ export class Sim {
     }
     rows.push(['care', 'Felder', N.care, this.tillHealLv]);
     if (this.rsMode) rows.push(['research.next', 'Forschung', 'Idee sofort fertig (+)', this.rs.cur ? 1 : 0], ['research.all', 'Forschung', 'Alles erforschen (+)', this.rs.done.length], ['research.speed', 'Forschung', 'Forschungstempo', this.rs.speedLv]); // 25.11.2026
+    if (this.chestAtk) rows.push(['mycel.add', 'Forschung', 'Myzelle (+)', this.mycPend], ['chest.hp', 'Forschung', 'Truhe heilen (+) / −50 (−)', Math.round(this.chestHp)]); // 26.11.2026
     if (this.cfg.combos) for (const cid of COMBOS) { const C = this.CB.list[cid]; rows.push([`combo.${cid}`, 'Kombiwaffen', `${N.combos?.[cid] ?? cid} (${N.skills[C.main]} + ${N.skills[C.sub]})`, p.skills[C.main].combo === cid ? 1 : 0]); }
     return rows;
   }
@@ -1255,9 +1389,13 @@ export class Sim {
     const p = this.player(id); if (!p) return;
     const [a, b] = key.split('.');
     const lim0 = (v: number) => Math.max(0, v);
+    if (key === 'level' && this.rsMode && d > 0) { this.xp = 0; this.levelUp(p.id); return; } // 26.11.2026 a real level up (HP, research speed, Myzelle every 3)
+    if (key === 'level' && this.rsMode) { this.cheatSetLevel(this.level + d); return; }
     if (key === 'level') { this.level = Math.max(1, this.level + d); this.xp = 0; return; }
     if (a === 'research') { this.cheatResearch(b, d); return; } // 25.11.2026
-    if (key === 'hp') { p.hp = d > 0 ? this.cfg.player.hp : Math.max(1, p.hp - 10); return; }
+    if (key === 'mycel.add') { if (d > 0 && this.cfg.mycel) this.mycPend++; return; } // 26.11.2026
+    if (key === 'chest.hp') { this.chestHp = d > 0 ? this.chestMax : Math.max(1, this.chestHp - 50); return; }
+    if (key === 'hp') { p.hp = d > 0 ? this.maxHp : Math.max(1, p.hp - 10); return; }
     if (a === 'rake') { (p.rakeLv as any)[b] = lim0((p.rakeLv as any)[b] + d); return; }
     if (a === 'care') { this.tillHealLv = lim0(this.tillHealLv + d); return; }
     if (a === 'yield') { this.yieldLv[b as FruitType] = lim0(this.yieldLv[b as FruitType] + d); return; }
@@ -1285,7 +1423,7 @@ export class Sim {
     }
   }
   // ---------- Cheat-Optionen (24.11.2026, Basti): level, wave, weapons, free build mode ----------
-  cheatSetLevel(v: number) { this.level = Math.max(1, Math.round(v)); this.xp = 0; }
+  cheatSetLevel(v: number) { this.level = Math.max(1, Math.round(v)); this.xp = 0; this.rs.lv = this.level; for (const p of this.players) p.hp = Math.min(p.hp, this.maxHp); } // 26.11.2026 level = research speed / max HP (no Myzellen by cheat)
   /** unlock / lock a weapon for this player; unlocking brings a stock of ammo along */
   cheatWeapon(id: number, sid: SkillId, on: boolean) {
     const p = this.player(id); if (!p) return;
@@ -1833,7 +1971,7 @@ export class Sim {
   private thiefAt(k: number, me: Enemy) { return this.enemies.some(o => o !== me && !o.dead && o.cmax > 0 && o.cs === k && !o.fleeing && o.leave <= 0); }
   /** the raccoon's place at the chest (keeps its own, else the free place farthest from the taken ones, near its way in); -1 = none */
   thiefSlot(e: Enemy) {
-    if (!this.stealables().length) { e.cs = -1; return -1; }
+    if (!this.chestAtk && !this.stealables().length) { e.cs = -1; return -1; }
     if (e.cs >= 0 && !this.thiefAt(e.cs, e)) return e.cs;
     const C = this.cfg.chest!, N = C.maxThieves, taken: number[] = [], free: number[] = [];
     for (let k = 0; k < N; k++) (this.thiefAt(k, e) ? taken : free).push(k);
@@ -1891,8 +2029,8 @@ export class Sim {
       for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
       if (bp) return { kind: 'player', p: bp };
     }
-    // fruit: preferred kinds first, then everything else it takes (steals or eats)
-    const want = D.eats || D.steals;
+    // fruit: preferred kinds first, then everything else it takes (steals or eats). 26.11.2026 research: no animal takes food any more
+    const want = this.chestAtk ? null : D.eats || D.steals;
     if (want) {
       const near = (types: FruitType[]) => { let best: Fruit | null = null, b2 = 1e9; for (const fr of this.fruits) if (fr.state === 'ground' && types.includes(fr.type) && this.topOfStack(fr)) { const d = dist(e, fr); if (d < b2) { b2 = d; best = fr; } } return best; };
       const best = (D.prefers && near(D.prefers)) || near(want);
@@ -1911,7 +2049,14 @@ export class Sim {
       for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
       return bp ? { kind: 'player', p: bp } : null;
     }
-    const f = this.nearestField(e.x, e.z); return f ? { kind: 'field', f } : null;
+    const f = this.nearestField(e.x, e.z); if (f) return { kind: 'field', f };
+    if (this.chestAtk) { // 26.11.2026 no field with HP left: off to the chest, else the nearest player
+      if (this.thiefSlot(e) >= 0) return { kind: 'chest' };
+      let bp: Player | null = null, bd = 1e9;
+      for (const p of this.players) if (p.alive) { const d = dist(e, p); if (d < bd) { bd = d; bp = p; } }
+      if (bp) return { kind: 'player', p: bp };
+    }
+    return null;
   }
   /** a stacked egg can only be taken from the top of the pyramid */
   topOfStack(fr: Fruit) { return fr.sk === undefined || !this.fruits.some(o => o.src === fr.src && o.sk !== undefined && o.sk > fr.sk! && o.state === 'ground'); }
@@ -2077,7 +2222,7 @@ export class Sim {
       const C = this.cfg.chest!, [sx, sz] = this.thiefPos(e.cs), [gx, gz] = this.form(e, sx, sz), d = this.steer(e, gx, gz, e.speed, dt, 0);
       if (d < .15) {
         e.face = Math.atan2(-e.x, -e.z); e.stealT -= dt;
-        if (e.stealT <= 0) { e.stealT = C.stealInterval; this.stealFromChest(e); }
+        if (e.stealT <= 0) { if (this.chestAtk) { e.stealT = this.cfg.enemies.meleeInterval; this.hurtChest(e, this.cfg.enemies.meleeDamage * e.dmgMul); } else { e.stealT = C.stealInterval; this.stealFromChest(e); } }
       } else e.stealT = C.stealInterval * .5;
       return;
     }
@@ -2481,9 +2626,9 @@ export class Sim {
     const P = this.cfg.player, it = p.intent;
     p.flash -= dt; p.swing -= dt; p.tillT -= dt;
     if (!p.alive) {
-      p.chW = ''; p.chT = 0; p.benchWork = false; // a held throw is lost when the player falls
+      p.chW = ''; p.chT = 0; p.benchWork = false; p.chestWork = false; // a held throw is lost when the player falls
       p.respawnT -= dt;
-      if (p.respawnT <= 0) { p.alive = true; p.hp = P.hp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
+      if (p.respawnT <= 0) { p.alive = true; p.hp = this.maxHp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
     }
     const [mx, mz, ml] = normMove(it);
@@ -2546,8 +2691,10 @@ export class Sim {
     if ((it.fire === 'prim' || it.fire === 'sec') && fw !== 'rake') p.active = fw!; // the fired weapon is the one in the hand (model swap like a switch)
     if (fw === 'rake' && (it.fire === 'prim' || it.fire === 'sec')) fw = null; // empty group: nothing to fire
     // 25.11.2026 Werkbank: holding the harvest action next to the bench hammers on the idea instead of raking
-    p.benchWork = fw === 'rake' && it.fire === 'rake' && this.canWork(p);
-    if (p.benchWork) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; const b = this.benchCircle()!; p.face = Math.atan2(b.x - p.x, b.z - p.z); }
+    const hold = fw === 'rake' && it.fire === 'rake', bOk = hold && this.canWork(p), cOk = hold && this.canWorkChest(p);
+    { const b = this.benchCircle(); p.benchWork = bOk && (!cOk || !b || Math.hypot(p.x - b.x, p.z - b.z) <= Math.hypot(p.x, p.z)); } // both in reach: the nearer one
+    p.chestWork = cOk && !p.benchWork; // 26.11.2026 Truhe: heal it / search seeds
+    if (p.benchWork || p.chestWork) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; const b = p.benchWork ? this.benchCircle()! : { x: 0, z: 0 }; p.face = Math.atan2(b.x - p.x, b.z - p.z); }
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
     if (p.swing > 0 || p.rakeHit) { // running stroke: turns with the player at once, impact at the end of the push
@@ -2636,7 +2783,7 @@ export class Sim {
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) { const back = this.rewindFor?.(p); this.updatePlayer(p, dt); back?.(); }
-    if (this.rsMode) this.tickResearch(dt);
+    if (this.rsMode) { this.tickResearch(dt); this.tickChest(dt); this.tickOrbs(dt); this.tickMycel(); }
     this.updateMerchant(dt);
     this.updateClouds(dt); this.updateBaits(dt);
     // fields
@@ -2644,7 +2791,7 @@ export class Sim {
       this.tickPoison(f, dt, d => this.hurtField(f, d));
       if (f.tilledT > 0) { f.tilledT -= dt; this.tillHeal(f, dt); if (f.tilledT <= 0) f.tilledBy = -1; }
       if (isBuilding(f.type)) this.tickBuilding(f, dt);
-      else if (f.alive) this.growField(f, dt * this.prodMult(f) * this.hpF(f), dt);
+      else if (f.alive) { this.growField(f, dt * this.prodMult(f) * this.hpF(f), dt); if (f.myc) this.autoHarvest(f, dt); }
       f.shake = Math.max(0, f.shake - dt);
     }
     // fruit
@@ -3088,7 +3235,7 @@ export class Sim {
   applyOffer(p: Player, key: string) {
     const U = this.cfg.upgrades;
     const [a, b] = key.split('_') as [string, string];
-    const tea = () => { p.hp = Math.min(this.cfg.player.hp, p.hp + U.herbalTea.playerHeal); this.fields.forEach(f => f.alive && (f.hp = Math.min(f.maxHp, f.hp + U.herbalTea.fieldHeal))); };
+    const tea = () => { p.hp = Math.min(this.maxHp, p.hp + U.herbalTea.playerHeal); this.fields.forEach(f => f.alive && (f.hp = Math.min(f.maxHp, f.hp + U.herbalTea.fieldHeal))); };
     if (a === 'learn') { this.learn(p, b as SkillId); return; }
     if (a === 'combo') { this.mergeCombo(p, b as ComboId); return; }
     if (a === 'tile') { p.placing = b as FruitType; p.placeMode = 'any'; if (!this.placeSlots(p.placing).length) { p.placing = null; tea(); } return; }
@@ -3209,6 +3356,7 @@ export class Sim {
   }
   /** 26.11.2026 a researched weapon upgrade: every player gets it (the techtree is shared); Mehlsack HP raises the stacks already standing */
   private rsUpgrade(key: string) {
+    if (key.startsWith('fld_')) { const t = key.slice(4) as FruitType; this.fieldLv[t] = (this.fieldLv[t] ?? 0) + 1; this.emit({ k: 'fieldUp', t: FRUITS.indexOf(t), lv: this.fieldLv[t] }); return; } // 26.11.2026 Feld-Upgrade (team-wide)
     for (const q of this.players) this.applyOffer(q, key);
     if (key === 'sack_hp') { const S = this.cfg.skills.sack; for (const k of this.sacks) { k.maxHp += S.hpStep; k.hp += S.hpStep; } }
     if (key === 'wall_hp') { const W = this.cfg.skills.wall; for (const w of this.walls) { w.maxHp += W.hpStep ?? 0; w.hp += W.hpStep ?? 0; } }
@@ -3218,7 +3366,7 @@ export class Sim {
     if (!this.placeSlots(t).length) return false;
     p.placing = t; p.placeMode = 'any'; p.rsPlace = true; p.rsUi = 0;
     this.rsLvl = true; this.phase = 'lvl';
-    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; }
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; }
     return true;
   }
   /** 26.11.2026 a player drops out (connection lost, left, game loaded): research UI closed; a field he was placing is not lost,
@@ -3227,7 +3375,9 @@ export class Sim {
     const p = this.player(id); if (!p || !this.rsMode) return;
     if (p.rsUi) this.closeResearch(id);
     p.benchWork = false; p.rsLock |= 3; // a figure left standing at the bench (waiting for a reconnect) does not take it again
+    p.chestWork = false;
     if (p.rsPlace && p.placing) { this.rsPend.push(p.placing); p.rsPlace = false; p.placing = null; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); }
+    if (p.mycPlace) { p.mycPlace = false; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); } // 26.11.2026 the Myzelle stays in mycPend
   }
   /** close the panel / popup (a popup closed without "Fertigstellen" keeps the idea ready at the bench); walk away to open it again */
   closeResearch(id: number) {
@@ -3242,6 +3392,7 @@ export class Sim {
   /** cheat: research everything (fields go onto the nearest free slots, weapons to every player) */
   private researchAll() {
     const st = this.rs, A = this.cfg.cheats?.ammo ?? 100;
+    for (const t of this.cfg.research?.trees ?? []) if (!st.trees.includes(t.id)) st.trees.push(t.id); // 26.11.2026 all trees found
     for (const n of rNodes(this.cfg)) {
       if (n.kind === 'speed' || nodeDone(this.cfg, st, n.id)) continue;
       st.done.push(n.id); st.n += nodeCount(this.cfg, n); st.work[n.id] = 0; if (st.cur === n.id) { st.cur = null; st.ready = false; }
@@ -3474,13 +3625,14 @@ export class Sim {
         cb: SKILLS.map(id => p.skills[id].combo ? COMBOS.indexOf(p.skills[id].combo as ComboId) : -1),
         ro: this.rsMode ? p.rsUi : undefined,
       };
+      if (p.mycPlace) { const P = me[p.id]; P.my = 1; P.pc = FRUITS.indexOf(this.cfg.arena.startField?.type ?? 'pea'); P.pm = 2; P.ps = this.mycSlots(); } // 26.11.2026 placing a Myzelle: top-down view, crop fields with room
     }
     return {
       ch: this.chestOn ? this.enemies.filter(e => !e.dead && e.cs >= 0 && !e.fleeing && Math.hypot(e.x - this.thiefPos(e.cs)[0], e.z - this.thiefPos(e.cs)[1]) < .2).length : undefined,
       mc: this.merchant ? [r2(this.merchant.x), r2(this.merchant.z), r2(this.merchant.face), this.merchant.st, r2(this.merchant.t), this.merchant.st === 1 ? r2(Math.max(0, this.waveT)) : 0] : undefined,
       t: r2(this.time), ph: this.phase, ts: r2(this.ramp), wv: this.wave, wn: this.cfg.waves.total, dh: r2(this.dayHour()), dc: this.cycleLen(), wp: this.wavePause ? 1 : 0, wt: r2(Math.max(0, this.wavePause ? this.waveT : this.waveEndAt - this.time)), won: this.won ? 1 : 0, lr: this.lvRound, lv: this.level, xp: Math.floor(this.xp), nx: this.need(this.level), ki: this.kills, cx: this.collectedXP, n: this.n, wb: r2(this.wellBonus()), wo: this.wellOpen ? 1 : 0, jc: this.cfg.juice ? BERRIES.flatMap(b => [Math.round(this.juice[b].w / this.cfg.juice!.fill * 1000) / 1000, this.juice[b].lv]) : undefined,
       pl: this.players.map(p => ({
-        id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.cfg.player.hp, sa: r2(p.sta), sx: p.staX ? 1 : 0, sh: Math.ceil(p.sh), ms: this.cfg.player.shield?.hp ?? 0, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
+        id: p.id, c: p.color, be: BERRIES.indexOf(p.berry), x: r2(p.x), z: r2(p.z), f: r2(p.face), hp: Math.ceil(p.hp), mhp: this.maxHp, sa: r2(p.sta), sx: p.staX ? 1 : 0, sh: Math.ceil(p.sh), ms: this.cfg.player.shield?.hp ?? 0, al: p.alive ? 1 : 0, st: p.stun > 0 ? 1 : 0,
         sw: p.swing > 0 ? r2(1 - p.swing / this.rakeTime(p)) : 0, sd: r2(p.swingDir), wk: r2(p.walk), rs: Math.ceil(p.respawnT), po: p.poison.length, fl: p.flash > 0 ? 1 : 0, ti: p.tillT > 0 ? r2(1 - p.tillT / (this.rakeTime(p) * 1.6)) : 0, rr: r2(this.rakeStats(p).range), ra: r2(this.rakeStats(p).dia),
         ...(() => { const fs = this.stats('chili', p.skills.chili); return { xb: (p.xbT > 0 || p.active === 'asp') && !p.skills.asp.combo ? 1 : 0, fo: p.flOn > 0 ? 1 : 0, fa: r2(p.flAng), fc: fs.cone, fw: fs.sweep, fr: r2(fs.range) } as const; })(),
         lw: this.equipped(p, 'lemon') && !p.skills.lemon.combo ? 1 : 0, aw: p.active === 'rake' || p.skills[p.active].combo ? 0 : WEAPONS.indexOf(p.active),
@@ -3492,7 +3644,7 @@ export class Sim {
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
         dk: p.dk > 0 ? r2(p.dk) : undefined,
         rh: p.swing > 0 || (p.active === 'rake' && p.handT <= 0) ? 1 : 0,
-        bw: p.benchWork ? 1 : undefined, // 25.11.2026 hammering at the Werkbank
+        bw: p.benchWork ? 1 : p.chestWork ? 2 : undefined, // 25.11.2026 hammering at the Werkbank, 26.11.2026 2 = at the chest
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
@@ -3520,7 +3672,7 @@ export class Sim {
         const pr = B ? (B.interval ? 1 - f.t / B.interval : f.work > 0 ? 1 - f.work / (B.time ?? 1) : 0) : 1 - f.t / this.cfg.plants[f.type]!.interval;
         const fl = (f.broken ? 1 : 0) | (B && !f.broken && (B.interval || f.work > 0) ? 2 : 0);
         const st = B ? Object.entries(f.inb).filter(([, n]) => n! > 0).map(([k, n]) => FRUITS.indexOf(k as FruitType) + ':' + n).join(',') : '';
-        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st, B || !this.cycle || this.isForest(f) ? 0 : r2(f.cyc === 0 ? Math.min(1, f.ct / (this.plantsPer * this.strokesOf(f.type))) : 1 + Math.min(1, f.ct / this.cycOf(f).grow))] as FiSnap;
+        return [f.slot, FRUITS.indexOf(f.type), r2(f.hp / f.maxHp), f.alive ? 1 : 0, r2(f.shake), f.rarity, f.prog, f.edge, r2(clamp(pr, 0, 1)), f.tilledT > 0 ? 1 : 0, Math.round(this.rate(f) * 1000) / 1000, fl, st, B || !this.cycle || this.isForest(f) ? 0 : r2(f.cyc === 0 ? Math.min(1, f.ct / (this.plantsPer * this.strokesOf(f.type))) : 1 + Math.min(1, f.ct / this.cycOf(f).grow)), f.myc ?? 0] as FiSnap; // [14] 26.11.2026 Myzellen
       }),
       pu: this.pools.map(p => [p.id, r2(p.x), r2(p.z), r2(p.r), r2(Math.max(0, p.t / p.dur)), p.fire ? 1 : 0]),
       bb: this.berryBombs.map(b => { const fl = b.flight > 0 ? Math.min(1, b.t / b.flight) : 1, armed = b.t >= b.flight; const x = armed ? b.x : b.fx + (b.x - b.fx) * fl, z = armed ? b.z : b.fz + (b.z - b.fz) * fl, y = b.rain ? Math.max(0, 7 * (1 - b.t / b.fuse)) + .15 : armed ? .15 : .6 + Math.sin(fl * Math.PI) * 1.2; return [b.id, r2(x), r2(y), r2(z), armed ? 1 : 0, r2(armed ? (b.t - b.flight) / b.fuse : fl), b.rain ? 1 : 0, r2(b.r)]; }),
@@ -3530,10 +3682,15 @@ export class Sim {
     };
   }
   /** 25.11.2026 research + Steinkohle part of the snapshot (see Snap rs / rd / rp / bn / wl) */
-  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl' | 'sk'> {
-    const ns = rNodes(this.cfg), st = this.rs, c = this.rsCost();
+  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl' | 'sk' | 'rt' | 'cv' | 'xo' | 'fu' | 'mp'> {
+    const ns = rNodes(this.cfg), st = this.rs, c = this.rsCost(), T = this.cfg.research?.trees ?? [], sd = seedTarget(this.cfg, st);
     return {
-      rs: [rIndex(this.cfg, st.cur), st.ready ? 1 : 0, st.speedLv, st.n, r2(c), this.players.find(p => p.rsUi === 2)?.id ?? -1],
+      rs: [rIndex(this.cfg, st.cur), st.ready ? 1 : 0, st.speedLv, st.n, Math.round(c * 1000) / 1000, this.players.find(p => p.rsUi === 2)?.id ?? -1,
+        sd ? T.findIndex(t => t.id === sd) : -1, sd ? Math.round(Math.min(1, st.sw / seedCost(this.cfg, st)) * 1000) / 1000 : 0], // 26.11.2026 [6] tree of the next seed search, [7] its progress
+      rt: st.trees.map(id => T.findIndex(t => t.id === id)).filter(i => i >= 0), // 26.11.2026 trees found
+      cv: this.chestAtk ? [Math.ceil(this.chestHp), this.chestMax] : undefined, // 26.11.2026 chest HP
+      xo: this.xorbs.map(o => [o.id, r2(o.x), r2(o.y), r2(o.z)]), // 26.11.2026 Myzel-XP orbs
+      fu: FRUITS.map(t => this.fieldLv[t] ?? 0), mp: this.mycPend,
       rd: ns.map(n => nodeDone(this.cfg, st, n.id) ? 1 : 0),
       rp: ns.map(n => Math.round(Math.min(1, (st.work[n.id] ?? 0) / this.rsCostOf(n.id)) * 1000) / 1000),
       bn: this.benchSlot,

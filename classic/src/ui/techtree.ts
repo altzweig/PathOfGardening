@@ -4,7 +4,7 @@
 // (main.ts: sim call on the host / solo, net message on a guest). No explanation texts: names, icons and values only.
 import { AMMO_OF, Balancing, FruitType, ResearchNode, SkillId, ammoPool } from '../config';
 import type { Snap } from '../sim/snap';
-import { isPlaceNode, nodeAvailable, nodeDone, nodeMul, rNodes, rsFromSnap, segmentOpen } from '../sim/research';
+import { fieldUpOf, isPlaceNode, nodeAvailable, nodeDone, nodeMul, rNodes, rsFromSnap, seedMode, segmentOpen, treeOpen } from '../sim/research';
 import { fieldArt, fruitIcon, mini, skillIcon } from './icons';
 
 type RS = ReturnType<typeof rsFromSnap>;
@@ -17,10 +17,11 @@ const tfmt = (s: number) => s < 100 ? `${Math.ceil(s - 1e-6)} s` : s < 3600 ? `$
 /** 26.11.2026 upgrade node: weapon of the upgrade key ("pea_dmg" -> pea) and its kind ("dmg") */
 const upSplit = (key: string) => { const i = key.indexOf('_'); return [key.slice(0, i), key.slice(i + 1)] as [string, string]; };
 /** name of an upgrade (names.upgrades: full key first, then the part after "_") */
-export function upName(cfg: Balancing, key: string) { const U = cfg.names.upgrades ?? {}, [, k] = upSplit(key); return U[key] ?? U[k] ?? k; }
+export function upName(cfg: Balancing, key: string) { const U = cfg.names.upgrades ?? {}, [w, k] = upSplit(key); if (w === 'fld') return U.fld ?? 'Zykluszeit'; return U[key] ?? U[k] ?? k; }
 /** icon + what one level of an upgrade adds (shown on the chip / in the popup; all numbers from balancing.yaml) */
 export function upInfo(cfg: Balancing, key: string, lv = 1): { icon: string; txt: string } {
   const U = cfg.upgrades as any, S = cfg.skills as any, [w, k] = upSplit(key), pc = (v: number) => `+${nf(v * 100)} %`;
+  if (w === 'fld') return { icon: mini('cd'), txt: `−${nf((1 - (cfg.fields.upgrade?.factor ?? .8)) * 100)} %` }; // 26.11.2026 Feld-Upgrade: cycle time
   switch (key) {
     case 'sack_hp': return { icon: mini('heart'), txt: `+${nf(S.sack.hpStep)}` };
     case 'sack_heal': return { icon: mini('repair'), txt: `+${nf(S.sack.repairStep)}/min` };
@@ -67,13 +68,15 @@ export function researchBar(cfg: Balancing, s: Snap): { frac: number; ready: boo
   if (!s.rs) return null;
   const ns = rNodes(cfg), ci = s.rs[0] ?? -1, n = ci >= 0 ? ns[ci] : null, ready = !!s.rs[1];
   const frac = n ? (ready ? 1 : Math.min(1, s.rp?.[ci] ?? 0)) : 0;
-  return { frac, ready, key: n ? n.id : '-', icon: n ? (n.kind === 'upgrade' ? skillIcon(upSplit(n.ref ?? '')[0]) : nodeIcon(n)) : mini('bulb'), text: n ? (ready ? '100 %' : `${Math.floor(frac * 100)} %`) : '' };
+  return { frac, ready, key: n ? n.id : '-', icon: n ? (fieldUpOf(n) ? fieldArt(fieldUpOf(n)!) : n.kind === 'upgrade' ? skillIcon(upSplit(n.ref ?? '')[0]) : nodeIcon(n)) : mini('bulb'), text: n ? (ready ? '100 %' : `${Math.floor(frac * 100)} %`) : '' };
 }
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 
 export class TechTree {
   onChoose: (node: number) => void = () => {};
+  /** 26.11.2026 Samen-Suche: the tree (research.trees index) the next search at the chest opens */
+  onSeed: (tree: number) => void = () => {};
   onFinish: () => void = () => {};
   onClose: () => void = () => {};
   onOpen: () => void = () => {};
@@ -116,6 +119,7 @@ export class TechTree {
     // node click (delegated): only available ones; a mouse drag is no click
     this.canvas.addEventListener('click', e => {
       if (performance.now() - this.dragEnd < 350) return; // end of a drag, no click
+      const sb = (e.target as HTMLElement).closest<HTMLElement>('.rtSeedBtn'); if (sb && this.ro === 1) { if (!sb.classList.contains('on')) { sb.classList.add('on'); this.onSeed(+sb.dataset.tree!); } else this.deny(sb); return; }
       const b = (e.target as HTMLElement).closest<HTMLElement>('.rtNode'); if (!b || this.ro !== 1) return;
       if (b.classList.contains('avail') || b.classList.contains('cur')) { b.classList.add('chosen'); this.onChoose(+b.dataset.i!); }
       else this.deny(b);
@@ -192,7 +196,8 @@ export class TechTree {
     this.root.classList.toggle('dim', ro === 2);
     // panel structure (rebuilt only when the tree state, the tab or the screen size changes)
     const L = this.layout(cfg);
-    const key = `${L.key}|${this.tab}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}`;
+    (st as any).seedIdx = s.rs?.[6] ?? -1;
+    const key = `${L.key}|${this.tab}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}|${(s.rt ?? []).join(',')}|${s.rs?.[6] ?? -1}|${s.lv}`;
     if (key !== this.key) { const sl = this.scroll.scrollLeft, sy = this.scroll.scrollTop; this.key = key; this.build(cfg, st, L); this.scroll.scrollLeft = sl; this.scroll.scrollTop = sy; }
     // progress of every node (another player may be hammering while this one looks)
     const ns = rNodes(cfg);
@@ -200,9 +205,10 @@ export class TechTree {
       const i = +el.dataset.i!, p = Math.min(1, s.rp?.[i] ?? 0), v = p.toFixed(3);
       if (el.dataset.p !== v) {
         el.dataset.p = v; el.style.setProperty('--p', v);
-        const c = el.querySelector('.rtCost span'); if (c && !el.classList.contains('done')) c.textContent = tfmt(st.cost * nodeMul(cfg, ns[i]) * (1 - p));
+        const c = el.querySelector('.rtCost span'); if (c && !el.classList.contains('done')) c.textContent = tfmt(st.cost * nodeMul(cfg, ns[i], st) * (1 - p));
       }
     });
+    { const sb = this.canvas.querySelector<HTMLElement>('.rtSeedBtn.on'); if (sb) { const sp = st.seedP; sb.style.setProperty('--p', sp.toFixed(3)); const c = sb.querySelector('.rtCost span'); if (c) c.textContent = tfmt(st.seedCost * (1 - sp)); } }
     { const tb = this.tabs.querySelector<HTMLElement>('.rtTab.cur'); if (tb) { const ci = s.rs![0] ?? -1; tb.style.setProperty('--p', (Math.min(1, s.rp?.[ci] ?? 0)).toFixed(3)); } }
     if (this.wantFront && this.scroll.clientWidth) { this.wantFront = false; this.toFront(cfg, st); }
     // pickup popup
@@ -239,12 +245,12 @@ export class TechTree {
     this.panel.classList.toggle('small', L.small);
     // ---- tabs ----
     this.tabs.innerHTML = T.map(t => {
-      const tn = all.filter(n => this.inTree(n, t.id)), open = segmentOpen(cfg, st, t.segment);
+      const tn = all.filter(n => this.inTree(n, t.id)), open = treeOpen(cfg, st, t.id), seedT = !open && seedMode(cfg) && (cfg.research!.trees ?? []).findIndex(x => x.id === t.id) === (st as any).seedIdx;
       const cur = tn.some(n => n.id === st.cur), av = open && tn.some(n => nodeAvailable(cfg, st, n.id) && n.id !== st.cur);
       const done = tn.filter(n => nodeDone(cfg, st, n.id)).length;
-      const cls = ['rtTab', t.id === this.tab ? 'sel' : '', open ? '' : 'lock', cur ? 'cur' : '', cur && st.ready ? 'ready' : '', av ? 'avail' : ''].join(' ');
+      const cls = ['rtTab', t.id === this.tab ? 'sel' : '', open ? '' : 'lock', cur ? 'cur' : '', cur && st.ready ? 'ready' : '', av ? 'avail' : '', seedT ? 'seed' : ''].join(' ');
       return `<button class="${cls}" data-t="${esc(t.id)}" role="tab" aria-selected="${t.id === this.tab}" aria-label="${esc((cfg.names.fields as any)[t.icon] ?? t.id)}">
-        <span class="rtTabIc">${fruitIcon(t.icon)}</span>${open ? '' : `<b class="rtBadge lk">${mini('lock')}</b>`}${cur ? `<i class="rtTabRing"></i>` : ''}
+        <span class="rtTabIc">${fruitIcon(t.icon)}</span>${open ? '' : `<b class="rtBadge lk">${mini(seedT ? 'seed' : 'lock')}</b>`}${cur ? `<i class="rtTabRing"></i>` : ''}
         <small>${done}/${tn.length}</small></button>`;
     }).join('');
     const selTab = this.tabs.querySelector<HTMLElement>('.rtTab.sel'); if (selTab) { const tb = this.tabs, x = selTab.offsetLeft; if (x < tb.scrollLeft || x + selTab.offsetWidth > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = x - 8; }
@@ -292,7 +298,12 @@ export class TechTree {
     const C = this.canvas; C.style.width = Wc + 'px'; C.style.height = Hc + 'px';
     let html = '';
     // locked tree: overlay with what opens it
-    if (!segmentOpen(cfg, st, tree.segment)) {
+    if (seedMode(cfg) && !treeOpen(cfg, st, tree.id)) { // 26.11.2026 Samen-Suche: the chosen tree is searched for at the chest
+      const ti = (R.trees ?? []).findIndex(x => x.id === tree.id), on = ti === (st as any).seedIdx, sp = on ? (st as any).seedP as number : 0;
+      const left = (st as any).seedCost * (1 - sp);
+      html += `<div class="rtLock rtSeed" style="left:4px;top:2px;right:4px;bottom:2px"><button class="rtSeedBtn${on ? ' on' : ''}" data-tree="${ti}" style="--p:${sp.toFixed(3)}" aria-label="${esc(NR.seed ?? 'Samen')}">
+        <span class="rtSeedIc">${mini('seed')}</span><span class="rtSeedTx"><b>${esc(NR.seed ?? 'Samen')}</b><span class="rtCost"><i>${mini('chest')}</i><i>${mini('cd')}</i><span>${tfmt(left)}</span></span></span><i class="rtBar"></i></button></div>`;
+    } else if (!seedMode(cfg) && !segmentOpen(cfg, st, tree.segment)) {
       const S = (R.segments ?? []).find(q => q.id === tree.segment), from = S?.from ?? [];
       const got = (fields: boolean) => all.filter(n => (fields ? isPlaceNode(n) : n.kind === 'weapon') && !n.start && from.includes(n.segment) && st.done.includes(n.id)).length;
       const req = [S?.needFields ? `<span><i class="rtHex"></i>${Math.min(got(true), S.needFields)}/${S.needFields}</span>` : '', S?.needWeapons ? `<span><i>${skillIcon('pea')}</i>${Math.min(got(false), S.needWeapons)}/${S.needWeapons}</span>` : ''].join('');
@@ -313,9 +324,9 @@ export class TechTree {
     html += `<svg class="rtLinks" width="${Wc}" height="${Hc}" viewBox="0 0 ${Wc} ${Hc}">${svg}</svg>`;
     // nodes
     for (const n of ns) {
-      const i = all.indexOf(n), s0 = sts.get(n.id)!, x = X.get(n.id)!, y = Y.get(n.id)!, left = Math.max(0, 1 - Math.min(1, (st.work[n.id] ?? 0) / (st.cost * nodeMul(cfg, n))));
+      const i = all.indexOf(n), s0 = sts.get(n.id)!, x = X.get(n.id)!, y = Y.get(n.id)!, left = Math.max(0, 1 - Math.min(1, (st.work[n.id] ?? 0) / (st.cost * nodeMul(cfg, n, st))));
       const badge = s0 === 'done' ? `<b class="rtBadge ok">${mini('check')}</b>` : s0 === 'lock' ? `<b class="rtBadge lk">${mini('lock')}</b>` : '';
-      const sub = s0 === 'done' ? '' : s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(st.cost * nodeMul(cfg, n) * left)}</span></span>`;
+      const sub = s0 === 'done' ? '' : s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(st.cost * nodeMul(cfg, n, st) * left)}</span></span>`;
       if (n.kind === 'upgrade') {
         const inf = upInfo(cfg, n.ref ?? '', n.lv), first = (n.lv ?? 1) === 1;
         html += `<button class="rtNode k-upgrade ${s0}" data-i="${i}" style="left:${x}px;top:${y - (first ? L.capH : 0)}px;width:${L.colW}px" title="${esc(upName(cfg, n.ref ?? ''))} ${n.lv}/${n.count}">
@@ -359,6 +370,11 @@ export class TechTree {
       const t = n.ref as FruitType, P = (cfg.plants as any)[t] ?? { interval: 1 }, C = cfg.fields.cycle, np = C?.plants ?? 6;
       kind = NR.field ?? '';
       stats = [chip(mini('cd'), `${nf(P.grow ?? C?.grow ?? P.interval, 1)} s`, W.grow), chip(mini('rake'), `${nf(np * (P.strokes ?? 1) * cfg.rake.cooldown, 1)} s`, W.harvest), chip(fruitIcon(t), String(np * (P.amount ?? 1)), W.yield)];
+    } else if (fieldUpOf(n)) { // 26.11.2026 Feld-Upgrade: grow + harvest time of the field x factor
+      const t = fieldUpOf(n)! as FruitType, P = (cfg.plants as any)[t] ?? {}, C = cfg.fields.cycle, np = C?.plants ?? 6, F = cfg.fields.upgrade?.factor ?? .8, lv = n.lv ?? 1;
+      const g = P.grow ?? C?.grow ?? 8, h = np * (P.strokes ?? 1) * cfg.rake.cooldown, a = Math.pow(F, lv - 1), b = Math.pow(F, lv);
+      kind = (cfg.names.fields as any)[t] ?? NR.field ?? ''; icon = fieldArt(t); kcls = 'field';
+      stats = [chip(mini('cd'), `${nf(g * a, 1)} s → <em>${nf(g * b, 1)} s</em>`, W.grow), chip(mini('rake'), `${nf(h * a, 1)} s → <em>${nf(h * b, 1)} s</em>`, W.harvest), chip(`<b class="rpLv">${lv}</b>`, `${lv} / ${n.count}`, NR.level)];
     } else if (n.kind === 'upgrade') { // 26.11.2026 one level of a weapon upgrade
       const [w] = upSplit(n.ref ?? ''), inf = upInfo(cfg, n.ref ?? '', n.lv);
       kind = (cfg.names.skills as Record<string, string>)[w] ?? NR.upgrade ?? ''; icon = skillIcon(w);

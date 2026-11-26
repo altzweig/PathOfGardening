@@ -396,7 +396,7 @@ interface Strand { pts: P3[]; w0: number; w1: number; i0: number; i1: number; ge
 /**
  * segs: [from, to, chainDepth]. More hit targets (segs.length) = more side arms, longer and forking deeper.
  */
-export function lightning(segs: [P3, P3, number][], o: { width?: number; life?: number; fork?: number; core?: number; halo?: number } = {}) {
+export function lightning(segs: [P3, P3, number][], o: { width?: number; life?: number; fork?: number; core?: number; halo?: number; gain?: number } = {}) {
   if (!segs.length) return;
   const N = Math.max(1, o.fork ?? segs.length), W = o.width ?? .022;
   const pBranch = Math.min(.32, .05 + .035 * N), maxGen = N >= 6 ? 3 : N >= 3 ? 2 : 1, budget = 260 + N * 90;
@@ -450,6 +450,7 @@ export function lightning(segs: [P3, P3, number][], o: { width?: number; life?: 
   const m = new THREE.Mesh(g, boltMat(1)); m.frustumCulled = false;
   const U = (m.material as THREE.ShaderMaterial).uniforms;
   if (o.core !== undefined) U.uCore.value.setHex(o.core); if (o.halo !== undefined) U.uHalo.value.setHex(o.halo);
+  if (o.gain) { U.uCore.value.multiplyScalar(o.gain); U.uHalo.value.multiplyScalar(o.gain); } // 26.11.2026 coloured bolts brighter than 1 (Myzel)
   fxTop.add(m);
   bolts.push({ m, t: 0, life: o.life ?? .28, restrike: rand(.07, .11) });
 }

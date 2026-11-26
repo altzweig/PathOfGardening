@@ -3,7 +3,7 @@
 import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId, ammoPool } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
-import { nodeAvailable, rNodes } from '../../src/sim/research';
+import { nodeAvailable, rNodes, seedTarget } from '../../src/sim/research';
 
 export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number; /** stop after this wave (debuff tests: early/mid game only) */ stopWave?: number; /** 24.11.2026 weapon test: fight ONLY with this weapon (learned at the start + one field of it next to the start field; 'blue' = shotgun with an extra berry field) */ solo?: SkillId; /** 26.11.2026 false: never research Forschungstempo */ rsSpeed?: boolean }
 export interface RunResult {
@@ -37,6 +37,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     const left = rNodes(cfg).filter(n => n.kind !== 'speed' && !nodeAvailable(cfg, sim.rs, n.id) && !sim.rs.done.includes(n.id) && !n.start).length + ns.filter(n => n.kind !== 'speed').length;
     const sc = (n: typeof ns[number]) => n.kind === 'speed' ? (o.rsSpeed === false ? -1 : left >= 4 && sim.rs.speedLv * 3 < sim.rs.done.length ? 2.5 : -1)
       : n.kind === 'building' || n.ref === 'sack' || n.ref?.startsWith('sack_') ? -1 // 26.11.2026 the bot does not build mills / lay sacks
+      : n.kind === 'upgrade' && n.ref?.startsWith('fld_') ? (own.has(n.ref.slice(4)) || n.ref.slice(4) === 'pea' ? +(process.env.BOT_FLD ?? 1.6) - (n.lv ?? 1) * .05 : .3) // 26.11.2026 Feld-Upgrades of its ammo fields
       : n.kind === 'upgrade' ? (n.ref?.startsWith('wall_') ? .2 : (+(process.env.BOT_UP ?? 1.2)) + (n.ref?.endsWith('_dmg') ? .5 : n.ref?.endsWith('_cd') ? .3 : 0) - (n.lv ?? 1) * .05) // 26.11.2026 Einzelbäume: upgrades of the weapons it has
       : n.kind === 'field' ? 2 : n.ref === 'wall' ? 1 : own.has(ammoPool(n.ref as SkillId)) ? .5 : 3;
     return ns.filter(n => sc(n) >= 0).sort((a, b) => sc(b) - sc(a))[0];
@@ -107,6 +108,12 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
   let seq = 0, rsIdle = 0;
   while (sim.phase !== 'over' && sim.time < maxT && !(o.stopWave && sim.wave > o.stopWave)) {
     if (sim.phase === 'lvl') {
+      if (p.mycPlace) { // 26.11.2026 Myzelle: into the ammo field of its best gun with the fewest Myzellen (pea first)
+        const own = new Set(learned().map(w => ammoPool(w) as string)), ok = sim.mycSlots();
+        const best = ok.map(i => sim.fieldAt(i)!).sort((a, b) => ((own.has(b.type) ? 10 : 0) + (b.type === 'pea' ? 1 : 0) - (b.myc ?? 0) * 2) - ((own.has(a.type) ? 10 : 0) + (a.type === 'pea' ? 1 : 0) - (a.myc ?? 0) * 2))[0];
+        if (best) { sim.place(p.id, best.slot); res.picks['myc:' + best.type] = (res.picks['myc:' + best.type] || 0) + 1; } else { p.mycPlace = false; p.picked = true; (sim as any).checkAllPicked(); }
+        continue;
+      }
       if (p.placing) { const i = pickSlot(); if (i >= 0) sim.place(p.id, i); else { p.placing = null; p.picked = true; (sim as any).checkAllPicked(); } }
       else if (!p.picked && p.offers) {
         const sc = p.offers.map(x => ({ k: x.key, s: score(x.key) })).sort((a, b) => b.s - a.s);
@@ -149,7 +156,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       const gun = rsMode && !o.solo ? rsGun() : o.solo === 'cab' ? (weapons.includes('cab') ? 'cab' : undefined) : weapons.find(w => w !== 'blue' && w !== 'cab' && w !== 'wall' && w !== 'pea') ?? (weapons.includes('blue') ? 'blue' : weapons.includes('pea') ? 'pea' : undefined);
       // the enemy that matters most: close to the player, or eating the garden
       let tgt = null as any, td = 1e9;
-      for (const e of ens) { const d = Math.hypot(e.x - p.x, e.z - p.z), dc = Math.hypot(e.x, e.z); if (dc > 14 && d > 6) continue; const pr = d + dc * .3 - (e.target?.kind === 'field' ? 5 : 0) - (e.type === 'toad' ? 2 : 0); if (pr < td) { td = pr; tgt = e; } }
+      for (const e of ens) { const d = Math.hypot(e.x - p.x, e.z - p.z), dc = Math.hypot(e.x, e.z); if (dc > 14 && d > 6) continue; const pr = d + dc * .3 - (e.target?.kind === 'field' ? 5 : 0) - (e.target?.kind === 'chest' ? 7 : 0) - (e.type === 'toad' ? 2 : 0); if (pr < td) { td = pr; tgt = e; } }
       const fr = sim.fruits.filter(f => f.state === 'ground' || f.state === 'fly');
       let fb = null as any, fd = 1e9; for (const f of fr) { const d = Math.hypot(f.x - p.x, f.z - p.z) - (want.has(f.type) ? 2 : 0); if (d < fd) { fd = d; fb = f; } }
       const close = near(p.x, p.z, 2.2);
@@ -178,6 +185,9 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
         go(close.x, close.z, .9); it.fire = sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2 ? 'cab' : 'rake'; if (it.fire === 'cab') { mineX = p.x; mineZ = p.z; }
       } else if (fb && fd < (rsMode && sim.rs.cur && !sim.rs.ready && !low ? RS_FETCH : 6)) { go(fb.x, fb.z, .05); A = 'collect'; }
       else if (rh) { A = 'harvest'; const d = Math.hypot(rh.x - p.x, rh.z - p.z); if (d > .4) go(rh.x, rh.z, .2); it.fire = 'rake'; }
+      else if (rsMode && sim.chestAtk && (sim.chestHp < sim.chestMax * +(process.env.BOT_HEAL ?? .7) || (!!seedTarget(cfg, sim.rs) && (!sim.rs.cur || sim.rs.trees.length < Math.floor(sim.wave / +(process.env.BOT_SEED ?? 4)))))) { // 26.11.2026 Truhe: repair it, or search seeds for the next tree
+        A = sim.chestHp < sim.chestMax ? 'chestHeal' : 'seed'; go(0, 0, 1.0); it.fire = 'rake';
+      }
       else if (rsMode && sim.rs.cur) { A = 'bench'; // 25.11.2026 research: hammer at the bench (hold the harvest action), or walk into it to pick up the finished idea
         const b = sim.benchCircle()!; go(b.x, b.z, sim.rs.ready ? .3 : 1.0); if (!sim.rs.ready) it.fire = 'rake';
       }

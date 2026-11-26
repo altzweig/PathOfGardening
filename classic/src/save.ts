@@ -5,7 +5,7 @@
 // balancing.yaml. Fields added to the code later are filled in from a fresh Sim / player on load.
 import type { Balancing, FruitType, SkillId } from './config';
 import { Sim } from './sim/sim';
-import { newRState, rNodes } from './sim/research';
+import { newRState, rNodes, startTree } from './sim/research';
 import type { Look } from './look';
 
 const INDEX = 'pog-classic.saves';
@@ -13,7 +13,8 @@ const KEY = (id: string) => 'pog-classic.save.' + id;
 /** a few runs are kept, the oldest one goes */
 const KEEP = 3;
 /** 2 (26.11.2026): Werkbank-Techtree (rs, walls, rsLvl, rsPend, benchSlot; Player rsUi, rsLock, rsPlace, benchWork). Version 1 is migrated, see migrateV1 */
-const VERSION = 2;
+/** 3 (26.11.2026): Truhe als Ziel (chestHp), Feld-Upgrades (fieldLv), Myzel-XP (xorbs), Myzellen (mycPend, Field myc), Samen-Suche (rs.trees / seed / sw / lv). Version 2 is migrated, see migrateV2 */
+const VERSION = 3;
 
 export interface SaveInfo { id: string; wave: number; level: number; t: number; name: string; started: number; /** co-op game saved by the host: number of players */ coop?: number }
 /** co-op save (25.11.2026): each guest's token, so it gets its own figure back when it joins the loaded game */
@@ -114,7 +115,7 @@ export function saveGame(id: string, started: number, sim: Sim, look: Look, coop
 export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | null; info: SaveInfo; coop?: CoopSeat[] } | null {
   let raw: any;
   try { raw = JSON.parse(localStorage.getItem(KEY(id)) || 'null'); } catch { return null; }
-  if (!raw || (raw.v !== VERSION && raw.v !== 1) || !raw.sim) return null;
+  if (!raw || (raw.v !== VERSION && raw.v !== 1 && raw.v !== 2) || !raw.sim) return null;
   try {
     const data = decode(raw.sim);
     const sim = new Sim(cfg);
@@ -126,12 +127,25 @@ export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | n
     sim.rewindFor = null;
     (sim as any).wallDirty = true; (sim as any).wallGrid = new Map(); (sim as any).wallLinks = new Map(); // 26.11.2026 rebuilt from walls
     if (raw.v === 1 && !('rs' in data) && sim.rsMode) migrateV1(sim, cfg);
+    if (sim.rsMode) migrateV2(sim, cfg, data);
     // 26.11.2026 no research UI open after loading (the UI starts closed); a field that was being placed waits at the bench
     for (const p of sim.players) { sim.rsDrop(p.id); p.rsLock = 0; }
     return { sim, look: raw.look ?? null, info: raw.info, coop: Array.isArray(raw.coop) ? raw.coop : undefined };
   } catch (e) { console.warn('load', e); return null; }
 }
 
+/** 26.11.2026 version 2 (or 1) loaded: missing research keys filled in; trees that already have researched nodes count as found
+ *  (nothing researched gets locked again); the chest starts whole; the level the save has gives its Myzellen to place (every mycelEvery levels) */
+function migrateV2(sim: Sim, cfg: Balancing, data: any) {
+  fillMissing(sim.rs, newRState());
+  const st = sim.rs, start = startTree(cfg);
+  if (!('chestHp' in data)) {
+    sim.chestHp = sim.chestMax;
+    for (const t of cfg.research?.trees ?? []) if (t.id !== start && !st.trees.includes(t.id) && rNodes(cfg).some(n => n.tree === t.id && !n.start && st.done.includes(n.id))) st.trees.push(t.id);
+    const E = cfg.xp.mycelEvery ?? 0; if (E > 0 && cfg.mycel) sim.mycPend = Math.floor(sim.level / E);
+  }
+  st.lv = sim.level;
+}
 /** 26.11.2026 version 1 (XP / level-up game with berry start) loaded while balancing.yaml says progression: research:
  *  the game goes on as a research game. Everything the save has stays (fields, weapons incl. their upgrades, buildings);
  *  the techtree marks every field type in the garden and every learned weapon as researched (they count for the price of

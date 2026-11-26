@@ -43,7 +43,7 @@ void main(){
   float dens=smoothstep(1.,.2,r/prof+(n-.5)*.8);
   dens*=smoothstep(.28,.72,n*.8+n2*.5+.08-vL*.3+pulse*.15);
   dens*=.6+.8*fbm(P*3.7+vec3(0.,-uTime*.6,0.));
-  vec3 col=uCol*(.7+.35*vL+.3*n)*mix(.45,1.,uDay);
+  vec3 col=uCol*(.62+.22*vL+.22*n)*mix(.45,1.,uDay);   // 26.11.2026 less brightening: stays grey, not bluish white
   float a=dens*uDens*alpha*(1.+pulse*.6)*8./${LAYERS}.;
   // hard pixel specks (grit + chips), re-rolled 14x per second
   vec2 cell=floor(gl_FragCoord.xy/uSpkPx);
@@ -84,7 +84,7 @@ export function createDust(scene: THREE.Object3D, opts: DustOpts = {}): DustFx {
   geo.setAttribute('aA', A); geo.setAttribute('aB', B); geo.instanceCount = 0; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
   const U = {
     uTime: { value: 0 }, uDay: opts.dayU ?? { value: 1 }, uH: { value: H }, uDens: { value: opts.density ?? 1 }, uSpeck: { value: opts.speckle ?? .6 }, uSpkPx: { value: opts.speckleSize ?? 3 },
-    uCol: { value: new THREE.Color(opts.color ?? 0xa29c92) }, uSpkDark: { value: new THREE.Color(0x4a4640) }, uSpkLight: { value: new THREE.Color(0xe8e4dc) },
+    uCol: { value: new THREE.Color(opts.color ?? 0x9a9182) }, uSpkDark: { value: new THREE.Color(0x4a4640) }, uSpkLight: { value: new THREE.Color(0xd6cdbd) }, // 26.11.2026 warmer grey
   };
   const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 5; scene.add(mesh); // stays in the scene for good

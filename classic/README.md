@@ -15,7 +15,13 @@ Dann die angezeigte Adresse öffnen (auch im WLAN vom Handy aus, `--host` ist ak
 
 ## Balancing
 
-Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die Datei wird bei jedem Spielstart geladen; im Dev-Modus lädt das Spiel beim Speichern automatisch neu. Übersicht der Upgrades: `Game Design & Balancing/Upgrades.md`, Regeln und Begründungen: `Design-Entscheidungen.md`.
+Alle Stellschrauben stehen in **`Game Design & Balancing/balancing.yaml`**. Die Datei wird bei jedem Spielstart geladen; im Dev-Modus lädt das Spiel beim Speichern automatisch neu. Übersicht der Upgrades: `Game Design & Balancing/Upgrades.md`, Regeln und Begründungen: `Design-Entscheidungen.md`. Fortschritt über Werkbank und Techtree (`progression: research`, Auftrag und Umsetzungsstand: `Werkbank-Techtree-Prompt.md`); der alte XP-Ablauf bleibt mit `progression: xp`.
+
+Balancing-Bot: `tools/balance` (README dort). Weitere Prüfwerkzeuge (in `classic/` mit `npx esbuild <datei> --bundle --platform=node --format=cjs --outfile=<datei>.cjs` bauen, dann mit `node` starten):
+- `tools/coop/research-net.ts` – Koop-Netcode für Werkbank, Techtree und Mauer (Host + Gast über simuliertes Netz)
+- `tools/coop/browser-research.cjs` – dasselbe in zwei echten Browsern (Vite auf :5174, lokaler PeerJS-Server)
+- `tools/save/save-test.ts` – Spielstände (speichern/laden, Laden beim Platzieren, alter XP-Spielstand)
+- `tools/balance/trace.ts` – ein Bot-Lauf mit einer Zeile je 10 s Spielzeit
 
 ## Auf GitHub Pages veröffentlichen
 

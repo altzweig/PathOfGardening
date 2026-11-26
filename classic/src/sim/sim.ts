@@ -257,6 +257,8 @@ export class Sim {
   rs: RState = newRState();
   /** the 'lvl' phase is a research field being placed (not a level-up) */
   rsLvl = false;
+  /** 26.11.2026 researched fields whose placing was interrupted (player dropped out, game loaded): placed at the next bench touch */
+  rsPend: FruitType[] = [];
   /** Werkbank slot index (-1 none) */
   benchSlot = -1;
   /** Steinkohle posts, oldest first */
@@ -321,6 +323,7 @@ export class Sim {
   }
   removePlayer(id: number) {
     const i = this.players.findIndex(p => p.id === id); if (i < 0) return;
+    this.rsDrop(id); // 26.11.2026 a field being placed is kept (rsPend)
     this.players.splice(i, 1);
     for (const e of this.enemies) if (e.target && e.target.kind === 'player' && e.target.p.id === id) e.target = null;
     if (this.phase === 'lvl') this.checkAllPicked();
@@ -1277,8 +1280,12 @@ export class Sim {
   /** unlock / lock a weapon for this player; unlocking brings a stock of ammo along */
   cheatWeapon(id: number, sid: SkillId, on: boolean) {
     const p = this.player(id); if (!p) return;
-    if (on && !p.skills[sid].learned) { this.learn(p, sid); const k = ammoPool(sid); p.ammo[k] = Math.max(p.ammo[k], this.cfg.cheats?.ammo ?? 100); }
-    else if (!on && p.skills[sid].learned && sid !== 'blue') this.cheat(id, `${sid}.learned`, -1);
+    if (on && !p.skills[sid].learned) {
+      this.learn(p, sid); const k = ammoPool(sid); p.ammo[k] = Math.max(p.ammo[k], this.cfg.cheats?.ammo ?? 100);
+      const n = this.rsMode ? rNodes(this.cfg).find(x => x.kind === 'weapon' && x.ref === sid) : undefined; // 26.11.2026 the techtree shows it researched
+      if (n && !nodeDone(this.cfg, this.rs, n.id)) { this.rs.done.push(n.id); this.rs.n++; if (this.rs.cur === n.id) { this.rs.cur = null; this.rs.ready = false; } }
+    }
+    else if (!on && p.skills[sid].learned && sid !== (this.rsMode ? 'pea' : 'blue')) this.cheat(id, `${sid}.learned`, -1);
   }
   /** free build: empty slot or other type -> new level-1 tile, same type -> next level (up to the top) */
   cheatBuild(slot: number, type: FruitType) {
@@ -3144,6 +3151,7 @@ export class Sim {
       const d = Math.hypot(p.x - b.x, p.z - b.z) - b.r;
       if (d > R.bench.touch + .4) p.rsLock = 0;
       if (!p.alive || p.rsUi || p.rsPlace || d > R.bench.touch || this.phase !== 'play') continue;
+      if (this.rsPend.length && !(p.rsLock & 1)) { const t = this.rsPend[0]; if (this.rsStartPlace(p, t)) { this.rsPend.shift(); return; } this.rsPend.shift(); } // 26.11.2026 a field left over (drop-out / load): place it now
       if (st.ready && st.cur && !(p.rsLock & 2) && !this.players.some(q => q.rsUi === 2)) { p.rsUi = 2; p.rsLock |= 2; this.emit({ k: 'rsPopup', p: p.id, n: rIndex(this.cfg, st.cur) }); this.sfx('research.pickup', b.x, b.z); }
       else if (!st.cur && !st.ready && !(p.rsLock & 1)) { p.rsUi = 1; p.rsLock |= 1; this.emit({ k: 'rsPanel', p: p.id }); }
     }
@@ -3169,13 +3177,25 @@ export class Sim {
     else { if (!st.done.includes(node.id)) st.done.push(node.id); st.n++; }
     p.rsUi = 1;
     if (node.kind === 'weapon' && node.ref) for (const q of this.players) this.giveWeapon(q, node.ref as SkillId, R.weaponShots ?? 10);
-    if (node.kind === 'field' && node.ref && this.placeSlots(node.ref as FruitType).length) { // straight into placing (the existing place mode)
-      p.placing = node.ref as FruitType; p.placeMode = 'any'; p.rsPlace = true; p.rsUi = 0;
-      this.rsLvl = true; this.phase = 'lvl';
-      for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; }
-    }
-    this.emit({ k: 'rsDone', p: p.id, n: idx }); this.sfx('ui.rarity', p.x, p.z);
+    if (node.kind === 'field' && node.ref) this.rsStartPlace(p, node.ref as FruitType); // straight into placing (the existing place mode)
+    this.emit({ k: 'rsDone', p: p.id, n: idx }); // 26.11.2026 no extra sound here: the button already plays ui.ideaClaim
     return true;
+  }
+  /** 26.11.2026 a researched field goes into the place mode for this player (phase 'lvl', everyone else waits) */
+  private rsStartPlace(p: Player, t: FruitType) {
+    if (!this.placeSlots(t).length) return false;
+    p.placing = t; p.placeMode = 'any'; p.rsPlace = true; p.rsUi = 0;
+    this.rsLvl = true; this.phase = 'lvl';
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; }
+    return true;
+  }
+  /** 26.11.2026 a player drops out (connection lost, left, game loaded): research UI closed; a field he was placing is not lost,
+   *  it waits at the bench (rsPend) and goes into the place mode for the next player who walks into the Werkbank */
+  rsDrop(id: number) {
+    const p = this.player(id); if (!p || !this.rsMode) return;
+    if (p.rsUi) this.closeResearch(id);
+    p.benchWork = false; p.rsLock |= 3; // a figure left standing at the bench (waiting for a reconnect) does not take it again
+    if (p.rsPlace && p.placing) { this.rsPend.push(p.placing); p.rsPlace = false; p.placing = null; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); }
   }
   /** close the panel / popup (a popup closed without "Fertigstellen" keeps the idea ready at the bench); walk away to open it again */
   closeResearch(id: number) {
@@ -3243,11 +3263,15 @@ export class Sim {
     w.hp -= dmg; this.num(w.x, w.z, dmg, 'f'); this.emit({ k: 'wallHit', i: w.id });
     if (w.hp <= 0) this.removeWall(w, true);
   }
+  /** bounding box of all posts [minX, minZ, maxX, maxZ] (rebuilt with the grid) */
+  private wallBox = [1e9, 1e9, -1e9, -1e9];
   private wallKey = (ix: number, iz: number) => (ix + 512) * 1024 + (iz + 512);
   /** spatial hash (1 m cells) + links (posts within linkDist), rebuilt only when posts come or go */
   private wallBuild() {
     if (!this.wallDirty && this.wallGrid instanceof Map) return;
     this.wallDirty = false; this.wallGrid = new Map(); this.wallLinks = new Map();
+    const B = this.wallBox; B[0] = B[1] = 1e9; B[2] = B[3] = -1e9;
+    for (const w of this.walls) { B[0] = Math.min(B[0], w.x); B[1] = Math.min(B[1], w.z); B[2] = Math.max(B[2], w.x); B[3] = Math.max(B[3], w.z); }
     for (const w of this.walls) { const k = this.wallKey(Math.floor(w.x), Math.floor(w.z)); const c = this.wallGrid.get(k); if (c) c.push(w); else this.wallGrid.set(k, [w]); }
     const L = this.cfg.skills.wall.linkDist;
     for (const w of this.walls) { const ln: WallPiece[] = []; this.wallsNear(w.x, w.z, L, o => { if (o !== w && Math.hypot(o.x - w.x, o.z - w.z) <= L) ln.push(o); }); this.wallLinks.set(w.id, ln); }
@@ -3255,6 +3279,7 @@ export class Sim {
   /** every post whose cell touches the square x +- r, z +- r */
   wallsNear(x: number, z: number, r: number, cb: (w: WallPiece) => void) {
     if (!this.walls.length) return; this.wallBuild();
+    const B = this.wallBox; if (x + r < B[0] - 1 || x - r > B[2] + 1 || z + r < B[1] - 1 || z - r > B[3] + 1) return; // 26.11.2026 far from every post: no cell lookups
     const x0 = Math.floor(x - r), x1 = Math.floor(x + r), z0 = Math.floor(z - r), z1 = Math.floor(z + r);
     for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const c = this.wallGrid.get(this.wallKey(ix, iz)); if (c) for (const w of c) cb(w); }
   }

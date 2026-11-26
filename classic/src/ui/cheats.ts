@@ -3,7 +3,7 @@
 import type { SkillId } from '../config';
 
 /** weapons that can be unlocked (the shotgun is always there) */
-export const CHEAT_WEAPONS: SkillId[] = ['asp', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling'];
+export const CHEAT_WEAPONS: SkillId[] = ['wshot', 'wall', 'blue', 'asp', 'cab', 'lemon', 'chili', 'flour', 'pan', 'wheat', 'sling']; // 26.11.2026 + Schrotflinte, Steinkohle, Beerengewehr (Techtree; blue only shown with progression research)
 export interface Cheats { level: number; wave: number; weapons: SkillId[]; allFields: boolean }
 const KEY = 'pog-classic.cheats';
 export function loadCheats(): Cheats {

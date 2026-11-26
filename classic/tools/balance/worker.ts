@@ -11,6 +11,8 @@ const rng = (a: number) => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.
 for (let i = 0; i < job.runs; i++) {
   if (job.seed != null) Math.random = rng(job.seed + (job.part ?? 0) * job.runs + i);
   const cfg = structuredClone(base); for (const [k, v] of Object.entries(job.overrides || {})) set(cfg, k, v);
-  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime, start: job.start, stopWave: job.stopWave, solo: job.solo }));
+  // 26.11.2026 what-if: every weapon's damage x dmgMul (incl. rake), to see how much power the research mode lacks without upgrades
+  if (job.dmgMul) { for (const s of Object.values(cfg.skills) as any[]) if (typeof s?.damage === 'number') s.damage *= job.dmgMul; cfg.rake.damage *= job.dmgMul; }
+  out.push(runBot(cfg, { weapons: job.weapons, second: job.second, infAmmo: job.infAmmo, old: job.old, seconds: job.seconds, focus: job.focus, maxTime: job.maxTime, start: job.start, stopWave: job.stopWave, solo: job.solo, rsSpeed: job.rsSpeed }));
 }
 process.stdout.write(JSON.stringify(out));

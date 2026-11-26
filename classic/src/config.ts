@@ -171,7 +171,7 @@ export interface Balancing {
   /** visual parameters (flour cloud / fire carpet shader), no gameplay effect */
   fx?: { flour?: Partial<Record<'layers' | 'height' | 'noiseScale' | 'swirl' | 'density' | 'speckle' | 'speckleSize' | 'color', number>>; fire?: Partial<Record<'edgeWidth' | 'flameHeight' | 'flameSpeed' | 'intensity' | 'burnOut' | 'sparks' | 'haze' | 'hazeHeight', number>> };
   /** step-by-step hints from the start of a game (24.11.2026), see balancing.yaml */
-  tutorial?: { harvest: string; attack: string; switch: string; secondary: string; hp: string; shield: string; xp: string; stamina: string; lvNew: string; lvBuild: string; lvNeighbour: string; lvWeapon: string; genus?: Record<string, 'm' | 'f' | 'n' | 'p'> };
+  tutorial?: { harvest: string; attack: string; switch: string; secondary: string; hp: string; shield: string; xp: string; stamina: string; lvNew: string; lvBuild: string; lvNeighbour: string; lvWeapon: string; /** 26.11.2026 Werkbank-Techtree start (…Touch: phone wording) */ rsXp?: string; rsHarvest?: string; rsHarvestTouch?: string; rsShoot?: string; rsShootTouch?: string; rsBench?: string; rsChoose?: string; rsChooseTouch?: string; rsWork?: string; rsWorkTouch?: string; rsPickup?: string; rsTree?: string; rsTreeTouch?: string; genus?: Record<string, 'm' | 'f' | 'n' | 'p'> };
   /** max weapons; primary / secondary: which group of the 10-slot bar a weapon goes to (24.11.2026) */
   weaponSlots?: { max: number; primary?: SkillId[]; secondary?: SkillId[] };
   /** 23.11.2026: tiles offered as hex fields on every level-up (besides the chosen start field); weights per type */

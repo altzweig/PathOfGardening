@@ -41,6 +41,10 @@ body{font-family:var(--f-body);color:var(--parch);-webkit-user-select:none;user-
 /* wave countdown (top centre) + "Welle N" announcement (centre) */
 #wcd{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 50px);transform:translateX(-50%);font:700 30px var(--f-display);color:var(--parch);
   font-variant-numeric:tabular-nums;letter-spacing:.04em;text-shadow:0 0 10px #000,0 2px 4px #000;transition:color .2s,font-size .2s,opacity .3s}
+/* 26.11.2026 Koop: a team mate has the pickup popup open (world paused): bulb + name, small */
+#rsWho{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px);transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:3px 10px 3px 6px;border-radius:14px;background:#0009;font:600 14px var(--f-display);color:var(--parch);pointer-events:none;white-space:nowrap;max-width:60vw;overflow:hidden}
+#rsWho .bulb{width:14px;height:19px;flex:none}
+#rsWho b{overflow:hidden;text-overflow:ellipsis}
 #wcd.pause{font-size:17px;font-weight:400;color:var(--mut);opacity:.75}
 #wcd.red{color:#ff4a3a;text-shadow:0 0 14px #ff200088,0 2px 4px #000}
 #wcd.beat{animation:wcdBeat .5s ease-out}
@@ -927,6 +931,8 @@ body.shopOn #toast{visibility:hidden}
 .coStep button{width:40px;height:40px;border-radius:10px;border:1px solid var(--gold-dim);background:#0b1016;color:var(--gold);font:700 22px var(--f-body);cursor:pointer}
 .coStep input{width:64px;height:40px;box-sizing:border-box;text-align:center;font:700 20px var(--f-body);background:#0b1016;color:var(--parch);border:1px solid #e3b96455;border-radius:10px;-moz-appearance:textfield}
 .coStep input::-webkit-inner-spin-button,.coStep input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.coRs button{width:auto;min-width:56px;padding:0 10px;display:flex;align-items:center;gap:4px;font-size:18px}
+.coRs button .bulb{width:14px;height:19px} /* 26.11.2026 research cheats */
 .coWeps{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .coWep{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:10px;border:1px solid #ffffff1a;background:#0b1016;color:var(--mut);font:600 12px var(--f-body);cursor:pointer;opacity:.6;transition:opacity .15s,border-color .15s,box-shadow .15s}
 .coWep svg{width:40px;height:40px;filter:grayscale(.8)}
@@ -1109,7 +1115,9 @@ body.sandbox .ws .wa{visibility:hidden}
 #tutCatch{position:fixed;inset:0;z-index:39;display:none;cursor:pointer}
 #tutCatch.on{display:block}
 #tutSkip{width:auto;padding:0 12px;font-size:13px;white-space:nowrap}
-body[data-input=touch] #tut,body[data-input=touch] #tutCatch,body[data-input=touch] #tutSkip{display:none}
+/* 26.11.2026 touch: only the research start prompts (no explanation cards, no skip button: Optionen > Spiel), small above the buttons */
+body[data-input=touch] #tutCatch,body[data-input=touch] #tutSkip{display:none}
+body[data-input=touch] #tut{font-size:clamp(13px,1.9vh,17px);padding:8px 14px;max-width:min(560px,78vw);bottom:auto;top:calc(env(safe-area-inset-top,0px) + 118px)}
 
 /* Spielstände (24.11.2026) */
 .mi small{display:block;font:500 clamp(11px,1vw,14px) var(--f-body,system-ui);letter-spacing:.04em;color:#e9ddc299;margin-top:2px;text-align:right}

@@ -369,7 +369,7 @@ skills:
     frozenBonus: 1.2       # 24.11.2026 Debuff-Sim: 1.5 -> 1.2. 23.11.2026: physischer Schaden (Harke, Schrot, Bolzen, Dornen) gegen Gefrorene x1,5
     ammo: [blue]           # 25.11.2026 Beerengewehr (Techtree Segment 3): schießt nur Heidelbeeren (ohne Eintrag: alle drei Beeren, alter Ablauf)
   pea:                     # 25.11.2026 Erbsenpistole (Startwaffe, Holzpistole mit erbsengrünem Schlitten): eine dicke Erbse, Desert-Eagle-Gefühl
-    damage: 14             # Einzelschaden (5x ein Beeren-Pellet von 2,8). Startwert, mit dem Bot nachjustieren
+    damage: 20             # Einzelschaden. 26.11.2026 Bot: 14 -> 20, ein Schuss tötet Waschbären (8,4 Leben x Wellenfaktor 1 + 0,04 je Welle) bis Welle ~35 (mit 14: bis ~17), Pandas bis ~31
     range: 7               # m
     cooldown: 0.65         # s, langsam
     ammoPerShot: 3         # Erbsen je Schuss (Basti)
@@ -919,6 +919,20 @@ tutorial:
   attack: "Drücke [{prim}] zum Angreifen"
   switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."
   secondary: "Drücke [{sec}] für {den} {weapon}"    # zweite Waffe ist eine Sekundärwaffe (Platz 6-0): sie feuert direkt mit Rechtsklick
+  # 26.11.2026 Werkbank-Techtree-Start (PC + Handy; ...Touch = Wortlaut am Handy). Ablauf: Erbsen ernten -> Erbsenpistole -> zur Werkbank -> Idee wählen -> hämmern -> abholen
+  rsXp: "Die Kugel zeigt deinen Forschungsfortschritt an der Werkbank."
+  rsHarvest: "Halte [{harvest}] auf dem Erbsenfeld, um Erbsen zu ernten"
+  rsHarvestTouch: "Halte den Ernten-Knopf auf dem Erbsenfeld, um Erbsen zu ernten"
+  rsShoot: "Drücke [{prim}], um mit der Erbsenpistole zu schießen (3 Erbsen pro Schuss)"
+  rsShootTouch: "Tippe auf den Schießen-Knopf, um mit der Erbsenpistole zu schießen (3 Erbsen pro Schuss)"
+  rsBench: "Lauf zur Werkbank neben der Truhe"
+  rsChoose: "Wähle eine Idee zum Erforschen: [{tree}]"
+  rsChooseTouch: "Wähle eine Idee zum Erforschen: Glühbirne oben"
+  rsWork: "Halte [{harvest}] an der Werkbank, um an der Idee zu hämmern"
+  rsWorkTouch: "Halte den Ernten-Knopf an der Werkbank, um an der Idee zu hämmern"
+  rsPickup: "Die Idee ist fertig! Lauf gegen die Werkbank und hol sie ab"
+  rsTree: "[{tree}] öffnet den Techtree jederzeit"
+  rsTreeTouch: "Die Glühbirne oben öffnet den Techtree jederzeit"
   genus: { pea: f, wshot: f, wall: f, blue: n, black: p, flour: m, pan: f, sling: f, asp: f, cran: p, cab: f, lemon: m, chili: m, wheat: f, jam: m, cole: f, sour: m, lance: f, cabboom: f, shock: f }
 
 weaponSlots:               # Waffen neben der Harke
@@ -1143,12 +1157,12 @@ fx:
 #  Kosten der nächsten Idee (s Arbeit mit 1 Spieler) = baseTime x (1 + costGrowth)^erforschte Ideen / (1 + speedPerLevel)^Forschungstempo-Stufe
 # ---------------------------------------------------------------------
 research:
-  baseTime: 25             # s aktive Arbeit für die erste Idee (1 Spieler). Startwert
+  baseTime: 15             # s aktive Arbeit für die erste Idee (1 Spieler). 26.11.2026 Bot: 25 -> 15 (Kohlfeld kam erst in Welle ~13, jetzt ~6; Kohlmine Welle 15 -> 10)
   costGrowth: 0.20         # +20 % je erforschter Idee (Startknoten zählen nicht)
   speedPerLevel: 0.25      # Forschungstempo: +25 % Tempo je Stufe (beliebig oft erforschbar)
-  speedCounts: true        # Forschungstempo-Stufen zählen als erforschte Idee (+20 % für die nächsten)
+  speedCounts: true        # Forschungstempo-Stufen zählen als erforschte Idee (+20 % für die nächsten). 26.11.2026 so gewollt (Basti): je Stufe netto x1,25/1,2 = +4,2 % Tempo, lohnt sich ab ca. 10 noch offenen Ideen (siehe Design-Entscheidungen)
   coopExponent: 0          # Kosten x Spielerzahl^Exponent (0 = gleiche Kosten im Koop, mehr Spieler forschen nur schneller)
-  startShots: 10           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 10 x 3 = 30 Erbsen)
+  startShots: 20           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 20 x 3 = 60 Erbsen). 26.11.2026 Bot: 10 -> 20, die ersten Wellen ohne Munitionsnot
   weaponShots: 10          # eine erforschte Waffe bringt jedem Spieler so viele Schuss mit (x ammoPerShot, in den Munitionsvorrat der Waffe)
   dropFruit: pea           # besiegte Tiere lassen das fallen (vorher: Beere der nächsten Schrotflinte)
   bench:                   # Werkbank: feste Kachel neben der Truhe, nicht bebaubar, fest wie die Truhe

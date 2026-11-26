@@ -103,7 +103,7 @@ class Game {
     const loop = (now: number) => {
       requestAnimationFrame(loop); lastRaf = performance.now();
       if (disp.fpsCap && now - last < 1000 / disp.fpsCap - 1.5) return; // Optionen > Grafik > Bildrate
-      const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); fpsFrame(now);
+      const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; this.frame(dt); fpsFrame(now);
     };
     requestAnimationFrame(loop);
     // browsers stop requestAnimationFrame in hidden tabs: a co-op host keeps simulating for the others
@@ -231,6 +231,16 @@ class Game {
   /** 25.11.2026 Werkbank-Techtree: own research UI state (0 closed, 1 panel, 2 pickup popup) */
   private myRo() { return this.mode === 'idle' ? 0 : (this.view.snap?.me[this.me]?.ro ?? 0); }
   private rsAct(m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) { if (this.mode === 'client') this.client?.send(m); else this.rsDo(this.me, m); }
+  /** 26.11.2026 Koop: small bulb + name while a team mate has the pickup popup open (the world waits for him) */
+  private rsWhoK = '';
+  private syncRsWho(s: Snap) {
+    const w = s.rs?.[5] ?? -1, on = this.mode !== 'solo' && w >= 0 && w !== this.me && s.ph !== 'over';
+    const k = on ? String(w) : ''; if (k === this.rsWhoK) return; this.rsWhoK = k;
+    const el = $('#rsWho'); el.hidden = !on; if (!on) return;
+    const list = this.host ? this.host.players : this.client ? this.client.lobby : [];
+    const p = list.find(q => q.id === w) as { color: number; look?: { name?: string } } | undefined;
+    el.innerHTML = `${mini('bulb')}<b style="color:${PLAYER_CSS[(p?.color ?? w) % 4]}">${esc(p?.look?.name || '')}</b>`;
+  }
   /** host / solo: a research action of a player */
   private rsDo(id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) {
     const sim = this.sim; if (!sim) return;
@@ -393,7 +403,7 @@ class Game {
     h.onLeave = (id, gone) => {
       if (this.mode !== 'host' || !this.sim) return;
       const pl = this.sim.player(id); if (!pl) return;
-      if (gone) { this.sim.setIntent(id, { ...pl.intent, mx: 0, mz: 0, fire: null }); return; } // waits net.reconnectWindow s
+      if (gone) { this.sim.setIntent(id, { ...pl.intent, mx: 0, mz: 0, fire: null }); this.sim.rsDrop(id); return; } // waits net.reconnectWindow s
       const tok = this.coopToks.get(id); this.sim.removePlayer(id); if (tok) this.parked.set(tok, pl); // gone for good: kept for a later return
     };
     this.me = 0; this.renderLobby(); only('#lobby'); show('#lobbyStart');
@@ -530,7 +540,9 @@ class Game {
     $('#coBody').innerHTML =
       `<div class="coRow"><span>Level</span>${step('level', this.coVals.level)}</div>` +
       `<div class="coRow"><span>Welle</span>${step('wave', this.coVals.wave)}</div>` +
-      `<div class="coRow coWrap"><span>Waffen</span><div class="coWeps">${CHEAT_WEAPONS.map(w => `<button class="coWep${on(w) ? ' on' : ''}" data-w="${w}" aria-pressed="${on(w)}">${skillIcon(w)}<b>${esc(N.skills[w] ?? w)}</b></button>`).join('')}</div></div>` +
+      (live && this.sim!.rsMode ? `<div class="coRow"><span>${esc(N.research?.title ?? 'Forschung')}</span><div class="coStep coRs"><button data-r="next">${mini('bulb')}+1</button><button data-r="all">${mini('bulb')}∞</button></div></div>` +
+        `<div class="coRow"><span>${esc(N.research?.speed ?? 'Forschungstempo')}</span><div class="coStep"><button data-r="speed" data-d="-1" aria-label="−">−</button><input type="number" readonly value="${this.sim!.rs.speedLv}" id="coRsSpeed"><button data-r="speed" data-d="1" aria-label="+">+</button></div></div>` : '') +
+      `<div class="coRow coWrap"><span>Waffen</span><div class="coWeps">${CHEAT_WEAPONS.filter(w => w !== 'blue' || this.cfg.progression === 'research').map(w => `<button class="coWep${on(w) ? ' on' : ''}" data-w="${w}" aria-pressed="${on(w)}">${skillIcon(w)}<b>${esc(N.skills[w] ?? w)}</b></button>`).join('')}</div></div>` +
       `<div class="coRow"><span>All fields unlocked</span><button class="coTog${this.cheats.allFields ? ' on' : ''}" id="coAll" role="switch" aria-checked="${this.cheats.allFields}"><i></i></button></div>`;
     const setVal = (k: string, v: number) => {
       v = Math.min(100, Math.max(1, Math.round(v) || 1)); (this.coVals as any)[k] = v;
@@ -538,13 +550,16 @@ class Game {
       if (!live) { (this.cheats as any)[k] = v; saveCheats(this.cheats); }
       ($('#coBody').querySelector(`input[data-k="${k}"]`) as HTMLInputElement).value = String(v);
     };
-    $('#coBody').querySelectorAll<HTMLButtonElement>('.coStep button').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); setVal(b.dataset.k!, (this.coVals as any)[b.dataset.k!] + +b.dataset.d!); }));
-    $('#coBody').querySelectorAll<HTMLInputElement>('.coStep input').forEach(i => i.addEventListener('change', () => setVal(i.dataset.k!, +i.value)));
+    $('#coBody').querySelectorAll<HTMLButtonElement>('.coStep button[data-k]').forEach(b => b.addEventListener('click', () => { sfx('ui.click'); setVal(b.dataset.k!, (this.coVals as any)[b.dataset.k!] + +b.dataset.d!); }));
+    $('#coBody').querySelectorAll<HTMLInputElement>('.coStep input[data-k]').forEach(i => i.addEventListener('change', () => setVal(i.dataset.k!, +i.value)));
     $('#coBody').querySelectorAll<HTMLButtonElement>('.coWep').forEach(b => b.addEventListener('click', () => {
       const w = b.dataset.w as SkillId, now = !on(w); sfx('ui.click');
       if (live) this.sim!.cheatWeapon(this.me, w, now);
       else { this.cheats.weapons = now ? [...this.cheats.weapons, w] : this.cheats.weapons.filter(x => x !== w); saveCheats(this.cheats); }
       b.classList.toggle('on', on(w)); b.setAttribute('aria-pressed', String(on(w)));
+    }));
+    $('#coBody').querySelectorAll<HTMLButtonElement>('button[data-r]').forEach(b => b.addEventListener('click', () => { // 26.11.2026 research cheats
+      if (!this.cheatLive) return; sfx('ui.click'); this.sim!.cheat(this.me, 'research.' + b.dataset.r, +(b.dataset.d ?? 1)); this.renderCheatOpt();
     }));
     $('#coAll').addEventListener('click', () => {
       sfx('ui.click'); this.cheats.allFields = !this.cheats.allFields; saveCheats(this.cheats);
@@ -654,7 +669,7 @@ class Game {
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
     if (s && this.mode !== 'idle') { this.hud.update(s, this.me, researchBar(this.view.cfg, s)); this.tree.update(s, this.me, this.view.cfg); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open || this.tree.open;
         this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
-        if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); }
+        if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); this.syncRsWho(s); }
     else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }
     if (this.building) this.measureBuildInset();
     this.view.frame(dt);

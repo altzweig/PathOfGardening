@@ -103,3 +103,24 @@ Der Fortschritt im Spiel läuft künftig nicht mehr über XP und Zufallskarten, 
 - **XP/Level**: werden weiter gezählt (Statistik, Wellen-Skalierung), haben aber keine Belohnung mehr. Die XP-Anzeige zeigt die Forschung.
 - **Mauer**: Spieler laufen durch die eigene Mauer (Koop ohne Einsperren), kostet Kohl als Munition; bei 200 Stück verschwindet das älteste.
 - **Pause beim Abholen** im Koop wie bisherige Pausen (Transitions).
+
+## Umsetzungsstand (26.11.2026)
+
+Umgesetzt in P1–P5 (Details und Begründungen: `Design-Entscheidungen.md`, Abschnitte vom 25. und 26.11.2026):
+
+- **P1 Kern-Simulation:** `progression: research` (alter Ablauf weiter mit `progression: xp`), Start mit Truhe, Erbsenfeld, Werkbank und Erbsenpistole; Techtree-Daten in `balancing.yaml` (`research:`), Forschung durch Halten der Aktion an der Werkbank, Pause beim Abholen, Felder gehen direkt in den Platzier-Modus; Schrotflinte (Weizen), Kohlminen-Regel, Steinkohle-Mauer (Ausweichen, Angriff, Frösche hüpfen drüber, max. 200); jede Feldart einmal, kein Überbauen, Level-up-Karten/Ideen/Händler aus.
+- **P2 Assets & Sound:** Erbsenpistole, Werkbank, Hammer, Steinkohl-Pfosten, graue Staubwolke (prozedural), Sounds per WebAudio (CREDITS ergänzt).
+- **P3 Techtree-UI:** Panel (scrollbar, Zustände, Fortschritt), Abhol-Popup mit „Fertigstellen“, Forschung in XP-Orb/-Leiste, Techtree-Knopf (Glühbirne) bzw. F, PC und Handy hoch/quer.
+- **P4 Welt:** Werkbank mit eingehängter Idee und Ladebalken, Hammer-Animation + Staub, Mauer-Pool (Instancing), Waffen in der Hand, Erbsenfeld, prewarm.
+- **P5 Systeme:** Koop (alle neuen Snapshot-Felder in den Binär-Deltas, Mauer als Tabelle, Vorhersage kennt die Werkbank, Glühbirne + Name bei den anderen, wenn einer abholt), Spielstände Version 2 (alte Stände laufen als Forschungsspiel weiter), Feld beim Abbruch/Laden während des Platzierens bleibt erhalten (wartet an der Werkbank), Tutorial für den neuen Start (PC + Handy), Cheats (Forschung +1/alles/Tempo), Balancing-Bot forscht, erntet und kämpft abgewogen.
+
+Getroffene Annahmen in P5:
+- Alte Spielstände werden als Forschungsspiel geladen (alles Vorhandene gilt als erforscht), nicht im XP-Ablauf weitergeführt.
+- Ein beim Platzieren verlorenes Feld (Verbindungsabbruch, Laden) wartet an der Werkbank auf den nächsten Spieler, der sie berührt; das Spiel wartet nicht auf den Abwesenden.
+- Forschungstempo zählt als erforschte Idee (+20 % Bedarf, +25 % Tempo = netto +4,2 % je Stufe), wie von Basti beschrieben.
+- Tutorial am Handy: nur die kurzen Hinweise oben, keine Erklärkarten.
+
+Offen:
+- **Balancing-Ziel (Welle 35–45) nicht erreicht:** mit Pistole, Startmunition, Forschungszeit und Bot erreicht der Bot Median Welle 16 (vorher 9); auch mit sofort allem erforscht oder doppeltem Schaden nur 16–18. Es fehlt eine wachsende Stellschraube (Upgrades/Feldstufen gibt es im Techtree nicht). Vorschlag siehe Design-Entscheidungen „Balancing Erbsenstart“. Entscheidung durch Basti.
+- Gegner kollidieren nicht mit der Werkbank; Kohlminen dürfen auf Feldern liegen (`skills.cab.onFields`).
+- Mauer kostet bei 260 Gegnern und 200 Pfosten ca. +0,8 ms je Sim-Tick.

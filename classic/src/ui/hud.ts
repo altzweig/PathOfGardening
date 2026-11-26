@@ -95,7 +95,7 @@ export class Hud {
       an.style.opacity = op.toFixed(3); an.style.transform = `translate(-50%,-50%) scale(${sc.toFixed(3)})`;
     }
     if (!announcing && st.ann > 0 && !s.wp) { st.ann = -1; }
-    if (wt < 0 || document.body.classList.contains('sandbox') || s.ph === 'over' || announcing || (!!s.wp && next > s.wn)) { el.hidden = true; st.sec = -1; st.wp = s.wp; return; }
+    if (wt < 0 || wt > 5999 || document.body.classList.contains('sandbox') || s.ph === 'over' || announcing || (!!s.wp && next > s.wn)) { el.hidden = true; st.sec = -1; st.wp = s.wp; return; }
     const sec = Math.ceil(wt - 1e-3), red = !s.wp && sec <= (W.redFrom ?? 3);
     if (st.wp === 0 && s.wp === 1) play('cdEnd'); // fight countdown ran out
     st.wp = s.wp; el.hidden = false;

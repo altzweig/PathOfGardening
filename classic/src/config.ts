@@ -147,11 +147,11 @@ export interface Balancing {
     readySeconds: number;
     asp: { damage: number; range: number; cooldown: number; ammoPerShot: number; burstShots: number; burstGap: number; speed: number; pierce: number; pierceFactor: number; width: number };
     cran: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; bleedDuration: number; bleedDps: number; /** s per bleeding tick (only while moving) */ bleedTick?: number; splashDelay: number; splashDamage: number; splashRadius: number };
-    lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean };
+    lemon: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; ballRadius: number; tickInterval: number; tickRadius: number; tickDamage: number; chainRadius: number; chainDamage: number; dropLoot: boolean; /** 26.11.2026 chain targets before any upgrade */ chains?: number };
     chili: { range: number; cooldown: number; ammoPerShot: number; damage: number; burnDamage: number; burnStacks: number; burnDuration: number; burnTick: number; spreadRadius: number; spreadShare: number; cone: number; sweep: number; sweepPeriod: number };
     blue: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number; freeze: number; /** physical damage x this against frozen animals */ frozenBonus?: number; /** 25.11.2026: berries it may fire (Beerengewehr: only blue) */ ammo?: Berry[] };
-    /** 25.11.2026 Erbsenpistole: one big pea, no pierce; width = hit width m, speed m/s */
-    pea: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; width: number };
+    /** 25.11.2026 Erbsenpistole: one big pea (26.11.2026: pierces); width = hit width m, speed m/s */
+    pea: { damage: number; range: number; cooldown: number; ammoPerShot: number; speed: number; width: number; /** 26.11.2026 enemies a pea flies through, damage x pierceFactor after each */ pierce?: number; pierceFactor?: number };
     /** 25.11.2026 Weizen-Schrotflinte: grain shot cone like the berry shotgun (no debuffs), wheat ammo */
     wshot: { damage: number; range: number; cooldown: number; ammoPerShot: number; pellets: number; cone: number; spreadSigma: number };
     /** 25.11.2026 Steinkohle (wall posts, cabbage ammo): post radius m, HP, max posts (the oldest goes), posts within linkDist m are connected;

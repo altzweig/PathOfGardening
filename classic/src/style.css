@@ -1236,7 +1236,7 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .rtScroll{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;touch-action:none;overscroll-behavior:contain;cursor:grab;scrollbar-width:thin;scrollbar-color:#e3b96466 #0000;padding-bottom:6px}
 .rtScroll.drag{cursor:grabbing}
 .rtScroll.drag .rtNode{pointer-events:none}
-.rtCanvas{position:relative;flex:none;margin:auto 0}
+.rtCanvas{position:relative;flex:none;margin:0 auto}
 .rtBand{position:absolute;left:8px;right:8px;border-radius:12px;background:linear-gradient(90deg,#4a6dff2a,#4a6dff10 50%,#4a6dff00);border:1px solid #4a6dff30}
 .rtDiv{position:absolute;width:0;border-left:2px dashed #e3b96444}
 .rtLock{position:absolute;z-index:2;box-sizing:border-box;border-radius:12px;pointer-events:none;display:flex;justify-content:center;align-items:flex-start;padding-top:8px;
@@ -1247,7 +1247,7 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .rtLockChip span{display:flex;align-items:center;gap:4px}
 .rtLockChip .rtHex{width:16px;height:18px;background:#8fbf5a;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
 .rtLinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
-.rtLinks path{fill:none;stroke-width:3;stroke-linecap:round}
+.rtLinks path{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .rtLinks .done{stroke:#e3b964;fill:#e3b964}.rtLinks path.done{fill:none;filter:drop-shadow(0 0 3px #e3b96488)}
 .rtLinks .open{stroke:#efe3c8b0;fill:#efe3c8b0}.rtLinks path.open{fill:none}
 .rtLinks .lock{stroke:#5a6470;fill:#5a6470}.rtLinks path.lock{fill:none;stroke-dasharray:6 7}
@@ -1332,7 +1332,7 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .rtNode.k-upgrade .rtBadge{right:-4px;top:-4px;width:17px;height:17px}
 .rtLvN{position:absolute;right:-4px;bottom:-3px;min-width:16px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:#0b1016;border:1px solid #5a6470;color:#d8dde2;font:700 10px/14px var(--f-display);text-align:center}
 .rtNode.k-upgrade.avail .rtLvN,.rtNode.k-upgrade.cur .rtLvN{border-color:#efe3c8;color:#fff}
-.rtCap{height:14px;font:700 11px/14px var(--f-body);color:#d8ccb0;white-space:nowrap;letter-spacing:.02em;text-shadow:0 1px 2px #000;align-self:flex-start;margin-left:2px}
+.rtCap{height:14px;font:700 11px/14px var(--f-body);color:#d8ccb0;white-space:nowrap;letter-spacing:.02em;text-shadow:0 1px 2px #000;align-self:center;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .rtUpTx{min-height:14px;display:flex;justify-content:center}.rtUpTx .rtCost{font-size:10.5px}.rtUpTx .rtCost i{width:10px;height:10px}
 .rtUpTx em{font:700 10.5px var(--f-body);font-style:normal;color:#ffe27a}
 .rtNode.k-upgrade .rtBar{display:none}

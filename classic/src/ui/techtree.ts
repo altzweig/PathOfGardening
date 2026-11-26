@@ -214,14 +214,15 @@ export class TechTree {
     } else { this.pop.hidden = true; this.popKey = ''; this.finishSent = false; }
   }
 
-  /** sizes from the screen: node size from the height, rows of a fixed height (the tree scrolls both ways) */
+  /** sizes from the screen: node size from the height (the tree scrolls both ways) */
   private layout(cfg: Balancing) {
     void cfg;
     const vw = innerWidth, vh = innerHeight, small = vh < 520 || vw < 720;
     const head = small ? 50 : 60;
     const N = small ? (vh < 380 ? 42 : 48) : 56, U = Math.round(N * .74), cellH = Math.max(N, U + 30) + (small ? 8 : 14);
-    const labW = small ? 104 : 124, pillW = N + labW, chipW = U + 14, gap = small ? 26 : 40, cgap = small ? 6 : 10, pad = small ? 12 : 22;
-    return { key: `${vw}x${vh}`, cellH, N, U, pillW, chipW, gap, cgap, pad, small, head };
+    const labW = small ? 104 : 124, pillW = N + labW, chipW = U + 14, colW = small ? 66 : 84, gap = small ? 18 : 28, cgap = small ? 2 : 6, pad = small ? 12 : 20;
+    const vgap = small ? 30 : 40, chainGap = small ? 8 : 10, chipTx = 16, capH = 15, rad = 7;
+    return { key: `${vw}x${vh}`, cellH, N, U, pillW, chipW, colW, gap, cgap, pad, small, head, vgap, chainGap, chipTx, capH, rad };
   }
 
   private state(cfg: Balancing, st: RS, n: ResearchNode): St {
@@ -258,20 +259,37 @@ export class TechTree {
     // ---- the tree of the selected tab ----
     const tree = T.find(t => t.id === this.tab) ?? T[0], ns = all.filter(n => this.inTree(n, tree.id)), sts = new Map(ns.map(n => [n.id, this.state(cfg, st, n)] as const));
     const byId = new Map(ns.map(n => [n.id, n] as const));
-    // x of a node: right after the node it needs (chains of chips sit close together), roots on the left
-    const X = new Map<string, number>(), W = (n: ResearchNode) => n.kind === 'upgrade' ? L.chipW : L.pillW;
-    const xOf = (n: ResearchNode, depth = 0): number => {
-      const got = X.get(n.id); if (got !== undefined) return got;
-      const pre = (n.needs ?? []).map(id => byId.get(id)).filter(Boolean) as ResearchNode[];
-      let x = L.pad;
-      if (pre.length && depth < 40) x = Math.max(...pre.map(q => xOf(q, depth + 1) + W(q) + (n.kind === 'upgrade' && q.kind === 'upgrade' ? L.cgap : L.gap)));
-      X.set(n.id, x); return x;
+    // 26.11.2026 top-down tree (Basti): the root sits in the middle at the top, what it opens splits below it to the left, middle and
+    // right; same upgrades run down in one column, different ones stand side by side. Links are right angles with slightly rounded corners.
+    const kids = new Map<string, ResearchNode[]>(), roots: ResearchNode[] = [];
+    for (const n of ns) { const p = (n.needs ?? []).find(id => byId.has(id)); if (p) { const k = kids.get(p) ?? []; k.push(n); kids.set(p, k); } else roots.push(n); }
+    const W = (n: ResearchNode) => n.kind === 'upgrade' ? L.colW : L.pillW, H = (n: ResearchNode) => n.kind === 'upgrade' ? L.U + L.chipTx : L.N;
+    const SW = new Map<string, number>();
+    const sw = (n: ResearchNode, d = 0): number => {
+      const got = SW.get(n.id); if (got !== undefined) return got;
+      const ch = d < 40 ? kids.get(n.id) ?? [] : [];
+      const w = Math.max(W(n), ch.reduce((a, c, i) => a + sw(c, d + 1) + (i ? sib(ch[i - 1], c) : 0), 0));
+      SW.set(n.id, w); return w;
     };
-    for (const n of ns) xOf(n);
-    const rows = Math.max(1, ...ns.map(n => n.row + 1)), Wc = Math.max(L.pad * 2 + L.pillW, ...ns.map(n => X.get(n.id)! + W(n) + L.pad)), Hc = rows * L.cellH + 10;
+    const sib = (a: ResearchNode, b: ResearchNode) => a.kind === 'upgrade' && b.kind === 'upgrade' ? L.cgap : L.gap;
+    const CX = new Map<string, number>(), Y = new Map<string, number>();
+    const place = (n: ResearchNode, cx: number, y: number, d = 0) => {
+      CX.set(n.id, cx); Y.set(n.id, y);
+      const ch = d < 40 ? kids.get(n.id) ?? [] : []; if (!ch.length) return;
+      const tot = ch.reduce((a, c, i) => a + sw(c) + (i ? sib(ch[i - 1], c) : 0), 0);
+      let x = cx - tot / 2;
+      ch.forEach((c, i) => {
+        if (i) x += sib(ch[i - 1], c);
+        const up = c.kind === 'upgrade', chain = up && n.kind === 'upgrade';
+        place(c, x + sw(c) / 2, y + H(n) + (chain ? L.chainGap : L.vgap + (up ? L.capH : 0)), d + 1); x += sw(c);
+      });
+    };
+    const rw = roots.reduce((a, r, i) => a + sw(r) + (i ? L.gap : 0), 0);
+    { let x = L.pad; roots.forEach((r, i) => { if (i) x += L.gap; place(r, x + sw(r) / 2, L.pad + (r.kind === 'upgrade' ? L.capH : 0)); x += sw(r); }); }
+    const X = new Map(ns.map(n => [n.id, CX.get(n.id)! - W(n) / 2] as const));
+    const Wc = Math.max(L.pad * 2 + L.pillW, rw + L.pad * 2), Hc = Math.max(L.N + L.pad * 2, ...ns.map(n => Y.get(n.id)! + H(n) + L.pad));
     this.panel.style.setProperty('--cw', Math.max(Wc, L.small ? 0 : 780) + 'px');
     const C = this.canvas; C.style.width = Wc + 'px'; C.style.height = Hc + 'px';
-    const cy = (n: ResearchNode) => 5 + n.row * L.cellH + L.cellH / 2;
     let html = '';
     // locked tree: overlay with what opens it
     if (!segmentOpen(cfg, st, tree.segment)) {
@@ -280,29 +298,31 @@ export class TechTree {
       const req = [S?.needFields ? `<span><i class="rtHex"></i>${Math.min(got(true), S.needFields)}/${S.needFields}</span>` : '', S?.needWeapons ? `<span><i>${skillIcon('pea')}</i>${Math.min(got(false), S.needWeapons)}/${S.needWeapons}</span>` : ''].join('');
       html += `<div class="rtLock" style="left:4px;top:2px;right:4px;bottom:2px"><div class="rtLockChip"><i>${mini('lock')}</i>${req}</div></div>`;
     }
-    // links needs -> node
+    // links needs -> node: down from the parent, across on a shared bar, down into the child (rounded corners)
     let svg = '';
     for (const n of ns) {
-      const s0 = sts.get(n.id)!, cls = s0 === 'done' ? 'done' : s0 === 'lock' ? 'lock' : 'open', x2 = X.get(n.id)!, y2 = cy(n);
+      const s0 = sts.get(n.id)!, cls = s0 === 'done' ? 'done' : s0 === 'lock' ? 'lock' : 'open', x2 = CX.get(n.id)!, y2 = Y.get(n.id)!;
       for (const id of n.needs ?? []) {
         const f = byId.get(id); if (!f) continue;
-        const x1 = X.get(f.id)! + W(f) - (f.kind === 'upgrade' ? (L.chipW - L.U) / 2 : 0), y1 = cy(f), xe = x2 + (n.kind === 'upgrade' ? (L.chipW - L.U) / 2 : 0), dx = Math.max(10, (xe - x1) * .55);
-        svg += y1 === y2 ? `<path class="${cls}" d="M${x1} ${y1} H${xe}"/>` : `<path class="${cls}" d="M${x1} ${y1} C${x1 + dx} ${y1} ${xe - dx} ${y2} ${xe} ${y2}"/>`;
+        const x1 = CX.get(f.id)!, y1 = Y.get(f.id)! + H(f) - (f.kind === 'upgrade' ? 0 : 2), yt = y2 - (n.kind === 'upgrade' && f.kind !== 'upgrade' ? L.capH : 0);
+        if (Math.abs(x2 - x1) < 1) { svg += `<path class="${cls}" d="M${x1} ${y1} V${yt}"/>`; continue; }
+        const yb = y1 + Math.min(L.vgap / 2, (yt - y1) / 2), dir = Math.sign(x2 - x1), r = Math.min(L.rad, Math.abs(x2 - x1) / 2, (yb - y1), (yt - yb));
+        svg += `<path class="${cls}" d="M${x1} ${y1} V${yb - r} Q${x1} ${yb} ${x1 + dir * r} ${yb} H${x2 - dir * r} Q${x2} ${yb} ${x2} ${yb + r} V${yt}"/>`;
       }
     }
     html += `<svg class="rtLinks" width="${Wc}" height="${Hc}" viewBox="0 0 ${Wc} ${Hc}">${svg}</svg>`;
     // nodes
     for (const n of ns) {
-      const i = all.indexOf(n), s0 = sts.get(n.id)!, x = X.get(n.id)!, y = cy(n), left = Math.max(0, 1 - Math.min(1, (st.work[n.id] ?? 0) / (st.cost * nodeMul(cfg, n))));
+      const i = all.indexOf(n), s0 = sts.get(n.id)!, x = X.get(n.id)!, y = Y.get(n.id)!, left = Math.max(0, 1 - Math.min(1, (st.work[n.id] ?? 0) / (st.cost * nodeMul(cfg, n))));
       const badge = s0 === 'done' ? `<b class="rtBadge ok">${mini('check')}</b>` : s0 === 'lock' ? `<b class="rtBadge lk">${mini('lock')}</b>` : '';
       const sub = s0 === 'done' ? '' : s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(st.cost * nodeMul(cfg, n) * left)}</span></span>`;
       if (n.kind === 'upgrade') {
         const inf = upInfo(cfg, n.ref ?? '', n.lv), first = (n.lv ?? 1) === 1;
-        html += `<button class="rtNode k-upgrade ${s0}" data-i="${i}" style="left:${x}px;top:${y - L.U / 2 - (first ? 15 : 0)}px;width:${L.chipW}px" title="${esc(upName(cfg, n.ref ?? ''))} ${n.lv}/${n.count}">
+        html += `<button class="rtNode k-upgrade ${s0}" data-i="${i}" style="left:${x}px;top:${y - (first ? L.capH : 0)}px;width:${L.colW}px" title="${esc(upName(cfg, n.ref ?? ''))} ${n.lv}/${n.count}">
           ${first ? `<span class="rtCap">${esc(upName(cfg, n.ref ?? ''))}</span>` : ''}<span class="rtIc"><span class="rtIcIn">${inf.icon}</span>${badge || `<b class="rtLvN">${n.lv}</b>`}</span>
           <span class="rtUpTx">${s0 === 'done' ? `<em>${esc(inf.txt)}</em>` : sub}</span></button>`;
       } else {
-        html += `<button class="rtNode ${s0} k-${n.kind}${isPlaceNode(n) ? ' k-field' : ''}" data-i="${i}" style="left:${x}px;top:${y - L.N / 2}px;width:${L.pillW}px" ${s0 === 'lock' || s0 === 'done' ? 'aria-disabled="true"' : ''}>
+        html += `<button class="rtNode ${s0} k-${n.kind}${isPlaceNode(n) ? ' k-field' : ''}" data-i="${i}" style="left:${x}px;top:${y}px;width:${L.pillW}px" ${s0 === 'lock' || s0 === 'done' ? 'aria-disabled="true"' : ''}>
           <span class="rtIc"><span class="rtIcIn">${nodeIcon(n, cfg)}</span>${badge}</span>
           <span class="rtTx"><b>${esc(nodeName(cfg, n))}</b>${sub}</span><i class="rtBar"></i></button>`;
       }
@@ -316,10 +336,10 @@ export class TechTree {
     const els = [...this.canvas.querySelectorAll<HTMLElement>('.rtNode')];
     const el = els.find(e => e.classList.contains('cur') || e.classList.contains('ready')) ?? els.find(e => e.classList.contains('avail') && !e.classList.contains('k-upgrade')) ?? els.find(e => e.classList.contains('avail'));
     void cfg; void st;
-    if (!el) { this.scroll.scrollLeft = 0; this.scroll.scrollTop = 0; return; }
+    if (!el) { this.scroll.scrollLeft = Math.max(0, (this.scroll.scrollWidth - this.scroll.clientWidth) / 2); this.scroll.scrollTop = 0; return; }
     const x = el.offsetLeft, y = el.offsetTop, sc = this.scroll;
-    sc.scrollLeft = Math.max(0, Math.min(x - L.pad - L.pillW - L.gap, x + el.offsetWidth + L.pad - sc.clientWidth)); // the node and the one before it, as much on the left as fits
-    sc.scrollTop = Math.max(0, Math.min(y - L.cellH, y + el.offsetHeight + 10 - sc.clientHeight));
+    sc.scrollLeft = Math.max(0, x + el.offsetWidth / 2 - sc.clientWidth / 2); // centred across, the node and the one above it in view
+    sc.scrollTop = Math.max(0, Math.min(y - L.N - L.vgap, y + el.offsetHeight + 10 - sc.clientHeight));
   }
 
   private buildPopup(cfg: Balancing, n: ResearchNode, st: RS) {

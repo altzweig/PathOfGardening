@@ -29,18 +29,20 @@ function paint(g: THREE.BufferGeometry, col: (cx: number) => THREE.Color, jit = 
   }
   g2.setAttribute('color', new THREE.BufferAttribute(a, 3)); g2.deleteAttribute('uv'); return g2;
 }
-/** one sack along x from -.5 to .5: a fat pillow pinched at both ends (tied), flat at the bottom, slightly saggy on top */
+/** one sack along x from -.5 to .5: a fat, blunt pillow with rounded ends (tied), flat at the bottom, slightly saggy on top */
 function sackGeo() {
   const g = new THREE.IcosahedronGeometry(1, 3), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ax = Math.abs(x);
-    const pinch = 1 - .62 * Math.pow(ax, 6), bulge = 1 + .05 * Math.sin(x * 13 + z * 4) * (1 - ax);
+    // boxy pillow: the sphere's tapering cross-section is widened to a rounded-off block, only the very ends close (not pointed)
+    const box = Math.min(3, Math.pow(Math.max(0, 1 - Math.pow(ax, 8)), .22) / Math.sqrt(Math.max(.02, 1 - x * x)));
+    const pinch = box * (1 - .12 * Math.pow(ax, 4)), bulge = 1 + .05 * Math.sin(x * 13 + z * 4) * (1 - ax);
     let yy = y * pinch * bulge; if (yy < -.55) yy = -.55 - (yy + .55) * .15; // flat bottom where it rests
     p.setXYZ(i, x * .47, yy * .13 + .02 * (1 - x * x), z * pinch * bulge * .2);
   }
   const body = paint(g, cx => Math.abs(cx) < .05 ? STRIPE : Math.abs(cx) > .4 ? BURLAP_DK : BURLAP, .06);
   const tie = (sx: number) => paint(new THREE.CylinderGeometry(.035, .05, .07, 6).rotateZ(Math.PI / 2).translate(sx * .47, 0, 0), () => TIE, .1);
-  const ear = (sx: number) => paint(new THREE.ConeGeometry(.06, .08, 5).rotateZ(-sx * Math.PI / 2).translate(sx * .53, .01, 0), () => BURLAP_DK, .1);
+  const ear = (sx: number) => paint(new THREE.IcosahedronGeometry(1, 1).scale(.035, .045, .045).translate(sx * .51, .01, 0), () => BURLAP_DK, .1);
   return mergeGeometries([body, tie(-1), tie(1), ear(-1), ear(1)])!;
 }
 function bitGeo() { return paint(new THREE.IcosahedronGeometry(1, 0).scale(.06, .05, .06), () => new THREE.Color(1, 1, 1), 0); }

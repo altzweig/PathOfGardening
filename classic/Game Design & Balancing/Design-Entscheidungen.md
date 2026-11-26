@@ -664,3 +664,4 @@ Was-wäre-wenn (16 Läufe, neue Werte; nur Messung, nichts davon eingestellt): a
 - Upgrades Mehlsäcke: +20 Leben (5×), Selbstreparatur +5/min (5×), Kosten −1 Mehl (5×). Steinkohle-Mauer: +10 Leben je Stufe.
 - Bäckerei braucht im Forschungsmodus nur Mehl (`research.buildingNeeds`), weil es keinen Brunnen-Ast gibt.
 - **Bot:** wählt er Felder und Waffen zuerst, bleibt der Median bei Welle 16; nimmt er Upgrades zuerst, fällt er auf 8–9 (Munition wird knapp). Die offene Balancing-Frage aus „Balancing Erbsenstart“ ist damit nicht gelöst.
+- **Nachtrag (Basti, 26.11.2026):** Baum von oben nach unten, Start mittig oben, Äste nach links/Mitte/rechts (kurze Verbindungen), Upgrade-Ketten als Spalten nach unten. Linien rechtwinklig mit leicht gerundeten Ecken. Mehlsäcke stumpfer (kissenförmig, nicht spitz).

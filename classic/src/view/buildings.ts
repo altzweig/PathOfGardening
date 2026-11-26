@@ -377,10 +377,12 @@ export function chestModel(g: THREE.Group) {
   const loot = new THREE.Group(); ch.add(loot); const top = CHEST_PIVOT[1];
   for (let i = 0; i < 7; i++) part(loot, GEO.sph, [M(0x3550e0), M(0xb00a1e), M(0x3a1f44), M(0xe0b85a)][i % 4], .08, .08, .08, rand(-.4, .4), top - .05, rand(-.22, .22), false);
   let open = 0, t = 0;
-  return (dt: number, thieves: number) => {
-    t += dt; open += ((thieves > 0 ? .55 + Math.min(.65, thieves * .13) : 0) - open) * Math.min(1, dt * 6);
-    hinge.rotation.x = -open - (thieves > 0 ? Math.abs(Math.sin(t * 13)) * .1 : 0);
-    loot.visible = open > .05;
+  // 26.11.2026 atk: the animals beat on the chest instead of stealing: the lid only jumps, every hit (kick 0..1) jolts the whole chest
+  return (dt: number, thieves: number, atk = false, kick = 0) => {
+    t += dt; open += ((thieves > 0 ? (atk ? .06 + Math.min(.12, thieves * .02) : .55 + Math.min(.65, thieves * .13)) : 0) - open) * Math.min(1, dt * 6);
+    hinge.rotation.x = -open - (thieves > 0 ? Math.abs(Math.sin(t * 13)) * (atk ? .05 : .1) : 0) - kick * .12;
+    loot.visible = !atk && open > .05;
+    ch.position.set(Math.sin(t * 61) * kick * .05, kick * .03, Math.cos(t * 53) * kick * .04); ch.rotation.z = Math.sin(t * 47) * kick * .05;
   };
 }
 export function buildBuilding(type: BuildingType, H: number): BuildingView {

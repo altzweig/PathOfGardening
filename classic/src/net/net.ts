@@ -84,7 +84,7 @@ function binaryChannels(c: DataConnection, onData: (b: Uint8Array) => void, unre
 
 export type ToHost = { t: 'pick'; key: string } | { t: 'place'; slot: number } | { t: 'hello'; look?: Look; tok?: string } | { t: 'buy'; i: number } | { t: 'shopClose' } | { t: 'reroll' } | { t: 'b'; d: string }
   /** 25.11.2026 Werkbank-Techtree: choose an idea (node index), "Fertigstellen", close the panel / popup, open the panel from anywhere */
-  | { t: 'rsChoose'; node: number } | { t: 'rsFinish' } | { t: 'rsClose' } | { t: 'rsOpen' };
+  | { t: 'rsChoose'; node: number } | { t: 'rsFinish' } | { t: 'rsClose' } | { t: 'rsOpen' } | { t: 'rsSeed'; tree: number };
 export type ToClient =
   | { t: 'welcome'; id: number; color: number; cfg: Balancing; again?: boolean }
   | { t: 'lobby'; players: { id: number; color: number; look?: Look }[] }
@@ -106,7 +106,7 @@ export class Host {
   onShopClose: (id: number) => void = () => {};
   onReroll: (id: number) => void = () => {};
   /** 25.11.2026 Werkbank-Techtree messages (rsChoose / rsFinish / rsClose / rsOpen) */
-  onResearch: (id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) => void = () => {};
+  onResearch: (id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' | 'rsSeed' }>) => void = () => {};
   /** again = came back within the reconnect window (still in the game) */
   onJoin: (p: LobbyPlayer, again: boolean) => void = () => {};
   /** connection lost (gone = still waiting for it), or finally removed */
@@ -145,7 +145,7 @@ export class Host {
         else if (m.t === 'buy') this.onBuy(p.id, m.i);
         else if (m.t === 'shopClose') this.onShopClose(p.id);
         else if (m.t === 'reroll') this.onReroll(p.id);
-        else if (m.t === 'rsChoose' || m.t === 'rsFinish' || m.t === 'rsClose' || m.t === 'rsOpen') this.onResearch(p.id, m);
+        else if (m.t === 'rsChoose' || m.t === 'rsFinish' || m.t === 'rsClose' || m.t === 'rsOpen' || m.t === 'rsSeed') this.onResearch(p.id, m);
         else if (m.t === 'hello' && m.look) { p.look = cleanLook(m.look); this.broadcastLobby(); this.onChange(); }
       });
       const gone = () => { if (p && p.conn === c) this.lost(p); };

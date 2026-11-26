@@ -367,6 +367,21 @@ const SYNTH_EXTRA: Record<string, (arg?: any) => void> = {
   /** lava breathing under the chili field: soft low rumble + tiny crackle */
   ember() { noise({ t: .5, vol: .03, type: 'lowpass', f: 260, f2: 140, at: .2 }); if (Math.random() < .5) noise({ t: .04, vol: .03, type: 'highpass', f: 3500, when: rand(.05, .3) }); },
   wilt() { tone({ type: 'sine', f: 300, f2: 90, t: .8, vol: .07 }); noise({ t: .6, vol: .06, type: 'bandpass', f: 1400, f2: 300, q: 1.5 }); },
+  // ---- 26.11.2026 Truhe, Samen, Myzel ----
+  /** an animal beats on the chest: dull wooden thump + iron rattle */
+  chestHit() { tone({ f: 120, f2: 60, t: .12, vol: .16 }); noise({ t: .08, vol: .12, type: 'bandpass', f: 700, q: 1.4, at: .002 }); noise({ t: .1, vol: .04, type: 'bandpass', f: 3200, q: 5, when: .02 }); },
+  /** the chest breaks: splintering wood, falling iron */
+  chestBreak() { noise({ t: .8, vol: .3, type: 'lowpass', f: 1600, f2: 200 }); for (let i = 0; i < 6; i++) noise({ t: .05, vol: .12, type: 'bandpass', f: rand(1200, 3000), q: 3, when: i * rand(.05, .09) }); tone({ f: 90, f2: 35, t: .6, vol: .25 }); },
+  /** a seed found: soft earthy pop + rising green sparkle */
+  seedFound() { noise({ t: .06, vol: .12, type: 'lowpass', f: 900, at: .002 }); tone({ type: 'sine', f: 220, f2: 330, t: .12, vol: .1 }); [784, 988, 1319, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .4, vol: .05, when: .1 + i * .06 })); },
+  /** a Myzelle won: deep swell, then a bright fifth glittering over it */
+  mycelGain() { tone({ type: 'sine', f: 110, f2: 220, t: .9, vol: .12, at: .25 }); tone({ type: 'triangle', f: 440, f2: 660, t: .7, vol: .05, when: .15, vib: 6, vibF: 5 }); [880, 1320, 1760, 2217].forEach((f, i) => tone({ type: 'sine', f, t: .5, vol: .04, when: .35 + i * .07 })); noise({ t: .8, vol: .03, type: 'highpass', f: 6000, when: .3, at: .3 }); },
+  /** a Myzelle goes into the field: humming plop */
+  mycelPlace() { tone({ type: 'sine', f: 330, f2: 165, t: .3, vol: .12 }); tone({ type: 'triangle', f: 990, t: .35, vol: .04, when: .05, vib: 20, vibF: 9 }); noise({ t: .12, vol: .06, type: 'lowpass', f: 600, at: .01 }); },
+  /** auto harvest lightning: short buzzing crackle */
+  mycelZap() { noise({ t: .14, vol: .07, type: 'bandpass', f: 3600, f2: 1800, q: 2 }); tone({ type: 'sawtooth', f: 220, f2: 180, t: .12, vol: .025, filt: { type: 'lowpass', f: 1400 } }); },
+  /** Myzel-XP orb picked up: tiny glassy chime (rises with quick pickups via the entry) */
+  xorb() { tone({ type: 'sine', f: 1320, f2: 1480, t: .16, vol: .045 }); tone({ type: 'triangle', f: 660, t: .1, vol: .03 }); },
 };
 function entry(key: string): SndEntry | null {
   if (!SC) return null; let o: any = SC; for (const p of key.split('.')) { o = o?.[p]; if (o === undefined) return null; } return o;

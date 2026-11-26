@@ -32,8 +32,8 @@ export interface PSnap {
   cw: number; // combo weapon in the hand (COMBOS index), -1 none
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
   ht?: number; // Körner-MP heat 0..1 (+2 while overheated), absent when cold
-  /** 25.11.2026 Werkbank: 1 = hammering at the bench right now (hammer animation + grey dust), absent = no. Not in net PL_KEYS yet (P5) */
-  bw?: 0 | 1;
+  /** 25.11.2026 Werkbank: 1 = hammering at the bench right now (hammer animation + grey dust), 2 = working at the chest (26.11.2026), absent = no */
+  bw?: 0 | 1 | 2;
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string;
@@ -54,6 +54,8 @@ export interface Priv {
   /** Händler reroll: price of the next one, rerolls so far this visit (24.11.2026) */ rc?: number; rn?: number;
   /** 25.11.2026 Werkbank UI of this player: 0 closed, 1 techtree panel (choose the next idea), 2 pickup popup of the finished idea (+ panel below) */
   ro?: 0 | 1 | 2;
+  /** 26.11.2026 placing a Myzelle (top-down view, ps = crop fields with room) */
+  my?: 0 | 1;
 }
 // enemy: [id, type, x, z, face, hpFrac, shieldFrac, flags, carry, aux, aux2]
 export type ESnap = [number, number, number, number, number, number, number, number, string, number, number];
@@ -70,7 +72,7 @@ export type MSnap = [number, number, number, number, number, number];
 export type PuSnap = [number, number, number, number, number, number]; // + burning (Kimchi)
 /** slot, type, hp, alive, shake, rarity, prog, edge, edge progress, tilled, fruit per second */
 /** + flags (1 broken, 2 working), input stock of a building "typeIndex:n,..." */
-export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, string, number?]; // [13] crop cycle: 0..1 being harvested, 1..2 growing back
+export type FiSnap = [number, number, number, number, number, number, number, number, number, number, number, number, string, number?, number?]; // [14] Myzellen (26.11.2026) // [13] crop cycle: 0..1 being harvested, 1..2 growing back
 
 export const EF = { stun: 1, bleed: 2, flash: 4, air: 8, windup: 16, charge: 32, tongue: 64, bar: 128, flee: 256, lunge: 512, elite: 1024, boss: 2048, burn: 4096, shock: 8192, leave: 16384, poison: 32768, frozen: 65536, thorn: 131072, sulfur: 262144 } as const;
 
@@ -103,4 +105,12 @@ export interface Snap {
   wl?: number[][];
   /** 26.11.2026 Mehlsäcke stacks: [id, midpoint x, z, angle of the edge line (atan2 dx, dz), hp, maxHp], oldest first; a stack is a field side long */
   sk?: number[][];
+  /** 26.11.2026 trees found by the seed search (research.trees index); rs[6] = tree of the next search (-1 none left), rs[7] its progress 0..1 */
+  rt?: number[];
+  /** chest [hp, maxHp] (animals attack it, 0 = lost) */
+  cv?: number[];
+  /** Myzel-XP orbs: [id, x, y, z] */
+  xo?: number[][];
+  /** Feld-Upgrade level per FRUITS index; Myzellen still to be placed */
+  fu?: number[]; mp?: number;
 }

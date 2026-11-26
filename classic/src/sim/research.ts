@@ -7,8 +7,10 @@ import type { Snap } from './snap';
 
 /** team-wide research state (one per game): idea being researched, s of work per node (kept when switching), researched node ids
  *  (start nodes are not listed), Forschungstempo level, current idea complete (waits at the bench), researched ideas (cost exponent, upgrades count upgradeCount) */
-export interface RState { cur: string | null; work: Record<string, number>; done: string[]; speedLv: number; ready: boolean; n: number }
-export const newRState = (): RState => ({ cur: null, work: {}, done: [], speedLv: 0, ready: false, n: 0 });
+export interface RState { cur: string | null; work: Record<string, number>; done: string[]; speedLv: number; ready: boolean; n: number;
+  /** 26.11.2026 Samen-Suche: trees found (start tree not listed), tree chosen for the search (null = next locked one), s of work done on it, character level (research speed) */
+  trees: string[]; seed: string | null; sw: number; lv: number }
+export const newRState = (): RState => ({ cur: null, work: {}, done: [], speedLv: 0, ready: false, n: 0, trees: [], seed: null, sw: 0, lv: 1 });
 
 /** the yaml nodes with every upgrade chain expanded (cached per config object) */
 const EXP = new WeakMap<object, ResearchNode[]>();
@@ -45,25 +47,61 @@ export function segmentOpen(cfg: Balancing, st: RState, seg: number) {
   const from = R.from ?? [], got = (fields: boolean) => rNodes(cfg).filter(n => (fields ? isPlaceNode(n) : n.kind === 'weapon') && !n.start && from.includes(n.segment) && st.done.includes(n.id)).length;
   return got(true) >= (R.needFields ?? 0) && got(false) >= (R.needWeapons ?? 0);
 }
-/** can be chosen now: not researched yet (Forschungstempo: always), its segment is open and every node in needs is researched */
+/** 26.11.2026 Samen-Suche on: trees are opened by finding seeds at the chest instead of the segment rules */
+export const seedMode = (cfg: Balancing) => !!cfg.research?.seeds && !!cfg.research?.trees?.length;
+/** the start tree (the one holding a start node, else the first) */
+export function startTree(cfg: Balancing) { const T = cfg.research?.trees ?? []; return (T.find(t => rNodes(cfg).some(n => n.start && n.tree === t.id)) ?? T[0])?.id ?? ''; }
+/** a tree (tab) is open: Samen-Suche -> start tree or found; else its segment rule */
+export function treeOpen(cfg: Balancing, st: RState, id: string) {
+  const t = cfg.research?.trees?.find(x => x.id === id); if (!t) return true;
+  if (seedMode(cfg)) return id === startTree(cfg) || (st.trees ?? []).includes(id);
+  return segmentOpen(cfg, st, t.segment);
+}
+/** trees still locked, in yaml order */
+export const lockedTrees = (cfg: Balancing, st: RState) => (cfg.research?.trees ?? []).filter(t => !treeOpen(cfg, st, t.id)).map(t => t.id);
+/** the tree the next seed search opens: the chosen one if still locked, else the first locked one */
+export function seedTarget(cfg: Balancing, st: RState) { const L = lockedTrees(cfg, st); return st.seed && L.includes(st.seed) ? st.seed : L[0] ?? null; }
+/** research speed factor: Forschungstempo levels x character level (research.levelSpeed per level above 1) */
+export function rSpeed(cfg: Balancing, st: RState) { const R = cfg.research!; return Math.pow(1 + R.speedPerLevel, st.speedLv) * (1 + (R.levelSpeed ?? 0) * Math.max(0, (st.lv ?? 1) - 1)); }
+/** s of work the next seed costs now (whole team, 1 worker) */
+export function seedCost(cfg: Balancing, st: RState) { const S = cfg.research?.seeds; if (!S) return 1; return Math.max(.1, (S.base + S.step * (st.trees ?? []).length) / rSpeed(cfg, st)); }
+/** can be chosen now: not researched yet (Forschungstempo: always), its tree / segment is open and every node in needs is researched */
 export function nodeAvailable(cfg: Balancing, st: RState, id: string) {
   const n = rNode(cfg, id); if (!n) return false;
   if (n.kind !== 'speed' && nodeDone(cfg, st, id)) return false;
-  if (!segmentOpen(cfg, st, n.segment)) return false;
+  if (seedMode(cfg) && n.tree ? !treeOpen(cfg, st, n.tree) : !segmentOpen(cfg, st, n.segment)) return false;
   return (n.needs ?? []).every(k => nodeDone(cfg, st, k));
 }
 /** s of active work (1 worker) an idea costs now: baseTime x (1 + costGrowth)^researched / (1 + speedPerLevel)^speedLv x players^coopExponent
  *  (= the snapshot's base cost), x upgradeCost x (1 + upgradeGrowth)^(lv - 1) for an upgrade node */
 export function researchCost(cfg: Balancing, st: RState, players = 1) {
   const R = cfg.research; if (!R) return 1;
-  return Math.max(.1, R.baseTime * Math.pow(1 + R.costGrowth, st.n) / Math.pow(1 + R.speedPerLevel, st.speedLv) * Math.pow(Math.max(1, players), R.coopExponent ?? 0));
+  const coop = Math.pow(Math.max(1, players), R.coopExponent ?? 0);
+  if (R.times) return coop / rSpeed(cfg, st); // 26.11.2026 fixed times: the "base cost" is only the speed divisor, nodeMul holds the seconds
+  return Math.max(.1, R.baseTime * Math.pow(1 + R.costGrowth, st.n) / rSpeed(cfg, st) * coop);
 }
-/** cost factor of one node on top of the base cost (1 for fields, buildings, weapons, Forschungstempo) */
-export function nodeMul(cfg: Balancing, n: ResearchNode | null | undefined) {
+/** 26.11.2026 field upgrade node (ref fld_<fruit>): the fruit, else null */
+export const fieldUpOf = (n: ResearchNode | null | undefined) => n && n.kind === 'upgrade' && n.ref?.startsWith('fld_') ? n.ref.slice(4) : null;
+/** cost factor of one node on top of the base cost. research.times: the fixed seconds of the node (weapon upgrades + upgradeStep per upgrade
+ *  of that weapon already researched, field upgrades + fieldUpStep per level of the field); old flow: 1 for fields etc., upgrades cheaper */
+export function nodeMul(cfg: Balancing, n: ResearchNode | null | undefined, st?: RState) {
+  const R = cfg.research!, T = R?.times;
+  if (T && n) {
+    if (n.kind === 'weapon') return T.weapon;
+    if (n.kind === 'field') return T.field;
+    if (n.kind === 'building') return T.building;
+    if (n.kind === 'upgrade') {
+      if (fieldUpOf(n)) return T.fieldUp + T.fieldUpStep * ((n.lv ?? 1) - 1);
+      // steps of this weapon before this one: its own chain below it + what other chains of the same weapon have done
+      const w = (n.ref ?? '').split('_')[0], other = st ? rNodes(cfg).filter(x => x.kind === 'upgrade' && !fieldUpOf(x) && x.chain !== n.chain && (x.ref ?? '').split('_')[0] === w && st.done.includes(x.id)).length : 0, done = other + (n.lv ?? 1) - 1;
+      return T.upgrade + T.upgradeStep * done;
+    }
+    return 1;
+  }
   if (!n || n.kind !== 'upgrade') return 1;
-  const R = cfg.research!; return (R.upgradeCost ?? 1) * Math.pow(1 + (R.upgradeGrowth ?? 0), (n.lv ?? 1) - 1);
+  return (R.upgradeCost ?? 1) * Math.pow(1 + (R.upgradeGrowth ?? 0), (n.lv ?? 1) - 1);
 }
-export const nodeCost = (cfg: Balancing, st: RState, id: string | null | undefined, players = 1) => researchCost(cfg, st, players) * nodeMul(cfg, rNode(cfg, id));
+export const nodeCost = (cfg: Balancing, st: RState, id: string | null | undefined, players = 1) => researchCost(cfg, st, players) * nodeMul(cfg, rNode(cfg, id), st);
 /** progress 0..1 of a node towards its current cost */
 export const nodeProgress = (cfg: Balancing, st: RState, id: string, players = 1) => Math.min(1, (st.work[id] ?? 0) / nodeCost(cfg, st, id, players));
 /** what a finished node adds to the cost exponent (upgrades less, Forschungstempo per speedCounts) */
@@ -73,9 +111,13 @@ export function nodeCount(cfg: Balancing, n: ResearchNode) {
 }
 
 /** UI side (25.11.2026): the research state as far as the snapshot carries it (work rebuilt from the progress fractions); cost = base cost */
-export function rsFromSnap(cfg: Balancing, s: Snap): RState & { popup: number; cost: number } {
-  const ns = rNodes(cfg), rs = s.rs ?? [-1, 0, 0, 0, 1, -1], cost = rs[4] || 1;
+export function rsFromSnap(cfg: Balancing, s: Snap): RState & { popup: number; cost: number; seedP: number; seedCost: number } {
+  const ns = rNodes(cfg), rs = s.rs ?? [-1, 0, 0, 0, 1, -1], cost = rs[4] || 1, T = cfg.research?.trees ?? [];
   const work: Record<string, number> = {}, done: string[] = [];
-  ns.forEach((n, i) => { const p = s.rp?.[i] ?? 0; if (p > 0) work[n.id] = p * cost * nodeMul(cfg, n); if (s.rd?.[i] && !n.start && n.kind !== 'speed') done.push(n.id); });
-  return { cur: rs[0] >= 0 ? ns[rs[0]]?.id ?? null : null, work, done, speedLv: rs[2] ?? 0, ready: !!rs[1], n: rs[3] ?? 0, popup: rs[5] ?? -1, cost };
+  ns.forEach((n, i) => { if (s.rd?.[i] && !n.start && n.kind !== 'speed') done.push(n.id); });
+  const trees = (s.rt ?? []).map(i => T[i]?.id).filter((x): x is string => !!x);
+  const st: RState = { cur: rs[0] >= 0 ? ns[rs[0]]?.id ?? null : null, work, done, speedLv: rs[2] ?? 0, ready: !!rs[1], n: rs[3] ?? 0, trees, seed: (rs[6] ?? -1) >= 0 ? T[rs[6]]?.id ?? null : null, sw: 0, lv: s.lv ?? 1 };
+  ns.forEach((n, i) => { const p = s.rp?.[i] ?? 0; if (p > 0) work[n.id] = p * cost * nodeMul(cfg, n, st); });
+  const sc = seedCost(cfg, st), sp = rs[7] ?? 0; st.sw = sp * sc;
+  return { ...st, popup: rs[5] ?? -1, cost, seedP: sp, seedCost: sc };
 }

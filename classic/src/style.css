@@ -1388,3 +1388,30 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
   .rpGo{margin:6px 14px 10px;min-height:44px;padding:8px 20px}
 }
 @media (prefers-reduced-motion:reduce){#rsTree,.rtPanel,.rpCard,.rtNode.ready,#xpbar.rsReady,#lvl.rsReady,#orbXp.rsReady,#rsBtn.ready{animation:none}}
+/* 26.11.2026 Samen-Suche: locked tree with the seed button (chosen = searched for at the chest) */
+.rtLock.rtSeed{pointer-events:auto;align-items:center;padding-top:0}
+.rtSeedBtn{--p:0;position:relative;display:flex;align-items:center;gap:10px;padding:8px 18px 12px 8px;border-radius:999px;border:1.5px solid #9fe06088;
+  background:linear-gradient(180deg,#24301a,#121a0e);color:#e8f4d8;font:inherit;cursor:pointer;transition:transform .12s,box-shadow .15s,border-color .15s;-webkit-tap-highlight-color:transparent}
+.rtSeedBtn:hover{border-color:var(--gold);box-shadow:0 0 14px #e3b96455}
+.rtSeedBtn.on{border-color:#c8ff80;box-shadow:0 0 0 2px #9fe06055,0 0 18px #9fe06077;cursor:default}
+.rtSeedIc{display:block;width:44px;height:44px}.rtSeedIc svg{width:100%;height:100%;display:block}
+.rtSeedTx{display:flex;flex-direction:column;align-items:flex-start;gap:2px}.rtSeedTx b{font:700 16px var(--f-body)}
+.rtSeedBtn .rtBar{left:18px;right:18px;bottom:5px}
+.rtSeedBtn .rtBar::after{background:linear-gradient(90deg,#9fe060,#e8ff9a);box-shadow:0 0 6px #9fe060}
+.rtSeedBtn:not(.on) .rtBar{display:none}
+.rtSeedBtn.deny{animation:rtDeny .35s ease}
+.rtTab.seed{border-color:#9fe06099}
+/* 26.11.2026 Myzellen: slots in the corner of every crop field (top-down view), glowing yellow-purple with a black outline, empty ones dark */
+.fInfo.myc{width:auto;height:auto;justify-content:center}
+.mySl{display:flex;gap:calc(var(--u)*3);padding:calc(var(--u)*4) calc(var(--u)*6);border-radius:999px;background:#07040cd9;border:calc(var(--u)*1.5) solid #6a3aa088;box-shadow:0 0 calc(var(--u)*10) #000a}
+.mySl i{display:block;width:calc(var(--u)*13);height:calc(var(--u)*13);min-width:7px;min-height:7px;border-radius:50%;box-sizing:border-box;border:calc(var(--u)*2) solid #000;background:radial-gradient(circle at 50% 50%,#2a1a3a,#120a1a);box-shadow:inset 0 0 0 1px #5a3a7a77}
+.mySl i.on{background:radial-gradient(circle at 38% 34%,#fffbd8 0 14%,#ffe24a 32%,#c98af0 62%,#7a2fc0 86%);box-shadow:0 0 calc(var(--u)*7) #ffe24aaa,0 0 calc(var(--u)*13) #9a3ff0aa}
+.mySl i.nx{animation:mycNx .6s ease-in-out infinite alternate}
+@keyframes mycNx{from{box-shadow:0 0 0 #ffe24a00;border-color:#000}to{box-shadow:0 0 calc(var(--u)*10) #ffe24a,0 0 calc(var(--u)*16) #9a3ff0;border-color:#ffe24a}}
+.fInfo.myc.hov .mySl{border-color:#ffe24a;transform:scale(1.12)}
+.fInfo.myc.full .mySl{border-color:#ffe24a66}
+#placeBar .pic.myc{border-color:#c98af0;box-shadow:0 0 24px #9a3ff088,0 0 40px #ffe24a44}
+/* seed found: the tree's fruit pops up under the top bar */
+#seedToast{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:999px;background:#0b1206e8;border:1.5px solid #9fe060;box-shadow:0 0 18px #9fe06066;pointer-events:none;animation:seedT 2.6s ease forwards;z-index:30}
+#seedToast i{display:block;width:34px;height:34px}#seedToast i svg{width:100%;height:100%;display:block}
+@keyframes seedT{0%{opacity:0;transform:translate(-50%,-10px) scale(.8)}12%{opacity:1;transform:translate(-50%,0) scale(1.08)}20%{transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-6px)}}

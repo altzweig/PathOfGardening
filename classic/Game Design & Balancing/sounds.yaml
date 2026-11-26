@@ -80,6 +80,7 @@ squirrel:
   die:    { files: [rac_die_1, rac_die_2], vol: 0.24, pitch: [1.8, 2.0], gap: 0.15 }
 
 player:
+  levelUp: { files: [levelup], vol: 0.45, gap: 0.3 }   # 26.11.2026 Charakterlevel (Myzel-XP)
   step:   { files: [step_1, step_2, step_3, step_4], vol: 0.16, pitch: [0.85, 1.15], gap: 0.12 }
   hurt:   { synth: hurt, gap: 0.2 }
   die:    { synth: playerDie, gap: 1 }
@@ -160,6 +161,19 @@ research:
   # 25.11.2026 Schlüssel der Sim (tickResearch): fertig = bench.ready, Abholen (Popup geht auf) = ui.ideaClaim
   ready:  { synth: ideaReady, svol: 1.0, gap: 1 }       # Idee an der Werkbank fertig
   pickup: { synth: ideaClaim, svol: 0.8, gap: 0.5 }     # fertige Idee abgeholt
+  seed:   { synth: seedFound, svol: 1.0, gap: 0.5 }     # 26.11.2026 Samen an der Truhe gefunden: neuer Baum offen
+
+chest:
+  # 26.11.2026 Tiere greifen die Truhe an (prozedural)
+  hit:   { synth: chestHit, svol: 0.7, gap: 0.09 }      # Schlag auf die Truhe
+  break: { synth: chestBreak, svol: 1.0, gap: 1 }       # Truhe zerstört = verloren
+
+mycel:
+  # 26.11.2026 Myzel-XP und Myzellen (prozedural)
+  gain:  { synth: mycelGain, svol: 1.0, gap: 0.5 }      # neue Myzelle (alle 3 Level)
+  place: { synth: mycelPlace, svol: 1.0, gap: 0.1 }     # Myzelle ins Feld gesteckt
+  zap:   { synth: mycelZap, svol: 0.8, gap: 0.08 }      # Auto-Ernte-Blitz auf die Pflanze
+  orb:   { synth: xorb, svol: 0.8, gap: 0.03 }          # Myzel-XP-Kugel eingesammelt
 
 wall:
   # 25.11.2026 Steinkohl-Mauer (prozedural)

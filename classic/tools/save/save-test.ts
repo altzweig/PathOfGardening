@@ -36,7 +36,7 @@ L.sim.update(1 / 30); ok((L.sim as any).wallGrid.size > 0, `Mauer-Raster nach de
 
 // 2) saved while a researched field is being placed -> loaded: not lost, waits at the bench
 const s2 = new Sim(cfg); const q = s2.addPlayer(0, 0); s2.update(.1);
-const b = s2.benchCircle()!; q.x = b.x + 1.6; q.z = b.z; s2.update(.05); s2.openResearch(q.id); s2.chooseResearch(q.id, 'f_wheat'); s2.rs.work.f_wheat = 999; s2.rs.ready = true;
+const b = s2.benchCircle()!; q.x = b.x + 1.6; q.z = b.z; s2.update(.05); s2.rs.trees.push('wheat'); /* 26.11.2026 trees start locked (seed search) */ s2.openResearch(q.id); s2.chooseResearch(q.id, 'f_wheat'); s2.rs.work.f_wheat = 999; s2.rs.ready = true;
 q.x = b.x + b.r + .1; q.z = b.z; q.rsLock = 0; s2.update(.05); ok(q.rsUi === 2, 'Abhol-Popup offen'); s2.finishIdea(q.id);
 ok(s2.phase === 'lvl' && q.placing === 'wheat', 'Platzier-Modus läuft');
 saveGame('b', 0, s2, look); L = loadGame('b', cfg)!;

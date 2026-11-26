@@ -57,6 +57,8 @@ import { DUST_CAP, createDust } from './dustfx';
 import { createWallPool, type WallPiece } from './wallpool';
 import { createSackPool, type SackPiece } from './sackpool';
 import { sackSpot } from '../sim/sacks';
+import { fieldUpOf, rNodes } from '../sim/research';
+import { MycelFx } from './mycelfx';
 import { peaPistol, peaProjectile, type PeaPistol } from './peapistol';
 import { setCraftEnv, setCraftLight } from './craftkit';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -70,7 +72,7 @@ interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s
   /** 25.11.2026 Werkbank-Techtree: Erbsenpistole (+ ms of the last shot), Weizen-Schrotflinte, Steinkohle cabbage in the hand (+ ms of the last post),
    *  hammer at the bench: pivot + model, swing phase, work blend 0..1, hit point on the bench top (world), dust slot */
   pea?: PeaPistol; peaT?: number; wgun?: { g: THREE.Group; anim: THREE.Group }; wallH?: THREE.Group; wallT?: number;
-  ham?: { pivot: THREE.Group; h: ReturnType<typeof createHammer> }; hph?: number; bwk?: number; hx?: number; hz?: number; dustI?: number; lean?: number }
+  ham?: { pivot: THREE.Group; h: ReturnType<typeof createHammer> }; hph?: number; bwk?: number; hx?: number; hz?: number; dustI?: number; lean?: number; /** 26.11.2026 what the hammer works on: 1 bench, 2 chest */ bwAt?: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; key: string; st: AnimState; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
@@ -150,6 +152,7 @@ const DEBUFF_ICON: Record<string, string> = { cran: 'bleed', blue: 'freeze', bla
 interface FieldView { bedMat: THREE.MeshStandardMaterial; g: THREE.Group; plant: THREE.Group; fruits: THREE.Mesh[]; mats: PlantMats; rim: THREE.Mesh; bar: THREE.Group; alive: boolean; type: number; rarity: number; prog: number; pulse: THREE.Sprite[]; edge: number; ep: number; pos: number; tilled: boolean; wilt?: boolean; x: number; z: number; shake: number; glow: number; hit: number; comb: number; combs: number[]; bmats: THREE.MeshStandardMaterial[]; bglow: number[]; ftype: FruitType; lava?: THREE.Mesh; lavaT: number; lv: number; rate: number;
   /** buildings: model + animation, flags (1 broken, 2 working), input stock "idx:n,...", s to the next work sound */
   bld?: BuildingView; flags?: number; stock?: string; sndT?: number;
+  /** 26.11.2026 Myzellen in the field */ myc?: number;
   /** crop cycle (23.11.2026): 0..1 being harvested, 1..2 growing back; clump order of the harvest; ripe flash; base colours */
   cy?: number; order?: number[]; ripeT?: number; leafC?: THREE.Color; headC?: THREE.Color; /** crop state 0 ripe, 1 dead, 2 young; cabbage dust (0..1) */ cst?: number; dust?: number; dryM?: THREE.MeshStandardMaterial; dryH?: THREE.MeshStandardMaterial; ripeM?: THREE.MeshStandardMaterial; ripeH?: THREE.MeshStandardMaterial }
 /** purely visual debris of a rake stroke: fruit shaken off the bush and whirling leaves */
@@ -267,6 +270,10 @@ export class GameView {
   private bench: { g: THREE.Group; wb: Workbench; slot: number; x: number; z: number } | null = null;
   /** grey work dust in front of every hammering player (one instanced draw, dustfx.ts) */
   private benchDust = createDust(scene, { dayU: envU.uDay });
+  /** 26.11.2026 Myzel-XP orbs, Myzellen shimmer + auto-harvest bolts */
+  private myc = new MycelFx(scene);
+  /** 26.11.2026 chest HP bar (animals attack the chest), knock of the last hit */
+  private chestBar: THREE.Group | null = null; private chestKick = 0; private chestAtk = false;
   /** Steinkohle posts + links (one instanced pool, wallpool.ts); first sync after a load / join without the build-up animation */
   private wallPool = createWallPool(scene);
   private wallInit = false; private wallSig = NaN; private wallList: WallPiece[] = [];
@@ -380,8 +387,39 @@ export class GameView {
     const f = this.fields.get(i), same = !!f && f.alive && FRUITS[f.type] === this.placing;
     return this.placeStack ? same : !same;
   }
+  /** 26.11.2026 placing a Myzelle: the top-down view of the field build, crop fields light up, every field shows its Myzellen slots in a corner */
+  mycMode = false;
+  setMycMode(on: boolean) { if (this.mycMode === on) return; this.mycMode = on; this.infoKey = []; for (const el of this.infoEls) { el.innerHTML = on ? '' : `<div class="fLv"></div><div class="fBot"><div class="fRate"></div><div class="fBar"></div></div>`; el.classList.toggle('myc', on); } }
+  private mycInfo(i: number, f: FieldView | null, ok: boolean, hov: boolean, px: number) {
+    const el = this.infoEls[i]; if (!el) return;
+    const max = this.cfg.mycel?.max ?? 5, isCrop = !!f && f.alive && !f.bld && f.ftype !== 'nut';
+    el.hidden = !isCrop; if (el.hidden) { this.infoKey[i] = ''; return; }
+    const H = hexR(this.cfg), s0 = this.slots[i], a = cornerAngle(1), p = V(s0.x + Math.cos(a) * H * .6, 0, s0.z + Math.sin(a) * H * .6).project(camera);
+    const hw = Math.max(px / 60 * (max * 16 + 14), max * 10 + 14) / 2 + 4, sx = Math.min(innerWidth - hw, Math.max(hw, (p.x + 1) / 2 * innerWidth)); // stays on screen (phone portrait)
+    el.style.transform = `translate(${sx}px,${(1 - p.y) / 2 * innerHeight}px) translate(-50%,-50%)`;
+    el.style.setProperty('--u', (px / 60).toFixed(3) + 'px');
+    const n = f!.myc ?? 0, key = `m|${n}|${ok ? 1 : 0}|${hov ? 1 : 0}`; if (this.infoKey[i] === key) return; this.infoKey[i] = key;
+    el.classList.toggle('hov', hov); el.classList.toggle('full', n >= max);
+    let h = ''; for (let k = 0; k < max; k++) h += `<i class="${k < n ? 'on' : ''}${hov && ok && k === n ? ' nx' : ''}"></i>`;
+    el.innerHTML = `<div class="mySl">${h}</div>`;
+  }
   private updateOverlay() {
     if (!this.placing) return;
+    if (this.mycMode) { // 26.11.2026 Myzelle: only crop fields with room light up
+      const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera), px = Math.abs(pb.x - pa.x) * innerWidth / 2;
+      this.slotOverlay.children.forEach((g, i) => {
+        const f = this.fields.get(i) ?? null, [fill, line, badge] = g.children as [THREE.Mesh, THREE.Mesh, THREE.Sprite];
+        const ok = this.canPlaceView(i), hov = ok && (i === this.hoverSlot || i === this.confirmSlot);
+        const bm = badge.material as THREE.SpriteMaterial; badge.visible = !!f && f.alive;
+        if (f && f.alive) { const t = badgeTex(FRUITS[f.type], f.rarity); if (bm.map !== t) { bm.map = t; bm.needsUpdate = true; } badge.scale.setScalar(H * BADGE * (hov ? 1.1 : 1)); bm.color.set(ok ? 0xffffff : 0x9a9a9a); bm.opacity = hov ? 1 : ok ? .92 : .5; }
+        const col = ok ? 0xc890ff : 0x666666;
+        (fill.material as THREE.MeshBasicMaterial).color.set(col); (fill.material as THREE.MeshBasicMaterial).opacity = hov ? .34 : ok ? .1 : .02;
+        (line.material as THREE.MeshBasicMaterial).color.set(ok && hov ? 0xffe24a : col); (line.material as THREE.MeshBasicMaterial).opacity = hov ? .95 : ok ? .55 : .1;
+        this.mycInfo(i, f, ok, hov, px);
+      });
+      for (const el of this.edgeEls) if (el) el.hidden = true;
+      return;
+    }
     const type = FRUITS.indexOf(this.placing);
     // screen scale of one hex (for the HTML labels)
     const H = hexR(this.cfg), s0 = this.slots[0], pa = V(s0.x, 0, s0.z).project(camera), pb = V(s0.x + H, 0, s0.z).project(camera);
@@ -545,7 +583,7 @@ export class GameView {
     [this.players, this.enemies, this.fruits, this.projs, this.bombs, this.mines, this.fields, this.pools, this.bbombs, this.snodes].forEach(m => m.clear()); this.flyers.length = 0; clearComboFx();
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
-    this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset();
+    this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset(); this.myc.clear(); this.chestBar = null; this.chestKick = 0;
     this.flourFx.clear(); this.minePool.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
@@ -558,6 +596,14 @@ export class GameView {
       const g = new THREE.Group(), H = hexR(this.cfg), bed = buildBed(H, []); g.add(bed); this.chestFn = chestModel(g); this.dyn.add(g); this.chest = g;
     }
     this.chestN = s.ch ?? 0;
+    this.chestAtk = !!s.cv;
+    if (s.cv && this.chest) { // 26.11.2026 the animals attack the chest: HP bar over it while it is hurt
+      if (!this.chestBar) { this.chestBar = makeBar(1.1, .1, 0xe3b964); }
+      const f = s.cv[1] > 0 ? s.cv[0] / s.cv[1] : 1;
+      this.chestBar.visible = f < .999 && s.ph !== 'over'; this.chestBar.position.set(0, 1.55, 0); setBar(this.chestBar, f);
+      (this.chestBar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f > .5 ? 0x6fcf4a : f > .25 ? 0xe3b964 : 0xd23a2e);
+    }
+    this.myc.syncOrbs(s.xo, this.smooth ? .5 : 1);
     this.applyBench(s);
     this.applyWalls(s);
     this.applySacks(s);
@@ -606,8 +652,9 @@ export class GameView {
       v.prog = f[6]; v.rate = f[10] ?? 0; v.edge = f[7]; v.ep = f[8]; v.tilled = !!f[9]; v.cy = f[13] ?? 0;
       setBar(v.bar, f[2]); v.bar.visible = v.alive && f[2] < 1; (v.bar.userData.fg.material as THREE.MeshBasicMaterial).color.set(f[2] > .5 ? 0x6fcf4a : f[2] > .25 ? 0xe3b964 : 0xd23a2e);
       v.shake = f[4]; v.plant.scale.y = (v.alive && !v.wilt ? 1 + v.rarity * .08 : .55) * (v.ftype === 'nut' ? 1 : 1 + f[4] * .4); // a tree only sways
+      v.myc = f[14] ?? 0; this.myc.setField(f[0], v.x, v.z, v.alive ? v.myc : 0, this.cfg.mycel?.max ?? 5); // 26.11.2026 Myzellen: purple-yellow shimmer
     }
-    for (const [slot, v] of this.fields) if (!seenF.has(slot)) { if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
+    for (const [slot, v] of this.fields) if (!seenF.has(slot)) { this.myc.dropField(slot); if (v.alive) this.removeField(slot, v); else this.vanishField(slot, v); }
     const fk = s.fi.map(f => f[0]).sort((a, b) => a - b).join(',') + (s.ch !== undefined) + (s.bn ?? -1); if (fk !== this.fieldKey) {
       this.fieldKey = fk; syncTorches([], hexR(this.cfg)); // no torches at the beds any more
       // wet earth around and between the fields (and the chest), meadow everywhere else
@@ -716,10 +763,12 @@ export class GameView {
       const wb = createWorkbench({ xpColor: XP_GOLD }); g.add(wb.group); this.dyn.add(g);
       this.bench = { g, wb, slot: s.bn!, x: sl.x, z: sl.z };
     }
-    const wb = this.bench.wb, rs = s.rs, cur = rs?.[0] ?? -1, node = cur >= 0 ? this.cfg.research?.nodes[cur] : undefined;
+    const wb = this.bench.wb, rs = s.rs, cur = rs?.[0] ?? -1, node = cur >= 0 ? rNodes(this.cfg)[cur] : undefined; // 26.11.2026 index into the expanded node list (upgrade chains)
     if (!node) { wb.setIdea(null); wb.setProgress(0); wb.setReady(false); return; }
     const ref = node.ref ?? '', N = this.cfg.names;
     // 26.11.2026 Einzelbäume: buildings like fields, an upgrade shows its weapon (+ the upgrade's name)
+    const fu = fieldUpOf(node); // 26.11.2026 Feld-Upgrade: the field's art + name
+    if (fu) { wb.setIdea({ svg: fieldArt(fu), color: FRUIT_COL[fu as FruitType] ?? '#ffd21f', label: `${N.fields?.[fu as FruitType] ?? fu} · ${N.upgrades?.fld ?? ''} ${node.lv ?? ''}` }); const r0 = !!rs![1]; wb.setReady(r0); wb.setProgress(r0 ? 1 : s.rp?.[cur] ?? 0); return; }
     const place = node.kind === 'field' || node.kind === 'building', wpn = node.kind === 'upgrade' ? ref.slice(0, ref.indexOf('_')) : ref;
     const label = node.kind === 'speed' ? 'Forschungstempo' : place ? N.fields?.[ref as FruitType] ?? N.plants?.[ref as FruitType] ?? ref
       : node.kind === 'upgrade' ? `${N.skills?.[wpn as Weapon] ?? wpn} · ${N.upgrades?.[ref] ?? N.upgrades?.[ref.slice(ref.indexOf('_') + 1)] ?? ''} ${node.lv ?? ''}` : N.skills?.[ref as Weapon] ?? ref;
@@ -881,7 +930,7 @@ export class GameView {
    *  harvest over: at once dried up: bushes brown with brown berries, wheat/asparagus wilted and bent over, cabbage withers,
    *  shrinks and blows away as dust. Then young: small green plants with small green fruit. Ripe: snaps to big and coloured. */
   private night = 0;
-  private chest: THREE.Group | null = null; private chestFn: ((dt: number, n: number) => void) | null = null; private chestN = 0;
+  private chest: THREE.Group | null = null; private chestFn: ((dt: number, n: number, atk?: boolean, kick?: number) => void) | null = null; private chestN = 0;
   private animCrop(v: FieldView, dt: number) {
     if (v.ftype !== 'wheat') { this.animCropSnap(v, dt); return; } // 24.11.2026: wheat keeps its look, every other plant snaps between 3 sizes
     const h = v.cy ?? 0, t: FruitType = v.ftype as FruitType;
@@ -1243,6 +1292,18 @@ export class GameView {
       case 'warn': warnEyes(e.d, e.ty, e.w); play('warn'); break;
       case 'cycle': if (e.p === this.me) sfx('ui.weaponCycle'); break;
       case 'over': sfx('ui.gameOver'); break;
+      // ---- 26.11.2026 Truhe, Samen, Myzel ----
+      case 'chestHit': this.chestKick = 1; if (Math.random() < .5) PART.spawn(V(rand(-.4, .4), .7, rand(-.3, .3)), V(rand(-1, 1), 1.4, rand(-1, 1)), 0x8a5a30, .05, .5, { g: 6 }); break;
+      case 'chestBreak': this.chestKick = 2; this.shake = .35; break;
+      case 'seed': { burst(V(0, 1, 0), 0x9fe060, 30, 2.4, .1, .8); decal(0, 0, 0x9fe060, .3, .8, { ring: true, add: true, grow: 2, op: .8 }); this.onSeed(e.t); break; }
+      case 'myz': { // auto harvest: lightning onto the next plant
+        const v = this.fields.get(e.s); if (!v) break; const [px, pz] = triPlant(v.x, v.z, hexR(this.cfg), e.j ?? 0);
+        this.myc.zap(px, pz, e.d ?? .5); sfx('mycel.zap', px, pz); break;
+      }
+      case 'mycIn': { const sl = this.slots[e.s]; if (sl) this.myc.inField(sl.x, sl.z); break; }
+      case 'mycel': { const pv = this.players.get(e.p); if (pv) this.myc.gain(pv.x, pv.z); break; }
+      case 'xo': if (e.p === this.me) sfx('mycel.orb'); break;
+      case 'lvUp': { for (const pv of this.players.values()) if (pv.s.al) { burst(V(pv.x, 1, pv.z), 0xffe24a, 24, 2.2, .1, .7); decal(pv.x, pv.z, 0xb060ff, .3, .7, { ring: true, add: true, grow: 1.4, op: .7 }); } break; }
     }
     this.onEvent(e);
   }
@@ -1252,6 +1313,8 @@ export class GameView {
     this.dmgLayer.appendChild(el); this.nums.push({ el, p: V(x + rand(-.15, .15), 1.1, z), t: 0 });
   }
 
+  /** 26.11.2026 a seed was found at the chest (index in research.trees): main.ts shows the new tree briefly */
+  onSeed: (tree: number) => void = () => {};
   // ---------------- per frame ----------------
   /** 23.11.2026: build one of every weapon / projectile / effect / enemy model once and draw it (tiny, for one frame),
    *  so three.js compiles their shaders and uploads their textures while the menu is open. Before, the first switch to a
@@ -1275,7 +1338,7 @@ export class GameView {
       add(buildPlant('pea', { leaf: M(0x4f9a3a), head: M(0x6ab84a) }).g);
     } catch (e) { console.warn('prewarm', e); }
     this.minePool.warm(); // instanced variant of the cabbage material
-    this.benchDust.warm(); this.wallPool.warm(); this.sackPool.warm(); // work dust + cabbage wall: one invisible instance each
+    this.benchDust.warm(); this.wallPool.warm(); this.sackPool.warm(); this.myc.warm(); this.myc.frame(0); // work dust + cabbage wall + Myzel orb / shimmer: one invisible instance each
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
     G.scale.setScalar(1e-4); G.position.set(0, -.5, 0); scene.add(G);
@@ -1284,7 +1347,7 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; this.sackPool.clear(); this.sackSig = NaN; merchantReset();
+    scene.remove(G); this.myc.unwarm(); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; this.sackPool.clear(); this.sackSig = NaN; merchantReset();
   }
   frame(dt: number) {
     dt = Math.max(0, dt); // 25.11.2026: the first rAF after a long prewarm can hand in a negative dt (timers ran backwards: red hurt screen)
@@ -1325,7 +1388,8 @@ export class GameView {
     updateDayNight(dt, s ? s.dh ?? 0 : 0, s?.dc || 24, this.cfg.dayNight?.dayWaves ?? 16);
     updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day); setCraftLight(dayNow().day);
     this.night = 1 - dayNow().day;
-    this.chestFn?.(dt, this.chestN);
+    this.chestFn?.(dt, this.chestN, this.chestAtk, this.chestKick); this.chestKick = Math.max(0, this.chestKick - dt * 5); if (this.chestBar) this.chestBar.quaternion.copy(camera.quaternion);
+    this.myc.frame(dt);
     this.bench?.wb.update(dt, camera); this.benchDust.update(dt); this.wallPool.update(dt); this.sackPool.update(dt);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
@@ -1357,11 +1421,13 @@ export class GameView {
     const spd = dt > 0 ? Math.hypot(v.x - ox, v.z - oz) / dt : 0;
     v.walk = lerp(v.walk, s.al ? clamp(spd / 2.2, 0, 1) : 0, 1 - Math.exp(-dt * 10));
     // 25.11.2026 Werkbank: hammering player steps up to the bench top (visual only, <= ~.5 m) and faces the spot the hammer hits
-    const bw = !!s.bw && !!s.al && !!this.bench;
+    if (s.bw) v.bwAt = s.bw; // 26.11.2026 1 = Werkbank, 2 = chest (heal / seed search): same hammer, other spot
+    const atChest = v.bwAt === 2, B0 = atChest ? (this.chest ? { x: 0, z: 0 } : null) : this.bench;
+    const bw = !!s.bw && !!s.al && !!B0;
     v.bwk = clamp((v.bwk ?? 0) + (bw ? dt : -dt) * 5, 0, 1);
     let px = v.x, pz = v.z, workRot: number | null = null;
-    if (this.bench && v.bwk > 0) {
-      const B = this.bench, lx = v.x - B.x, lz = v.z - B.z, hx = clamp(lx, -.55, .55), hz = clamp(lz, -.2, .2); // nearest point of the bench top
+    if (B0 && v.bwk > 0) {
+      const B = B0, lx = v.x - B.x, lz = v.z - B.z, hx = clamp(lx, atChest ? -.5 : -.55, atChest ? .5 : .55), hz = clamp(lz, atChest ? -.32 : -.2, atChest ? .32 : .2); // nearest point of the bench top / chest
       let dx = lx - hx, dz = lz - hz; const L = Math.hypot(dx, dz);
       if (L < .05) { const l2 = Math.hypot(lx, lz) || 1; dx = lx / l2; dz = lz / l2; } else { dx /= L; dz /= L; }
       v.hx = B.x + hx; v.hz = B.z + hz;
@@ -1460,7 +1526,7 @@ export class GameView {
   /** 25.11.2026 Werkbank: hammer in the +x hand, blows at ~2 per second (hammerSwing), each landing knocks the bench, puffs the
    *  grey dust in front of the player and plays a blow; saw / screw noises run in a loose cycle (audio.benchWork) */
   private animHammer(v: PView, dt: number, bw: boolean) {
-    const s = v.s, B = this.bench;
+    const s = v.s, B = v.bwAt === 2 ? (this.chest ? { wb: { hit: () => { this.chestKick = Math.max(this.chestKick, .45); } } } : null) : this.bench;
     if (v.dustI === undefined) { const used = new Set([...this.players.values()].map(q => q.dustI)); for (let i = 0; i < DUST_CAP; i++) if (!used.has(i)) { v.dustI = i; break; } }
     benchWork('p' + s.id, bw, v.hx ?? v.x, v.hz ?? v.z, 1);
     if (bw && !v.ham) {

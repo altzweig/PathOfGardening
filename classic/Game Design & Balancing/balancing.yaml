@@ -29,6 +29,8 @@ names:
     upgrade: Verbesserung
     repair: Reparatur
     cost: Kosten
+    seed: Samen           # 26.11.2026 Samen-Suche an der Truhe
+    mycel: Myzelle        # 26.11.2026
   upgrades:          # 26.11.2026 Namen der Upgrade-Knoten im Techtree (Schlüssel = Waffe_Upgrade, sonst gilt der Teil nach "_")
     dmg: Schaden
     rng: Reichweite
@@ -52,6 +54,7 @@ names:
     pb: Durchbohr-Schaden
     salvo: Salve
     size: Geschossgröße
+    fld: Zykluszeit       # 26.11.2026 Feld-Upgrades (fld_<Frucht>)
   skills:
     rake: Harke
     pea: Erbsenpistole     # 25.11.2026 Startwaffe
@@ -242,6 +245,15 @@ xp:
   fieldPerSecond: 0.3      # 23.11.2026 0.5 -> 0.3 (Gegner-XP soll ca. 1/3 über der Ernte liegen, Levelkurve bleibt gleich, siehe enemies.xpScale). 22.11.2026: jede Frucht gibt XP so, dass ein Feld jeder Sorte gleich viel XP pro Sekunde bringt (XP je Frucht = fieldPerSecond * interval / amount)
   perPlant: 2.0            # 24.11.2026 Ernte neu: XP je geernteter Pflanze und Harkenschlag (Chili: 2 Schläge = 4 XP, verteilt auf seine 7 Chilis). Jeder Schlag auf ein reifes Feld ist gleich viel wert; Felder geben pro Zeit gleich viel XP (Chili wächst länger, braucht aber doppelt so viele Schläge). Ersetzt fieldPerSecond für Felder.
   gain: 0.6667             # (alt) XP pro Blaubeere (Felder + Gegner-Drops) x2/3, 16.11.2026 (vorher 1)
+  # 26.11.2026 (Basti) Forschungsspiel: XP nur noch als Myzel-XP aus besiegten Tieren (gelb-lila leuchtende Kugeln), Ernte gibt keine XP mehr.
+  orbs: { perKill: 3, boss: 60, magnet: 2.6, speed: 9, life: 40, maxPer: 4 }   # XP je Tier (x enemies.xpScale-Verlauf / xpScale.base, Elite x elite.xpMultiplier), Boss; Kugeln fliegen ab magnet m zum Spieler, liegen life s, max. maxPer Kugeln je Tier
+  hpPerLevel: 5            # +5 max. Leben je Level über 1 (alle Spieler, das Level gilt fürs ganze Team)
+  mycelEvery: 3            # alle 3 Level eine Myzelle (siehe mycel:)
+
+mycel:                     # 26.11.2026 (Basti) Myzellen: Batterie für ein Feld, max. 5 je Feld, nicht in Werkbank, Truhe oder Gebäude
+  max: 5
+  times: [30, 20, 15, 12, 10]   # s, in denen ein reifes Feld mit 1..5 Myzellen sich selbst aberntet (Pflanze für Pflanze, gleichmäßig verteilt; Feld-Upgrades verkürzen das mit)
+  flash: 0.5               # s gelber Blitz mit lila Glühen auf der Pflanze, dann ploppt die Frucht heraus
 
 arena:
   radius: 18               # m, begehbarer Bereich (16.11.2026: 15 -> 18, man kann bis in den Wald hinein laufen)
@@ -259,6 +271,12 @@ chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): 
   carryPerWave: 0.5        # ... + so viel je Welle (Welle 21: 15, Welle 41: 25)
   fleeSpeed: 4.6           # m/s, voll beladen rennen sie schnell weg (25.11.2026 Basti: so schnell wie der Spieler, vorher 7)
   attackFirst: 10          # 24.11.2026 Basti: jeder Waschbär greift zuerst einmal den Spieler an, dann erst zur Truhe; s, nach denen er die Jagd aufgibt
+  # 26.11.2026 (Basti) Forschungsspiel: Tiere stehlen nichts mehr, sie wollen die Truhe zerstören. Truhe auf 0 = verloren (Felder allein nicht mehr).
+  # Waschbären und Pandas gehen zur Truhe (max. maxThieves im Kreis), alle anderen Tiere, sobald kein Feld mehr Leben hat. Schaden = Nahkampf (enemies.meleeDamage).
+  hp: 400                  # Leben der Truhe
+  regen: 2                 # HP/s, heilt von selbst
+  heal: 20                 # HP/s je Spieler, der an der Truhe arbeitet (Aktion halten); heile Truhe: stattdessen Samen-Suche (research.seeds)
+  work: 1.6                # m vom Mittelpunkt: hier wird an der Truhe gearbeitet
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
@@ -271,6 +289,7 @@ fields:
   unique: true             # 25.11.2026: jede Feldart nur einmal im Garten
   hp: 100
   cycle: { grow: 8, harvest: 2, plants: 6 }   # 24.11.2026 (Basti): jedes Feld hat 6 Pflanzen. Reif: jeder Harkenschlag (alle 1/3 s) erntet genau 1 Pflanze (plants.x.strokes: Pflanzen mit langer Erntezeit brauchen 2 Schläge), danach wächst das Feld grow s nach. Harken beschleunigt das Wachstum nicht mehr. Ertrag je Pflanze = plants.x.amount; Produktionsbonus (Nachbarn, Ausbau, Brunnen) + Doppelernte = Chance auf doppelten Ertrag statt mehr Menge. harvest = nur noch Anzeige (6 Schläge x 1/3 s).
+  upgrade: { factor: 0.8, max: 5 }   # 26.11.2026 Feld-Upgrades im Techtree: je Stufe Wachstums- und Erntezeit x0,8 (multiplikativ, Stufe 5 = 33 %), Ertrag je Zyklus gleich
   healPerSecond: 1         # HP/s für das Feld, auf dem ein Spieler mit seinem Mittelpunkt steht
   tillHealField: 1         # HP/s, die Beackern dem Feld gibt (Feldpflege-Upgrade erhöht das)
   tillHealPlayer: 1        # HP/s, die Beackern dem beackernden Spieler und Mitspielern auf dem Feld gibt
@@ -966,7 +985,7 @@ tutorial:
   switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."
   secondary: "Drücke [{sec}] für {den} {weapon}"    # zweite Waffe ist eine Sekundärwaffe (Platz 6-0): sie feuert direkt mit Rechtsklick
   # 26.11.2026 Werkbank-Techtree-Start (PC + Handy; ...Touch = Wortlaut am Handy). Ablauf: Erbsen ernten -> Erbsenpistole -> zur Werkbank -> Idee wählen -> hämmern -> abholen
-  rsXp: "Die Kugel zeigt deinen Forschungsfortschritt an der Werkbank."
+  rsXp: "Die Kugel zeigt deine Myzel-XP: besiegte Tiere lassen leuchtende Kugeln fallen. Jedes Level gibt mehr Leben und schnellere Forschung, alle 3 Level eine Myzelle. Die Tiere wollen deine Truhe zerstören: halte [{harvest}] an der Truhe, um sie zu reparieren."   # 26.11.2026
   rsHarvest: "Halte [{harvest}] auf dem Erbsenfeld, um Erbsen zu ernten"
   rsHarvestTouch: "Halte den Ernten-Knopf auf dem Erbsenfeld, um Erbsen zu ernten"
   rsShoot: "Drücke [{prim}], um mit der Erbsenpistole zu schießen (3 Erbsen pro Schuss)"
@@ -1211,6 +1230,19 @@ research:
   upgradeGrowth: 0.25      # ... +25 % je Stufe in seiner Reihe (1. Stufe 50 %, 5. Stufe 122 %) ...
   upgradeCount: 0.25       # ... und zählt nur als Viertel-Idee für costGrowth (sonst würden ~130 Upgrades alles unbezahlbar machen)
   coopExponent: 0          # Kosten x Spielerzahl^Exponent (0 = gleiche Kosten im Koop, mehr Spieler forschen nur schneller)
+  # 26.11.2026 (Basti) feste Forschungszeiten in s (1 Spieler, vor dem Level-Tempo). Ersetzen baseTime/costGrowth/upgradeCost.
+  times:
+    weapon: 16             # neue Waffe
+    field: 24              # neues Feld
+    building: 30           # Verarbeitungsgebäude (Mühle, Bäckerei)
+    upgrade: 8             # Waffen-Upgrade: 8 s ...
+    upgradeStep: 4         # ... + 4 s je schon erforschter Upgrade-Stufe derselben Waffe (alle Upgrade-Arten zusammen)
+    fieldUp: 10            # Feld-Upgrade: 10 s ...
+    fieldUpStep: 5         # ... + 5 s je Stufe, die das Feld schon hat
+  levelSpeed: 0.05         # 26.11.2026 Charakterlevel: +5 % Forschungstempo je Level über 1 (Level 11 = 150 %)
+  seeds:                   # 26.11.2026 Samen-Suche an der Truhe (Aktion halten, wenn die Truhe heil ist): jeder Baum außer dem Erbsenbaum ist zuerst gesperrt
+    base: 10               # s für den ersten gefundenen Samen ...
+    step: 10               # ... + 10 s je schon gefundenem Baum
   startShots: 20           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 20 x 3 = 60 Erbsen). 26.11.2026 Bot: 10 -> 20, die ersten Wellen ohne Munitionsnot
   weaponShots: 10          # eine erforschte Waffe bringt jedem Spieler so viele Schuss mit (x ammoPerShot, in den Munitionsvorrat der Waffe)
   dropFruit: pea           # besiegte Tiere lassen das fallen (vorher: Beere der nächsten Schrotflinte)
@@ -1238,15 +1270,17 @@ research:
   # needs = alle diese müssen erforscht sein. row/col = Platz im eigenen Baum (Spalte 0 = links). start = von Anfang an erforscht.
   # Gleiche Upgrades liegen hintereinander (count -> Kette id.1 ... id.count), unterschiedliche parallel untereinander. Ids der alten Knoten bleiben (Spielstände).
   nodes:
-    - { id: speed,   kind: speed,  segment: 1, row: 0, col: 0 }                                  # Forschungstempo (Kopfzeile des Panels), immer verfügbar, wiederholbar
+    # - { id: speed,   kind: speed,  segment: 1, row: 0, col: 0 }   # Forschungstempo: 26.11.2026 raus, das Charakterlevel erhöht jetzt das Tempo (levelSpeed)
     # --- Erbse ---
     - { id: f_pea,   kind: field,  ref: pea,   tree: pea, segment: 1, row: 0, col: 0, start: true }       # Erbsenfeld
+    - { id: u_fld_pea, kind: upgrade, ref: fld_pea, count: 5, tree: pea, segment: 1, row: 1, col: 0, needs: [f_pea] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_pea,   kind: weapon, ref: pea,   tree: pea, segment: 1, row: 0, col: 1, needs: [f_pea], start: true }   # Erbsenpistole
     - { id: u_pea_dmg, kind: upgrade, ref: pea_dmg, count: 5, tree: pea, segment: 1, row: 0, col: 2, needs: [w_pea] }
     - { id: u_pea_rng, kind: upgrade, ref: pea_rng, count: 5, tree: pea, segment: 1, row: 1, col: 2, needs: [w_pea] }
     - { id: u_pea_cd,  kind: upgrade, ref: pea_cd,  count: 5, tree: pea, segment: 1, row: 2, col: 2, needs: [w_pea] }
     # --- Weizen (Basti: Weizenfeld -> Körnerpistole und Mühle, Mühle -> Mehlsäcke und Bäckerei; die Schrotflinte bleibt als dritter Ast) ---
     - { id: f_wheat, kind: field,  ref: wheat, tree: wheat, segment: 1, row: 0, col: 0 }                                # Weizenfeld
+    - { id: u_fld_wheat, kind: upgrade, ref: fld_wheat, count: 5, tree: wheat, segment: 1, row: 1, col: 0, needs: [f_wheat] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_wheat, kind: weapon, ref: wheat, tree: wheat, segment: 1, row: 0, col: 1, needs: [f_wheat] }             #   -> Maschinenpistole (Körner)
     - { id: u_wheat_dmg, kind: upgrade, ref: wheat_dmg, count: 5, tree: wheat, segment: 1, row: 0, col: 2, needs: [w_wheat] }
     - { id: u_wheat_rng, kind: upgrade, ref: wheat_rng, count: 5, tree: wheat, segment: 1, row: 1, col: 2, needs: [w_wheat] }
@@ -1263,6 +1297,7 @@ research:
     - { id: u_wshot_pierce, kind: upgrade, ref: wshot_pierce, count: 5, tree: wheat, segment: 1, row: 9, col: 2, needs: [w_wshot] }
     # --- Kohl ---
     - { id: f_cab,   kind: field,  ref: cab,   tree: cab, segment: 1, row: 0, col: 0 }                                  # Kohlfeld
+    - { id: u_fld_cab, kind: upgrade, ref: fld_cab, count: 5, tree: cab, segment: 1, row: 1, col: 0, needs: [f_cab] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_cab,   kind: weapon, ref: cab,   tree: cab, segment: 1, row: 0, col: 1, needs: [f_cab] }                  #   -> Kohlmine
     - { id: u_cab_dmg,  kind: upgrade, ref: cab_dmg,  count: 5, tree: cab, segment: 1, row: 0, col: 2, needs: [w_cab] }
     - { id: u_cab_rng,  kind: upgrade, ref: cab_rng,  count: 5, tree: cab, segment: 1, row: 1, col: 2, needs: [w_cab] }
@@ -1272,6 +1307,7 @@ research:
     - { id: u_wall_hp,  kind: upgrade, ref: wall_hp,  count: 5, tree: cab, segment: 1, row: 4, col: 2, needs: [w_wall] }
     # --- Chili ---
     - { id: f_chili, kind: field,  ref: chili, tree: chili, segment: 2, row: 0, col: 0 }                                # Chilifeld
+    - { id: u_fld_chili, kind: upgrade, ref: fld_chili, count: 5, tree: chili, segment: 2, row: 1, col: 0, needs: [f_chili] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_chili, kind: weapon, ref: chili, tree: chili, segment: 2, row: 0, col: 1, needs: [f_chili] }             #   -> Flammenwerfer
     - { id: u_chili_dmg,   kind: upgrade, ref: chili_dmg,   count: 5, tree: chili, segment: 2, row: 0, col: 2, needs: [w_chili] }
     - { id: u_chili_rng,   kind: upgrade, ref: chili_rng,   count: 5, tree: chili, segment: 2, row: 1, col: 2, needs: [w_chili] }
@@ -1279,6 +1315,7 @@ research:
     - { id: u_chili_tick,  kind: upgrade, ref: chili_tick,  count: 5, tree: chili, segment: 2, row: 3, col: 2, needs: [w_chili] }
     # --- Zitrone ---
     - { id: f_lemon, kind: field,  ref: lemon, tree: lemon, segment: 2, row: 0, col: 0 }                                # Zitronenfeld
+    - { id: u_fld_lemon, kind: upgrade, ref: fld_lemon, count: 5, tree: lemon, segment: 2, row: 1, col: 0, needs: [f_lemon] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_lemon, kind: weapon, ref: lemon, tree: lemon, segment: 2, row: 0, col: 1, needs: [f_lemon] }             #   -> Citrateaser
     - { id: u_lemon_dmg,  kind: upgrade, ref: lemon_dmg,  count: 5, tree: lemon, segment: 2, row: 0, col: 2, needs: [w_lemon] }
     - { id: u_lemon_rng,  kind: upgrade, ref: lemon_rng,  count: 5, tree: lemon, segment: 2, row: 1, col: 2, needs: [w_lemon] }
@@ -1288,6 +1325,7 @@ research:
     - { id: u_lemon_eff,  kind: upgrade, ref: lemon_eff,  count: 5, tree: lemon, segment: 2, row: 5, col: 2, needs: [w_lemon] }
     # --- Heidelbeere ---
     - { id: f_blue,  kind: field,  ref: blue,  tree: blue, segment: 3, row: 0, col: 0 }                                 # Heidelbeerfeld
+    - { id: u_fld_blue, kind: upgrade, ref: fld_blue, count: 5, tree: blue, segment: 3, row: 1, col: 0, needs: [f_blue] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_blue,  kind: weapon, ref: blue,  tree: blue, segment: 3, row: 0, col: 1, needs: [f_blue] }               #   -> Beerengewehr (nur Heidelbeeren)
     - { id: u_blue_dmg,    kind: upgrade, ref: blue_dmg,    count: 5, tree: blue, segment: 3, row: 0, col: 2, needs: [w_blue] }
     - { id: u_blue_rng,    kind: upgrade, ref: blue_rng,    count: 5, tree: blue, segment: 3, row: 1, col: 2, needs: [w_blue] }
@@ -1296,6 +1334,7 @@ research:
     - { id: u_blue_pierce, kind: upgrade, ref: blue_pierce, count: 5, tree: blue, segment: 3, row: 4, col: 2, needs: [w_blue] }
     # --- Spargel ---
     - { id: f_asp,   kind: field,  ref: asp,   tree: asp, segment: 3, row: 0, col: 0 }                                  # Spargelfeld
+    - { id: u_fld_asp, kind: upgrade, ref: fld_asp, count: 5, tree: asp, segment: 3, row: 1, col: 0, needs: [f_asp] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe
     - { id: w_asp,   kind: weapon, ref: asp,   tree: asp, segment: 3, row: 0, col: 1, needs: [f_asp] }                  #   -> Spargel-Armbrust
     - { id: u_asp_dmg,    kind: upgrade, ref: asp_dmg,    count: 5, tree: asp, segment: 3, row: 0, col: 2, needs: [w_asp] }
     - { id: u_asp_rng,    kind: upgrade, ref: asp_rng,    count: 5, tree: asp, segment: 3, row: 1, col: 2, needs: [w_asp] }

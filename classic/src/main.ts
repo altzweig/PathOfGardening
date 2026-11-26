@@ -7,7 +7,7 @@ import { isTouch } from './view/core';
 import { Input } from './input/input';
 import { Hud, PLAYER_CSS, cardEl } from './ui/hud';
 import { Bulbs, WerkstattUI, hexEl } from './ui/werkstatt';
-import { bulb, comboIcon, mini, pic, skillIcon } from './ui/icons';
+import { bulb, comboIcon, fruitIcon, mini, pic, skillIcon } from './ui/icons';
 import { mobileControls, pcControls } from './ui/controls';
 import { Act, bind as bindKey, resetKeys } from './input/keys';
 import { Tutorial } from './ui/tutorial';
@@ -73,10 +73,18 @@ class Game {
       else if (e.k === 'reroll' && e.p === this.me) play('reroll');
       else if (e.k === 'merchCome') { play('merchBell'); this.hud.toast(this.view.cfg.names?.merchant ?? '', 'merch'); }
       else if (e.k === 'merchReady') { play('merchBell', .6); play('idea'); }
+      else if (e.k === 'mycel' && e.p === this.me) this.input.releaseAll(); // 26.11.2026 Myzelle: straight into the top-down view
+    };
+    this.view.onSeed = tree => { // 26.11.2026 seed found at the chest: the new tree's fruit pops up briefly (no text)
+      const T = this.view.cfg.research?.trees?.[tree]; if (!T) return;
+      document.getElementById('seedToast')?.remove();
+      const el = document.createElement('div'); el.id = 'seedToast'; el.innerHTML = `<i>${mini('seed')}</i><i>${fruitIcon(T.icon)}</i>`;
+      $('#hud').appendChild(el); setTimeout(() => el.remove(), 2700);
     };
     this.input.onPause = () => { if (!$('#options').hidden && this.mode === 'idle') { this.closeOptions(); return; } if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } if (this.myRo() > 0 && $('#pause').hidden && $('#options').hidden) { this.tree.onClose(); return; } this.togglePause(); };
     // 25.11.2026 Werkbank-Techtree: choose / finish / close / open go the same way as pick / buy / place (sim on the host, message from a guest)
     this.tree.onChoose = node => { sfx('ui.confirm'); this.rsAct({ t: 'rsChoose', node }); };
+    this.tree.onSeed = tree => { sfx('ui.confirm'); this.rsAct({ t: 'rsSeed', tree }); };
     this.tree.onFinish = () => { initAudio(); sfx('ui.ideaClaim'); this.rsAct({ t: 'rsFinish' }); };
     this.tree.onClose = () => { sfx('ui.click'); this.rsAct({ t: 'rsClose' }); };
     this.tree.onOpen = () => { initAudio(); if (this.myRo() > 0 || this.view.snap?.ph !== 'play' || !$('#pause').hidden || this.building) return; sfx('ui.click'); this.input.releaseAll(); this.rsAct({ t: 'rsOpen' }); };
@@ -212,7 +220,7 @@ class Game {
       this.touchSel = -1;
       // overbuilding another fruit: safety confirmation first
       const there = this.view.fieldTypeAt(slot);
-      if (there && there !== this.view.placing) { this.askOverbuild(slot, there, this.view.placing); return; }
+      if (there && there !== this.view.placing && !this.view.mycMode) { this.askOverbuild(slot, there, this.view.placing); return; } // 26.11.2026 a Myzelle goes into the field: nothing is overbuilt
       this.doPlace(slot);
     });
     click('#pcYes', () => this.answerOverbuild(true));
@@ -230,7 +238,7 @@ class Game {
   private touchSel = -1;
   /** 25.11.2026 Werkbank-Techtree: own research UI state (0 closed, 1 panel, 2 pickup popup) */
   private myRo() { return this.mode === 'idle' ? 0 : (this.view.snap?.me[this.me]?.ro ?? 0); }
-  private rsAct(m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) { if (this.mode === 'client') this.client?.send(m); else this.rsDo(this.me, m); }
+  private rsAct(m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' | 'rsSeed' }>) { if (this.mode === 'client') this.client?.send(m); else this.rsDo(this.me, m); }
   /** 26.11.2026 Koop: small bulb + name while a team mate has the pickup popup open (the world waits for him) */
   private rsWhoK = '';
   private syncRsWho(s: Snap) {
@@ -242,11 +250,12 @@ class Game {
     el.innerHTML = `${mini('bulb')}<b style="color:${PLAYER_CSS[(p?.color ?? w) % 4]}">${esc(p?.look?.name || '')}</b>`;
   }
   /** host / solo: a research action of a player */
-  private rsDo(id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' }>) {
+  private rsDo(id: number, m: Extract<ToHost, { t: 'rsChoose' | 'rsFinish' | 'rsClose' | 'rsOpen' | 'rsSeed' }>) {
     const sim = this.sim; if (!sim) return;
     if (m.t === 'rsChoose') { if (typeof m.node === 'number') sim.chooseResearch(id, m.node); }
     else if (m.t === 'rsFinish') sim.finishIdea(id);
     else if (m.t === 'rsClose') sim.closeResearch(id);
+    else if (m.t === 'rsSeed') sim.chooseSeed(id, m.tree);
     else sim.openResearch(id);
   }
   closeShop() { initAudio(); sfx('ui.click'); if (this.mode === 'client') this.client?.send({ t: 'shopClose' }); else this.sim?.closeShop(this.me); }
@@ -667,7 +676,7 @@ class Game {
     const frozen = this.mode !== 'idle' && !!s && s.ph !== 'over' && (s.ph === 'lvl' || !$('#pause').hidden || !$('#cheat').hidden || this.building || (this.shop.open && s.ts < 1) || (s.me[this.me]?.ro ?? 0) > 0);
     if (this.mode === 'idle' || s?.ph === 'over') this.frozen = false;
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
-    if (s && this.mode !== 'idle') { this.hud.update(s, this.me, researchBar(this.view.cfg, s)); this.tree.update(s, this.me, this.view.cfg); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open || this.tree.open;
+    if (s && this.mode !== 'idle') { this.hud.update(s, this.me, null); void researchBar; /* 26.11.2026 the XP orb / bar shows XP and the level again (Werkbank progress: sign at the bench) */ this.tree.update(s, this.me, this.view.cfg); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open || this.tree.open;
         this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
         if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); this.syncRsWho(s); }
     else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }
@@ -687,14 +696,18 @@ class Game {
     // build mode: card chosen, now pick a spot in the top-down view
     const placing = s.ph === 'lvl' && pr && pr.pc >= 0 ? FRUITS[pr.pc] : null;
     const stack = !!placing && (pr?.pm ?? 0) >= 1; // 2 = hex field: new tile or the next tile of the same type
+    const myc = !!placing && !!pr?.my; // 26.11.2026 placing a Myzelle into a field
+    if (!myc) this.view.setMycMode(false);
     this.view.setAllowed(placing ? pr?.ps : null);
     this.view.setPlacing(placing, stack);
+    if (myc) this.view.setMycMode(true);
     if (!placing) this.touchSel = -1;
     show('#placeBar', !!placing);
     if (!placing && this.view.confirmSlot >= 0) { this.view.confirmSlot = -1; show('#placeConfirm', false); }
     if (placing) {
       show('#levelup', false);
-      if (this.placeShown !== placing + stack) { this.placeShown = placing + stack; $('#placeBar').innerHTML = `<div class="pic">${pic((stack && pr?.pm !== 2 ? 'up_' : 'field_') + placing)}</div>`; }
+      const pk = placing + stack + (myc ? 'm' : '');
+      if (this.placeShown !== pk) { this.placeShown = pk; $('#placeBar').innerHTML = myc ? `<div class="pic myc">${mini('mycel')}</div>` : `<div class="pic">${pic((stack && pr?.pm !== 2 ? 'up_' : 'field_') + placing)}</div>`; }
       return;
     }
     this.placeShown = null;

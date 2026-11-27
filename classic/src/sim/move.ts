@@ -25,7 +25,7 @@ export function sprintStep(cfg: Balancing, p: MoveState, want: boolean, moving: 
 /** walking by the intent (not while knocked back: the sim moves the player then) */
 export function walkStep(cfg: Balancing, p: MoveState, it: Intent, mx: number, mz: number, ml: number, sf: number, dt: number) {
   const P = cfg.player;
-  if (ml > .05 && sf > 0) { const sp = P.speed * (p.sprint ? P.sprint!.speed : 1); p.x += mx * sp * sf * dt; p.z += mz * sp * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml) * (p.sprint ? P.sprint!.speed : 1); if (!it.aim && !it.fire) p.face = Math.atan2(mx, mz); }
+  if (ml > .05 && sf > 0) { const sp = P.speed * (p.sprint ? P.sprint!.speed : 1); p.x += mx * sp * sf * dt; p.z += mz * sp * sf * dt; p.walk += dt * sf * 10 * Math.min(1, ml) * (p.sprint ? P.sprint!.speed : 1); if (!it.aim) p.face = Math.atan2(mx, mz); } // 27.11.2026: also while firing (touch shoots where the player looks)
 }
 export function clampArena(cfg: Balancing, sb: MoveCtx['sb'], x: number, z: number): [number, number] {
   if (sb) return [clamp(x, -sb.W, sb.W), clamp(z, -sb.D, sb.D)];

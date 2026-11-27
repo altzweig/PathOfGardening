@@ -128,11 +128,7 @@ export class Input {
       return;
     }
     if (e.pointerId === this.move.id) { const [dx, dy] = this.stickVec(this.move, e.clientX, e.clientY); (this.moveEl.firstElementChild as HTMLElement).style.transform = `translate(${dx}px,${dy}px)`; }
-    else if (e.pointerId === this.aim.id) {
-      const [dx, dy] = this.stickVec(this.aim, e.clientX, e.clientY);
-      const kn = this.aimEl ? this.aimEl.querySelector('.kn') as HTMLElement : this.aimStickEl.firstElementChild as HTMLElement;
-      kn.style.transform = `translate(${dx}px,${dy}px)`;
-    }
+    // 27.11.2026 (Basti): the shoot button can not be dragged any more (no aiming with it), touch shoots where the player looks
   }
   private up(e: PointerEvent) {
     if (e.pointerType === 'mouse') return;
@@ -173,13 +169,8 @@ export class Input {
       else if (this.rmbDown || this.rclickLatch) it.fire = 'sec';
       else if (k[KB.harvest] || this.harvLatch) it.fire = 'rake';
       this.clickLatch = this.rclickLatch = this.harvLatch = false;
-    } else if (this.aimW) {
-      const long = performance.now() - this.aimT0 > 140 || this.aim.mag > .25;
-      if (long) { this.aimLong = true; it.fire = this.aimW; }
-      if (this.aim.mag > .25) {
-        it.ax = this.aim.x; it.az = this.aim.y; it.aim = true;
-        Object.assign(this.view.localAim, { weapon: this.aimW, x: this.aim.x / this.aim.mag, z: this.aim.y / this.aim.mag, show: true });
-      }
+    } else if (this.aimW) { // touch (27.11.2026): tap = one shot, hold = continuous fire, always where the player looks (no auto-aim)
+      if (performance.now() - this.aimT0 > 140) { this.aimLong = true; it.fire = this.aimW; }
     }
     return it;
   }

@@ -1,10 +1,10 @@
 // Host-authoritative game simulation. Pure data, no rendering: the view and the network
 // only ever see Snap objects + events produced here.
-import { Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry, ammoPool } from '../config';
+import { MUSHROOMS, MUSH_RARITIES, Balancing, BuildingType, BUILDINGS, ComboId, COMBOS, coopF, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, isGun, isWeaponFruit, SKILLS, SkillId, Weapon, WEAPONS, AMMO_OF, SOURCE_OF, Berry, BERRIES, isBerry, ammoPool } from '../config';
 import { BSnap, emptyIntent, EF, ESnap, Ev, FiSnap, Intent, MSnap, Offer, Priv, Snap } from './snap';
 import { benchPush, chestPush, clampArena, normMove, sprintStep, walkStep } from './move';
 import { edgeKey, sackSpot, segDist, type Edge } from './sacks';
-import { applyResearchCfg, fieldUpOf, isPlaceNode, newRState, nodeAvailable, nodeCost, nodeCount, nodeDone, researchCost, rIndex, rNode, rNodes, RState, seedCost, seedMode, seedTarget, segmentOpen, treeOpen } from './research';
+import { applyResearchCfg, fertAfford, fertCost, fertLv, fertMax, fertMode, fertOpen, fertRecipe, fertTarget, fieldUpOf, isPlaceNode, newRState, nodeAvailable, nodeCost, nodeCount, nodeDone, researchCost, rIndex, rNode, rNodes, RState, seedCost, seedMode, seedTarget, segmentOpen, startTree, treeOpen } from './research';
 export { nodeAvailable, nodeDone, researchCost, segmentOpen } from './research';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -139,6 +139,8 @@ export interface Player {
   rsUi: 0 | 1 | 2; rsLock: number; rsPlace: boolean; benchWork: boolean;
   /** 26.11.2026 working at the chest this tick (heal / Samen-Suche), placing a Myzelle right now */
   chestWork?: boolean; mycPlace?: boolean;
+  /** 27.11.2026 composting this tick (Kompostierer), the panel was opened at the composter (fertilizer tab) */
+  compWork?: boolean; rsFert?: boolean;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
@@ -281,6 +283,13 @@ export class Sim {
   xorbs: XOrb[] = [];
   /** Myzellen won (level-ups) still to be put into a field, player who earned the last one */
   mycPend = 0; mycBy = -1;
+  // ---------- 27.11.2026 Wildpilze, Dünger, Truhen-Ausbau ----------
+  /** wild mushrooms standing at the edge of the area: kind = MUSHROOMS index, t0 = time it popped up */
+  shrooms: { id: number; k: number; x: number; z: number; t0: number }[] = [];
+  /** the team's mushrooms per MUSHROOMS index, s until the next one pops up */
+  shStock: number[] = MUSHROOMS.map(() => 0); shT = 0;
+  /** chest level (every Ausbau: + chest.upgrade.step x chest.hp max HP), s of work on the next one */
+  chestLv = 0; chestUp = 0;
   /** Steinkohle posts, oldest first */
   walls: WallPiece[] = [];
   /** 26.11.2026 Mehlsäcke stacks, oldest first */
@@ -301,6 +310,7 @@ export class Sim {
       const SF = cfg.arena.startField, i = SF ? this.slots.findIndex(s => s.q === SF.slot[0] && s.r === SF.slot[1]) : -1;
       if (SF && i >= 0 && slotFits(cfg, this.slots[i], SF.type)) { const sf = this.placeField(i, SF.type); if (sf) sf.starter = true; }
       this.chestHp = this.chestMax;
+      const MS = cfg.mushrooms; if (MS) { for (let i = 0; i < MS.start; i++) this.spawnShroom(); this.shT = MS.interval; } // 27.11.2026 a few mushrooms from the start
       return;
     }
     if (!cfg.arena.startChoice?.length) for (const i of order) { if (this.fields.length >= cfg.arena.startFields) break; if (!this.fieldAt(i) && !this.slots[i].chest) { const sf = this.placeField(i, 'blue'); if (sf) sf.starter = true; } }
@@ -446,7 +456,7 @@ export class Sim {
     if (isBuilding(t)) { const B = this.cfg.buildings[t]; return 1 / Math.max(.1, B.interval ?? B.time ?? 1); }
     const P = this.cfg.plants[t]; if (!P) return 0;
     const dbl = Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[t]);
-    let n = (P.amount || 1) * (1 + dbl);
+    let n = (P.amount || 1) * (1 + dbl + this.fertYield(t));
     if (coopCrop(t)) n += this.f(this.cfg.coop.xpYieldExponent) - 1; // 24.11.2026: all three start berries alike (25.11.2026 + pea)
     return n / this.cropPeriod(t);
   }
@@ -562,7 +572,7 @@ export class Sim {
   get plantsPer() { return this.cycle?.plants ?? 6; }
   strokesOf(t: FruitType) { return this.cfg.plants[t]?.strokes ?? 1; }
   /** chance of a double yield per harvested plant: production bonus (neighbours, level, well) + Doppelernte, HP share no longer matters here */
-  doubleChance(f: Field) { return this.prodMult(f) - 1 + Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]); }
+  doubleChance(f: Field) { return this.prodMult(f) - 1 + Math.min(1, this.cfg.upgrades.doubleHarvest.step * this.yieldLv[f.type]) + this.fertYield(f.type); } // 27.11.2026 + Dünger
   /** rake stroke on a crop: the only way to harvest. Ripe field: every strokesOf strokes one plant is picked (in plantOrder), its fruit drops out of that plant;
    *  after the last plant the field grows again. While it grows, raking does nothing for the crop (24.11.2026). */
   tillGrow(f: Field, s: number, tri: number[]) {
@@ -696,7 +706,7 @@ export class Sim {
   /** 23.11.2026 (Basti): processing buildings only work while someone works at them (raking keeps them going for tillDuration s)
    *  and has the ingredients; sources (well, cow) keep running by themselves */
   tickBuilding(f: Field, dt: number) {
-    if (!f.alive || f.broken) return;
+    if (!f.alive || f.broken || f.type === 'compost') return; // 27.11.2026 the Kompostierer only works by hand (tickCompost)
     const B = this.cfg.buildings[f.type as BuildingType];
     if (!B.interval && f.tilledT <= 0) return;
     const pressing = f.type === 'press' && (f.work > 0 || this.batchReady(f));
@@ -725,6 +735,7 @@ export class Sim {
       else this.emit({ k: 'repair', s: f.slot });
       return;
     }
+    if (f.type === 'compost') return; // 27.11.2026 nothing to put in: the mushrooms are the team's stock
     const B = this.cfg.buildings[f.type as BuildingType];
     let fed = 0;
     let feedList = [...Object.keys(B.needs || {}), ...(B.needsAny || [])] as FruitType[];
@@ -834,7 +845,7 @@ export class Sim {
     const p = [this.player(this.mycBy), ...this.players].find(q => q && q.alive && !q.rsUi && !q.rsPlace); if (!p) return;
     p.mycPlace = true; p.placing = null; p.rsUi = 0;
     this.rsLvl = true; this.phase = 'lvl';
-    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; }
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; }
     this.emit({ k: 'mycel', p: p.id }); this.sfx('mycel.gain', p.x, p.z);
   }
   /** crop fields that can take one more Myzelle (not the chest, the bench, buildings or trees) */
@@ -899,7 +910,9 @@ export class Sim {
   get chestOn() { return !!this.cfg.chest && !this.sb; }
   /** 26.11.2026 (Basti) research mode: the animals attack the chest instead of stealing; chest at 0 HP = lost */
   get chestAtk() { return this.rsMode && this.chestOn && !!this.cfg.chest?.hp; }
-  get chestMax() { return this.cfg.chest?.hp ?? 0; }
+  get chestMax() { const C = this.cfg.chest; return (C?.hp ?? 0) * (1 + (C?.upgrade?.step ?? 0) * this.chestLv); } // 27.11.2026 + 25 % of the base HP per Ausbau (additive)
+  /** s of work the next Ausbau of the chest costs (chest.upgrade.times, the last value repeats) */
+  chestUpCost() { const T = this.cfg.chest?.upgrade?.times ?? [20]; return Math.max(.1, T[Math.min(this.chestLv, T.length - 1)] ?? 20); }
   /** an animal hits the chest */
   hurtChest(e: Enemy, dmg: number) {
     if (this.phase === 'over' || this.chestHp <= 0) return;
@@ -911,14 +924,20 @@ export class Sim {
   canWorkChest(p: Player) {
     if (!this.chestAtk || !p.alive || p.rsUi || this.phase !== 'play') return false;
     if (Math.hypot(p.x, p.z) > (this.cfg.chest!.work ?? 1.6)) return false;
-    return this.chestHp < this.chestMax - 1e-6 || (seedMode(this.cfg) && !!seedTarget(this.cfg, this.rs));
+    return this.chestHp < this.chestMax - 1e-6 || !!this.cfg.chest!.upgrade || (seedMode(this.cfg) && !fertMode(this.cfg) && !!seedTarget(this.cfg, this.rs));
   }
   /** chest heals itself (regen), workers heal it (heal each) or, whole, search seeds for the next tree (research.seeds) */
   private tickChest(dt: number) {
     if (!this.chestAtk || this.phase === 'over') return;
     const C = this.cfg.chest!, n = this.players.filter(p => p.alive && p.chestWork).length, M = this.chestMax;
     if (this.chestHp < M) { this.chestHp = Math.min(M, this.chestHp + ((C.regen ?? 0) + n * (C.heal ?? 0)) * dt); return; }
-    const tg = n && seedMode(this.cfg) ? seedTarget(this.cfg, this.rs) : null; if (!tg) return;
+    if (C.upgrade) { // 27.11.2026 (Basti) the whole chest is built up: a small bar, every fill + step x hp max HP
+      if (!n) return;
+      this.chestUp += dt * n;
+      if (this.chestUp >= this.chestUpCost()) { this.chestUp = 0; this.chestLv++; this.chestHp = this.chestMax; this.emit({ k: 'chestUp', lv: this.chestLv }); this.sfx('chest.upgrade', 0, 0); }
+      return;
+    }
+    const tg = n && seedMode(this.cfg) && !fertMode(this.cfg) ? seedTarget(this.cfg, this.rs) : null; if (!tg) return;
     this.rs.sw += dt * n;
     if (this.rs.sw >= seedCost(this.cfg, this.rs)) {
       this.rs.sw = 0; this.rs.trees.push(tg); if (this.rs.seed === tg) this.rs.seed = null;
@@ -928,9 +947,85 @@ export class Sim {
   }
   /** techtree: choose the tree the next seed search opens (index in research.trees, only locked ones) */
   chooseSeed(id: number, tree: number) {
-    const p = this.player(id), T = this.cfg.research?.trees?.[tree]; if (!p || !T || !seedMode(this.cfg) || treeOpen(this.cfg, this.rs, T.id)) return false;
+    const p = this.player(id), T = this.cfg.research?.trees?.[tree]; if (!p || !T) return false;
+    if (fertMode(this.cfg)) { // 27.11.2026 the fertilizer the Kompostierer makes next (any tree below the top level); closes the panel
+      if (!fertOpen(this.cfg, this.rs).includes(T.id)) return false;
+      if (this.rs.seed !== T.id) { this.rs.seed = T.id; this.rs.sw = 0; }
+      if (p.rsUi === 1) { p.rsUi = 0; p.rsLock |= 5; p.rsFert = false; }
+      this.emit({ k: 'rsSeed', p: p.id, t: tree }); return true;
+    }
+    if (!seedMode(this.cfg) || treeOpen(this.cfg, this.rs, T.id)) return false;
     if (this.rs.seed !== T.id) { this.rs.seed = T.id; this.rs.sw = 0; }
     this.emit({ k: 'rsSeed', p: p.id, t: tree }); return true;
+  }
+  // ---------- 27.11.2026 Wildpilze + Kompostierer (Dünger) ----------
+  /** one wild mushroom pops up somewhere in the outer ring (kind by rarity weight), not on top of another one or a forest tile */
+  spawnShroom() {
+    const M = this.cfg.mushrooms; if (!M || this.shrooms.length >= M.max) return false;
+    const ws = MUSHROOMS.map(k => M.weights[M.kinds[k]?.rarity ?? 'common'] ?? 0), tot = ws.reduce((a, b) => a + b, 0); if (!(tot > 0)) return false;
+    let r = Math.random() * tot, k = 0; for (; k < ws.length - 1; k++) { r -= ws[k]; if (r < 0) break; }
+    for (let i = 0; i < 12; i++) {
+      const a = rand(0, Math.PI * 2), d = Math.sqrt(rand(M.ring[0] ** 2, M.ring[1] ** 2)), x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (this.shrooms.some(o => Math.hypot(o.x - x, o.z - z) < 1.5)) continue;
+      if (this.fields.some(f => Math.hypot(f.x - x, f.z - z) < hexR(this.cfg) * 1.1)) continue;
+      this.shrooms.push({ id: this.nid++, k, x, z, t0: this.time }); return true;
+    }
+    return false;
+  }
+  private tickShrooms(dt: number) {
+    const M = this.cfg.mushrooms; if (!M) return;
+    for (let i = this.shrooms.length - 1; i >= 0; i--) if (this.time - this.shrooms[i].t0 > M.life) this.shrooms.splice(i, 1);
+    this.shT -= dt; if (this.shT <= 0) {
+      this.shT = M.interval;
+      // full: the oldest one wilts (its last 2.5 s) and makes room, so rare kinds keep coming even if nobody picks the common ones
+      if (this.shrooms.length >= M.max) { const o = this.shrooms.reduce((a, b) => a.t0 <= b.t0 ? a : b); o.t0 = Math.min(o.t0, this.time - M.life + 2.5); }
+      else this.spawnShroom();
+    }
+  }
+  /** a rake stroke harvests every mushroom its circle touches: straight into the team's stock */
+  private pickShrooms(p: Player, dx: number, dz: number) {
+    const M = this.cfg.mushrooms; if (!M || !this.shrooms.length) return;
+    const RS = this.rakeStats(p), cx = p.x + dx * RS.centre, cz = p.z + dz * RS.centre;
+    for (let i = this.shrooms.length - 1; i >= 0; i--) {
+      const m = this.shrooms[i]; if (Math.hypot(m.x - cx, m.z - cz) > RS.dia / 2 + M.pick && Math.hypot(m.x - p.x, m.z - p.z) > M.pick + .35) continue;
+      this.shrooms.splice(i, 1); this.shStock[m.k] = (this.shStock[m.k] ?? 0) + 1;
+      this.emit({ k: 'shPick', i: m.id, m: m.k, p: p.id, x: r2(m.x), z: r2(m.z) }); this.sfx('mushroom.pick', m.x, m.z);
+    }
+  }
+  /** fertilizer level of a crop (its tree's Dünger): every level + compost.yield harvest */
+  fertOf(t: FruitType) { const T = this.cfg.research?.trees?.find(x => x.id === t || x.icon === t); return T ? fertLv(this.rs, T.id) : 0; }
+  fertYield(t: FruitType) { return this.rsMode && this.cfg.compost ? (this.cfg.compost.yield ?? 0) * this.fertOf(t) : 0; }
+  /** the working Kompostierer (null: none built, wilted or broken) */
+  compostField() { return this.rsMode && this.cfg.compost ? this.fields.find(f => f.type === 'compost' && f.alive && !f.broken) ?? null : null; }
+  /** may this player compost now (hold the harvest action within compost.work m): a fertilizer is in work and the team has its mushrooms */
+  canWorkCompost(p: Player) {
+    const f = this.compostField(); if (!f || f.hp < f.maxHp || !p.alive || p.rsUi || this.phase !== 'play') return false;
+    if (Math.hypot(p.x - f.x, p.z - f.z) > this.cfg.compost!.work) return false;
+    const tg = fertTarget(this.cfg, this.rs); return !!tg && fertAfford(this.cfg, this.shStock, tg);
+  }
+  /** workers turn the mushrooms into the chosen fertilizer; walking onto the composter with nothing chosen opens the panel (fertilizer tab) */
+  private tickCompost(dt: number) {
+    const C = this.cfg.compost, f = this.compostField(), st = this.rs; if (!C || !f) return;
+    const tg = fertTarget(this.cfg, st), n = this.players.filter(p => p.alive && p.compWork).length;
+    if (n && tg && fertAfford(this.cfg, this.shStock, tg)) {
+      st.sw += dt * n; f.shake = Math.max(f.shake, .12);
+      if (st.sw >= fertCost(this.cfg, st, tg)) {
+        st.sw = 0; for (const [i, k] of fertRecipe(this.cfg, tg)) this.shStock[i] -= k;
+        const was = treeOpen(this.cfg, st, tg); st.fert[tg] = fertLv(st, tg) + 1; st.seed = null;
+        const T = this.cfg.research!.trees ?? [], ti = T.findIndex(t => t.id === tg);
+        this.emit({ k: 'fert', t: ti, lv: st.fert[tg], s: f.slot }); this.sfx('compost.done', f.x, f.z); this.burst(f.x, 1, f.z, 0x9fe060, 40, 3, .15, 1);
+        if (!was) this.emit({ k: 'seed', t: ti });
+        for (const p of this.players) p.compWork = false;
+      }
+    }
+    for (const p of this.players) {
+      const d = Math.hypot(p.x - f.x, p.z - f.z);
+      if (d > C.touch + .5) p.rsLock &= ~4;
+      if (!p.alive || p.rsUi || p.rsPlace || d > C.touch || this.phase !== 'play' || (p.rsLock & 4)) continue;
+      if (st.seed && fertOpen(this.cfg, st).includes(st.seed)) continue; // something is chosen: nothing opens by itself
+      if (!fertOpen(this.cfg, st).length) continue;
+      p.rsUi = 1; p.rsFert = true; p.rsLock |= 5; this.emit({ k: 'rsPanel', p: p.id, c: 1 });
+    }
   }
   // ---------- skill stats ----------
   stats(id: SkillId, s: SkillState): SkillStats {
@@ -1210,7 +1305,7 @@ export class Sim {
     const R = this.cfg.rake, RS = this.rakeStats(p);
     const targets = this.enemies.filter(e => !e.dead && this.inRakeCircle(p, e, dx, dz));
     this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(Math.atan2(dx, dz)), p: p.id, r: r2(RS.range), w: r2(RS.dia) });
-    this.till(p, dx, dz);
+    this.till(p, dx, dz); this.pickShrooms(p, dx, dz);
     let hits = 0;
     for (const e of targets) {
       const boss = !!e.boss; // bosses: damage only (a stun every stroke would lock them)
@@ -1384,6 +1479,7 @@ export class Sim {
     rows.push(['care', 'Felder', N.care, this.tillHealLv]);
     if (this.rsMode) rows.push(['research.next', 'Forschung', 'Idee sofort fertig (+)', this.rs.cur ? 1 : 0], ['research.all', 'Forschung', 'Alles erforschen (+)', this.rs.done.length], ['research.speed', 'Forschung', 'Forschungstempo', this.rs.speedLv]); // 25.11.2026
     if (this.chestAtk) rows.push(['mycel.add', 'Forschung', 'Myzelle (+)', this.mycPend], ['chest.hp', 'Forschung', 'Truhe heilen (+) / −50 (−)', Math.round(this.chestHp)]); // 26.11.2026
+    if (this.rsMode && this.cfg.mushrooms) rows.push(['shroom.all', 'Forschung', 'Pilze: +5 von jeder Art (+)', this.shStock.reduce((a, b) => a + b, 0)], ['chest.lv', 'Forschung', 'Truhe ausbauen', this.chestLv]); // 27.11.2026
     if (this.cfg.combos) for (const cid of COMBOS) { const C = this.CB.list[cid]; rows.push([`combo.${cid}`, 'Kombiwaffen', `${N.combos?.[cid] ?? cid} (${N.skills[C.main]} + ${N.skills[C.sub]})`, p.skills[C.main].combo === cid ? 1 : 0]); }
     return rows;
   }
@@ -1397,6 +1493,8 @@ export class Sim {
     if (a === 'research') { this.cheatResearch(b, d); return; } // 25.11.2026
     if (key === 'mycel.add') { if (d > 0 && this.cfg.mycel) this.mycPend++; return; } // 26.11.2026
     if (key === 'chest.hp') { this.chestHp = d > 0 ? this.chestMax : Math.max(1, this.chestHp - 50); return; }
+    if (key === 'shroom.all') { if (d > 0) this.shStock = MUSHROOMS.map((_, i) => (this.shStock[i] ?? 0) + 5); return; } // 27.11.2026
+    if (key === 'chest.lv') { this.chestLv = Math.max(0, this.chestLv + d); this.chestHp = Math.min(this.chestMax, d > 0 ? this.chestMax : this.chestHp); return; }
     if (key === 'hp') { p.hp = d > 0 ? this.maxHp : Math.max(1, p.hp - 10); return; }
     if (a === 'rake') { (p.rakeLv as any)[b] = lim0((p.rakeLv as any)[b] + d); return; }
     if (a === 'care') { this.tillHealLv = lim0(this.tillHealLv + d); return; }
@@ -2628,7 +2726,7 @@ export class Sim {
     const P = this.cfg.player, it = p.intent;
     p.flash -= dt; p.swing -= dt; p.tillT -= dt;
     if (!p.alive) {
-      p.chW = ''; p.chT = 0; p.benchWork = false; p.chestWork = false; // a held throw is lost when the player falls
+      p.chW = ''; p.chT = 0; p.benchWork = false; p.chestWork = false; p.compWork = false; // a held throw is lost when the player falls
       p.respawnT -= dt;
       if (p.respawnT <= 0) { p.alive = true; p.hp = this.maxHp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
@@ -2693,10 +2791,13 @@ export class Sim {
     if ((it.fire === 'prim' || it.fire === 'sec') && fw !== 'rake') p.active = fw!; // the fired weapon is the one in the hand (model swap like a switch)
     if (fw === 'rake' && (it.fire === 'prim' || it.fire === 'sec')) fw = null; // empty group: nothing to fire
     // 25.11.2026 Werkbank: holding the harvest action next to the bench hammers on the idea instead of raking
-    const hold = fw === 'rake' && it.fire === 'rake', bOk = hold && this.canWork(p), cOk = hold && this.canWorkChest(p);
-    { const b = this.benchCircle(); p.benchWork = bOk && (!cOk || !b || Math.hypot(p.x - b.x, p.z - b.z) <= Math.hypot(p.x, p.z)); } // both in reach: the nearer one
-    p.chestWork = cOk && !p.benchWork; // 26.11.2026 Truhe: heal it / search seeds
-    if (p.benchWork || p.chestWork) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; const b = p.benchWork ? this.benchCircle()! : { x: 0, z: 0 }; p.face = Math.atan2(b.x - p.x, b.z - p.z); }
+    const hold = fw === 'rake' && it.fire === 'rake', bOk = hold && this.canWork(p), cOk = hold && this.canWorkChest(p), kOk = hold && this.canWorkCompost(p);
+    { // several in reach: the nearest one (bench, chest, 27.11.2026 Kompostierer)
+      const b = this.benchCircle(), kf = kOk ? this.compostField() : null, D = (o: { x: number; z: number } | null, ok: boolean) => ok && o ? Math.hypot(p.x - o.x, p.z - o.z) : 1e9;
+      const db = D(b, bOk), dc = D({ x: 0, z: 0 }, cOk), dk = D(kf, kOk), m = Math.min(db, dc, dk);
+      p.benchWork = m < 1e9 && m === db; p.chestWork = m < 1e9 && !p.benchWork && m === dc; p.compWork = m < 1e9 && !p.benchWork && !p.chestWork;
+    }
+    if (p.benchWork || p.chestWork || p.compWork) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; const b = p.benchWork ? this.benchCircle()! : p.compWork ? this.compostField()! : { x: 0, z: 0 }; p.face = Math.atan2(b.x - p.x, b.z - p.z); }
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
     if (p.swing > 0 || p.rakeHit) { // running stroke: turns with the player at once, impact at the end of the push
@@ -2785,7 +2886,7 @@ export class Sim {
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) { const back = this.rewindFor?.(p); this.updatePlayer(p, dt); back?.(); }
-    if (this.rsMode) { this.tickResearch(dt); this.tickChest(dt); this.tickOrbs(dt); this.tickMycel(); }
+    if (this.rsMode) { this.tickResearch(dt); this.tickChest(dt); this.tickOrbs(dt); this.tickMycel(); this.tickShrooms(dt); this.tickCompost(dt); }
     this.updateMerchant(dt);
     this.updateClouds(dt); this.updateBaits(dt);
     // fields
@@ -3335,7 +3436,7 @@ export class Sim {
     const nid = typeof node === 'number' ? rNodes(this.cfg)[node]?.id : node;
     if (!nid || !nodeAvailable(this.cfg, this.rs, nid)) return false;
     this.rs.cur = nid; this.rs.ready = (this.rs.work[nid] ?? 0) >= this.rsCostOf(nid);
-    p.rsUi = 0; p.rsLock |= 1;
+    p.rsUi = 0; p.rsLock |= 1; p.rsFert = false;
     this.emit({ k: 'rsChoose', p: p.id, n: rIndex(this.cfg, nid) });
     return true;
   }
@@ -3368,7 +3469,7 @@ export class Sim {
     if (!this.placeSlots(t).length) return false;
     p.placing = t; p.placeMode = 'any'; p.rsPlace = true; p.rsUi = 0;
     this.rsLvl = true; this.phase = 'lvl';
-    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; }
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; }
     return true;
   }
   /** 26.11.2026 a player drops out (connection lost, left, game loaded): research UI closed; a field he was placing is not lost,
@@ -3377,14 +3478,14 @@ export class Sim {
     const p = this.player(id); if (!p || !this.rsMode) return;
     if (p.rsUi) this.closeResearch(id);
     p.benchWork = false; p.rsLock |= 3; // a figure left standing at the bench (waiting for a reconnect) does not take it again
-    p.chestWork = false;
+    p.chestWork = false; p.compWork = false; p.rsFert = false;
     if (p.rsPlace && p.placing) { this.rsPend.push(p.placing); p.rsPlace = false; p.placing = null; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); }
     if (p.mycPlace) { p.mycPlace = false; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); } // 26.11.2026 the Myzelle stays in mycPend
   }
   /** close the panel / popup (a popup closed without "Fertigstellen" keeps the idea ready at the bench); walk away to open it again */
   closeResearch(id: number) {
     const p = this.player(id); if (!p || !p.rsUi) return;
-    p.rsLock |= p.rsUi === 2 ? 3 : 1; p.rsUi = 0; this.emit({ k: 'rsClose', p: p.id });
+    p.rsLock |= p.rsUi === 2 ? 3 : 1; p.rsUi = 0; p.rsFert = false; this.emit({ k: 'rsClose', p: p.id });
   }
   /** open the techtree panel from anywhere (e.g. a HUD button), to look or to switch the idea */
   openResearch(id: number) {
@@ -3394,7 +3495,7 @@ export class Sim {
   /** cheat: research everything (fields go onto the nearest free slots, weapons to every player) */
   private researchAll() {
     const st = this.rs, A = this.cfg.cheats?.ammo ?? 100;
-    for (const t of this.cfg.research?.trees ?? []) if (!st.trees.includes(t.id)) st.trees.push(t.id); // 26.11.2026 all trees found
+    for (const t of this.cfg.research?.trees ?? []) { if (!st.trees.includes(t.id)) st.trees.push(t.id); if (fertMode(this.cfg) && fertRecipe(this.cfg, t.id).length && fertLv(st, t.id) < 1) st.fert[t.id] = 1; } // 26.11.2026 all trees found, 27.11.2026 their fertilizer made
     for (const n of rNodes(this.cfg)) {
       if (n.kind === 'speed' || nodeDone(this.cfg, st, n.id)) continue;
       st.done.push(n.id); st.n += nodeCount(this.cfg, n); st.work[n.id] = 0; if (st.cur === n.id) { st.cur = null; st.ready = false; }
@@ -3625,7 +3726,7 @@ export class Sim {
         of: p.offers, pk: p.picked ? 1 : 0, pc: p.placing ? FRUITS.indexOf(p.placing) : -1, pm: p.placeMode === 'any' ? 2 : p.placeMode === 'stack' ? 1 : 0, iv: FRUITS.map(t => Math.floor(p.inv[t] || 0)), nu: p.nuts,
         id: p.ideas, sh: p.shop, so: p.shopOpen ? 1 : 0, rc: this.rerollCost(p), rn: p.rerolls, ps: p.placing && p.placeMode === 'any' ? this.placeSlots(p.placing) : undefined,
         cb: SKILLS.map(id => p.skills[id].combo ? COMBOS.indexOf(p.skills[id].combo as ComboId) : -1),
-        ro: this.rsMode ? p.rsUi : undefined,
+        ro: this.rsMode ? p.rsUi : undefined, rf: p.rsFert && p.rsUi === 1 ? 1 : undefined,
       };
       if (p.mycPlace) { const P = me[p.id]; P.my = 1; P.pc = FRUITS.indexOf(this.cfg.arena.startField?.type ?? 'pea'); P.pm = 2; P.ps = this.mycSlots(); } // 26.11.2026 placing a Myzelle: top-down view, crop fields with room
     }
@@ -3646,7 +3747,7 @@ export class Sim {
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
         dk: p.dk > 0 ? r2(p.dk) : undefined,
         rh: p.swing > 0 || (p.active === 'rake' && p.handT <= 0) ? 1 : 0,
-        bw: p.benchWork ? 1 : p.chestWork ? 2 : undefined, // 25.11.2026 hammering at the Werkbank, 26.11.2026 2 = at the chest
+        bw: p.benchWork ? 1 : p.chestWork ? 2 : p.compWork ? 3 : undefined, // 25.11.2026 hammering at the Werkbank, 26.11.2026 2 = at the chest
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
@@ -3684,13 +3785,15 @@ export class Sim {
     };
   }
   /** 25.11.2026 research + Steinkohle part of the snapshot (see Snap rs / rd / rp / bn / wl) */
-  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl' | 'sk' | 'rt' | 'cv' | 'xo' | 'fu' | 'mp'> {
-    const ns = rNodes(this.cfg), st = this.rs, c = this.rsCost(), T = this.cfg.research?.trees ?? [], sd = seedTarget(this.cfg, st);
+  private rsSnap(): Pick<Snap, 'rs' | 'rd' | 'rp' | 'bn' | 'wl' | 'sk' | 'rt' | 'cv' | 'xo' | 'fu' | 'mp' | 'sh' | 'sm' | 'fe'> {
+    const ns = rNodes(this.cfg), st = this.rs, c = this.rsCost(), T = this.cfg.research?.trees ?? [], FM = fertMode(this.cfg), sd = FM ? fertTarget(this.cfg, st) : seedTarget(this.cfg, st);
+    const M = this.cfg.mushrooms;
     return {
       rs: [rIndex(this.cfg, st.cur), st.ready ? 1 : 0, st.speedLv, st.n, Math.round(c * 1000) / 1000, this.players.find(p => p.rsUi === 2)?.id ?? -1,
-        sd ? T.findIndex(t => t.id === sd) : -1, sd ? Math.round(Math.min(1, st.sw / seedCost(this.cfg, st)) * 1000) / 1000 : 0], // 26.11.2026 [6] tree of the next seed search, [7] its progress
+        sd ? T.findIndex(t => t.id === sd) : -1, sd ? Math.round(Math.min(1, st.sw / (FM ? fertCost(this.cfg, st, sd) : seedCost(this.cfg, st))) * 1000) / 1000 : 0], // 26.11.2026 [6] tree of the next seed search, [7] its progress
       rt: st.trees.map(id => T.findIndex(t => t.id === id)).filter(i => i >= 0), // 26.11.2026 trees found
-      cv: this.chestAtk ? [Math.ceil(this.chestHp), this.chestMax] : undefined, // 26.11.2026 chest HP
+      cv: this.chestAtk ? [Math.ceil(this.chestHp), Math.round(this.chestMax), this.chestLv, this.cfg.chest!.upgrade ? Math.round(Math.min(1, this.chestUp / this.chestUpCost()) * 1000) / 1000 : -1] : undefined, // 26.11.2026 chest HP, 27.11.2026 + level, Ausbau progress
+      sh: M ? this.shrooms.map(m => [m.id, m.k, r2(m.x), r2(m.z), r2(m.t0)]) : undefined, sm: M ? this.shStock.slice() : undefined, fe: FM ? T.map(t => fertLv(st, t.id)) : undefined, // 27.11.2026 Wildpilze, stock, Dünger
       xo: this.xorbs.map(o => [o.id, r2(o.x), r2(o.y), r2(o.z)]), // 26.11.2026 Myzel-XP orbs
       fu: FRUITS.map(t => this.fieldLv[t] ?? 0), mp: this.mycPend,
       rd: ns.map(n => nodeDone(this.cfg, st, n.id) ? 1 : 0),

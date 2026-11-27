@@ -2,15 +2,17 @@
 // rebuilt from the snapshot with rsFromSnap). The tree itself lives in balancing.yaml (research.nodes / research.segments).
 // 26.11.2026 Einzelbäume: one small tree per fruit (research.trees = tabs), buildings and weapon upgrades as nodes. An upgrade entry
 // with count N becomes a chain of N nodes (id.1 .. id.N, each needs the one before): same upgrades one after another, different ones side by side.
-import type { Balancing, BuildingType, ResearchNode } from '../config';
+import { MUSHROOMS, type Balancing, type BuildingType, type MushId, type ResearchNode } from '../config';
 import type { Snap } from './snap';
 
 /** team-wide research state (one per game): idea being researched, s of work per node (kept when switching), researched node ids
  *  (start nodes are not listed), Forschungstempo level, current idea complete (waits at the bench), researched ideas (cost exponent, upgrades count upgradeCount) */
 export interface RState { cur: string | null; work: Record<string, number>; done: string[]; speedLv: number; ready: boolean; n: number;
   /** 26.11.2026 Samen-Suche: trees found (start tree not listed), tree chosen for the search (null = next locked one), s of work done on it, character level (research speed) */
-  trees: string[]; seed: string | null; sw: number; lv: number }
-export const newRState = (): RState => ({ cur: null, work: {}, done: [], speedLv: 0, ready: false, n: 0, trees: [], seed: null, sw: 0, lv: 1 });
+  trees: string[]; seed: string | null; sw: number; lv: number;
+  /** 27.11.2026 Dünger: level per tree id (level 1 opens the tree, every level raises the yield of its plant); seed = fertilizer chosen at the composter, sw = s of work on it */
+  fert: Record<string, number> }
+export const newRState = (): RState => ({ cur: null, work: {}, done: [], speedLv: 0, ready: false, n: 0, trees: [], seed: null, sw: 0, lv: 1, fert: {} });
 
 /** the yaml nodes with every upgrade chain expanded (cached per config object) */
 const EXP = new WeakMap<object, ResearchNode[]>();
@@ -49,11 +51,33 @@ export function segmentOpen(cfg: Balancing, st: RState, seg: number) {
 }
 /** 26.11.2026 Samen-Suche on: trees are opened by finding seeds at the chest instead of the segment rules */
 export const seedMode = (cfg: Balancing) => !!cfg.research?.seeds && !!cfg.research?.trees?.length;
+/** 27.11.2026 Dünger: trees are opened by their fertilizer (made from wild mushrooms at the Kompostierer) */
+export const fertMode = (cfg: Balancing) => !!cfg.compost && !!cfg.research?.trees?.length;
+/** mushrooms one level of a tree's fertilizer costs, as [mushroom index, amount] */
+export function fertRecipe(cfg: Balancing, tree: string): [number, number][] {
+  const R = cfg.compost?.recipes?.[tree] ?? {};
+  return (Object.entries(R) as [MushId, number][]).map(([k, n]) => [MUSHROOMS.indexOf(k), n] as [number, number]).filter(([i, n]) => i >= 0 && n > 0);
+}
+export const fertLv = (st: RState, tree: string) => st.fert?.[tree] ?? 0;
+export const fertMax = (cfg: Balancing) => cfg.compost?.max ?? 1;
+/** s of work the next level of a tree's fertilizer costs (compost.times, the last value repeats; not sped up by the level) */
+export function fertCost(cfg: Balancing, st: RState, tree: string) { const T = cfg.compost?.times ?? [10]; return Math.max(.1, T[Math.min(fertLv(st, tree), T.length - 1)] ?? 10); }
+/** the team has the mushrooms for the next level */
+export const fertAfford = (cfg: Balancing, stock: number[], tree: string) => fertRecipe(cfg, tree).every(([i, n]) => (stock[i] ?? 0) >= n);
+/** trees that have a recipe and are below the top level */
+export const fertOpen = (cfg: Balancing, st: RState) => (cfg.research?.trees ?? []).filter(t => fertRecipe(cfg, t.id).length && fertLv(st, t.id) < fertMax(cfg)).map(t => t.id);
+/** the fertilizer the composter makes next: the chosen one, else the first tree still locked, else none */
+export function fertTarget(cfg: Balancing, st: RState) {
+  if (!fertMode(cfg)) return null; const O = fertOpen(cfg, st);
+  if (st.seed && O.includes(st.seed)) return st.seed;
+  return O.find(t => !treeOpen(cfg, st, t)) ?? null;
+}
 /** the start tree (the one holding a start node, else the first) */
 export function startTree(cfg: Balancing) { const T = cfg.research?.trees ?? []; return (T.find(t => rNodes(cfg).some(n => n.start && n.tree === t.id)) ?? T[0])?.id ?? ''; }
 /** a tree (tab) is open: Samen-Suche -> start tree or found; else its segment rule */
 export function treeOpen(cfg: Balancing, st: RState, id: string) {
   const t = cfg.research?.trees?.find(x => x.id === id); if (!t) return true;
+  if (fertMode(cfg)) return id === startTree(cfg) || (st.fert?.[id] ?? 0) >= 1 || (st.trees ?? []).includes(id);
   if (seedMode(cfg)) return id === startTree(cfg) || (st.trees ?? []).includes(id);
   return segmentOpen(cfg, st, t.segment);
 }
@@ -69,7 +93,7 @@ export function seedCost(cfg: Balancing, st: RState) { const S = cfg.research?.s
 export function nodeAvailable(cfg: Balancing, st: RState, id: string) {
   const n = rNode(cfg, id); if (!n) return false;
   if (n.kind !== 'speed' && nodeDone(cfg, st, id)) return false;
-  if (seedMode(cfg) && n.tree ? !treeOpen(cfg, st, n.tree) : !segmentOpen(cfg, st, n.segment)) return false;
+  if ((seedMode(cfg) || fertMode(cfg)) && n.tree ? !treeOpen(cfg, st, n.tree) : !segmentOpen(cfg, st, n.segment)) return false;
   return (n.needs ?? []).every(k => nodeDone(cfg, st, k));
 }
 /** s of active work (1 worker) an idea costs now: baseTime x (1 + costGrowth)^researched / (1 + speedPerLevel)^speedLv x players^coopExponent
@@ -87,14 +111,16 @@ export const fieldUpOf = (n: ResearchNode | null | undefined) => n && n.kind ===
 export function nodeMul(cfg: Balancing, n: ResearchNode | null | undefined, st?: RState) {
   const R = cfg.research!, T = R?.times;
   if (T && n) {
+    if (n.time && n.kind !== 'upgrade') return n.time;
     if (n.kind === 'weapon') return T.weapon;
     if (n.kind === 'field') return T.field;
     if (n.kind === 'building') return T.building;
     if (n.kind === 'upgrade') {
-      if (fieldUpOf(n)) return T.fieldUp + T.fieldUpStep * ((n.lv ?? 1) - 1);
+      const at = (L: number[] | undefined, k: number) => L?.length ? L[Math.min(k, L.length - 1)] : undefined; // 27.11.2026 flattening curves
+      if (fieldUpOf(n)) return at(T.fieldUpList, (n.lv ?? 1) - 1) ?? T.fieldUp + T.fieldUpStep * ((n.lv ?? 1) - 1);
       // steps of this weapon before this one: its own chain below it + what other chains of the same weapon have done
       const w = (n.ref ?? '').split('_')[0], other = st ? rNodes(cfg).filter(x => x.kind === 'upgrade' && !fieldUpOf(x) && x.chain !== n.chain && (x.ref ?? '').split('_')[0] === w && st.done.includes(x.id)).length : 0, done = other + (n.lv ?? 1) - 1;
-      return T.upgrade + T.upgradeStep * done;
+      return at(T.upgradeList, done) ?? T.upgrade + T.upgradeStep * done;
     }
     return 1;
   }
@@ -111,13 +137,13 @@ export function nodeCount(cfg: Balancing, n: ResearchNode) {
 }
 
 /** UI side (25.11.2026): the research state as far as the snapshot carries it (work rebuilt from the progress fractions); cost = base cost */
-export function rsFromSnap(cfg: Balancing, s: Snap): RState & { popup: number; cost: number; seedP: number; seedCost: number } {
+export function rsFromSnap(cfg: Balancing, s: Snap): RState & { popup: number; cost: number; seedP: number; seedCost: number; /** 27.11.2026 fertilizer in work (tree id), mushroom stock */ fertT: string | null; stock: number[] } {
   const ns = rNodes(cfg), rs = s.rs ?? [-1, 0, 0, 0, 1, -1], cost = rs[4] || 1, T = cfg.research?.trees ?? [];
   const work: Record<string, number> = {}, done: string[] = [];
   ns.forEach((n, i) => { if (s.rd?.[i] && !n.start && n.kind !== 'speed') done.push(n.id); });
   const trees = (s.rt ?? []).map(i => T[i]?.id).filter((x): x is string => !!x);
-  const st: RState = { cur: rs[0] >= 0 ? ns[rs[0]]?.id ?? null : null, work, done, speedLv: rs[2] ?? 0, ready: !!rs[1], n: rs[3] ?? 0, trees, seed: (rs[6] ?? -1) >= 0 ? T[rs[6]]?.id ?? null : null, sw: 0, lv: s.lv ?? 1 };
+  const st: RState = { cur: rs[0] >= 0 ? ns[rs[0]]?.id ?? null : null, work, done, speedLv: rs[2] ?? 0, ready: !!rs[1], n: rs[3] ?? 0, trees, seed: (rs[6] ?? -1) >= 0 ? T[rs[6]]?.id ?? null : null, sw: 0, lv: s.lv ?? 1, fert: Object.fromEntries(T.map((t, i) => [t.id, s.fe?.[i] ?? 0])) };
   ns.forEach((n, i) => { const p = s.rp?.[i] ?? 0; if (p > 0) work[n.id] = p * cost * nodeMul(cfg, n, st); });
-  const sc = seedCost(cfg, st), sp = rs[7] ?? 0; st.sw = sp * sc;
-  return { ...st, popup: rs[5] ?? -1, cost, seedP: sp, seedCost: sc };
+  const sc = fertMode(cfg) && st.seed ? fertCost(cfg, st, st.seed) : seedCost(cfg, st), sp = rs[7] ?? 0; st.sw = sp * sc;
+  return { ...st, popup: rs[5] ?? -1, cost, seedP: sp, seedCost: sc, fertT: st.seed, stock: s.sm ?? [] };
 }

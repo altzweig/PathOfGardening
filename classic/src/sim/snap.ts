@@ -33,7 +33,7 @@ export interface PSnap {
   ch?: number; // charge of a held throw 0..1 (cabbage & thrown combos), -1 none
   ht?: number; // Körner-MP heat 0..1 (+2 while overheated), absent when cold
   /** 25.11.2026 Werkbank: 1 = hammering at the bench right now (hammer animation + grey dust), 2 = working at the chest (26.11.2026), absent = no */
-  bw?: 0 | 1 | 2;
+  bw?: 0 | 1 | 2 | 3; // 3 = composting (27.11.2026)
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string;
@@ -53,7 +53,7 @@ export interface Priv {
   id?: number; sh?: Offer[] | null; so?: 0 | 1; ps?: number[];
   /** Händler reroll: price of the next one, rerolls so far this visit (24.11.2026) */ rc?: number; rn?: number;
   /** 25.11.2026 Werkbank UI of this player: 0 closed, 1 techtree panel (choose the next idea), 2 pickup popup of the finished idea (+ panel below) */
-  ro?: 0 | 1 | 2;
+  ro?: 0 | 1 | 2; /** 27.11.2026 the panel was opened at the Kompostierer: show the fertilizer tab */ rf?: 1;
   /** 26.11.2026 placing a Myzelle (top-down view, ps = crop fields with room) */
   my?: 0 | 1;
 }
@@ -113,4 +113,10 @@ export interface Snap {
   xo?: number[][];
   /** Feld-Upgrade level per FRUITS index; Myzellen still to be placed */
   fu?: number[]; mp?: number;
+  // ---- 27.11.2026 Wildpilze, Dünger, Kompostierer, Truhen-Ausbau ----
+  /** wild mushrooms standing: [id, kind (MUSHROOMS index), x, z, time it popped up, 1 = wilting] */
+  sh?: number[][];
+  /** team stock per MUSHROOMS index; fertilizer level per research.trees index; rs[6] = fertilizer in work (tree index), rs[7] its progress;
+   *  cv[2] = chest level (Ausbau), cv[3] = progress 0..1 of the next one */
+  sm?: number[]; fe?: number[];
 }

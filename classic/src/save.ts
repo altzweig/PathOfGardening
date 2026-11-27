@@ -3,6 +3,7 @@
 // shared / circular references (combo partners, enemy targets, carried fruit, hit sets) are kept as
 // {$r: id}, Sets and Maps get their own tags. cfg is not saved: a loaded game always uses the current
 // balancing.yaml. Fields added to the code later are filled in from a fresh Sim / player on load.
+import { MUSHROOMS } from './config';
 import type { Balancing, FruitType, SkillId } from './config';
 import { Sim } from './sim/sim';
 import { newRState, rNodes, startTree } from './sim/research';
@@ -14,7 +15,8 @@ const KEY = (id: string) => 'pog-classic.save.' + id;
 const KEEP = 3;
 /** 2 (26.11.2026): Werkbank-Techtree (rs, walls, rsLvl, rsPend, benchSlot; Player rsUi, rsLock, rsPlace, benchWork). Version 1 is migrated, see migrateV1 */
 /** 3 (26.11.2026): Truhe als Ziel (chestHp), Feld-Upgrades (fieldLv), Myzel-XP (xorbs), Myzellen (mycPend, Field myc), Samen-Suche (rs.trees / seed / sw / lv). Version 2 is migrated, see migrateV2 */
-const VERSION = 3;
+/** 4 (27.11.2026): Dünger (rs.fert), Wildpilze (shrooms, shStock), Truhen-Ausbau (chestLv, chestUp); the Samen-Suche is gone. Version 3 is migrated, see migrateV3 */
+const VERSION = 4;
 
 export interface SaveInfo { id: string; wave: number; level: number; t: number; name: string; started: number; /** co-op game saved by the host: number of players */ coop?: number }
 /** co-op save (25.11.2026): each guest's token, so it gets its own figure back when it joins the loaded game */
@@ -115,7 +117,7 @@ export function saveGame(id: string, started: number, sim: Sim, look: Look, coop
 export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | null; info: SaveInfo; coop?: CoopSeat[] } | null {
   let raw: any;
   try { raw = JSON.parse(localStorage.getItem(KEY(id)) || 'null'); } catch { return null; }
-  if (!raw || (raw.v !== VERSION && raw.v !== 1 && raw.v !== 2) || !raw.sim) return null;
+  if (!raw || (raw.v !== VERSION && raw.v !== 1 && raw.v !== 2 && raw.v !== 3) || !raw.sim) return null;
   try {
     const data = decode(raw.sim);
     const sim = new Sim(cfg);
@@ -127,13 +129,24 @@ export function loadGame(id: string, cfg: Balancing): { sim: Sim; look: Look | n
     sim.rewindFor = null;
     (sim as any).wallDirty = true; (sim as any).wallGrid = new Map(); (sim as any).wallLinks = new Map(); // 26.11.2026 rebuilt from walls
     if (raw.v === 1 && !('rs' in data) && sim.rsMode) migrateV1(sim, cfg);
-    if (sim.rsMode) migrateV2(sim, cfg, data);
+    if (sim.rsMode) { migrateV2(sim, cfg, data); migrateV3(sim, cfg, data); }
     // 26.11.2026 no research UI open after loading (the UI starts closed); a field that was being placed waits at the bench
     for (const p of sim.players) { sim.rsDrop(p.id); p.rsLock = 0; }
     return { sim, look: raw.look ?? null, info: raw.info, coop: Array.isArray(raw.coop) ? raw.coop : undefined };
   } catch (e) { console.warn('load', e); return null; }
 }
 
+/** 27.11.2026 version 3 (or older) loaded: trees that were already found keep growing, so they get their first Dünger; a seed
+ *  search that was running is dropped (its work is gone with the Samen-Suche); mushrooms and the chest Ausbau start fresh */
+function migrateV3(sim: Sim, cfg: Balancing, data: any) {
+  const st = sim.rs; if (!st.fert) st.fert = {};
+  if (!('chestLv' in data)) {
+    for (const t of st.trees) if (!st.fert[t]) st.fert[t] = 1;
+    st.seed = null; st.sw = 0;
+  }
+  const n = MUSHROOMS.length; if (!Array.isArray(sim.shStock)) sim.shStock = []; for (let i = 0; i < n; i++) sim.shStock[i] = sim.shStock[i] ?? 0;
+  void cfg;
+}
 /** 26.11.2026 version 2 (or 1) loaded: missing research keys filled in; trees that already have researched nodes count as found
  *  (nothing researched gets locked again); the chest starts whole; the level the save has gives its Myzellen to place (every mycelEvery levels) */
 function migrateV2(sim: Sim, cfg: Balancing, data: any) {

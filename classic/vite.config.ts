@@ -77,6 +77,6 @@ export default defineConfig({
   build: {
     target: 'es2020', chunkSizeWarningLimit: 2500,
     // vfx.html = VFX lab (developer tool for skill effects, not linked from the game); haendler.html = merchant model preview; werkbank.html = workbench / pea pistol / wall / dust preview
-    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html'), tiere: path.join(ROOT, 'tiere.html'), boden: path.join(ROOT, 'boden.html'), haendler: path.join(ROOT, 'haendler.html'), werkbank: path.join(ROOT, 'werkbank.html') } },
+    rollupOptions: { input: { main: path.join(ROOT, 'index.html'), vfx: path.join(ROOT, 'vfx.html'), tiere: path.join(ROOT, 'tiere.html'), boden: path.join(ROOT, 'boden.html'), haendler: path.join(ROOT, 'haendler.html'), werkbank: path.join(ROOT, 'werkbank.html'), pilze: path.join(ROOT, 'pilze.html') } }, // pilze.html = wild mushrooms preview (27.11.2026)
   },
 });

@@ -2,10 +2,13 @@
 // the research progress for the XP bar / XP orb and the HUD button that opens the panel away from the bench.
 // Everything is rebuilt from the snapshot (rsFromSnap), so host, solo and guests show the same; actions go out through the callbacks
 // (main.ts: sim call on the host / solo, net message on a guest). No explanation texts: names, icons and values only.
-import { AMMO_OF, Balancing, FruitType, ResearchNode, SkillId, ammoPool } from '../config';
+import { AMMO_OF, Balancing, FruitType, MUSHROOMS, ResearchNode, SkillId, ammoPool } from '../config';
 import type { Snap } from '../sim/snap';
-import { fieldUpOf, isPlaceNode, nodeAvailable, nodeDone, nodeMul, rNodes, rsFromSnap, seedMode, segmentOpen, treeOpen } from '../sim/research';
-import { fieldArt, fruitIcon, mini, skillIcon } from './icons';
+import { fertAfford, fertCost, fertLv, fertMax, fertMode, fertRecipe, fieldUpOf, isPlaceNode, nodeAvailable, nodeDone, nodeMul, rNodes, rsFromSnap, seedMode, segmentOpen, treeOpen } from '../sim/research';
+import { fieldArt, fruitIcon, mini, mushIcon, skillIcon } from './icons';
+
+/** 27.11.2026 the fertilizer tab of the panel (Kompostierer) */
+const FERT = '$fert';
 
 type RS = ReturnType<typeof rsFromSnap>;
 type St = 'done' | 'cur' | 'ready' | 'avail' | 'lock';
@@ -119,6 +122,7 @@ export class TechTree {
     // node click (delegated): only available ones; a mouse drag is no click
     this.canvas.addEventListener('click', e => {
       if (performance.now() - this.dragEnd < 350) return; // end of a drag, no click
+      const fb = (e.target as HTMLElement).closest<HTMLElement>('.rtFert'); if (fb && this.ro === 1) { if (fb.classList.contains('max') || fb.classList.contains('on')) this.deny(fb); else { fb.classList.add('on'); this.onSeed(+fb.dataset.tree!); } return; } // 27.11.2026 choose the fertilizer
       const sb = (e.target as HTMLElement).closest<HTMLElement>('.rtSeedBtn'); if (sb && this.ro === 1) { if (!sb.classList.contains('on')) { sb.classList.add('on'); this.onSeed(+sb.dataset.tree!); } else this.deny(sb); return; }
       const b = (e.target as HTMLElement).closest<HTMLElement>('.rtNode'); if (!b || this.ro !== 1) return;
       if (b.classList.contains('avail') || b.classList.contains('cur')) { b.classList.add('chosen'); this.onChoose(+b.dataset.i!); }
@@ -174,7 +178,7 @@ export class TechTree {
   private pickTab(cfg: Balancing, st: RS) {
     const T = this.trees(cfg), ns = rNodes(cfg), cur = ns.find(n => n.id === st.cur && n.kind !== 'speed');
     if (cur) return cur.tree ?? T[0].id;
-    if (this.tab && T.some(t => t.id === this.tab)) return this.tab;
+    if (this.tab && (this.tab === FERT || T.some(t => t.id === this.tab))) return this.tab;
     const av = T.find(t => ns.some(n => this.inTree(n, t.id) && n.kind !== 'upgrade' && nodeAvailable(cfg, st, n.id))) ?? T.find(t => ns.some(n => this.inTree(n, t.id) && nodeAvailable(cfg, st, n.id)));
     return (av ?? T[0]).id;
   }
@@ -190,14 +194,15 @@ export class TechTree {
     this.btn.hidden = !(ro === 0 && s.ph === 'play' && !!pr && pr.pc < 0);
     this.btn.classList.toggle('ready', st.ready);
     if (ro === 0) { this.root.hidden = true; this.pop.hidden = true; this.finishSent = false; this.tabPicked = false; return; }
-    if (was === 0) { this.wantFront = true; this.tab = this.pickTab(cfg, st); this.key = ''; }
+    if (was === 0 && pr?.rf && fertMode(cfg)) { this.tab = FERT; this.tabPicked = true; this.key = ''; this.scroll.scrollLeft = 0; this.scroll.scrollTop = 0; } // 27.11.2026 opened at the Kompostierer
+    else if (was === 0) { this.wantFront = true; this.tab = this.pickTab(cfg, st); this.key = ''; }
     else if (!this.tabPicked) { const t = this.pickTab(cfg, st); if (t !== this.tab) { this.tab = t; this.key = ''; this.wantFront = true; } } // follows the idea in work until the player picks a tab
     this.root.hidden = false;
     this.root.classList.toggle('dim', ro === 2);
     // panel structure (rebuilt only when the tree state, the tab or the screen size changes)
     const L = this.layout(cfg);
     (st as any).seedIdx = s.rs?.[6] ?? -1;
-    const key = `${L.key}|${this.tab}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}|${(s.rt ?? []).join(',')}|${s.rs?.[6] ?? -1}|${s.lv}`;
+    const key = `${L.key}|${this.tab}|${(s.rd ?? []).join('')}|${st.cur}|${st.ready ? 1 : 0}|${st.speedLv}|${st.n}|${(s.rt ?? []).join(',')}|${s.rs?.[6] ?? -1}|${s.lv}|${(s.sm ?? []).join(',')}|${(s.fe ?? []).join(',')}`;
     if (key !== this.key) { const sl = this.scroll.scrollLeft, sy = this.scroll.scrollTop; this.key = key; this.build(cfg, st, L); this.scroll.scrollLeft = sl; this.scroll.scrollTop = sy; }
     // progress of every node (another player may be hammering while this one looks)
     const ns = rNodes(cfg);
@@ -208,6 +213,7 @@ export class TechTree {
         const c = el.querySelector('.rtCost span'); if (c && !el.classList.contains('done')) c.textContent = tfmt(st.cost * nodeMul(cfg, ns[i], st) * (1 - p));
       }
     });
+    for (const fb of this.canvas.querySelectorAll<HTMLElement>('.rtFert.on')) { const sp = st.seedP; fb.style.setProperty('--p', sp.toFixed(3)); const c = fb.querySelector('.rtCost span'); if (c) c.textContent = tfmt(st.seedCost * (1 - sp)); }
     { const sb = this.canvas.querySelector<HTMLElement>('.rtSeedBtn.on'); if (sb) { const sp = st.seedP; sb.style.setProperty('--p', sp.toFixed(3)); const c = sb.querySelector('.rtCost span'); if (c) c.textContent = tfmt(st.seedCost * (1 - sp)); } }
     { const tb = this.tabs.querySelector<HTMLElement>('.rtTab.cur'); if (tb) { const ci = s.rs![0] ?? -1; tb.style.setProperty('--p', (Math.min(1, s.rp?.[ci] ?? 0)).toFixed(3)); } }
     if (this.wantFront && this.scroll.clientWidth) { this.wantFront = false; this.toFront(cfg, st); }
@@ -244,7 +250,8 @@ export class TechTree {
     this.panel.style.setProperty('--n', L.N + 'px'); this.panel.style.setProperty('--u', L.U + 'px'); this.panel.style.setProperty('--head', L.head + 'px');
     this.panel.classList.toggle('small', L.small);
     // ---- tabs ----
-    this.tabs.innerHTML = T.map(t => {
+    const FM = fertMode(cfg), fertTab = FM ? `<button class="rtTab rtTabFert${this.tab === FERT ? ' sel' : ''}${(cfg.research!.trees ?? []).some(t => fertRecipe(cfg, t.id).length && fertLv(st, t.id) < fertMax(cfg) && fertAfford(cfg, st.stock, t.id)) ? ' avail' : ''}" data-t="${FERT}" role="tab" aria-selected="${this.tab === FERT}" aria-label="${esc(NR.fert ?? 'Dünger')}"><span class="rtTabIc">${mini('fert')}</span><small>${esc(NR.fert ?? '')}</small></button>` : '';
+    this.tabs.innerHTML = fertTab + T.map(t => {
       const tn = all.filter(n => this.inTree(n, t.id)), open = treeOpen(cfg, st, t.id), seedT = !open && seedMode(cfg) && (cfg.research!.trees ?? []).findIndex(x => x.id === t.id) === (st as any).seedIdx;
       const cur = tn.some(n => n.id === st.cur), av = open && tn.some(n => nodeAvailable(cfg, st, n.id) && n.id !== st.cur);
       const done = tn.filter(n => nodeDone(cfg, st, n.id)).length;
@@ -262,6 +269,13 @@ export class TechTree {
       this.speed.dataset.p = ''; this.speed.setAttribute('aria-label', nodeName(cfg, sp));
       this.speed.innerHTML = `<i class="rtSpIc">${mini('tempo')}<b class="rtBadge lv">${st.speedLv}</b></i><span class="rtSpTx"><b>${nf(tempo * 100)} %</b>${s0 === 'ready' ? `<span class="rtCost rdy">${mini('bulb')}</span>` : `<span class="rtCost"><small>+${nf(R.speedPerLevel * 100)} %</small><i>${mini('cd')}</i><span>${tfmt(st.cost * (1 - Math.min(1, (st.work[sp.id] ?? 0) / st.cost)))}</span></span>`}</span><i class="rtBar"></i>`;
     } else this.speed.hidden = true;
+    // ---- 27.11.2026 fertilizer tab: one card per plant (what it needs, level, yield) ----
+    if (this.tab === FERT && FM) {
+      const C = this.canvas, cards = (R.trees ?? []).map((t, i) => fertRecipe(cfg, t.id).length ? this.fertCard(cfg, st, i) : '').join('');
+      this.panel.style.setProperty('--cw', (L.small ? 0 : 780) + 'px');
+      C.style.width = '100%'; C.style.height = 'auto'; C.innerHTML = `<div class="rtFertGrid">${cards}</div>`; this.nodeEls = sp ? [this.speed] : [];
+      return;
+    }
     // ---- the tree of the selected tab ----
     const tree = T.find(t => t.id === this.tab) ?? T[0], ns = all.filter(n => this.inTree(n, tree.id)), sts = new Map(ns.map(n => [n.id, this.state(cfg, st, n)] as const));
     const byId = new Map(ns.map(n => [n.id, n] as const));
@@ -293,12 +307,16 @@ export class TechTree {
     const rw = roots.reduce((a, r, i) => a + sw(r) + (i ? L.gap : 0), 0);
     { let x = L.pad; roots.forEach((r, i) => { if (i) x += L.gap; place(r, x + sw(r) / 2, L.pad + (r.kind === 'upgrade' ? L.capH : 0)); x += sw(r); }); }
     const X = new Map(ns.map(n => [n.id, CX.get(n.id)! - W(n) / 2] as const));
-    const Wc = Math.max(L.pad * 2 + L.pillW, rw + L.pad * 2), Hc = Math.max(L.N + L.pad * 2, ...ns.map(n => Y.get(n.id)! + H(n) + L.pad));
+    const lockedF = FM && !treeOpen(cfg, st, tree.id);
+    const Wc = Math.max(L.pad * 2 + L.pillW, rw + L.pad * 2, lockedF ? 300 : 0), Hc = Math.max(L.N + L.pad * 2, lockedF ? 190 : 0, ...ns.map(n => Y.get(n.id)! + H(n) + L.pad));
     this.panel.style.setProperty('--cw', Math.max(Wc, L.small ? 0 : 780) + 'px');
     const C = this.canvas; C.style.width = Wc + 'px'; C.style.height = Hc + 'px';
     let html = '';
     // locked tree: overlay with what opens it
-    if (seedMode(cfg) && !treeOpen(cfg, st, tree.id)) { // 26.11.2026 Samen-Suche: the chosen tree is searched for at the chest
+    if (FM && !treeOpen(cfg, st, tree.id)) { // 27.11.2026 the tree opens with its fertilizer: the card shows what it takes
+      const ti = (R.trees ?? []).findIndex(x => x.id === tree.id);
+      html += `<div class="rtLock rtSeed" style="left:4px;top:2px;right:4px;bottom:2px">${this.fertCard(cfg, st, ti)}</div>`;
+    } else if (seedMode(cfg) && !treeOpen(cfg, st, tree.id)) { // 26.11.2026 Samen-Suche: the chosen tree is searched for at the chest
       const ti = (R.trees ?? []).findIndex(x => x.id === tree.id), on = ti === (st as any).seedIdx, sp = on ? (st as any).seedP as number : 0;
       const left = (st as any).seedCost * (1 - sp);
       html += `<div class="rtLock rtSeed" style="left:4px;top:2px;right:4px;bottom:2px"><button class="rtSeedBtn${on ? ' on' : ''}" data-tree="${ti}" style="--p:${sp.toFixed(3)}" aria-label="${esc(NR.seed ?? 'Samen')}">
@@ -340,6 +358,18 @@ export class TechTree {
     }
     C.innerHTML = html;
     this.nodeEls = [...C.querySelectorAll<HTMLElement>('.rtNode'), ...(sp ? [this.speed] : [])];
+  }
+  /** 27.11.2026 one fertilizer: plant, level pips, yield per level, the mushrooms one level takes (have / need), time. on = in work at the Kompostierer */
+  private fertCard(cfg: Balancing, st: RS, ti: number) {
+    const T = cfg.research!.trees![ti], NR = cfg.names.research ?? {}, C = cfg.compost!, lv = fertLv(st, T.id), max = fertMax(cfg), open = treeOpen(cfg, st, T.id);
+    const on = st.fertT === T.id && lv < max, can = fertAfford(cfg, st.stock, T.id), sp = on ? st.seedP : 0, cost = fertCost(cfg, st, T.id);
+    const rec = fertRecipe(cfg, T.id).map(([m, n]) => { const have = st.stock[m] ?? 0, id = MUSHROOMS[m]; return `<span class="rtFm${have >= n ? ' ok' : ''}" title="${esc(cfg.names.mushrooms?.[id] ?? id)}"><i>${mushIcon(id)}</i><b>${Math.min(have, 999)}/${n}</b><small>${esc(cfg.names.mushrooms?.[id] ?? '')}</small></span>`; }).join('');
+    const pips = Array.from({ length: max }, (_, k) => `<u class="${k < lv ? 'f' : ''}"></u>`).join('');
+    const name = (cfg.names.items as Record<string, string>)?.[T.icon] ?? (cfg.names.plants as Record<string, string>)?.[T.icon] ?? T.id;
+    return `<button class="rtFert${on ? ' on' : ''}${can ? ' can' : ''}${lv >= max ? ' max' : ''}${open ? '' : ' lk'}" data-tree="${ti}" style="--p:${sp.toFixed(3)}" aria-label="${esc((NR.fert ?? 'Dünger') + ' ' + name)}">
+      <span class="rtFertIc">${fruitIcon(T.icon)}<i class="rtFertBag">${mini('fert')}</i>${open ? '' : `<b class="rtBadge lk">${mini('lock')}</b>`}</span>
+      <span class="rtFertTx"><b>${esc(name)}</b><span class="rtFertLv">${pips}<em>${fruitIcon(T.icon)}+${nf((C.yield ?? 0) * 100)} %</em></span>
+      ${lv >= max ? '' : `<span class="rtFertRec">${rec}</span><span class="rtCost"><i>${mini('cd')}</i><span>${tfmt(cost * (1 - sp))}</span></span>`}</span><i class="rtBar"></i></button>`;
   }
   /** scroll so the current idea (or the first one that can be chosen) is in view, as far left / up as fits */
   private toFront(cfg: Balancing, st: RS) {

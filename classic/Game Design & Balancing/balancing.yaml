@@ -30,6 +30,8 @@ names:
     repair: Reparatur
     cost: Kosten
     seed: Samen           # 26.11.2026 Samen-Suche an der Truhe
+    fert: Dünger          # 27.11.2026 Kompostierer
+    yield: Ertrag
     mycel: Myzelle        # 26.11.2026
   upgrades:          # 26.11.2026 Namen der Upgrade-Knoten im Techtree (Schlüssel = Waffe_Upgrade, sonst gilt der Teil nach "_")
     dmg: Schaden
@@ -55,6 +57,22 @@ names:
     salvo: Salve
     size: Geschossgröße
     fld: Zykluszeit       # 26.11.2026 Feld-Upgrades (fld_<Frucht>)
+  mushrooms:         # 27.11.2026 Wildpilze (Name im Vorrat, in der Dünger-Auswahl und auf der Vorschauseite)
+    champ: Wiesenchampignon
+    stein: Steinpilz
+    pfiff: Pfifferling
+    flieg: Fliegenpilz
+    tint: Tintling
+    lila: Lilakappe
+    glimm: Glimmerling
+    krake: Krakenpilz
+    schleim: Glotzschleimling
+    stern: Sternmorchel
+  rarities:
+    common: Gewöhnlich
+    uncommon: Ungewöhnlich
+    rare: Selten
+    epic: Episch
   skills:
     rake: Harke
     pea: Erbsenpistole     # 25.11.2026 Startwaffe
@@ -102,6 +120,7 @@ names:
     cow: Kuh am Pfahl
     dairy: Käserei
     kitchen: Spiegeleierei
+    compost: Kompostierer   # 27.11.2026
   items:             # Waren (Name im Inventar / Vorratsliste rechts oben)
     blue: Blaubeeren
     black: Brombeeren
@@ -273,10 +292,54 @@ chest:                     # 23.11.2026 Lager-Truhe in der Mitte (Erd-Hexfeld): 
   attackFirst: 10          # 24.11.2026 Basti: jeder Waschbär greift zuerst einmal den Spieler an, dann erst zur Truhe; s, nach denen er die Jagd aufgibt
   # 26.11.2026 (Basti) Forschungsspiel: Tiere stehlen nichts mehr, sie wollen die Truhe zerstören. Truhe auf 0 = verloren (Felder allein nicht mehr).
   # Waschbären und Pandas gehen zur Truhe (max. maxThieves im Kreis), alle anderen Tiere, sobald kein Feld mehr Leben hat. Schaden = Nahkampf (enemies.meleeDamage).
-  hp: 400                  # Leben der Truhe
-  regen: 2                 # HP/s, heilt von selbst
-  heal: 20                 # HP/s je Spieler, der an der Truhe arbeitet (Aktion halten); heile Truhe: stattdessen Samen-Suche (research.seeds)
+  hp: 400                  # Leben der Truhe (Grundwert, siehe upgrade)
+  regen: 0                 # 27.11.2026 (Basti) keine Selbstheilung mehr (vorher 2 HP/s): die Truhe wird nur durch Arbeit repariert
+  heal: 20                 # HP/s je Spieler, der an der Truhe arbeitet (Aktion halten)
+  upgrade:                 # 27.11.2026 (Basti) Ausbau: an der heilen Truhe weiterarbeiten füllt eine kleine Leiste; jede Füllung +25 % des Grundwerts (additiv: 400, 500, 600 ...)
+    step: 0.25
+    times: [20, 30, 40, 45, 50, 55, 60]   # s Arbeit für den 1., 2., 3. ... Ausbau (1 Spieler); flacht ab, der letzte Wert gilt für alle weiteren
   work: 1.6                # m vom Mittelpunkt: hier wird an der Truhe gearbeitet
+
+# ---------------------------------------------------------------------
+#  27.11.2026 (Basti) Wildpilze, Kompostierer und Dünger
+#  Am äußeren Rand der Area ploppen wilde Pilze auf. Geerntet werden sie wie Pflanzen mit der Ernte-Aktion (ein Harkenschlag);
+#  sie landen im gemeinsamen Pilzvorrat des Teams. Am Kompostierer (Erbsenbaum) wird daraus von Hand Dünger gemacht.
+#  Dünger Stufe 1 einer Pflanze öffnet ihren Baum (Boden, auf dem ihr Samen wächst), jede Stufe erhöht ihren Ertrag.
+# ---------------------------------------------------------------------
+mushrooms:
+  ring: [10.5, 14]           # m vom Mittelpunkt: hier wachsen sie (Garten bis ca. 11 m, begehbar bis 18 m)
+  interval: 6              # s zwischen zwei neuen Pilzen
+  max: 16                  # so viele stehen höchstens gleichzeitig
+  start: 6                 # so viele stehen schon zu Spielbeginn
+  life: 120                # s, dann verwelkt ein Pilz wieder (die Mischung am Rand wechselt)
+  pick: 0.45               # m: so nah muss der Harkenkreis an den Pilz
+  weights: { common: 10, uncommon: 5, rare: 2.5, epic: 1.2 }   # Gewicht je Pilzart: von 100 Pilzen sind ca. 57 gewöhnlich, 29 ungewöhnlich, 10 selten, 5 episch
+  kinds:                   # Reihenfolge fest (Vorrat, Spielstände); Modelle in src/view/mushrooms.ts, Vorschau pilze.html
+    champ:   { rarity: common }     # Wiesenchampignon: weiß, schlicht
+    stein:   { rarity: common }     # Steinpilz: brauner Hut, dicker Stiel
+    pfiff:   { rarity: common }     # Pfifferling: dottergelber Trichter
+    flieg:   { rarity: uncommon }   # Fliegenpilz: rot mit weißen Punkten
+    tint:    { rarity: uncommon }   # Tintling: hoher schwarz tropfender Schopf
+    lila:    { rarity: uncommon }   # Lilakappe: violett gestreifter Spitzhut
+    glimm:   { rarity: rare }       # Glimmerling: türkis leuchtendes Büschel
+    krake:   { rarity: rare }       # Krakenpilz: rote Fangarme mit dunklen Flecken (eklig)
+    schleim: { rarity: epic }       # Glotzschleimling: giftgrüner Schleimklumpen mit Augen, leuchtende Pusteln
+    stern:   { rarity: epic }       # Sternmorchel: goldene Wabenmorchel mit pinkem Leuchten
+
+compost:
+  work: 1.6                # m vom Mittelpunkt des Kompostierers: hier wird kompostiert (Aktion halten)
+  touch: 0.9               # m: wer so nah kommt, ohne dass ein Dünger gewählt ist, bekommt die Dünger-Auswahl
+  times: [10, 15, 20, 23, 25]   # s Arbeit für Stufe 1..5 eines Düngers (1 Spieler), flacht ab
+  max: 5                   # Stufen je Dünger
+  yield: 0.2               # +20 % Ertrag der Pflanze je Düngerstufe (Chance auf doppelte Ernte, Stufe 5 = immer doppelt)
+  recipes:                 # Pilze je Stufe. Bessere Waffen brauchen seltenere Pilze.
+    pea:   { champ: 3 }                 # Erbsendünger (Startbaum: nur Ertrag)
+    wheat: { champ: 3, stein: 2 }       # Weizendünger -> Maschinenpistole, Schrotflinte, Mühle
+    cab:   { stein: 3, pfiff: 2 }       # Kohldünger -> Kohlmine, Steinkohle
+    chili: { flieg: 3, pfiff: 2 }       # Chilidünger -> Flammenwerfer
+    lemon: { tint: 3, glimm: 1 }        # Zitronendünger -> Citrateaser
+    blue:  { lila: 3, krake: 2 }        # Heidelbeerdünger -> Beerengewehr
+    asp:   { schleim: 2, stern: 1 }     # Spargeldünger -> Spargel-Armbrust
 
 forest:                    # Waldplätze außerhalb des Gartens: Lichtungen im Wald hinter dem Buschring. Nur hier wachsen Nussbäume.
   slots: 6                 # so viele Baumplätze (Lichtungen), gleichmäßig rund um den Garten
@@ -343,6 +406,7 @@ buildings:
   press:   { minLevel: 4, needsAny: [blue, black, cran], count: 4, time: 3, makes: juice }  # Saftpresse: 4 Beeren -> Saft. 23.11.2026: presst immer die Beere, von der am meisten da ist; Saft wird sofort zu XP (siehe juice)
   bakery:  { minLevel: 5, needs: { flour: 1, water: 1 }, time: 5, makes: bread }        # Bäckerei: Mehl + Wasser -> Brot
   # dairy:   { minLevel: 6, needs: { milk: 3 }, time: 6, makes: cheese }                  # Käserei: 3 Milch -> Käse
+  compost: { makes: compost }                                                      # 27.11.2026 Kompostierer: stellt nichts her, was herumliegt; Regeln unter compost:
   kitchen: { minLevel: 5, needs: { egg: 1 }, time: 3, amount: 3, makes: fegg }      # 23.11.2026 Spiegeleierei (statt Küche): 1 Ei -> 3 Spiegeleier (Munition der Spiegeleischleuder)
 
 # Waren beim Einsammeln: xp (x xp.gain) und heal (Leben) sofort, die Ware landet außerdem im Inventar (zum Einlegen in Gebäude).
@@ -1238,14 +1302,17 @@ research:
     weapon: 16             # neue Waffe
     field: 24              # neues Feld
     building: 30           # Verarbeitungsgebäude (Mühle, Bäckerei)
-    upgrade: 8             # Waffen-Upgrade: 8 s ...
+    upgrade: 8             # (alt, nur ohne upgradeList) Waffen-Upgrade: 8 s ...
     upgradeStep: 4         # ... + 4 s je schon erforschter Upgrade-Stufe derselben Waffe (alle Upgrade-Arten zusammen)
-    fieldUp: 10            # Feld-Upgrade: 10 s ...
+    fieldUp: 10            # (alt, nur ohne fieldUpList) Feld-Upgrade: 10 s ...
     fieldUpStep: 5         # ... + 5 s je Stufe, die das Feld schon hat
+    # 27.11.2026 (Basti) Zeiten flachen nach hinten ab, ganze Sekunden. n-tes Waffen-Upgrade derselben Waffe (alle Upgrade-Arten zusammen):
+    # erst +4, dann +3, dann +2 s; ab dem 15. bleibt es bei 50 s (vorher 8 + 4 je Stufe ohne Ende: das 15. kostete 64 s, das 30. 124 s).
+    upgradeList: [8, 12, 16, 20, 24, 28, 32, 35, 38, 40, 42, 44, 46, 48, 50]
+    fieldUpList: [10, 15, 20, 23, 25]   # Feld-Upgrade Stufe 1..5 (vorher 10, 15, 20, 25, 30)
   levelSpeed: 0.05         # 26.11.2026 Charakterlevel: +5 % Forschungstempo je Level über 1 (Level 11 = 150 %)
-  seeds:                   # 26.11.2026 Samen-Suche an der Truhe (Aktion halten, wenn die Truhe heil ist): jeder Baum außer dem Erbsenbaum ist zuerst gesperrt
-    base: 10               # s für den ersten gefundenen Samen ...
-    step: 10               # ... + 10 s je schon gefundenem Baum
+  # 27.11.2026 (Basti) Die Samen-Suche an der Truhe ist raus: neue Bäume öffnet ihr Dünger (siehe compost:). Zum Zurückholen: compost: entfernen und hier wieder
+  # seeds: { base: 10, step: 10 }
   startShots: 20           # Startwaffen bringen so viele Schuss Munition mit (Erbsenpistole: 20 x 3 = 60 Erbsen). 26.11.2026 Bot: 10 -> 20, die ersten Wellen ohne Munitionsnot
   weaponShots: 10          # eine erforschte Waffe bringt jedem Spieler so viele Schuss mit (x ammoPerShot, in den Munitionsvorrat der Waffe)
   dropFruit: pea           # besiegte Tiere lassen das fallen (vorher: Beere der nächsten Schrotflinte)
@@ -1281,6 +1348,7 @@ research:
     - { id: u_pea_dmg, kind: upgrade, ref: pea_dmg, count: 5, tree: pea, segment: 1, row: 0, col: 2, needs: [w_pea] }
     - { id: u_pea_rng, kind: upgrade, ref: pea_rng, count: 5, tree: pea, segment: 1, row: 1, col: 2, needs: [w_pea] }
     - { id: u_pea_cd,  kind: upgrade, ref: pea_cd,  count: 5, tree: pea, segment: 1, row: 2, col: 2, needs: [w_pea] }
+    - { id: b_compost, kind: building, ref: compost, tree: pea, segment: 1, row: 3, col: 1, needs: [f_pea], time: 20 }   # 27.11.2026 Kompostierer: Pilze -> Dünger (öffnet die anderen Bäume)
     # --- Weizen (Basti: Weizenfeld -> Körnerpistole und Mühle, Mühle -> Mehlsäcke und Bäckerei; die Schrotflinte bleibt als dritter Ast) ---
     - { id: f_wheat, kind: field,  ref: wheat, tree: wheat, segment: 1, row: 0, col: 0 }                                # Weizenfeld
     - { id: u_fld_wheat, kind: upgrade, ref: fld_wheat, count: 5, tree: wheat, segment: 1, row: 1, col: 0, needs: [f_wheat] }   # 26.11.2026 Feld-Upgrade: Zykluszeit x0,8 je Stufe

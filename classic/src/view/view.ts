@@ -1,7 +1,7 @@
 // Renders Snap objects. Same path for host (snap every frame) and clients (snaps at net rate,
 // smoothed here). Events trigger particles, sounds and hit effects.
 import * as THREE from 'three';
-import { Balancing, BERRIES, COMBOS, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
+import { Balancing, BERRIES, COMBOS, BuildingType, ENEMIES, EnemyType, FRUITS, FruitType, isBuilding, MUSHROOMS, SKILLS, SkillId, Weapon, WEAPONS } from '../config';
 import { buildBuilding, chestModel, type BuildingView } from './buildings';
 import { BK, Slot, accepts, cornerAngle, hexDist, hexR, outType, plantOrder, tileContrib, tileCost, triPlant, slotAt, slotFits, slotPositions } from '../sim/sim';
 // soft round glow for the rim pulse
@@ -27,7 +27,7 @@ const lavaTex = (() => {
 })();
 import { BUILD_SND_EVERY, benchWork, buildingSound, loopSfx, play, setListener, sfx, stopAllLoops } from '../audio';
 import { FireSprites, FlameFx, GroundHeat, flameLight, makeFlame, resetFlameLight, updateFlame } from './flame';
-import { fieldArt, fruitIcon, mini, skillIcon } from '../ui/icons';
+import { fieldArt, fruitIcon, mini, mushIcon, skillIcon } from '../ui/icons';
 import {
   GEO, M, PART, V, addMat, lightning, updateBolts, clearBolts, barGroup, enemyBars, burst, camera, clamp, clearFx, composer, decal, gradePass, lerp, lerpAngle, makeBar, moon,
   part, punchStar, dustCloud, pxScale, rand, rakeSweep, rectGeo, scene, sectorGeo, setBar, torch, updateFx, windU, gardenLight, renderer, envU,
@@ -48,6 +48,7 @@ import { carryApply, carryRestore } from './carry';
 import { Look, cleanLook, lookKey } from '../look';
 import { FlourFX } from './flourfx';
 import { MinePool } from './minepool';
+import { MUSH_HEX, ShroomPool, mushMesh } from './mushrooms';
 import { EggFX, fryingPan } from './eggfx';
 import { friedEgg, rawEgg } from './eggfx';
 import { eggSling, flourSack, aspCrossbow, cabHeld, chiliThrower, cranGun, grainSmg, setArsenalEnv, setArsenalLight, tintBerries, wheatShotgun } from './arsenal';
@@ -57,7 +58,7 @@ import { DUST_CAP, createDust } from './dustfx';
 import { createWallPool, type WallPiece } from './wallpool';
 import { createSackPool, type SackPiece } from './sackpool';
 import { sackSpot } from '../sim/sacks';
-import { fieldUpOf, rNodes } from '../sim/research';
+import { fertRecipe, fieldUpOf, rNodes } from '../sim/research';
 import { MycelFx } from './mycelfx';
 import { peaPistol, peaProjectile, type PeaPistol } from './peapistol';
 import { setCraftEnv, setCraftLight } from './craftkit';
@@ -191,6 +192,8 @@ export class GameView {
   cfg!: Balancing;
   private flourFx = new FlourFX();
   private minePool = new MinePool(); // Kohlminen: one InstancedMesh, up to 100+
+  /** 27.11.2026 Wildpilze at the rim (instanced), chips over composter and chest */
+  private shroomPool: ShroomPool | null = null; private compEl: HTMLElement | null = null; private chestEl: HTMLElement | null = null; private chestUpT = 0;
   private eggFx = new EggFX();
   me = 0;
   smooth = false; // clients interpolate
@@ -542,6 +545,7 @@ export class GameView {
     // items per second; while building: current -> after the build (green up, red down); neighbour bonus as hex chip
     const nbChip = bonus > 0 ? `<em class="nb${bonusUp && !ghost ? ' chg' : ''}"><svg viewBox="0 0 24 20"><path d="M6 1.5l5 2.9v5.8L6 13.1 1 10.2V4.4z M18 6.9l5 2.9v5.8l-5 2.9-5-2.9V9.8z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>+${Math.round(bonus * 100)}%</em>` : '';
     rate.classList.toggle('up', changes && nxt > now); rate.classList.toggle('down', changes && nxt < now);
+    rate.hidden = ftype === 'compost'; // 27.11.2026 the composter makes no items per second
     rate.innerHTML = `${fruitIcon(outType(this.cfg, ftype))}<span>${ghost ? '' : changes ? num(now) + '<b>→</b>' : ''}${num(ghost || changes ? nxt : now)}/s</span>${nbChip}`;
     // step bar (upgrade card): one segment per tile still needed for the next level
     bar.hidden = !same || !this.placeStack || r >= (this.cfg.tiles.maxLevel ?? 99) - 1; // level 3 is the top: no step bar
@@ -584,13 +588,14 @@ export class GameView {
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
     this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset(); this.myc.clear(); this.chestBar = null; this.chestKick = 0;
-    this.flourFx.clear(); this.minePool.clear(); this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    this.flourFx.clear(); this.minePool.clear(); this.shroomPool?.clear(); this.compEl?.remove(); this.compEl = null; this.chestEl?.remove(); this.chestEl = null; this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
   apply(s: Snap) {
     this.snap = s; const id = ++this.frameId;
     this.flourFx.sync(s.cl); this.eggFx.sync(s.eg);
+    if (s.sh) this.shrooms().sync(s.sh, s.t); else this.shroomPool?.sync(undefined, s.t);
     // Lager-Truhe in the centre on its own earth hex
     if (s.ch !== undefined && !this.chest) {
       const g = new THREE.Group(), H = hexR(this.cfg), bed = buildBed(H, []); g.add(bed); this.chestFn = chestModel(g); this.dyn.add(g); this.chest = g;
@@ -879,7 +884,7 @@ export class GameView {
   private animField(v: FieldView, dt: number) {
     const H = hexR(this.cfg) * .935, now = performance.now() / 1000;
     if (v.bld) {
-      const broken = !!((v.flags ?? 0) & 1), working = !!((v.flags ?? 0) & 2) && v.tilled; // 23.11.2026: buildings only move while someone works there
+      const broken = !!((v.flags ?? 0) & 1), working = v.ftype === 'compost' ? this.compBusy(v) : !!((v.flags ?? 0) & 2) && v.tilled; // 23.11.2026: buildings only move while someone works there
       v.bld.anim(dt, now, working, broken, v.x, v.z);
       v.g.rotation.z = Math.sin(now * 50) * v.shake * .05;
       // work sound now and then while the building runs (only near the player, see buildingSound)
@@ -1306,6 +1311,10 @@ export class GameView {
       case 'chestHit': this.chestKick = 1; if (Math.random() < .5) PART.spawn(V(rand(-.4, .4), .7, rand(-.3, .3)), V(rand(-1, 1), 1.4, rand(-1, 1)), 0x8a5a30, .05, .5, { g: 6 }); break;
       case 'chestBreak': this.chestKick = 2; this.shake = .35; break;
       case 'seed': { burst(V(0, 1, 0), 0x9fe060, 30, 2.4, .1, .8); decal(0, 0, 0x9fe060, .3, .8, { ring: true, add: true, grow: 2, op: .8 }); this.onSeed(e.t); break; }
+      // ---- 27.11.2026 Wildpilze, Dünger, Truhen-Ausbau ----
+      case 'shPick': { const c = MUSH_HEX[MUSHROOMS[e.m]] ?? 0xffffff; burst(V(e.x, .3, e.z), c, 12, 1.8, .08, .5); burst(V(e.x, .15, e.z), 0x6a5238, 6, 1.2, .1, .4); break; }
+      case 'fert': { const v = this.fields.get(e.s); if (v) { burst(V(v.x, 1, v.z), 0x9fe060, 26, 2.2, .1, .8); decal(v.x, v.z, 0x9fe060, .3, .8, { ring: true, add: true, grow: 1.6, op: .8 }); } break; }
+      case 'chestUp': { burst(V(0, 1, 0), 0xffd860, 34, 2.6, .1, .9); decal(0, 0, 0xffd860, .3, .9, { ring: true, add: true, grow: 2, op: .8 }); this.chestKick = 1; this.chestUpT = 1.2; break; }
       case 'myz': { // auto harvest: lightning onto the next plant
         const v = this.fields.get(e.s); if (!v) break; const [px, pz] = triPlant(v.x, v.z, hexR(this.cfg), e.j ?? 0);
         this.myc.zap(px, pz, e.d ?? .5); sfx('mycel.zap', px, pz); break;
@@ -1346,8 +1355,10 @@ export class GameView {
       // 25.11.2026 Werkbank-Techtree: pea pistol + pea, wheat shotgun, workbench (sign, bar, glow), hammer, pea vines
       add(peaPistol().g); add(peaProjectile()); add(wheatShotgun().g); add(createWorkbench({ xpColor: XP_GOLD }).group); add(createHammer().g);
       add(buildPlant('pea', { leaf: M(0x4f9a3a), head: M(0x6ab84a) }).g);
+      for (const k of MUSHROOMS) add(mushMesh(k)); // 27.11.2026 Wildpilze (single meshes; the instanced pool is warmed below)
     } catch (e) { console.warn('prewarm', e); }
     this.minePool.warm(); // instanced variant of the cabbage material
+    if (cfg.mushrooms) this.shrooms().warm();
     this.benchDust.warm(); this.wallPool.warm(); this.sackPool.warm(); this.myc.warm(); this.myc.frame(0); // work dust + cabbage wall + Myzel orb / shimmer: one invisible instance each
     G.traverse(o => { if (!(o as THREE.Light).isLight) o.visible = true; o.frustumCulled = false; });
     G.traverse(o => { if ((o as THREE.Light).isLight) o.parent?.remove(o); }); // no extra lights: that would change every shader
@@ -1357,7 +1368,7 @@ export class GameView {
     // shadow pass + post: depth variants, texture uploads
     this.flourFx.sync([[-1, 0, 0, 2, 1, 6, .1, 0, 0]]); this.flourFx.frame(.016);
     composer.render();
-    scene.remove(G); this.myc.unwarm(); this.flourFx.clear(); this.minePool.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; this.sackPool.clear(); this.sackSig = NaN; merchantReset();
+    scene.remove(G); this.myc.unwarm(); this.flourFx.clear(); this.minePool.clear(); this.shroomPool?.clear(); this.benchDust.clear(); this.wallPool.clear(); this.wallSig = NaN; this.sackPool.clear(); this.sackSig = NaN; merchantReset();
   }
   frame(dt: number) {
     dt = Math.max(0, dt); // 25.11.2026: the first rAF after a long prewarm can hand in a negative dt (timers ran backwards: red hurt screen)
@@ -1399,7 +1410,7 @@ export class GameView {
     updateEyes(dt); updateFog(dt); updateGround(dt); updateTorches(dt); setArsenalLight(dayNow().day); setCraftLight(dayNow().day);
     this.night = 1 - dayNow().day;
     this.chestFn?.(dt, this.chestN, this.chestAtk, this.chestKick); this.chestKick = Math.max(0, this.chestKick - dt * 5); if (this.chestBar) this.chestBar.quaternion.copy(camera.quaternion);
-    this.myc.frame(dt);
+    this.myc.frame(dt); this.shroomPool?.frame(dt); this.updateChips(dt);
     this.bench?.wb.update(dt, camera); this.benchDust.update(dt); this.wallPool.update(dt); this.sackPool.update(dt);
     this.berryGlow(dt);
     BUSH_MAT.lemon.emissiveIntensity = Math.max(0, BUSH_MAT.lemon.emissiveIntensity - dt * 5); // lemon flash after a harvest bolt
@@ -1432,7 +1443,7 @@ export class GameView {
     v.walk = lerp(v.walk, s.al ? clamp(spd / 2.2, 0, 1) : 0, 1 - Math.exp(-dt * 10));
     // 25.11.2026 Werkbank: hammering player steps up to the bench top (visual only, <= ~.5 m) and faces the spot the hammer hits
     if (s.bw) v.bwAt = s.bw; // 26.11.2026 1 = Werkbank, 2 = chest (heal / seed search): same hammer, other spot
-    const atChest = v.bwAt === 2, B0 = atChest ? (this.chest ? { x: 0, z: 0 } : null) : this.bench;
+    const atChest = v.bwAt !== 1, cf = v.bwAt === 3 ? this.compField() : null, B0 = v.bwAt === 3 ? (cf ? { x: cf.x, z: cf.z } : null) : atChest ? (this.chest ? { x: 0, z: 0 } : null) : this.bench;
     const bw = !!s.bw && !!s.al && !!B0;
     v.bwk = clamp((v.bwk ?? 0) + (bw ? dt : -dt) * 5, 0, 1);
     let px = v.x, pz = v.z, workRot: number | null = null;
@@ -1536,7 +1547,7 @@ export class GameView {
   /** 25.11.2026 Werkbank: hammer in the +x hand, blows at ~2 per second (hammerSwing), each landing knocks the bench, puffs the
    *  grey dust in front of the player and plays a blow; saw / screw noises run in a loose cycle (audio.benchWork) */
   private animHammer(v: PView, dt: number, bw: boolean) {
-    const s = v.s, B = v.bwAt === 2 ? (this.chest ? { wb: { hit: () => { this.chestKick = Math.max(this.chestKick, .45); } } } : null) : this.bench;
+    const s = v.s, cf = v.bwAt === 3 ? this.compField() : null, B = v.bwAt === 3 ? (cf ? { wb: { hit: () => { cf.shake = Math.max(cf.shake, .5); } } } : null) : v.bwAt === 2 ? (this.chest ? { wb: { hit: () => { this.chestKick = Math.max(this.chestKick, .45); } } } : null) : this.bench;
     if (v.dustI === undefined) { const used = new Set([...this.players.values()].map(q => q.dustI)); for (let i = 0; i < DUST_CAP; i++) if (!used.has(i)) { v.dustI = i; break; } }
     benchWork('p' + s.id, bw, v.hx ?? v.x, v.hz ?? v.z, 1);
     if (bw && !v.ham) {
@@ -1811,6 +1822,43 @@ export class GameView {
     // health bar only while hurt (25.11.2026 Basti), all bars in one instanced draw call (core.ts enemyBars)
     if ((fl & EF.bar) && (e[5] < .999 || (e[6] >= 0 && e[6] < .999)))
       enemyBars.add(v.x, (v.type === 'toad' || v.type === 'squirrel' ? .85 : 1.05) + hy, v.z, v.elite ? 1 : .6, v.elite ? .12 : .07, e[5], e[6], 0xd23a2e);
+  }
+  private shrooms() {
+    if (!this.shroomPool) { this.shroomPool = new ShroomPool(scene, this.cfg.mushrooms?.life ?? 120); this.shroomPool.sparkle = (x, y, z, c) => PART.spawn(V(x, y, z), V(0, .25, 0), c, .05, .7, { a: .8 }); }
+    return this.shroomPool;
+  }
+  private compField() { for (const v of this.fields.values()) if (v.ftype === 'compost' && v.alive) return v; return null; }
+  private compBusy(v: FieldView) { void v; return !!this.snap?.pl.some(p => p.bw === 3 && p.al); }
+  /** 27.11.2026 chips in the world (no text): over the composter the fertilizer in work with its mushrooms (have / need) and the
+   *  bar; over the chest its Ausbau bar while someone works on it or stands next to it */
+  private updateChips(dt: number) {
+    const s = this.snap, me = this.players.get(this.me), cfg = this.cfg, T = cfg.research?.trees ?? [];
+    this.chestUpT = Math.max(0, this.chestUpT - dt);
+    // composter
+    const cf = s && cfg.compost && !this.placing && s.ph === 'play' ? this.compField() : null, ti = s?.rs?.[6] ?? -1, tree = T[ti];
+    const nearC = !!cf && !!me && Math.hypot(me.x - cf.x, me.z - cf.z) < 4.5;
+    const pc = cf && tree && nearC ? this.worldScreen(cf.x, 2.05, cf.z) : null;
+    if (pc && s && tree) {
+      if (!this.compEl) { this.compEl = document.createElement('div'); this.compEl.className = 'wchip comp'; this.dmgLayer.appendChild(this.compEl); }
+      const el = this.compEl, R = fertRecipe(cfg, tree.id), st = s.sm ?? [], key = tree.id + '|' + R.map(([i, n]) => (st[i] ?? 0) + '/' + n).join(',');
+      if (el.dataset.k !== key) {
+        el.dataset.k = key;
+        el.innerHTML = `<span class="fi">${fruitIcon(tree.icon)}<i>${mini('fert')}</i></span>` + R.map(([i, n]) => `<span class="m${(st[i] ?? 0) >= n ? ' ok' : ''}"><i>${mushIcon(MUSHROOMS[i])}</i>${Math.min(st[i] ?? 0, 99)}/${n}</span>`).join('') + '<s><u></u></s>';
+      }
+      (el.querySelector('u') as HTMLElement).style.width = ((s.rs?.[7] ?? 0) * 100).toFixed(1) + '%';
+      el.style.transform = `translate(${pc.x.toFixed(1)}px,${pc.y.toFixed(1)}px) translate(-50%,-100%)`;
+    } else if (this.compEl) { this.compEl.remove(); this.compEl = null; }
+    // chest Ausbau
+    const cv = s?.cv, up = cv ? cv[3] ?? -1 : -1, full = !!cv && cv[0] >= cv[1];
+    const nearK = !!me && Math.hypot(me.x, me.z) < 2.6, busy = !!s?.pl.some(p => p.bw === 2 && p.al);
+    const pk = cv && up >= 0 && s!.ph === 'play' && !this.placing && (this.chestUpT > 0 || (full && (nearK || busy))) ? this.worldScreen(0, 1.75, 0) : null;
+    if (pk && cv) {
+      if (!this.chestEl) { this.chestEl = document.createElement('div'); this.chestEl.className = 'wchip chestUp'; this.dmgLayer.appendChild(this.chestEl); }
+      const el = this.chestEl, key = String(cv[2]);
+      if (el.dataset.k !== key) { el.dataset.k = key; el.innerHTML = `<i>${mini('chest')}</i><s><u></u></s><span>+${Math.round((cfg.chest?.upgrade?.step ?? .25) * 100)} %</span>`; }
+      (el.querySelector('u') as HTMLElement).style.width = (up * 100).toFixed(1) + '%';
+      el.style.transform = `translate(${pk.x.toFixed(1)}px,${pk.y.toFixed(1)}px) translate(-50%,-100%)`;
+    } else if (this.chestEl) { this.chestEl.remove(); this.chestEl = null; }
   }
   /** Saftpresse: one thin bar per berry that was pressed, with its debuff icon; the bar being filled right now glows */
   private updatePress(dt: number) {

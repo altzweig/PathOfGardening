@@ -393,7 +393,7 @@ rake:
   knockback: 0.3           # m Rückstoß pro Treffer (weg vom Spieler), nicht bei Bossen
 
 skills:
-  readySeconds: 3          # "bereit", wenn Munition für x s Dauerfeuer da ist
+  readySeconds: 3          # 27.11.2026 Basti: nicht mehr benutzt (keine Mindestmunition, 1 Schuss reicht)
   asp:
     damage: 19  # 26.11.2026 Basti: Startwerte 15 -> 19
     range: 7.5             # m (vorher 5 -> +50 %)
@@ -418,7 +418,7 @@ skills:
     ammo: [blue]           # 25.11.2026 Beerengewehr (Techtree Segment 3): schießt nur Heidelbeeren (ohne Eintrag: alle drei Beeren, alter Ablauf)
   pea:                     # 25.11.2026 Erbsenpistole (Startwaffe, Holzpistole mit erbsengrünem Schlitten): eine dicke Erbse, Desert-Eagle-Gefühl
     damage: 25  # 26.11.2026 Basti: Startwerte 20 -> 25. Einzelschaden. 26.11.2026 Bot: 14 -> 20, ein Schuss tötet Waschbären (8,4 Leben x Wellenfaktor 1 + 0,04 je Welle) bis Welle ~35 (mit 14: bis ~17), Pandas bis ~31
-    range: 7               # m
+    range: 9               # m (27.11.2026 Basti: Reichweite 7 -> 9)
     cooldown: 0.55  # 26.11.2026 Basti: Startwerte 0.65 -> 0.55. s, langsam
     ammoPerShot: 3         # Erbsen je Schuss (Basti)
     speed: 16              # m/s
@@ -492,7 +492,7 @@ skills:
     radius: 0.7            # m Explosionsradius
     radiusStep: 0.1        # m mehr Radius je Upgrade
     range: 6.5             # m maximale Wurfweite (wie die Schrotflinte); trifft das Tier, das der Zielrichtung am nächsten ist
-    aimCone: 30            # Grad: Tiere bis so weit neben der Zielrichtung werden angepeilt, sonst landet das Ei auf voller Weite
+    aimCone: 0             # 27.11.2026 Basti: kein Auto-Ziel mehr (vorher 30 Grad: Tiere so weit neben der Zielrichtung wurden angepeilt). Das Ei landet auf voller Weite
     cooldown: 0.53  # 26.11.2026 Basti: Startwerte 0.625 -> 0.53. s = blue.cooldown (Basti: gleiche Abklingzeit wie die Beeren-Schrotflinte). Upgrade: x (1 - cooldownPerLevel)
     ammoPerShot: 1         # Eier je Schuss
     # Debuff = Kohl-Gift (cab.poisonDuration / poisonTick / poisonTickDamage / poisonSlow), nur in Schwefelgelb
@@ -821,11 +821,11 @@ waves:
   pauseStart: 15           # s Pause nach jeder Welle (fest)
   pausePerWave: 0          # s längere Pause je Welle
   gapStart: 6              # s zwischen zwei Gruppen in Welle 1
-  gapPerWave: 0.06         # s kürzer je Welle
+  gapPerWave: 0.05         # s kürzer je Welle (27.11.2026 Basti: 0.06 -> 0.05, weniger Gruppen in späten Wellen)
   gapMin: 3                # s, kürzester Abstand
   gapJitter: 0.25          # +-25 % Zufall auf den Abstand
   sizeStart: 3             # Gegner pro Gruppe in Welle 1 (Grundwert)
-  sizePerWave: 0.15        # + Gegner pro Gruppe je Welle (23.11.2026 Sim-Balancing: 0.8 -> 0.15)
+  sizePerWave: 0.12        # + Gegner pro Gruppe je Welle (27.11.2026 Basti: Zuwachs leicht abgeflacht 0.15 -> 0.12, Welle 20 ca. -10 %, Welle 30 ca. -20 %. 23.11.2026 Sim-Balancing: 0.8 -> 0.15)
   sizeMax: 24
   rampFrom: 0.5            # innerhalb der Welle: erste Gruppe = 50 % der Grundgröße ...
   rampTo: 1.5              # ... letzte normale Gruppe = 150 %

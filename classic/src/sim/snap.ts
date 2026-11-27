@@ -4,9 +4,9 @@ import type { Weapon } from '../config';
 
 export interface Intent {
   mx: number; mz: number;           // movement, length <= 1
-  ax: number; az: number; aim: boolean; // aim direction (world xz), aim=false -> auto-aim
+  ax: number; az: number; aim: boolean; // aim direction (world xz), aim=false -> where the player looks (27.11.2026: no auto-aim)
   fire: Weapon | 'active' | 'prim' | 'sec' | null; // weapon held down ('active' = selected weapon (touch); PC 24.11.2026: 'prim' = left click, 'sec' = right click)
-  tapSeq: number; tapW: Weapon | null; // one-shot fire with auto-aim (quick tap on touch)
+  tapSeq: number; tapW: Weapon | null; // one shot where the player looks (quick tap on touch)
   cycle: number;                    // increments on every "switch skill" press
   berry?: number;                   // increments on every "switch berry" press (shotgun ammo, 23.11.2026)
   /** PC 10-slot bar (24.11.2026): pick = counter per slot key press, pickS = that slot 0..9; cycP / cycS = next primary / secondary (Q / E) */

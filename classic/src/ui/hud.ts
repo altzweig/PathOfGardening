@@ -167,12 +167,12 @@ export class Hud {
       if (b.dataset.face !== fk) { b.dataset.face = fk; b.querySelector('.face')!.innerHTML = cb >= 0 ? comboIcon(fk) : skillIcon(id); b.classList.toggle('combo', cb >= 0); }
       const ai = id === 'blue' ? SKILLS.indexOf(BERRIES[ps.be ?? 0]) : i; // shotgun: ammo of the selected berry
       if (id === 'blue') { const bk = BERRIES[ps.be ?? 0], el = b.querySelector<HTMLElement>('.berry')!; if (el.dataset.b !== bk) { el.dataset.b = bk; el.innerHTML = fruitIcon(bk); } }
-      const ready = slot >= 0 && pr.am[ai] >= pr.nd[i], usable = slot >= 0 && pr.am[ai] >= pr.co[i] && (ready || active === id);
+      const ready = slot >= 0 && pr.am[ai] >= pr.nd[i], usable = ready; // 27.11.2026: no minimum ammo, one round is enough (nd = 1, or one stack / post)
       b.classList.toggle('grey', !usable); b.classList.toggle('ready', ready);
       if (ready && !this.wasReady[id] && s.ph === 'play') { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); sfx('ui.weaponReady'); setTimeout(() => b.classList.remove('pulse'), 1500); }
       this.wasReady[id] = ready;
       b.style.setProperty('--cd', String(pr.cd[i])); b.style.setProperty('--ch', Math.min(1, pr.am[ai] / pr.nd[i]).toFixed(3));
-      const t = `${pr.am[ai]} / ${pr.nd[i]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
+      const t = `${pr.am[ai]}`; const am = b.querySelector('.ammo')!; if (am.textContent !== t) am.textContent = t;
     });
     this.btn.rake.style.setProperty('--cd', String(pr.rk));
     const n = SKILLS.filter((id, i) => this.btn[id] && pr.ln[i] && slots.includes(id)).length;
@@ -195,7 +195,7 @@ export class Hud {
       if (ic.dataset.k !== ft) { ic.dataset.k = ft; ic.innerHTML = fruitIcon(ft); }
       const n = String(pr.am[ai]); if (sp.textContent !== n) sp.textContent = n;
       el.classList.toggle('sel', id === (k < 5 ? pa : sa));
-      el.classList.toggle('empty', pr.am[ai] < pr.co[i]);
+      el.classList.toggle('empty', pr.am[ai] < pr.nd[i]);
     }
   }
 }

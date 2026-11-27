@@ -951,7 +951,7 @@ export class Sim {
     return {
       ...fl, tick,
       dmg: B.damage * dm, dmgPct: dm, range, cd: id === 'sack' ? B.cooldown : cd, cost: id === 'sack' ? Math.max(S.sack.minCost ?? 1, B.ammoPerShot - S.sack.costStep * s.lvCd) : B.ammoPerShot, dur: id === 'wheat' ? S.wheat.heatTime * (1 + (U.wheatDuration?.step ?? .25) * (s.durLv ?? 0)) : 0,
-      need: id === 'wall' ? B.ammoPerShot * 3 /* Steinkohle: ready with 3 posts */ : id === 'sack' ? Math.max(S.sack.minCost ?? 1, B.ammoPerShot - S.sack.costStep * s.lvCd) /* Mehlsäcke: one stack */ : Math.ceil(Math.ceil(S.readySeconds / cd - 1e-9) * B.ammoPerShot * shots - 1e-9), shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
+      need: id === 'wall' ? B.ammoPerShot /* Steinkohle: one post */ : id === 'sack' ? Math.max(S.sack.minCost ?? 1, B.ammoPerShot - S.sack.costStep * s.lvCd) /* Mehlsäcke: one stack */ : this.minAmmo(id, B.ammoPerShot) /* 27.11.2026: no readySeconds minimum any more */, shots, gap: S.asp.burstGap * cd / S.asp.cooldown * (shots0 - 1) / Math.max(1, shots - 1),
       pierce: s.pierce, pf: Math.min(1, S.asp.pierceFactor + U.aspPierceBonus.step * s.pierceBonus),
       // shotgun: random spread (normal distribution, cut at the max cone), +1 pellet per upgrade; missed berries pop for splash x damage
       pellets: (id === 'blue' ? S.blue.pellets : id === 'wshot' ? S.wshot.pellets : S.cran.pellets) + U.cranPellets.step * s.extraPel, cranPierce: Math.min(1, U.cranPierce.step * s.cranPierceLv), splash: Math.min(1, S.cran.splashDamage + U.cranSplash.step * s.mineLv),
@@ -996,13 +996,18 @@ export class Sim {
   get berries(): Berry[] { return this.cfg.skills.blue.ammo ?? BERRIES; }
   canFire(p: Player, id: SkillId) {
     const s = p.skills[id]; if (!this.equipped(p, id)) return false;
-    return p.ammo[this.ak(p, id)] >= this.stats(id, s).cost;
+    return p.ammo[this.ak(p, id)] >= this.stats(id, s).need;
   }
+  /** 27.11.2026 (Basti): no minimum ammo any more, one round is enough to shoot (a shot then uses what is left).
+   *  Mehlsäcke and Steinkohle are placed, they still need a full stack / post. */
+  minAmmo(id: SkillId | string, cost: number) { return id === 'sack' || id === 'wall' ? cost : Math.min(1, cost); }
+  /** takes the ammo of one shot, never below 0 */
+  useAmmo(p: Player, k: string, cost: number) { const a = p.ammo as Record<string, number>; a[k] = Math.max(0, a[k] - cost); }
   isReady(p: Player, id: SkillId) { const s = p.skills[id]; return this.equipped(p, id) && p.ammo[this.ak(p, id)] >= this.stats(id, s).need; }
-  isEmpty(p: Player, id: SkillId) { const s = p.skills[id]; return !this.equipped(p, id) || p.ammo[this.ak(p, id)] < this.stats(id, s).cost; }
+  isEmpty(p: Player, id: SkillId) { const s = p.skills[id]; return !this.equipped(p, id) || p.ammo[this.ak(p, id)] < this.stats(id, s).need; }
   /** next berry for the shotgun: manual = the next one that has ammo for a shot; auto (selected one empty) the same */
   nextBerry(p: Player) {
-    const need = this.stats('blue', p.skills.blue).cost, L = this.berries, i0 = L.indexOf(p.berry);
+    const need = this.stats('blue', p.skills.blue).need, L = this.berries, i0 = L.indexOf(p.berry);
     if (i0 < 0 && L.length) { p.berry = L[0]; return; }
     for (let k = 1; k < L.length; k++) { const b = L[(i0 + k) % L.length]; if (p.ammo[b] >= need) { p.berry = b; this.emit({ k: 'berry', p: p.id }); return; } }
   }
@@ -1143,12 +1148,11 @@ export class Sim {
   removeEnemy(e: Enemy) { e.dead = true; const i = this.enemies.indexOf(e); if (i >= 0) this.enemies.splice(i, 1); for (const fr of e.carry) { const j = this.fruits.indexOf(fr); if (j >= 0) this.fruits.splice(j, 1); } e.carry = []; }
   nearestEnemy(x: number, z: number, r: number) { let b: Enemy | null = null, bd = r; for (const e of this.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - x, e.z - z); if (d < bd) { bd = d; b = e; } } return b; }
 
-  aimDir(p: Player, range: number, useIntent = true): [number, number] {
+  /** 27.11.2026 (Basti): no auto-aim any more. PC: the mouse direction (intent aim); touch: where the player looks (p.face) */
+  aimDir(p: Player, _range: number, useIntent = true): [number, number] {
     const it = p.intent;
     if (useIntent && it.aim) { const l = Math.hypot(it.ax, it.az); if (l > .01) return [it.ax / l, it.az / l]; }
-    const n = this.nearestEnemy(p.x, p.z, range + 1.5);
-    if (n) { const dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; }
-    return [p.aimX, p.aimZ];
+    return [Math.sin(p.face), Math.cos(p.face)];
   }
   /** rake hit: a sphere overlap at the end of the push. The rake model is only the animation; the damage comes from a
    *  circle between the point where the pull ends and the full reach (diameter = that distance, upgradable) */
@@ -1193,12 +1197,10 @@ export class Sim {
     p.swing = this.rakeTime(p); p.rakeHit = true;
     this.snd('rake');
   }
-  /** live stroke direction: explicit aim (mouse / aim stick) > nearest enemy in reach > movement > last direction */
+  /** live stroke direction: explicit aim (mouse) > movement > last direction (27.11.2026: no auto-aim at the nearest enemy) */
   rakeDir(p: Player): [number, number] {
     const it = p.intent;
     if (it.aim) { const l = Math.hypot(it.ax, it.az); if (l > .01) return [it.ax / l, it.az / l]; }
-    const n = this.nearestEnemy(p.x, p.z, this.rakeStats(p).range + 1.5);
-    if (n) { const dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; }
     const ml = Math.hypot(it.mx, it.mz); if (ml > .05) return [it.mx / ml, it.mz / ml];
     return [p.aimX, p.aimZ];
   }
@@ -1475,7 +1477,7 @@ export class Sim {
   fireSkill(p: Player, id: SkillId, dx: number, dz: number) {
     if (p.skills[id].combo) return this.fireCombo(p, id, dx, dz);
     const s = p.skills[id], st = this.stats(id, s), S = this.cfg.skills;
-    p.ammo[this.ak(p, id)] -= st.cost; s.cdT = st.cd; p.face = Math.atan2(dx, dz); p.handT = .9; // another weapon in the hand: rake put away
+    this.useAmmo(p, this.ak(p, id), st.cost); s.cdT = st.cd; p.face = Math.atan2(dx, dz); p.handT = .9; // another weapon in the hand: rake put away
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
     if (id !== 'chili' && id !== 'wall' && id !== 'sack') this.emit({ k: 'shot', p: p.id, w: id, x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) }); // flame: drawn continuously from the player snapshot; wall: event wallPut
     if (id === 'asp') {
@@ -1651,7 +1653,7 @@ export class Sim {
   }
   /** one asparagus bolt from the crossbow; follow = later bolt of a salvo (pays its own ammo, own muzzle event) */
   aspBolt(p: Player, dx: number, dz: number, st: SkillStats, follow: boolean) {
-    if (follow) { p.ammo.asp -= st.cost; p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; }
+    if (follow) { this.useAmmo(p, 'asp', st.cost); p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; }
     const fx = p.x + dx * .35, fy = .75, fz = p.z + dz * .35;
     if (follow) this.emit({ k: 'shot', p: p.id, w: 'asp', x: r2(fx), z: r2(fz), a: r2(Math.atan2(dx, dz)) });
     this.snd('asp'); p.xbT = .9;
@@ -1750,7 +1752,7 @@ export class Sim {
       case 'kimchi': o.range = C.throwDistance; o.tick = chTick(C.poolTick); break;
       case 'chilight': o.width = C.width * (1 + .2 * k('chili_sweep')); o.shock = C.shockDamage + .1 * k('lemon_xfer'); o.shockR = CB.shock.radius + .2 * k('lemon_tgt'); o.shockTick = chTick(CB.shock.tick); break;
     }
-    o.need = Math.ceil(S.readySeconds / o.cd - 1e-9) * o.cost * o.shots;
+    o.need = this.minAmmo(cid, o.cost); // 27.11.2026: no minimum ammo any more
     return o;
   }
   /** thrown weapons aim at a throw distance instead of their range */
@@ -1781,7 +1783,7 @@ export class Sim {
   /** fire a combo weapon (called through fireSkill of its main weapon) */
   fireCombo(p: Player, id: SkillId, dx: number, dz: number) {
     const s = p.skills[id], cs = this.comboStats(s), C = this.CB.list[cs.cid], a = Math.atan2(dx, dz);
-    p.ammo[id] -= cs.cost; s.cdT = cs.cd; p.face = a; p.handT = .9; p.cwT = 1.1; p.cwId = cs.cid;
+    this.useAmmo(p, id, cs.cost); s.cdT = cs.cd; p.face = a; p.handT = .9; p.cwT = 1.1; p.cwId = cs.cid;
     const fx = p.x + dx * .45, fy = .78, fz = p.z + dz * .45;
     this.emit({ k: 'cshot', p: p.id, c: COMBOS.indexOf(cs.cid), x: r2(fx), z: r2(fz), a: r2(a) });
     const proj = (kind: ProjKind, ang: number, o: Partial<Proj>) => this.projs.push({ id: this.nid++, kind, x: fx, y: fy, z: fz, dx: Math.sin(ang), dz: Math.cos(ang), speed: 12, left: cs.range, total: cs.range, dmg: cs.dmg, pierceLeft: 0, pf: 1, mine: 0, w: .1, hit: new Set(), cs, ...o });
@@ -1816,7 +1818,7 @@ export class Sim {
   }
   /** Jam-Bow bolt (salvo like the crossbow) */
   jamBolt(p: Player, dx: number, dz: number, cs: ComboStats, follow: boolean) {
-    if (follow) { p.ammo.asp -= cs.cost; p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; p.cwT = 1.1; this.emit({ k: 'cshot', p: p.id, c: COMBOS.indexOf('jam'), x: r2(p.x + dx * .45), z: r2(p.z + dz * .45), a: r2(Math.atan2(dx, dz)) }); }
+    if (follow) { this.useAmmo(p, 'asp', cs.cost); p.face = Math.atan2(dx, dz); p.aimX = dx; p.aimZ = dz; p.cwT = 1.1; this.emit({ k: 'cshot', p: p.id, c: COMBOS.indexOf('jam'), x: r2(p.x + dx * .45), z: r2(p.z + dz * .45), a: r2(Math.atan2(dx, dz)) }); }
     this.snd('asp');
     const C = this.CB.list.jam;
     this.projs.push({ id: this.nid++, kind: 'jam', x: p.x + dx * .45, y: .78, z: p.z + dz * .45, dx, dz, speed: C.speed, left: cs.range, total: cs.range, dmg: cs.dmg, pierceLeft: 0, pf: 1, mine: 0, w: cs.width, hit: new Set(), r: cs.radius, b: cs.blast, cs });
@@ -2730,7 +2732,7 @@ export class Sim {
     if (chg) {
       if (!p.chW) { if (this.canFire(p, chg) && p.skills[chg].cdT <= 0) { p.chW = chg; p.chT = 0; p.chAim = false; } }
       else p.chT += dt * sf;
-      if (p.chW) { p.skills[chg].firing = true; if (it.aim) p.chAim = true; p.face = Math.atan2(p.aimX, p.aimZ); }
+      if (p.chW) { p.skills[chg].firing = true; if (it.aim) { p.chAim = true; p.face = Math.atan2(p.aimX, p.aimZ); } }
     } else if (fw) {
       if (fw === 'rake') { if (p.rakeCd <= 0) { const d = this.aimDir(p, this.rakeStats(p).range); this.rakeAttack(p, d[0], d[1]); } }
       else this.tryFire(p, fw);

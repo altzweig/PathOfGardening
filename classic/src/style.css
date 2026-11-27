@@ -1415,3 +1415,56 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 #seedToast{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:999px;background:#0b1206e8;border:1.5px solid #9fe060;box-shadow:0 0 18px #9fe06066;pointer-events:none;animation:seedT 2.6s ease forwards;z-index:30}
 #seedToast i{display:block;width:34px;height:34px}#seedToast i svg{width:100%;height:100%;display:block}
 @keyframes seedT{0%{opacity:0;transform:translate(-50%,-10px) scale(.8)}12%{opacity:1;transform:translate(-50%,0) scale(1.08)}20%{transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-6px)}}
+
+/* ---- 27.11.2026 Dünger (Kompostierer), Wildpilze im Vorrat, Truhen-Ausbau ---- */
+.rtFertGrid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:14px 12px 10px}
+.rtFert{--p:0;position:relative;display:flex;align-items:flex-start;gap:10px;width:300px;max-width:100%;box-sizing:border-box;padding:9px 12px 14px 9px;border-radius:14px;border:1.5px solid #4a5560;background:linear-gradient(180deg,#1d262e,#10161c);color:#efe3c8;text-align:left;cursor:pointer;pointer-events:auto;font:600 13px var(--f-body)}
+.rtFert:hover{border-color:#efe3c8}
+.rtFert.can{border-color:#9fe06099}
+.rtFert.on{border-color:#c8ff80;box-shadow:0 0 0 2px #9fe06055,0 0 18px #9fe06066;cursor:default}
+.rtFert.max{opacity:.75;cursor:default;border-color:#e3b96488}
+.rtFert.deny{animation:rtDeny .35s ease}
+.rtFertIc{position:relative;flex:none;width:52px;height:52px;border-radius:12px;background:#0b1016;border:1px solid #2c3640;display:grid;place-items:center}
+.rtFertIc>svg{width:76%;height:76%;display:block;filter:drop-shadow(0 2px 2px #000)}
+.rtFert.lk .rtFertIc>svg{filter:grayscale(.8) brightness(.8)}
+.rtFertBag{position:absolute;left:-6px;bottom:-6px;width:24px;height:24px;display:block}.rtFertBag svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 2px #000)}
+.rtFertTx{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.rtFertTx>b{font:700 15px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtFertLv{display:flex;align-items:center;gap:3px}
+.rtFertLv u{display:block;width:13px;height:7px;border-radius:3px;background:#2a333c;box-shadow:inset 0 0 0 1px #0008;text-decoration:none}
+.rtFertLv u.f{background:linear-gradient(180deg,#c8ff80,#7fc83a);box-shadow:0 0 5px #9fe06088}
+.rtFertLv em{display:flex;align-items:center;gap:3px;margin-left:6px;font:700 12px var(--f-body);font-style:normal;color:#c8ff80;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rtFertLv em svg{width:14px;height:14px;display:block}
+.rtFertRec{display:flex;flex-wrap:wrap;gap:6px 10px}
+.rtFm{display:grid;grid-template-columns:26px auto;grid-template-rows:auto auto;column-gap:5px;align-items:center;color:#ff9a8a}
+.rtFm i{grid-row:1/3;display:block;width:26px;height:26px}.rtFm i svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 2px #000)}
+.rtFm b{font:700 13px/1.1 var(--f-body);font-variant-numeric:tabular-nums}
+.rtFm small{font:600 10.5px/1.1 var(--f-body);color:#9aa4ae;white-space:nowrap}
+.rtFm.ok{color:#c8ff80}
+.rtFert .rtBar{left:14px;right:14px;bottom:5px}
+.rtFert .rtBar::after{background:linear-gradient(90deg,#9fe060,#e8ff9a);box-shadow:0 0 6px #9fe060}
+.rtFert:not(.on) .rtBar{display:none}
+.rtTabFert small{color:#c8ff80}
+.rtLock.rtSeed .rtFert{box-shadow:0 6px 24px #000a}
+@media (max-width:720px),(max-height:520px){
+  .rtFertGrid{gap:7px;padding:8px 6px 6px}
+  .rtFert{width:232px;padding:7px 9px 12px 7px;gap:8px}
+  .rtFertIc{width:42px;height:42px}
+  .rtFertTx>b{font-size:13px}
+  .rtFm small{display:none}
+  .rtFm{grid-template-columns:22px auto}.rtFm i{width:22px;height:22px}
+}
+#res .shr{display:grid;grid-template-columns:repeat(2,auto);gap:2px 8px;margin-top:5px;justify-content:end}
+#res .shr .ri{justify-content:flex-end;gap:3px}
+#res .shr .ri span{min-width:1.3em}
+#res .shr .ri svg{width:19px;height:19px}
+#res .shr .ri.pop{animation:shrPop .45s ease}
+@keyframes shrPop{0%{transform:scale(1.6);opacity:1}100%{transform:scale(1)}}
+.wchip{position:absolute;left:0;top:0;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:9px;background:rgba(14,18,12,.72);box-shadow:0 1px 4px rgba(0,0,0,.5);will-change:transform;font:700 12px var(--f-body);color:#efe3c8;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.wchip i{display:block;width:20px;height:20px;flex:none}.wchip i svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 1px #000)}
+.wchip s{position:relative;display:block;width:54px;height:5px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden;text-decoration:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}
+.wchip s u{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#9fe060,#e8ff9a);text-decoration:none}
+.wchip .m{display:flex;align-items:center;gap:2px;color:#ff9a8a}.wchip .m.ok{color:#c8ff80}
+.wchip.chestUp s u{background:linear-gradient(90deg,#e3b964,#fff0b8)}
+.wchip .fi{position:relative;width:24px;height:24px}.wchip .fi>svg{width:100%;height:100%;display:block}.wchip .fi i{position:absolute;left:-5px;bottom:-5px;width:14px;height:14px}
+@media (max-width:720px),(max-height:520px){.wchip{font-size:11px;padding:3px 6px;gap:4px}.wchip i{width:17px;height:17px}.wchip s{width:40px}}

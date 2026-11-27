@@ -1,9 +1,9 @@
-import { AMMO_OF, BERRIES, COMBOS, FRUITS, ammoPool, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
+import { AMMO_OF, BERRIES, COMBOS, FRUITS, MUSHROOMS, ammoPool, isBuilding, SKILLS, SkillId, WEAPONS, Weapon } from '../config';
 /** fruit shown as a weapon's ammo (25.11.2026: shared pools, Schrotflinte = Weizen, Steinkohle = Kohl) */
 const ammoFruit = (id: SkillId) => { const p = ammoPool(id); return AMMO_OF[p] ?? p; };
 import type { Snap } from '../sim/snap';
 import { play, sfx } from '../audio';
-import { comboIcon, fruitIcon, iconText, mini, pic, skillIcon } from './icons';
+import { comboIcon, fruitIcon, iconText, mini, mushIcon, pic, skillIcon } from './icons';
 import type { Offer } from '../sim/snap';
 import { Orbs } from './orbs';
 import { SLOT_ACTS, keyLabel, keys as KB } from '../input/keys';
@@ -139,12 +139,15 @@ export class Hud {
     const have: string[] = s.fi.map(f => FRUITS[f[1]] as string).filter(t => !isBuilding(t as any)); // 23.11.2026 wheat = Körner-MP ammo too // 23.11.2026: blueberries are shotgun ammo too
     for (const k of SKILLS) { const t = AMMO_OF[k]; if (t && (pr.sl || []).includes(SKILLS.indexOf(k))) have.push(t); } // Mehlsack / Spiegeleischleuder / Eierschleuder: their goods are ammo now
     (pr.iv || []).forEach((n, i) => { if (n > 0) have.push(FRUITS[i]); });
-    const key = [...new Set(have)].join(',');
+    const shr = (s.sm ?? []).map((n, i) => n > 0 ? i : -1).filter(i => i >= 0); // 27.11.2026 the team's wild mushrooms: icon + count, two columns
+    const key = [...new Set(have)].join(',') + '|' + shr.join(',');
     if (key !== this.resKey) {
-      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="ri${(SKILLS as string[]).includes(t) ? '' : ' bag'}"><span data-r="${t}">0</span>${fruitIcon(t)}<b>${this.names[t] ?? ''}</b></div>`).join('');
-      for (const k in this.cache) if (k.startsWith('r_')) delete this.cache[k];
+      this.resKey = key; $('#res').innerHTML = [...new Set(have)].map(t => `<div class="ri${(SKILLS as string[]).includes(t) ? '' : ' bag'}"><span data-r="${t}">0</span>${fruitIcon(t)}<b>${this.names[t] ?? ''}</b></div>`).join('')
+        + (shr.length ? `<div class="shr">${shr.map(i => `<div class="ri"><span data-m="${i}">0</span>${mushIcon(MUSHROOMS[i])}</div>`).join('')}</div>` : '');
+      for (const k in this.cache) if (k.startsWith('r_') || k.startsWith('m_')) delete this.cache[k];
     }
     document.querySelectorAll<HTMLElement>('#res [data-r]').forEach(el => { const r = SKILLS.find(k => AMMO_OF[k] === el.dataset.r && pr.ln[SKILLS.indexOf(k)]) ?? el.dataset.r /* 26.11.2026 Mehl: ammo of the learned weapon (Mehlsäcke or Mehlsack) */, i0 = SKILLS.indexOf(r as any), i = i0 >= 0 && (pr.ln[i0] || !AMMO_OF[r as SkillId]) ? i0 : -1; /* Mehl / Spiegeleier: ammo once their weapon is learned, else in the bag */ const v = String(el.dataset.r === 'nut' ? pr.nu ?? 0 : i >= 0 ? pr.am[i] : pr.iv?.[FRUITS.indexOf(el.dataset.r as any)] ?? 0); if (this.cache['r_' + el.dataset.r] !== v) { this.cache['r_' + el.dataset.r] = v; el.textContent = v; } });
+    document.querySelectorAll<HTMLElement>('#res [data-m]').forEach(el => { const v = String(s.sm?.[+el.dataset.m!] ?? 0), ck = 'm_' + el.dataset.m; if (this.cache[ck] !== v) { const up = this.cache[ck] !== undefined && +v > +this.cache[ck]; this.cache[ck] = v; el.textContent = v; if (up) { const r = el.parentElement!; r.classList.remove('pop'); void r.offsetWidth; r.classList.add('pop'); } } });
     const fx = (ps.po ? `<div class="chip">${mini('poison')}<span>${ps.po}</span></div>` : '') + (ps.st ? `<div class="chip">${mini('stun')}</div>` : '');
     this.set('#statusfx', 'fx', fx, true);
     const mates = s.pl.filter(p => p.id !== me).map(p => `<span class="mate" style="background:${PLAYER_CSS[p.c % 4]};opacity:${p.al ? 1 : .3}"></span>`).join('');

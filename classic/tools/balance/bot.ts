@@ -3,7 +3,7 @@
 import { Sim } from '../../src/sim/sim';
 import { isBuilding, Balancing, SkillId, ammoPool } from '../../src/config';
 import { emptyIntent } from '../../src/sim/snap';
-import { nodeAvailable, rNodes, seedTarget } from '../../src/sim/research';
+import { fertAfford, fertLv, fertMax, fertOpen, fertRecipe, fertTarget, nodeAvailable, rNodes, treeOpen } from '../../src/sim/research';
 
 export interface BotOpts { start?: string; old?: boolean; infAmmo?: boolean; weapons: 1 | 2; second?: SkillId; seconds?: SkillId[]; focus?: 'weapons' | 'main' | 'fields'; seedLog?: boolean; dt?: number; maxTime?: number; /** stop after this wave (debuff tests: early/mid game only) */ stopWave?: number; /** 24.11.2026 weapon test: fight ONLY with this weapon (learned at the start + one field of it next to the start field; 'blue' = shotgun with an extra berry field) */ solo?: SkillId; /** 26.11.2026 false: never research Forschungstempo */ rsSpeed?: boolean }
 export interface RunResult {
@@ -36,6 +36,7 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
     const ns = rNodes(cfg).filter(n => nodeAvailable(cfg, sim.rs, n.id)), own = new Set(learned().map(w => ammoPool(w) as string));
     const left = rNodes(cfg).filter(n => n.kind !== 'speed' && !nodeAvailable(cfg, sim.rs, n.id) && !sim.rs.done.includes(n.id) && !n.start).length + ns.filter(n => n.kind !== 'speed').length;
     const sc = (n: typeof ns[number]) => n.kind === 'speed' ? (o.rsSpeed === false ? -1 : left >= 4 && sim.rs.speedLv * 3 < sim.rs.done.length ? 2.5 : -1)
+      : n.ref === 'compost' ? (sim.wave >= +(process.env.BOT_SEED ?? 4) - 1 ? 2.8 : .9) // 27.11.2026 Kompostierer: before the next field (no new tree without Dünger)
       : n.kind === 'building' || n.ref === 'sack' || n.ref?.startsWith('sack_') ? -1 // 26.11.2026 the bot does not build mills / lay sacks
       : n.kind === 'upgrade' && n.ref?.startsWith('fld_') ? (own.has(n.ref.slice(4)) || n.ref.slice(4) === 'pea' ? +(process.env.BOT_FLD ?? 1.6) - (n.lv ?? 1) * .05 : .3) // 26.11.2026 Feld-Upgrades of its ammo fields
       : n.kind === 'upgrade' ? (n.ref?.startsWith('wall_') ? .2 : (+(process.env.BOT_UP ?? 1.2)) + (n.ref?.endsWith('_dmg') ? .5 : n.ref?.endsWith('_cd') ? .3 : 0) - (n.lv ?? 1) * .05) // 26.11.2026 Einzelbäume: upgrades of the weapons it has
@@ -170,6 +171,19 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
       let rf = null as any; if (low) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && (rsMode ? pools.has(f.type) : want.has(f.type))) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rf = f; } } }
       // research mode: between fights every ripe ammo field below the cap is harvested before hammering at the bench
       let rh = null as any; if (rsMode && !tgt) { let rd = 1e9; for (const f of sim.fields) if (ripe(f) && pools.has(f.type) && (p.ammo as any)[f.type] < AMMO_CAP) { const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < rd) { rd = d; rh = f; } } }
+      // 27.11.2026 Dünger: the fertilizer in work (the next locked tree; all open: more harvest for its ammo fields) and the nearest mushroom its recipe lacks
+      const comp = rsMode ? sim.compostField() : null; let fTg: string | null = null, shNeed = null as any, fetchNow = false;
+      if (comp) {
+        const wave = Math.floor(sim.wave / +(process.env.BOT_SEED ?? 4)) + 1, T = cfg.research!.trees ?? [], openN = T.filter(t => treeOpen(cfg, sim.rs, t.id)).length;
+        const O = fertOpen(cfg, sim.rs), nextLock = O.find(t => !treeOpen(cfg, sim.rs, t));
+        const big = rNodes(cfg).some(n => (n.kind === 'field' || (n.kind === 'weapon' && n.ref !== 'wall' && !n.ref?.startsWith('sack') && !pools.has(ammoPool(n.ref as SkillId)))) && nodeAvailable(cfg, sim.rs, n.id)); // first use what the open trees hold
+        const tgLock = nextLock && openN < wave && !big ? nextLock : null; // a new tree every few waves ...
+        // ... else more harvest for its ammo fields (BOT_FERT levels): composted when the mushrooms are there, fetched only with nothing to research
+        const tgYield = O.filter(t => treeOpen(cfg, sim.rs, t) && pools.has(T.find(x => x.id === t)!.icon) && fertLv(sim.rs, t) < Math.min(fertMax(cfg), +(process.env.BOT_FERT ?? 3))).sort((a, b) => fertLv(sim.rs, a) - fertLv(sim.rs, b))[0] ?? null;
+        fTg = tgLock ?? tgYield; fetchNow = !!tgLock || !sim.rs.cur;
+        if (fTg && fertTarget(cfg, sim.rs) !== fTg) sim.chooseSeed(p.id, T.findIndex(t => t.id === fTg));
+        if (fTg) { const lack = new Set(fertRecipe(cfg, fTg).filter(([i, n]) => (sim.shStock[i] ?? 0) < n).map(([i]) => i)); let bd = 1e9; for (const m of sim.shrooms) if (lack.has(m.k)) { const d = Math.hypot(m.x - p.x, m.z - p.z); if (d < bd) { bd = d; shNeed = m; } } }
+      }
       // 24.11.2026: the merchant is ready -> walk up to him while there is something to buy
       const mc = sim.merchant, visit = !!mc && mc.st === 1 && !p.shopLock && !!p.shop && p.shop.some(x => !x.sold && (x.cost ?? 1) <= p.ideas);
       if (visit) { go(mc!.x, mc!.z, 1); A = 'shop'; }
@@ -185,9 +199,11 @@ export function runBot(cfg: Balancing, o: BotOpts): RunResult {
         go(close.x, close.z, .9); it.fire = sec === 'cab' && Math.hypot(p.x - mineX, p.z - mineZ) > 2 ? 'cab' : 'rake'; if (it.fire === 'cab') { mineX = p.x; mineZ = p.z; }
       } else if (fb && fd < (rsMode && sim.rs.cur && !sim.rs.ready && !low ? RS_FETCH : 6)) { go(fb.x, fb.z, .05); A = 'collect'; }
       else if (rh) { A = 'harvest'; const d = Math.hypot(rh.x - p.x, rh.z - p.z); if (d > .4) go(rh.x, rh.z, .2); it.fire = 'rake'; }
-      else if (rsMode && sim.chestAtk && (sim.chestHp < sim.chestMax * +(process.env.BOT_HEAL ?? .7) || (!!seedTarget(cfg, sim.rs) && (!sim.rs.cur || sim.rs.trees.length < Math.floor(sim.wave / +(process.env.BOT_SEED ?? 4)))))) { // 26.11.2026 Truhe: repair it, or search seeds for the next tree
-        A = sim.chestHp < sim.chestMax ? 'chestHeal' : 'seed'; go(0, 0, 1.0); it.fire = 'rake';
-      }
+      else if (rsMode && sim.chestAtk && sim.chestHp < sim.chestMax * +(process.env.BOT_HEAL ?? .7)) { A = 'chestHeal'; go(0, 0, 1.0); it.fire = 'rake'; } // 26.11.2026 Truhe: repair it
+      // 27.11.2026 Dünger: mushrooms are there -> compost; a mushroom the recipe still needs stands at the rim -> fetch it (rake stroke)
+      else if (comp && fTg && fertAfford(cfg, sim.shStock, fTg)) { A = 'compost'; go(comp.x, comp.z, 1.2); it.fire = 'rake'; }
+      else if (shNeed && !tgt && fetchNow) { A = 'shroom'; const d = Math.hypot(shNeed.x - p.x, shNeed.z - p.z); if (d > .7) go(shNeed.x, shNeed.z, .5); else it.fire = 'rake'; if (d < 1.4) { it.aim = true; it.ax = shNeed.x - p.x; it.az = shNeed.z - p.z; } }
+      else if (rsMode && sim.chestAtk && !tgt && cfg.chest?.upgrade && sim.chestLv < Math.floor(sim.wave / +(process.env.BOT_CHUP ?? 4)) && sim.chestHp >= sim.chestMax) { A = 'chestUp'; go(0, 0, 1.0); it.fire = 'rake'; } // Truhen-Ausbau: one level every few waves
       else if (rsMode && sim.rs.cur) { A = 'bench'; // 25.11.2026 research: hammer at the bench (hold the harvest action), or walk into it to pick up the finished idea
         const b = sim.benchCircle()!; go(b.x, b.z, sim.rs.ready ? .3 : 1.0); if (!sim.rs.ready) it.fire = 'rake';
       }

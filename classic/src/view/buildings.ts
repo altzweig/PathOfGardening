@@ -7,6 +7,7 @@ import { JUICE_HEX, juiceBottle } from './models';
 import { buildingSound } from '../audio';
 import { friedEgg } from './eggfx';
 import { hexGeo } from './beds';
+import { mushMesh } from './mushrooms';
 import { BOTTLE_SPOUT, EGG_POS } from '../sim/sim';
 import { CHEST_BASE, CHEST_LID, CHEST_MATS, CHEST_PIVOT, type ChestChunk } from './chestModel';
 
@@ -352,7 +353,39 @@ function kitchen(g: THREE.Group, H: number) {
   };
 }
 
-const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean, wx?: number, wz?: number) => void> = { well, mill, press, bakery, hens, kitchen };
+/** 27.11.2026 Kompostierer: slatted wooden bin with a dark steaming heap, a pitchfork stuck in it and a few mushrooms growing out of the compost.
+ *  Working (someone composts): the heap heaves, the fork rocks, more steam and green spores. */
+function compost(g: THREE.Group, H: number) {
+  pad(g, H);
+  const W = .62, D = .52, HT = .62;
+  for (const [x, z] of [[-W, -D], [W, -D], [-W, D], [W, D]]) part(g, GEO.box, WOOD_D, .09, HT + .12, .09, x, (HT + .12) / 2, z);
+  for (let i = 0; i < 4; i++) { // slats with gaps: back and both sides full height, the front only two boards (open to shovel)
+    const y = .12 + i * .15, mat = i % 2 ? WOOD : WOOD_L;
+    part(g, GEO.box, mat, W * 2, .11, .035, 0, y, -D).rotation.z = (i - 1.5) * .012;
+    part(g, GEO.box, mat, .035, .11, D * 2, -W, y, 0); part(g, GEO.box, mat, .035, .11, D * 2, W, y, 0);
+    if (i < 2) part(g, GEO.box, mat, W * 2, .11, .035, 0, y, D).rotation.z = (1 - i) * .02;
+  }
+  const EARTH = M(0x3a2a1c, { flat: false, r: 1 }), EARTH_L = M(0x57402a, { flat: false, r: 1 }), LEAF = M(0x6f8a34), PEEL = M(0xc8862e);
+  const heap = new THREE.Group(); g.add(heap);
+  part(heap, GEO.sph, EARTH, .56, .42, .46, 0, .3, 0);
+  part(heap, GEO.sph, EARTH_L, .3, .2, .26, .2, .58, -.08); part(heap, GEO.sph, EARTH, .26, .18, .24, -.24, .52, .1);
+  for (let i = 0; i < 9; i++) { const a = rand(0, 7), r = rand(.1, .42); const s = part(heap, GEO.lo, i % 3 ? LEAF : PEEL, rand(.05, .09), .02, rand(.04, .07), Math.cos(a) * r, .66 - r * .35 + rand(0, .04), Math.sin(a) * r * .8, false); s.rotation.set(rand(-.4, .4), rand(0, 7), rand(-.4, .4)); }
+  // mushrooms growing out of the heap (the game's own kinds, small)
+  for (const [k, x, y, z, s] of [['champ', -.3, .6, .22, .5], ['pfiff', .34, .62, .16, .45], ['flieg', .05, .7, -.2, .42]] as const) { const m = mushMesh(k); m.position.set(x, y, z); m.scale.setScalar(s); m.rotation.y = rand(0, 7); heap.add(m); }
+  // pitchfork stuck into the heap
+  const fork = new THREE.Group(); fork.position.set(-.08, .62, .05); fork.rotation.set(.18, 0, -.32); g.add(fork);
+  part(fork, GEO.cyl, WOOD_L, .028, 1.0, .028, 0, .5, 0); part(fork, GEO.box, IRON, .2, .03, .03, 0, 0, 0);
+  for (const x of [-.09, -.03, .03, .09]) part(fork, GEO.box, IRON, .018, .22, .018, x, -.11, 0);
+  let k = 0, t = 0, st = 0;
+  return (dt: number, _n: number, working: boolean, broken: boolean) => {
+    k += ((working && !broken ? 1 : 0) - k) * Math.min(1, dt * 5); t += dt * (1 + k * 3);
+    heap.scale.set(1 + Math.sin(t * 3) * .02 * k, 1 + Math.sin(t * 6) * .05 * k, 1 + Math.cos(t * 3) * .02 * k);
+    fork.rotation.z = -.32 + Math.sin(t * 6) * .12 * k; fork.position.y = .62 + Math.abs(Math.sin(t * 6)) * .06 * k;
+    st -= dt; if (!broken && st <= 0) { st = working ? rand(.05, .12) : rand(.5, 1.1); const wp = g.getWorldPosition(V());
+      PART.spawn(V(wp.x + rand(-.3, .3), rand(.75, .95), wp.z + rand(-.25, .25)), V(rand(-.08, .08), rand(.25, .5), rand(-.08, .08)), working && Math.random() < .4 ? 0x9fe060 : 0xd8d2c0, rand(.08, .16), rand(.8, 1.4), { s1: 2.2, a: working ? .45 : .22 }); }
+  };
+}
+const MAKERS: Record<BuildingType, (g: THREE.Group, H: number) => (dt: number, now: number, working: boolean, broken: boolean, wx?: number, wz?: number) => void> = { well, mill, press, bakery, hens, kitchen, compost };
 void cow; void dairy; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Modelle bleiben fürs Wiedereinbauen)
 
 /** Lager-Truhe (23.11.2026): big wooden chest with iron bands on an earth hex in the garden centre; the lid opens a crack

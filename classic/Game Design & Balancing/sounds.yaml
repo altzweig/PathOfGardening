@@ -167,6 +167,14 @@ chest:
   # 26.11.2026 Tiere greifen die Truhe an (prozedural)
   hit:   { synth: chestHit, svol: 0.7, gap: 0.09 }      # Schlag auf die Truhe
   break: { synth: chestBreak, svol: 1.0, gap: 1 }       # Truhe zerstört = verloren
+  upgrade: { synth: chestUp, svol: 0.9, gap: 0.5 }      # 27.11.2026 Truhe ausgebaut (+25 % Leben)
+
+mushroom:
+  # 27.11.2026 Wildpilze (prozedural)
+  pick:  { synth: shroomPick, svol: 0.9, gap: 0.05 }    # Pilz geerntet
+
+compost:
+  done:  { synth: compostDone, svol: 1.0, gap: 0.5 }    # Dünger fertig
 
 mycel:
   # 26.11.2026 Myzel-XP und Myzellen (prozedural)

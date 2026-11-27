@@ -78,7 +78,7 @@ class Game {
     this.view.onSeed = tree => { // 26.11.2026 seed found at the chest: the new tree's fruit pops up briefly (no text)
       const T = this.view.cfg.research?.trees?.[tree]; if (!T) return;
       document.getElementById('seedToast')?.remove();
-      const el = document.createElement('div'); el.id = 'seedToast'; el.innerHTML = `<i>${mini('seed')}</i><i>${fruitIcon(T.icon)}</i>`;
+      const el = document.createElement('div'); el.id = 'seedToast'; el.innerHTML = `<i>${mini(this.view.cfg.compost ? 'fert' : 'seed')}</i><i>${fruitIcon(T.icon)}</i>`;
       $('#hud').appendChild(el); setTimeout(() => el.remove(), 2700);
     };
     this.input.onPause = () => { if (!$('#options').hidden && this.mode === 'idle') { this.closeOptions(); return; } if (this.building) { this.exitBuild(); return; } if (this.shop.open) { this.closeShop(); return; } if (this.myRo() > 0 && $('#pause').hidden && $('#options').hidden) { this.tree.onClose(); return; } this.togglePause(); };

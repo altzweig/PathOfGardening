@@ -6,7 +6,7 @@ export type SkillId = 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'blue' | 'flo
 export type Weapon = 'rake' | SkillId;
 /** crops (fields), buildings (processing tiles) and products: every tile type and every item that can lie on the ground */
 export type CropType = 'blue' | 'black' | 'asp' | 'cran' | 'cab' | 'lemon' | 'chili' | 'nut' | 'wheat' | 'pea'; // 25.11.2026 pea = Erbsenfeld
-export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitchen'; // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Basti)
+export type BuildingType = 'well' | 'mill' | 'press' | 'bakery' | 'hens' | 'kitchen' | 'compost'; // 27.11.2026 compost = Kompostierer (mushrooms -> fertilizer, makes nothing that lies around) // 23.11.2026 Kuh + Käserei vorerst ausgebaut (Basti)
 export type ProductType = 'flour' | 'water' | 'egg' | 'juice' | 'bread' | 'fegg'; // Milch + Käse vorerst ausgebaut
 export type FruitType = CropType | BuildingType | ProductType;
 export type EnemyType = 'raccoon' | 'panda' | 'toad' | 'sheep' | 'hedgehog' | 'squirrel';
@@ -22,12 +22,17 @@ export const WEAPONS: Weapon[] = ['rake', 'blue', 'asp', 'cran', 'cab', 'lemon',
 /** 25.11.2026: weapons that share the ammo pool of another weapon (p.ammo key): Weizen-Schrotflinte shoots the wheat of the MP, Steinkohle uses cabbage */
 export const AMMO_POOL: Partial<Record<SkillId, SkillId>> = { wshot: 'wheat', wall: 'cab' };
 export const ammoPool = (id: SkillId): SkillId => AMMO_POOL[id] ?? id;
-export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen'];
+export const BUILDINGS: BuildingType[] = ['well', 'mill', 'press', 'bakery', 'hens', 'kitchen', 'compost']; // compost appended 27.11.2026
 export const PRODUCTS: ProductType[] = ['flour', 'water', 'egg', 'juice', 'bread', 'fegg'];
-export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', ...BUILDINGS, ...PRODUCTS, 'pea']; // pea appended 25.11.2026 (snapshot indices)
+export const FRUITS: FruitType[] = ['blue', 'black', 'asp', 'cran', 'cab', 'lemon', 'chili', 'nut', 'wheat', 'well', 'mill', 'press', 'bakery', 'hens', 'kitchen', ...PRODUCTS, 'pea', 'compost']; // pea appended 25.11.2026 (snapshot indices)
+/** 27.11.2026 Wildpilze: ten kinds growing at the edge of the area (index = snapshot index; rarity and spawn weight in balancing mushrooms.kinds) */
+export const MUSHROOMS = ['champ', 'stein', 'pfiff', 'flieg', 'tint', 'lila', 'glimm', 'krake', 'schleim', 'stern'] as const;
+export type MushId = typeof MUSHROOMS[number];
+export type MushRarity = 'common' | 'uncommon' | 'rare' | 'epic';
+export const MUSH_RARITIES: MushRarity[] = ['common', 'uncommon', 'rare', 'epic'];
 export const isBuilding = (t: FruitType | null | undefined): t is BuildingType => !!t && (BUILDINGS as string[]).includes(t);
 /** one building: source (interval: makes one item every x s by itself) or processor (needs/needsAny -> makes, time s) */
-export interface BuildingCfg { minLevel?: number; makes: ProductType; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; /** items per finished batch (Spiegeleierei: 3) */ amount?: number; /** hens: eggs are stacked into a square pyramid of so many layers next to the coop (instead of lying scattered) */ stack?: number; buffer?: number; hp?: number; /** Brunnen (23.11.2026): production bonus of every crop field per well level 1/2/3 (best well counts) */ cropBonus?: number[] }
+export interface BuildingCfg { minLevel?: number; makes: ProductType | 'compost'; interval?: number; needs?: Partial<Record<FruitType, number>>; needsAny?: FruitType[]; count?: number; time?: number; /** items per finished batch (Spiegeleierei: 3) */ amount?: number; /** hens: eggs are stacked into a square pyramid of so many layers next to the coop (instead of lying scattered) */ stack?: number; buffer?: number; hp?: number; /** Brunnen (23.11.2026): production bonus of every crop field per well level 1/2/3 (best well counts) */ cropBonus?: number[] }
 /** item on the ground: xp when picked up (x xp.gain), heal = player HP, ammo = goes into the player's bag (feed buildings) */
 export interface ItemCfg { xp?: number; heal?: number }
 /** fruit that is ammo for a weapon (nut and blueberry are not) */
@@ -80,7 +85,7 @@ export interface EnemyCfg {
 export interface ResearchNode { id: string; kind: 'field' | 'building' | 'weapon' | 'upgrade' | 'speed'; /** 26.11.2026 upgrade ref fld_<fruit> = field upgrade (cycle time) */ ref?: string; segment: number; row: number; col: number; needs?: string[]; start?: boolean;
   /** 26.11.2026 Einzelbäume: the tree (tab) the node belongs to (research.trees id); upgrade: count = how many in a row (expanded into a chain id.1 .. id.count),
    *  after expanding: lv = place in the chain (1..count), chain = id of the yaml entry */
-  tree?: string; count?: number; lv?: number; chain?: string }
+  tree?: string; count?: number; lv?: number; chain?: string; /** 27.11.2026 own research time in s (instead of research.times of its kind) */ time?: number }
 /** 26.11.2026 one small tree per fruit: tab icon = fruit (icon), opens with the segment */
 export interface ResearchTree { id: string; icon: string; segment: number }
 /** segment rule: open once needFields fields and needWeapons weapons of the segments in `from` are researched (start nodes do not count) */
@@ -99,20 +104,28 @@ export interface ResearchCfg {
   upgradeCost?: number; upgradeGrowth?: number; upgradeCount?: number;
   /** 26.11.2026 (Basti) fixed research times in s (1 worker, before the level speed): weapon, field, building, weapon upgrade upgrade + upgradeStep x
    *  upgrades of that weapon already researched, field upgrade fieldUp + fieldUpStep x its level so far. Without: the old cost formula */
-  times?: { weapon: number; field: number; building: number; upgrade: number; upgradeStep: number; fieldUp: number; fieldUpStep: number };
+  times?: { weapon: number; field: number; building: number; upgrade: number; upgradeStep: number; fieldUp: number; fieldUpStep: number;
+    /** 27.11.2026 (Basti) flattening curves in whole seconds: n-th weapon upgrade of one weapon / n-th level of a field (the last value repeats); replace upgrade + upgradeStep / fieldUp + fieldUpStep */
+    upgradeList?: number[]; fieldUpList?: number[] };
   /** 26.11.2026 research speed +levelSpeed per character level above 1 (multiplies with Forschungstempo) */ levelSpeed?: number;
   /** 26.11.2026 Samen-Suche at the chest: every tree but the start tree starts locked; s of work = base + step x trees already found */
   seeds?: { base: number; step: number };
   /** buildings in research mode need other goods than in the xp flow (Bäckerei: only flour, no well) */ buildingNeeds?: Partial<Record<BuildingType, Partial<Record<FruitType, number>>>>;
 }
 export interface Balancing {
+  /** 27.11.2026 Wildpilze: pop up in the ring [r0, r1] m around the centre, one every interval s up to max at once (start of them from the beginning),
+   *  each stands life s; harvested with the rake (pick = m radius of a mushroom); weights = spawn weight per rarity (per kind) */
+  mushrooms?: { ring: [number, number]; interval: number; max: number; start: number; life: number; pick: number; weights: Record<MushRarity, number>; kinds: Record<MushId, { rarity: MushRarity }> };
+  /** 27.11.2026 Kompostierer: fertilizer per tree (recipes: mushrooms per level), made by working at the composter (work m from its centre; touch m: the panel opens),
+   *  times[level] s of work (last value repeats), up to max levels, each level +yield harvest of that plant; level 1 opens the tree */
+  compost?: { work: number; touch: number; times: number[]; max: number; yield: number; recipes: Record<string, Partial<Record<MushId, number>>> };
   /** 25.11.2026: 'research' = Werkbank-Techtree (no level-up cards, no ideas, no merchant, start: pea field + Erbsenpistole + bench), 'xp' = the old flow */
   progression?: 'xp' | 'research';
   research?: ResearchCfg;
   /** Cheat-Optionen (24.11.2026): ammo a weapon unlocked by cheat starts with */
   cheats?: { ammo?: number };
   names: { /** notification when the merchant comes (24.11.2026) */ merchant?: string; skills: Record<Weapon, string>; plants: Partial<Record<FruitType, string>>; fields: Partial<Record<FruitType, string>>; items?: Partial<Record<FruitType, string>>; tea: string; care: string; hints?: Record<string, string>; effects?: Partial<Record<Weapon, string>>; combos?: Partial<Record<ComboId, string>>; comboFx?: Partial<Record<ComboId, string>>;
-    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp' | 'building' | 'upgrade' | 'repair' | 'cost' | 'seed' | 'mycel', string>>; /** 26.11.2026 upgrade node names (offer key) */ upgrades?: Record<string, string> };
+    /** 25.11.2026 Techtree-UI: names in the panel / pickup popup (title, speed, kind labels, button, level) */ research?: Partial<Record<'title' | 'speed' | 'field' | 'weapon' | 'finish' | 'level' | 'hp' | 'building' | 'upgrade' | 'repair' | 'cost' | 'seed' | 'mycel' | 'fert' | 'yield', string>>; /** 27.11.2026 */ mushrooms?: Partial<Record<MushId, string>>; rarities?: Partial<Record<MushRarity, string>>; /** 26.11.2026 upgrade node names (offer key) */ upgrades?: Record<string, string> };
   player: { hp: number; speed: number; respawnBase: number; respawnPerDeath: number; pickupRadius: number; pickupPerTier: number; magnetRadius: number; magnetSpeed: number; /** s to draw the weapon from the back / put it back (24.11.2026) */ drawTime?: number;
     /** 24.11.2026 sprint (Shift) with stamina, energy shield before HP, enemy damage multiplier on players */
     sprint?: { speed: number; duration: number; regen: number; regenDelay: number; exhausted: number }; shield?: { hp: number; regen: number; regenDelay: number }; damageTaken?: number };
@@ -131,7 +144,8 @@ export interface Balancing {
   /** Lager-Truhe in the centre (23.11.2026): holds all resources of the players; raccoons steal from it (max thieves on a circle around it) */
   chest?: { radius: number; maxThieves: number; stealInterval: number; carryStart: number; carryPerWave: number; fleeSpeed: number; /** s a raccoon chases a player for its one attack before it goes to the chest (24.11.2026) */ attackFirst?: number;
     /** 26.11.2026 research mode: the animals want to destroy the chest (0 HP = lost). hp, regen HP/s by itself, heal HP/s per player working at it, work = m from the centre */
-    hp?: number; regen?: number; heal?: number; work?: number };
+    hp?: number; regen?: number; heal?: number; work?: number;
+    /** 27.11.2026 Ausbau: working at the whole chest fills a small bar (times[level] s, last value repeats); every fill +step x hp max HP (additive) */ upgrade?: { step: number; times: number[] } };
   /** forest slots outside the garden (only nut trees grow there) */
   forest?: { slots: number; radius: number; angleOffset: number; types: FruitType[] };
   fields: { /** 25.11.2026: false = no building onto a field of the same type (no tile levels); unique = every field type only once */ stacking?: boolean; unique?: boolean; hp: number; rarityHp: number; healPerSecond: number; tillHealField: number; tillHealPlayer: number; tillDuration: number; tillStroke: number; rarityNames: string[]; rarityCost: number[]; rarityProduction: number; neighborBonus: number; /** crop cycle s: grows grow s, then ripe; harvest s of active raking, then grows again */ cycle?: { harvest: number; grow: number; rakeGrow?: number; /** plants per field, one harvested per rake stroke (24.11.2026) */ plants?: number };

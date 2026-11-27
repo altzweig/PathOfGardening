@@ -7,7 +7,7 @@ const store = new Map<string, string>();
 (globalThis as any).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); }, removeItem: (k: string) => { store.delete(k); } };
 import { Sim } from '../../src/sim/sim';
 import { saveGame, loadGame } from '../../src/save';
-import { rNodes, seedCost, treeOpen } from '../../src/sim/research';
+import { rNodes, treeOpen } from '../../src/sim/research';
 
 let seed = 7; Math.random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 const cfg = YAML.parse(fs.readFileSync('Game Design & Balancing/balancing.yaml', 'utf8'));
@@ -20,21 +20,16 @@ const hold = (x: number, z: number, s: number) => { for (let i = 0; i < s * 30; 
 const T = cfg.research.times, cost = (id: string) => S.rsCostOf(id); // level 1, Forschungstempo 0
 ok(near(cost('f_wheat'), T.field), `neues Feld ${cost('f_wheat')} s`);
 ok(near(cost('w_wheat'), T.weapon), `neue Waffe ${cost('w_wheat')} s`);
-ok(near(cost('u_fld_pea.1'), T.fieldUp) && near(cost('u_fld_pea.3'), T.fieldUp + 2 * T.fieldUpStep), `Feld-Upgrade 1 / 3: ${cost('u_fld_pea.1')} / ${cost('u_fld_pea.3')} s`);
-const wu = rNodes(cfg).find(n => n.id.startsWith('u_pea_dmg'))!.id; ok(near(cost(wu), T.upgrade), `Waffen-Upgrade Stufe 0: ${cost(wu)} s`);
+ok(near(cost('u_fld_pea.1'), T.fieldUpList[0]) && near(cost('u_fld_pea.3'), T.fieldUpList[2]), `Feld-Upgrade 1 / 3: ${cost('u_fld_pea.1')} / ${cost('u_fld_pea.3')} s`);
+const wu = rNodes(cfg).find(n => n.id.startsWith('u_pea_dmg'))!.id; ok(near(cost(wu), T.upgradeList[0]), `Waffen-Upgrade Stufe 0: ${cost(wu)} s`);
 
-// trees start locked, seed search at the whole chest
+// trees start locked (27.11.2026: opened by Dünger, see duenger-test.ts); the chest only heals by work
 ok(!treeOpen(cfg, S.rs, 'wheat') && treeOpen(cfg, S.rs, 'pea'), 'nur Startbaum offen');
-ok(near(seedCost(cfg, S.rs), cfg.research.seeds.base), `Samen-Suche ${seedCost(cfg, S.rs)} s`);
-hold(0, 1, cfg.research.seeds.base + .5);
-ok(S.rs.trees.length === 1, `Samen gefunden: ${S.rs.trees}`);
-ok(near(seedCost(cfg, S.rs), cfg.research.seeds.base + cfg.research.seeds.step), `nächste Suche ${seedCost(cfg, S.rs)} s`);
-
-// chest: damage, regen, heal by work
 const idle = () => S.setIntent(p.id, { mx: 0, mz: 0, ax: 0, az: 1, aim: false, fire: null, tapSeq: p.lastTap, tapW: null, cycle: p.lastCycle });
-idle(); S.update(1 / 30); const sw0 = S.rs.sw; S.chestHp = 100; S.update(1); ok(near(S.chestHp, 100 + cfg.chest.regen, .2), `Truhe heilt selbst (${S.chestHp.toFixed(1)})`);
+idle(); S.update(1 / 30); S.chestHp = 100; S.update(1); ok(near(S.chestHp, 100, .01), `Truhe heilt nicht von selbst (${S.chestHp.toFixed(1)})`);
 const h0 = S.chestHp; hold(0, 1, 1); ok(S.chestHp - h0 > cfg.chest.heal * .9, `Arbeit heilt die Truhe (+${(S.chestHp - h0).toFixed(1)}/s)`);
-ok(S.rs.trees.length === 1 && S.rs.sw === sw0, 'keine Samen-Suche, solange die Truhe kaputt ist');
+ok(S.chestUp === 0, 'kein Ausbau, solange die Truhe kaputt ist');
+S.rs.fert.wheat = 1; S.rs.trees.push('wheat');
 
 // field upgrade: cycle x0.8
 const pea = S.fields.find((f: any) => f.type === 'pea'); const c0 = S.cycOf(pea);

@@ -373,6 +373,10 @@ const SYNTH_EXTRA: Record<string, (arg?: any) => void> = {
   /** the chest breaks: splintering wood, falling iron */
   chestBreak() { noise({ t: .8, vol: .3, type: 'lowpass', f: 1600, f2: 200 }); for (let i = 0; i < 6; i++) noise({ t: .05, vol: .12, type: 'bandpass', f: rand(1200, 3000), q: 3, when: i * rand(.05, .09) }); tone({ f: 90, f2: 35, t: .6, vol: .25 }); },
   /** a seed found: soft earthy pop + rising green sparkle */
+  // 27.11.2026 Wildpilze, Kompostierer, Truhen-Ausbau
+  shroomPick() { noise({ t: .05, vol: .1, type: 'lowpass', f: 700, at: .002 }); tone({ type: 'sine', f: 520, f2: 780, t: .09, vol: .08 }); tone({ type: 'triangle', f: 1040, t: .12, vol: .04, when: .05 }); },
+  compostDone() { noise({ t: .25, vol: .1, type: 'lowpass', f: 500, f2: 150 }); [392, 523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f, t: .35, vol: .06, when: .08 + i * .07 })); },
+  chestUp() { for (let i = 0; i < 3; i++) noise({ t: .04, vol: .14, type: 'bandpass', f: 1800, q: 2, when: i * .09 }); [330, 440, 660].forEach((f, i) => tone({ type: 'square', f, t: .22, vol: .035, when: .28 + i * .08 })); },
   seedFound() { noise({ t: .06, vol: .12, type: 'lowpass', f: 900, at: .002 }); tone({ type: 'sine', f: 220, f2: 330, t: .12, vol: .1 }); [784, 988, 1319, 1568].forEach((f, i) => tone({ type: 'triangle', f, t: .4, vol: .05, when: .1 + i * .06 })); },
   /** a Myzelle won: deep swell, then a bright fifth glittering over it */
   mycelGain() { tone({ type: 'sine', f: 110, f2: 220, t: .9, vol: .12, at: .25 }); tone({ type: 'triangle', f: 440, f2: 660, t: .7, vol: .05, when: .15, vib: 6, vibF: 5 }); [880, 1320, 1760, 2217].forEach((f, i) => tone({ type: 'sine', f, t: .5, vol: .04, when: .35 + i * .07 })); noise({ t: .8, vol: .03, type: 'highpass', f: 6000, when: .3, at: .3 }); },

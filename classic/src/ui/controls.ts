@@ -91,7 +91,7 @@ export function mobileControls() {
   ${label(720, 512, 'Schießen', 'middle', 24)}
   ${label(560, 410, 'tippen = 1 Schuss', 'end', 20, TXT)}
   ${label(560, 438, 'halten = Dauerfeuer', 'end', 20, TXT)}
-  ${label(560, 466, 'in Blickrichtung', 'end', 20, TXT)}
+  ${label(560, 466, 'ziehen = zielen', 'end', 20, TXT)}
   ${label(720, 345, 'Beere', 'middle', 20, MUT)}<path d="M745 352 q14 8 14 22" stroke="${MUT}" stroke-width="2" stroke-dasharray="5 5" fill="none"/>
   <g transform="translate(870 290)"><circle r="34" fill="#1d252d" stroke="${GOLD}" stroke-width="3"/>
     <g transform="translate(-20 -20) scale(1.67)"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round"/><path d="M18.8 2.6v4.6h-4.6M5.2 21.4v-4.6h4.6" fill="none" stroke="${TXT}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g></g>
@@ -114,7 +114,7 @@ function mobilePortrait() {
   ${label(300, 140, 'Schießen', 'middle', 40)}
   ${label(300, 200, 'tippen = 1 Schuss', 'middle', 32, TXT)}
   ${label(300, 246, 'halten = Dauerfeuer', 'middle', 32, TXT)}
-  ${label(300, 292, 'in Blickrichtung', 'middle', 32, TXT)}
+  ${label(300, 292, 'ziehen = zielen', 'middle', 32, TXT)}
   ${icon(skillIcon('pea'), 190, 340, 56)}<text x="256" y="380" font-size="34" fill="${MUT}">›</text>
   ${icon(skillIcon('wshot'), 272, 340, 56)}<text x="338" y="380" font-size="34" fill="${MUT}">›</text>
   ${icon(skillIcon('wall'), 354, 340, 56)}

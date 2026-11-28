@@ -1999,6 +1999,8 @@ export class GameView {
     this.aggro.position.set(px, .03, pz); this.aggro.visible = !!(me && me.s.al) && !this.sandbox;
     moon.position.set(camera.position.x - 9, 18, camera.position.z - 2); moon.target.position.set(camera.position.x, 0, camera.position.z - 8);
   }
+  /** 28.11.2026 tutorial: world centre of a slot (field, bench), null if unknown */
+  slotXZ(i: number): { x: number; z: number } | null { const s = this.slots[i]; return s ? { x: s.x, z: s.z } : null; }
   /** screen position (px) of a point above the local player's head, or null */
   /** world point -> screen pixels (null behind the camera) */
   worldScreen(x: number, y: number, z: number): { x: number; y: number } | null {

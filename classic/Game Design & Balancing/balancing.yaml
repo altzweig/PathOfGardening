@@ -1053,20 +1053,23 @@ tutorial:
   attack: "Drücke [{prim}] zum Angreifen"
   switch: "Drücke [{next}] für die nächste Waffe oder [{slot}] um direkt {zum} {weapon} zu wechseln."
   secondary: "Drücke [{sec}] für {den} {weapon}"    # zweite Waffe ist eine Sekundärwaffe (Platz 6-0): sie feuert direkt mit Rechtsklick
-  # 26.11.2026 Werkbank-Techtree-Start (PC + Handy; ...Touch = Wortlaut am Handy). Ablauf: Erbsen ernten -> Erbsenpistole -> zur Werkbank -> Idee wählen -> hämmern -> abholen
-  rsXp: "Die Kugel zeigt deine Myzel-XP: besiegte Tiere lassen leuchtende Kugeln fallen. Jedes Level gibt mehr Leben und schnellere Forschung, alle 3 Level eine Myzelle. Die Tiere wollen deine Truhe zerstören: halte [{harvest}] an der Truhe, um sie zu reparieren."   # 26.11.2026
-  rsHarvest: "Halte [{harvest}] auf dem Erbsenfeld, um Erbsen zu ernten"
-  rsHarvestTouch: "Halte den Ernten-Knopf auf dem Erbsenfeld, um Erbsen zu ernten"
-  rsShoot: "Drücke [{prim}], um mit der Erbsenpistole zu schießen (3 Erbsen pro Schuss)"
-  rsShootTouch: "Tippe auf den Schießen-Knopf, um mit der Erbsenpistole zu schießen (3 Erbsen pro Schuss)"
-  rsBench: "Lauf zur Werkbank neben der Truhe"
-  rsChoose: "Wähle eine Idee zum Erforschen: [{tree}]"
-  rsChooseTouch: "Wähle eine Idee zum Erforschen: Glühbirne oben"
-  rsWork: "Halte [{harvest}] an der Werkbank, um an der Idee zu hämmern"
-  rsWorkTouch: "Halte den Ernten-Knopf an der Werkbank, um an der Idee zu hämmern"
-  rsPickup: "Die Idee ist fertig! Lauf gegen die Werkbank und hol sie ab"
-  rsTree: "[{tree}] öffnet den Techtree jederzeit"
-  rsTreeTouch: "Die Glühbirne oben öffnet den Techtree jederzeit"
+  # 28.11.2026 (Basti) Werkbank-Techtree-Start, "Show, don't tell" (PC + Handy gleich, ...Touch = Wortlaut am Handy):
+  #  Pfeil aufs Erbsenfeld -> Lauf-Joystick (Handy) / W A S D (PC) kippt animiert in Laufrichtung, Pfeil am Spieler
+  #  -> Ernten-Knopf / Taste hervorgehoben, Rest grau -> dasselbe mit Schießen (Pfeil aufs nächste Tier)
+  #  -> Bildkarte Werkbank -> Pfeil auf die Werkbank -> Idee wählen -> hämmern -> abholen
+  #  -> Bildkarte Pilze & Dünger -> Pfeil auf den nächsten Wildpilz -> Glühbirne (Techtree). Jeder Schritt hat "Weiter".
+  #  Solo: Welle 1 wartet, bis die ersten Erbsen geerntet sind.
+  next: "Weiter"
+  rsHold: "Halten zum Ernten"
+  rsTap: "Klicken zum Schießen"
+  rsTapTouch: "Tippen zum Schießen"
+  rsChoose: "Idee wählen"
+  rsWork: "Halten zum Hämmern"
+  rsShroom: "Halten zum Pflücken"
+  rsTree: "Techtree"
+  cards:
+    bench: { title: "Werkbank", idea: "Idee wählen", hold: "Halten", get: "Neues Feld + Waffe" }
+    soil: { title: "Pilze & Dünger", pick: "Pflücken", compost: "Kompostierer", fert: "Dünger", tree: "Neue Felder, mehr Ernte" }
   genus: { pea: f, wshot: f, wall: f, blue: n, black: p, flour: m, pan: f, sling: f, asp: f, cran: p, cab: f, lemon: m, chili: m, wheat: f, jam: m, cole: f, sour: m, lance: f, cabboom: f, shock: f }
 
 weaponSlots:               # Waffen neben der Harke

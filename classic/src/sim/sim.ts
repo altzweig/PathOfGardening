@@ -2688,7 +2688,7 @@ export class Sim {
   private waves(dt: number) {
     const W = this.cfg.waves;
     if (this.wavePause) {
-      this.waveT -= dt;
+      if (!(this.tutHold && this.wave === 0)) this.waveT -= dt; // 28.11.2026 solo tutorial: wave 1 waits until the first peas are harvested
       if (this.waveT <= 0) { if (this.wave >= W.total) { this.won = true; this.gameOver(); return; } this.startWave(this.wave + 1); }
     } else {
       const R = W.spawnRadius, spread = W.directionSpread * Math.PI / 180;
@@ -3239,6 +3239,8 @@ export class Sim {
   /** everyone (alive) at the bench: the world stands still like during a level-up */
   /** solo: a tutorial explanation is open (24.11.2026) */
   tutPause = false;
+  /** 28.11.2026 solo: the tutorial holds the countdown to wave 1 (walk to the field, harvest) */
+  tutHold = false;
   get shopPause() { return !this.sb && this.players.some(p => p.shopOpen) && this.players.every(p => p.shopOpen || !p.alive); }
   /** merchant visits so far (the first one offers firstLearn) */
   shopTier = 0;

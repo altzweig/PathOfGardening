@@ -60,6 +60,9 @@ function netSim(): { ping: number; jit: number; loss: number } | null {
   const v = new URLSearchParams(location.search).get('netsim'); if (!v) return null;
   const [ping, jit, loss] = v.split(',').map(Number); return { ping: ping || 0, jit: jit || 0, loss: (loss || 0) / 100 };
 }
+/** 28.11.2026 Koop-Lags: an unreliable snapshot waits at most this many bytes in the send buffer, else it is dropped (was 1 MB = seconds of
+ *  delay on a slow upload; a newer snapshot follows 50 ms later anyway, and the delta goes against the guest's ACK) */
+const UNREL_BUF = 64 * 1024;
 /** two extra data channels on the PeerJS connection, agreed on both sides by id (no extra signalling) */
 function binaryChannels(c: DataConnection, onData: (b: Uint8Array) => void, unreliable: boolean) {
   const pc = c.peerConnection;
@@ -68,7 +71,7 @@ function binaryChannels(c: DataConnection, onData: (b: Uint8Array) => void, unre
   const r = mk('pog-r', 11, { ordered: true });
   const sim = netSim(); let lastR = 0;
   const go = (ch: RTCDataChannel | null, b: Uint8Array, rel: boolean) => {
-    if (ch && ch.readyState === 'open') { if (ch.bufferedAmount < 1 << 20 || rel) ch.send(b); return; } // a stuck unreliable channel drops instead of piling up
+    if (ch && ch.readyState === 'open') { if (rel || ch.bufferedAmount < UNREL_BUF) ch.send(b); return; } // a stuck unreliable channel drops instead of piling up
     if (c.open) c.send({ t: 'b', d: b64(b) }); // channel not open (yet / not supported): over the JSON connection
   };
   const send = (ch: RTCDataChannel | null, rel: boolean) => (b: Uint8Array) => {

@@ -61,3 +61,12 @@ Messung: `classic/tools/perf/netcode.ts`, echter Host mit Balancing-Bot, Gäste 
 Browsertest (`classic/tools/perf/netcode-browser.cjs`, Host + Gast in zwei Chromium mit `?netsim=100,20,5`): Hash immer gleich, Reconnect nach 1,1 s mit derselben Figur, eigene Figur reagiert im gleichen Frame wie solo. Koop-Spielstand: `classic/tools/perf/netcode-save.cjs`. Solo unverändert: `classic/tools/perf/solo-gleich.ts` gibt auf main und nach dem Umbau exakt dasselbe aus.
 
 Alle Netzwerkparameter: `balancing.yaml` unter `net`. Zum Testen im Browser: `?netsim=ping,jitter,verlust` (z. B. `?netsim=150,20,5`) an beiden Seiten.
+
+## Koop-Lags (28.11.2026)
+
+Basti: Koop wird sehr ruckelig, riesige Lags. Gemessen mit `classic/tools/perf/netcode.ts` (4 Spieler, 150 ms Ping, 20 ms Jitter, 5 % Verlust) und CPU-Profil des Hosts:
+
+- **Ursache:** der Forschungsbaum im Snapshot. `sim.snapshot()` berechnet für alle 248 Knoten den Fortschritt (`rp`), und jede Kosten-Berechnung einer Waffen-Verbesserung lief einmal über alle Knoten mit `done.includes` (quadratisch). Das waren **76 % der Host-Rechenzeit**: 5,2 ms pro Tick statt 1,0 ms bei PR #124, bei 30 Ticks pro Sekunde und ohne die Grafik. Auf einem schwächeren Gerät schafft der Host die 30 Ticks dann nicht mehr, die Gäste bekommen Snapshots unregelmäßig, Eingaben werden übersprungen, das Bild hängt und springt. Dieselbe Rechnung lief auf jedem Gerät jedes Bild im Techtree-UI (`rsFromSnap`).
+- **Behoben:** `rNode`/`rIndex` per Map, erledigte Knoten als Set, Verbesserungen je Waffe einmal pro Änderung gezählt (`research.ts`). Ergebnis identisch (49.600 Vergleiche alt/neu, Solo-Gleichheit gleich). Host 5,15 → **0,78 ms pro Tick**, Snapshot 5 → 0,2 bis 0,6 ms, `rsFromSnap` bis 10× schneller.
+- Forschungsfortschritt im Delta nur noch für die Knoten mit Fortschritt, jeder als eigener Wert (`p.<index>`): Bandbreite pro Gast 10,5 → **7,5 KB/s**, Spitze 23 → 15 KB/s. 0 Desyncs.
+- Der unzuverlässige Kanal staut höchstens 64 KB (vorher 1 MB, das sind bei langsamem Upload mehrere Sekunden Verzögerung), danach wird ein Snapshot verworfen; der nächste kommt 50 ms später.

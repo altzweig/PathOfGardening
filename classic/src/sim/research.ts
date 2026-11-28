@@ -27,8 +27,31 @@ export function rNodes(cfg: Balancing): ResearchNode[] {
   }
   EXP.set(raw, out); return out;
 }
-export const rNode = (cfg: Balancing, id: string | null | undefined) => id ? rNodes(cfg).find(n => n.id === id) ?? null : null;
-export const rIndex = (cfg: Balancing, id: string | null | undefined) => id ? rNodes(cfg).findIndex(n => n.id === id) : -1;
+/** 28.11.2026 Koop-Lags: id -> node / index as a map (was a linear search per call, 248 nodes, many calls per snapshot) */
+const IDX = new WeakMap<ResearchNode[], Map<string, number>>();
+function idIndex(cfg: Balancing) {
+  const ns = rNodes(cfg); let m = IDX.get(ns);
+  if (!m) { m = new Map(); ns.forEach((n, i) => m!.set(n.id, i)); IDX.set(ns, m); }
+  return m;
+}
+export const rNode = (cfg: Balancing, id: string | null | undefined) => { if (!id) return null; const i = idIndex(cfg).get(id); return i === undefined ? null : rNodes(cfg)[i]; };
+export const rIndex = (cfg: Balancing, id: string | null | undefined) => id ? idIndex(cfg).get(id) ?? -1 : -1;
+/** 28.11.2026 researched ids as a set + done weapon upgrades per weapon and chain, rebuilt only when st.done grows (it is only ever pushed to) */
+interface DoneInfo { len: number; last: string | undefined; set: Set<string>; up: Map<string, { all: number; chain: Map<string, number> }> }
+const DONE = new WeakMap<string[], DoneInfo>();
+const weaponOf = (n: ResearchNode) => (n.ref ?? '').split('_')[0];
+function doneInfo(cfg: Balancing, done: string[]): DoneInfo {
+  let d = DONE.get(done);
+  if (d && d.len === done.length && d.last === done[done.length - 1]) return d;
+  d = { len: done.length, last: done[done.length - 1], set: new Set(done), up: new Map() };
+  for (const id of d.set) {
+    const n = rNode(cfg, id); if (!n || n.kind !== 'upgrade' || fieldUpOf(n)) continue;
+    const w = weaponOf(n); let e = d.up.get(w); if (!e) d.up.set(w, e = { all: 0, chain: new Map() });
+    e.all++; const c = n.chain ?? ''; e.chain.set(c, (e.chain.get(c) ?? 0) + 1);
+  }
+  DONE.set(done, d); return d;
+}
+export const isDone = (cfg: Balancing, st: RState, id: string) => doneInfo(cfg, st.done).set.has(id);
 /** fields and buildings both count as "field" for the segment rules and are placed on a hex slot */
 export const isPlaceNode = (n: ResearchNode) => n.kind === 'field' || n.kind === 'building';
 
@@ -41,7 +64,7 @@ export function applyResearchCfg(cfg: Balancing) {
 /** researched: start node or finished (Forschungstempo is never "done", it can always be researched again) */
 export function nodeDone(cfg: Balancing, st: RState, id: string) {
   const n = rNode(cfg, id); if (!n || n.kind === 'speed') return false;
-  return !!n.start || st.done.includes(id);
+  return !!n.start || isDone(cfg, st, id);
 }
 /** segment open: its rule (research.segments) is met by researched non-start nodes of the segments in `from` */
 export function segmentOpen(cfg: Balancing, st: RState, seg: number) {
@@ -119,7 +142,9 @@ export function nodeMul(cfg: Balancing, n: ResearchNode | null | undefined, st?:
       const at = (L: number[] | undefined, k: number) => L?.length ? L[Math.min(k, L.length - 1)] : undefined; // 27.11.2026 flattening curves
       if (fieldUpOf(n)) return at(T.fieldUpList, (n.lv ?? 1) - 1) ?? T.fieldUp + T.fieldUpStep * ((n.lv ?? 1) - 1);
       // steps of this weapon before this one: its own chain below it + what other chains of the same weapon have done
-      const w = (n.ref ?? '').split('_')[0], other = st ? rNodes(cfg).filter(x => x.kind === 'upgrade' && !fieldUpOf(x) && x.chain !== n.chain && (x.ref ?? '').split('_')[0] === w && st.done.includes(x.id)).length : 0, done = other + (n.lv ?? 1) - 1;
+      let other = 0;
+      if (st) { const e = doneInfo(cfg, st.done).up.get(weaponOf(n)); if (e) other = e.all - (e.chain.get(n.chain ?? '') ?? 0); } // 28.11.2026 counted once per done list, not per node
+      const done = other + (n.lv ?? 1) - 1;
       return at(T.upgradeList, done) ?? T.upgrade + T.upgradeStep * done;
     }
     return 1;

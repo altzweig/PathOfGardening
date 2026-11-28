@@ -115,7 +115,7 @@ export interface ResearchCfg {
 export interface Balancing {
   /** 27.11.2026 Wildpilze: pop up in the ring [r0, r1] m around the centre, one every interval s up to max at once (start of them from the beginning),
    *  each stands life s; harvested with the rake (pick = m radius of a mushroom); weights = spawn weight per rarity (per kind) */
-  mushrooms?: { ring: [number, number]; interval: number; max: number; start: number; life: number; pick: number; weights: Record<MushRarity, number>; kinds: Record<MushId, { rarity: MushRarity }> };
+  mushrooms?: { ring: [number, number]; interval: number; max: number; start: number; life: number; pick: number; /** 28.11.2026 m from the player: a mushroom this near can be picked; s per mushroom */ reach?: number; time?: number; weights: Record<MushRarity, number>; kinds: Record<MushId, { rarity: MushRarity }> };
   /** 27.11.2026 Kompostierer: fertilizer per tree (recipes: mushrooms per level), made by working at the composter (work m from its centre; touch m: the panel opens),
    *  times[level] s of work (last value repeats), up to max levels, each level +yield harvest of that plant; level 1 opens the tree */
   compost?: { work: number; touch: number; times: number[]; max: number; yield: number; recipes: Record<string, Partial<Record<MushId, number>>> };

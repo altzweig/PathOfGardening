@@ -312,7 +312,9 @@ mushrooms:
   max: 16                  # so viele stehen höchstens gleichzeitig
   start: 6                 # so viele stehen schon zu Spielbeginn
   life: 120                # s, dann verwelkt ein Pilz wieder (die Mischung am Rand wechselt)
-  pick: 0.45               # m: so nah muss der Harkenkreis an den Pilz
+  pick: 0.45               # m: nicht mehr benutzt (28.11.2026: Ernten per Halten statt Harkenschlag)
+  reach: 1.8               # m vom Spieler: so nah muss man am Pilz stehen (28.11.2026 Basti: größerer Aktionsradius, vorher ca. 0,8-1,6 m nur vorne)
+  time: 1                  # s Ernte-Aktion halten pro Pilz, Mini-Ladebalken über dem Pilz (28.11.2026 Basti)
   weights: { common: 10, uncommon: 5, rare: 2.5, epic: 1.2 }   # Gewicht je Pilzart: von 100 Pilzen sind ca. 57 gewöhnlich, 29 ungewöhnlich, 10 selten, 5 episch
   kinds:                   # Reihenfolge fest (Vorrat, Spielstände); Modelle in src/view/mushrooms.ts, Vorschau pilze.html
     champ:   { rarity: common }     # Wiesenchampignon: weiß, schlicht

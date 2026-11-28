@@ -31,8 +31,9 @@ ok(S.shrooms.every((m: any) => { const d = Math.hypot(m.x, m.z); return d >= M.r
 p.x = 0; p.z = 3; it(null); for (let i = 0; i < 30 * (M.interval * 3 + 1); i++) S.update(1 / 30);
 ok(S.shrooms.length >= M.start + 2 && S.shrooms.length <= M.max, `nach ${M.interval * 3} s: ${S.shrooms.length} Pilze (max ${M.max})`);
 const m0 = S.shrooms[0], k0 = m0.k, n0 = S.shStock[k0] ?? 0, d0 = Math.hypot(m0.x, m0.z);
-hold(m0.x * (1 - .5 / d0), m0.z * (1 - .5 / d0), 1.5);
-ok(!S.shrooms.includes(m0) && S.shStock[k0] === n0 + 1, `Harke erntet ${cfg.names.mushrooms[MUSHROOMS[k0]]} (Vorrat ${n0} -> ${S.shStock[k0]})`);
+hold(m0.x * (1 - 1.1 / d0), m0.z * (1 - 1.1 / d0), .8); ok(S.shrooms.includes(m0) && m0.pk > .7 && S.snapshot().pl[0].pk === 1 && S.snapshot().sh.find((r: number[]) => r[0] === m0.id)[5] > .7, `28.11.2026 nach 0,8 s aus 1,1 m: noch nicht geerntet, Balken ${(m0.pk ?? 0).toFixed(2)}`);
+hold(m0.x * (1 - 1.1 / d0), m0.z * (1 - 1.1 / d0), .3);
+ok(!S.shrooms.includes(m0) && S.shStock[k0] === n0 + 1, `1 s Halten erntet ${cfg.names.mushrooms[MUSHROOMS[k0]]} (Vorrat ${n0} -> ${S.shStock[k0]})`);
 const cnt = MUSHROOMS.map(() => 0); for (let i = 0; i < 4000; i++) { S.shrooms.length = 0; S.spawnShroom(); if (S.shrooms[0]) cnt[S.shrooms[0].k]++; }
 ok(cnt[0] > cnt[3] && cnt[3] > cnt[6] && cnt[6] > cnt[9] && cnt[9] > 0, `Seltenheit: ${cnt.join(' ')}`);
 S.shrooms.length = 0;

@@ -213,7 +213,7 @@ export function mushMesh(kind: MushId) {
 }
 
 const CAP = 32;
-interface Slot { id: number; k: number; x: number; z: number; t0: number; rot: number; seen: number }
+interface Slot { id: number; k: number; x: number; z: number; t0: number; rot: number; seen: number; /** 28.11.2026 picked 0..1 */ pk?: number }
 /** all wild mushrooms of the game: one InstancedMesh per kind and layer (count 0 = no draw call). They pop up with a little bounce,
  *  breathe slowly and sink back into the ground at the end of their life. */
 export class ShroomPool {
@@ -236,7 +236,7 @@ export class ShroomPool {
     for (const r of rows ?? []) {
       let v = this.slots.get(r[0]);
       if (!v) { v = { id: r[0], k: r[1], x: r[2], z: r[3], t0: r[4], rot: (r[0] * 2.399) % 6.283, seen: id }; this.slots.set(r[0], v); }
-      v.seen = id;
+      v.seen = id; v.pk = r[5] ?? 0;
     }
     for (const [k, v] of this.slots) if (v.seen !== id) this.slots.delete(k);
   }
@@ -248,7 +248,8 @@ export class ShroomPool {
       const pop = a < 1 ? 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2) : 1; // ease out back: jumps out of the ground a bit too far, settles
       const out = Math.min(1, Math.max(0, left / 2.5)), sc = Math.max(.001, pop * (out * out * (3 - 2 * out)));
       const br = 1 + Math.sin(w * 1.7 + v.id) * .025;
-      this.e.set(0, v.rot, (1 - out) * .5); this.q.setFromEuler(this.e);
+      const pkw = v.pk ? Math.sin(w * 38 + v.id) * .09 * (.4 + v.pk) : 0; // 28.11.2026 being picked: it wobbles, harder towards the end
+      this.e.set(pkw, v.rot, (1 - out) * .5 + pkw * .7); this.q.setFromEuler(this.e);
       this.m.compose(this.p.set(v.x, 0, v.z), this.q, this.s.set(sc / br, sc * br * (a < 1 ? .6 + .4 * a : 1), sc / br));
       const i = n[v.k]++; if (i >= CAP) continue;
       this.body[v.k].setMatrixAt(i, this.m); this.glow[v.k]?.setMatrixAt(i, this.m);

@@ -73,7 +73,7 @@ interface PView { /** weapon on the back (0) .. in the hand (1), smoothed from s
   /** 25.11.2026 Werkbank-Techtree: Erbsenpistole (+ ms of the last shot), Weizen-Schrotflinte, Steinkohle cabbage in the hand (+ ms of the last post),
    *  hammer at the bench: pivot + model, swing phase, work blend 0..1, hit point on the bench top (world), dust slot */
   pea?: PeaPistol; peaT?: number; wgun?: { g: THREE.Group; anim: THREE.Group }; wallH?: THREE.Group; wallT?: number;
-  ham?: { pivot: THREE.Group; h: ReturnType<typeof createHammer> }; hph?: number; bwk?: number; hx?: number; hz?: number; dustI?: number; lean?: number; /** 26.11.2026 what the hammer works on: 1 bench, 2 chest */ bwAt?: number }
+  ham?: { pivot: THREE.Group; h: ReturnType<typeof createHammer> }; hph?: number; bwk?: number; hx?: number; hz?: number; dustI?: number; lean?: number; /** 26.11.2026 what the hammer works on: 1 bench, 2 chest */ bwAt?: number; /** 28.11.2026 bending down to a mushroom 0..1 */ pkk?: number }
 interface Corpse { v: EView; t: number }
 interface EView { g: THREE.Group; P: EnemyParts; type: EnemyType; elite: boolean; key: string; st: AnimState; s: ESnap; x: number; z: number; squash: number; carry: string; ind?: THREE.Mesh; ph?: number }
 /** missed cranberry lying on the ground (hot = Hot-Cran combo) */
@@ -193,7 +193,7 @@ export class GameView {
   private flourFx = new FlourFX();
   private minePool = new MinePool(); // Kohlminen: one InstancedMesh, up to 100+
   /** 27.11.2026 Wildpilze at the rim (instanced), chips over composter and chest */
-  private shroomPool: ShroomPool | null = null; private compEl: HTMLElement | null = null; private chestEl: HTMLElement | null = null; private chestUpT = 0;
+  private shroomPool: ShroomPool | null = null; private shBars = new Map<number, HTMLElement>(); private compEl: HTMLElement | null = null; private chestEl: HTMLElement | null = null; private chestUpT = 0;
   private eggFx = new EggFX();
   me = 0;
   smooth = false; // clients interpolate
@@ -588,7 +588,7 @@ export class GameView {
     this.setPlacing(null);
     this.vanishing.length = 0; this.confirmSlot = -1;
     this.chest = null; this.chestFn = null; this.merchant.clear(); merchantReset(); this.myc.clear(); this.chestBar = null; this.chestKick = 0;
-    this.flourFx.clear(); this.minePool.clear(); this.shroomPool?.clear(); this.compEl?.remove(); this.compEl = null; this.chestEl?.remove(); this.chestEl = null; this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
+    this.flourFx.clear(); this.minePool.clear(); this.shroomPool?.clear(); for (const el of this.shBars.values()) el.remove(); this.shBars.clear(); this.compEl?.remove(); this.compEl = null; this.chestEl?.remove(); this.chestEl = null; this.eggFx.clear(); stopAllLoops(); this.heat.clear(); this.fire.clear(); PART.clear(); clearFx(); clearBolts(); clearEyes(); this.snap = null; this.fieldKey = ''; this.bits.length = 0;
   }
 
   // ---------------- state ----------------
@@ -1578,6 +1578,8 @@ export class GameView {
     R.torso.rotation.y += v.twist || 0; // rake stroke: upper body turns with the swing
     const ham = v.ham?.pivot.visible ? v.ham : null;
     if (ham) R.torso.rotation.x += (v.lean ?? 0) * (v.bwk ?? 0); // hammering: leans over the bench
+    v.pkk = clamp((v.pkk ?? 0) + (s.pk && s.al ? dt : -dt) * 6, 0, 1); // 28.11.2026 picking a mushroom: bends down to it
+    if (v.pkk > 0) R.torso.rotation.x += .55 * v.pkk * v.pkk * (3 - 2 * v.pkk);
     v.g.updateMatrixWorld(true);
     const back = 1 - (v.dk ?? 0), held = this.carried(v);
     if (held.some(o => o?.visible)) { carryApply(held, back, v.g, R.torso); v.g.updateMatrixWorld(true); }
@@ -1848,6 +1850,16 @@ export class GameView {
       (el.querySelector('u') as HTMLElement).style.width = ((s.rs?.[7] ?? 0) * 100).toFixed(1) + '%';
       el.style.transform = `translate(${pc.x.toFixed(1)}px,${pc.y.toFixed(1)}px) translate(-50%,-100%)`;
     } else if (this.compEl) { this.compEl.remove(); this.compEl = null; }
+    // 28.11.2026 wild mushrooms being picked: a mini bar over each
+    const shSeen = new Set<number>();
+    if (s?.sh && s.ph === 'play' && !this.placing) for (const r of s.sh) {
+      if (!(r[5] > 0)) continue; const p = this.worldScreen(r[2], .75, r[3]); if (!p) continue;
+      shSeen.add(r[0]); let el = this.shBars.get(r[0]);
+      if (!el) { el = document.createElement('div'); el.className = 'wchip shBar'; el.innerHTML = '<s><u></u></s>'; this.dmgLayer.appendChild(el); this.shBars.set(r[0], el); }
+      (el.firstChild!.firstChild as HTMLElement).style.width = (Math.min(1, r[5]) * 100).toFixed(1) + '%';
+      el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
+    }
+    for (const [k, el] of this.shBars) if (!shSeen.has(k)) { el.remove(); this.shBars.delete(k); }
     // chest Ausbau
     const cv = s?.cv, up = cv ? cv[3] ?? -1 : -1, full = !!cv && cv[0] >= cv[1];
     const nearK = !!me && Math.hypot(me.x, me.z) < 2.6, busy = !!s?.pl.some(p => p.bw === 2 && p.al);

@@ -103,7 +103,7 @@ if (sim.sacks.length) { sim.sacks[0].hp = 12; step(2); settle(); ok(sameSk(guest
   const S = sim as any; S.shrooms.length = 0; while (S.shrooms.length < 3) S.spawnShroom(); step(2); settle();
   const shKey = (r?: number[][]) => JSON.stringify((r ?? []).map(x => [x[0], x[1], Math.round(x[2] * 10), Math.round(x[3] * 10)]));
   ok(guestSnap!.sh?.length === 3 && shKey(guestSnap!.sh) === shKey(hostSnap!.sh), `Pilze beim Gast: ${guestSnap!.sh?.length} (Host ${hostSnap!.sh?.length}), gleich`);
-  const m = S.shrooms[0], d = Math.hypot(m.x, m.z); walkTo(m.x * (1 - .6 / d), m.z * (1 - .6 / d), .15, 12); it = { ...it, fire: 'rake', mx: 0, mz: 0 }; step(NC.simHz * 1.5); it = { ...it, fire: null }; settle();
+  const m = S.shrooms[0], d = Math.hypot(m.x, m.z); walkTo(m.x * (1 - 1.2 / d), m.z * (1 - 1.2 / d), .15, 12); sim.closeResearch(GID); it = { ...it, fire: 'rake', mx: 0, mz: 0 }; step(NC.simHz * 1.5); /* 28.11.2026 held 1 s from 1.2 m (the bench panel that opened on the way closed first: picking needs a free view) */ it = { ...it, fire: null }; settle();
   ok(S.shStock[m.k] === 1 && same(guestSnap!.sm, hostSnap!.sm) && evSeen.has('shPick'), `Gast erntet einen Pilz: Vorrat ${guestSnap!.sm} (Ereignis shPick ${evSeen.has('shPick')})`);
   S.rs.done.push('b_compost'); S.placeField(S.placeSlots('compost')[0], 'compost'); const cf = S.compostField(); S.shStock = S.shStock.map(() => 9);
   const ci = cfg.research.trees.findIndex((t: any) => t.id === 'cab'); p.rsLock = 4; const f0 = S.rs.fert.cab ?? 0, ft = cfg.compost.times[Math.min(f0, cfg.compost.times.length - 1)];

@@ -164,7 +164,10 @@ export function toQ(s: Snap): Q {
   const sc: Record<string, any> = {}, tb: Record<string, Row[] | undefined> = {};
   for (const k of Object.keys(s)) if (!(k in TABLES) && k !== 'ev' && (s as any)[k] !== undefined) sc[k] = (s as any)[k]; // absent = undefined (as after decoding)
   // 26.11.2026 research progress per node (0..1, 3 decimals) as integer per mille: 1-2 bytes each instead of a float64
-  if (Array.isArray(sc.rp)) sc.rp = sc.rp.map((v: number) => typeof v === 'number' ? Math.round(v * 1000) : v);
+  // 28.11.2026 Koop-Lags: and only the nodes with progress, each as its own scalar (p.<index>): the delta then carries just the node
+  // being hammered instead of all 248 values whenever one of them moves
+  if (Array.isArray(sc.rp)) { const rp = sc.rp as unknown[]; delete sc.rp; sc.rpn = rp.length;
+    rp.forEach((v, i) => { const x = typeof v === 'number' ? Math.round(v * 1000) : v; if (x !== 0) sc['p.' + i] = x; }); }
   const t = s.t;
   for (const k of TABLE_KEYS) {
     const a = (s as any)[k] as any[] | undefined;
@@ -185,7 +188,9 @@ export function toQ(s: Snap): Q {
 /** back to a Snap for the view (times rebuilt from the snapshot time) */
 export function fromQ(q: Q, ev: Snap['ev'] = []): Snap {
   const s: any = { ...q.sc, ev };
-  if (Array.isArray(s.rp)) s.rp = s.rp.map((v: number) => typeof v === 'number' ? v / 1000 : v);
+  if (typeof s.rpn === 'number') { const rp: unknown[] = new Array(s.rpn).fill(0);
+    for (const k of Object.keys(s)) if (k.startsWith('p.')) { const v = s[k]; rp[+k.slice(2)] = typeof v === 'number' ? v / 1000 : v; delete s[k]; }
+    s.rp = rp; delete s.rpn; }
   const t = q.sc.t as number;
   for (const k of TABLE_KEYS) {
     const rows = q.tb[k]; if (!rows) { s[k] = undefined; continue; }

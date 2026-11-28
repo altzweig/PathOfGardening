@@ -147,8 +147,8 @@ export const TABLES: Record<string, string> = {
 };
 export const TABLE_KEYS = Object.keys(TABLES) as (keyof Snap & string)[];
 /** player object keys in a fixed order (row index = position here) */
-export const PL_KEYS = ['id', 'c', 'x', 'z', 'f', 'be', 'hp', 'mhp', 'al', 'st', 'sa', 'sx', 'sh', 'ms', 'sw', 'sd', 'wk', 'rs', 'po', 'fl', 'ti', 'rr', 'ra', 'xb', 'fo', 'fa', 'fc', 'fw', 'fr', 'lw', 'aw', 'sp', 'sk', 'dk', 'rh', 'cw', 'ch', 'ht', 'bw'] as const; // 26.11.2026 bw (Werkbank hammering) appended
-const PL_T = 'uuppa' + 'g'.repeat(5) + 'f' + 'g'.repeat(3) + 'fgg' + 'g'.repeat(3) + 'f' + 'g'.repeat(4) + 'a' + 'g'.repeat(5) + 'f' + 'g'.repeat(6) + 'u'; // ... sk dk rh cw ch ht, bw
+export const PL_KEYS = ['id', 'c', 'x', 'z', 'f', 'be', 'hp', 'mhp', 'al', 'st', 'sa', 'sx', 'sh', 'ms', 'sw', 'sd', 'wk', 'rs', 'po', 'fl', 'ti', 'rr', 'ra', 'xb', 'fo', 'fa', 'fc', 'fw', 'fr', 'lw', 'aw', 'sp', 'sk', 'dk', 'rh', 'cw', 'ch', 'ht', 'bw', 'pk'] as const; // 28.11.2026 pk (picking a mushroom) appended; // 26.11.2026 bw (Werkbank hammering) appended
+const PL_T = 'uuppa' + 'g'.repeat(5) + 'f' + 'g'.repeat(3) + 'fgg' + 'g'.repeat(3) + 'f' + 'g'.repeat(4) + 'a' + 'g'.repeat(5) + 'f' + 'g'.repeat(6) + 'u' + 'u'; // ... sk dk rh cw ch ht, bw, pk
 const typeOf = (tb: string, i: number): FT => ((tb === 'pl' ? PL_T : TABLES[tb])[i] ?? 'g') as FT;
 
 export type Row = any[];

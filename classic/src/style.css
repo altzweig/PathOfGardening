@@ -1465,6 +1465,7 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .wchip s{position:relative;display:block;width:54px;height:5px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden;text-decoration:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}
 .wchip s u{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#9fe060,#e8ff9a);text-decoration:none}
 .wchip .m{display:flex;align-items:center;gap:2px;color:#ff9a8a}.wchip .m.ok{color:#c8ff80}
+.wchip.shBar{padding:3px 4px;border-radius:6px}.wchip.shBar s{width:34px;height:4px}.wchip.shBar s u{background:linear-gradient(90deg,#e8c070,#fff4c8);transition:width .1s linear}
 .wchip.chestUp s u{background:linear-gradient(90deg,#e3b964,#fff0b8)}
 .wchip .fi{position:relative;width:24px;height:24px}.wchip .fi>svg{width:100%;height:100%;display:block}.wchip .fi i{position:absolute;left:-5px;bottom:-5px;width:14px;height:14px}
 @media (max-width:720px),(max-height:520px){.wchip{font-size:11px;padding:3px 6px;gap:4px}.wchip i{width:17px;height:17px}.wchip s{width:40px}}

@@ -141,6 +141,7 @@ export interface Player {
   chestWork?: boolean; mycPlace?: boolean;
   /** 27.11.2026 composting this tick (Kompostierer), the panel was opened at the composter (fertilizer tab) */
   compWork?: boolean; rsFert?: boolean;
+  /** 28.11.2026 id of the wild mushroom this player is picking (holding the harvest action next to it), 0 = none */ shWork?: number;
 }
 interface Field { slot: number; type: FruitType; x: number; z: number; hp: number; maxHp: number; alive: boolean; t: number; shake: number; poison: Poison[]; rarity: number; prog: number; edge: number; tilledT: number; tilledBy: number; starter: boolean;
   /** buildings: input stock per item, s of work left on the running batch (0 = idle), broken (0 HP: stands still until repaired to full) */
@@ -285,7 +286,7 @@ export class Sim {
   mycPend = 0; mycBy = -1;
   // ---------- 27.11.2026 Wildpilze, Dünger, Truhen-Ausbau ----------
   /** wild mushrooms standing at the edge of the area: kind = MUSHROOMS index, t0 = time it popped up */
-  shrooms: { id: number; k: number; x: number; z: number; t0: number }[] = [];
+  shrooms: { id: number; k: number; x: number; z: number; t0: number; /** 28.11.2026 s picked so far */ pk?: number }[] = [];
   /** the team's mushrooms per MUSHROOMS index, s until the next one pops up */
   shStock: number[] = MUSHROOMS.map(() => 0); shT = 0;
   /** chest level (every Ausbau: + chest.upgrade.step x chest.hp max HP), s of work on the next one */
@@ -845,7 +846,7 @@ export class Sim {
     const p = [this.player(this.mycBy), ...this.players].find(q => q && q.alive && !q.rsUi && !q.rsPlace); if (!p) return;
     p.mycPlace = true; p.placing = null; p.rsUi = 0;
     this.rsLvl = true; this.phase = 'lvl';
-    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; }
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; q.shWork = 0; }
     this.emit({ k: 'mycel', p: p.id }); this.sfx('mycel.gain', p.x, p.z);
   }
   /** crop fields that can take one more Myzelle (not the chest, the bench, buildings or trees) */
@@ -982,14 +983,28 @@ export class Sim {
       else this.spawnShroom();
     }
   }
-  /** a rake stroke harvests every mushroom its circle touches: straight into the team's stock */
-  private pickShrooms(p: Player, dx: number, dz: number) {
+  /** 28.11.2026 the nearest mushroom within mushrooms.reach m of the player, null with an animal within the rake's reach (fight first) */
+  shroomInReach(p: Player) {
+    const M = this.cfg.mushrooms; if (!M || !this.shrooms.length || !p.alive || p.rsUi || p.rsPlace || this.phase !== 'play') return null;
+    let best: (typeof this.shrooms)[number] | null = null, bd = M.reach ?? 1.8;
+    for (const m of this.shrooms) { const d = Math.hypot(m.x - p.x, m.z - p.z); if (d <= bd) { bd = d; best = m; } }
+    if (!best) return null;
+    const near = this.cfg.rake.range + .6; if (this.enemies.some(e => !e.dead && Math.hypot(e.x - p.x, e.z - p.z) < near)) return null;
+    return best;
+  }
+  /** 28.11.2026 picking takes mushrooms.time s per mushroom (several pickers add up); let go and the progress sinks back.
+   *  Done: straight into the team's stock */
+  private pickShrooms(dt: number) {
     const M = this.cfg.mushrooms; if (!M || !this.shrooms.length) return;
-    const RS = this.rakeStats(p), cx = p.x + dx * RS.centre, cz = p.z + dz * RS.centre;
+    const T = Math.max(.05, M.time ?? 1);
     for (let i = this.shrooms.length - 1; i >= 0; i--) {
-      const m = this.shrooms[i]; if (Math.hypot(m.x - cx, m.z - cz) > RS.dia / 2 + M.pick && Math.hypot(m.x - p.x, m.z - p.z) > M.pick + .35) continue;
+      const m = this.shrooms[i], pk = this.players.filter(p => p.alive && p.shWork === m.id);
+      if (!pk.length) { if (m.pk) m.pk = Math.max(0, m.pk - dt) || undefined; continue; }
+      m.pk = (m.pk ?? 0) + dt * pk.length;
+      if (m.pk < T) continue;
       this.shrooms.splice(i, 1); this.shStock[m.k] = (this.shStock[m.k] ?? 0) + 1;
-      this.emit({ k: 'shPick', i: m.id, m: m.k, p: p.id, x: r2(m.x), z: r2(m.z) }); this.sfx('mushroom.pick', m.x, m.z);
+      for (const p of pk) p.shWork = 0;
+      this.emit({ k: 'shPick', i: m.id, m: m.k, p: pk[0].id, x: r2(m.x), z: r2(m.z) }); this.sfx('mushroom.pick', m.x, m.z);
     }
   }
   /** fertilizer level of a crop (its tree's Dünger): every level + compost.yield harvest */
@@ -1305,7 +1320,7 @@ export class Sim {
     const R = this.cfg.rake, RS = this.rakeStats(p);
     const targets = this.enemies.filter(e => !e.dead && this.inRakeCircle(p, e, dx, dz));
     this.emit({ k: 'swipe', x: r2(p.x), z: r2(p.z), a: r2(Math.atan2(dx, dz)), p: p.id, r: r2(RS.range), w: r2(RS.dia) });
-    this.till(p, dx, dz); this.pickShrooms(p, dx, dz);
+    this.till(p, dx, dz);
     let hits = 0;
     for (const e of targets) {
       const boss = !!e.boss; // bosses: damage only (a stun every stroke would lock them)
@@ -2726,7 +2741,7 @@ export class Sim {
     const P = this.cfg.player, it = p.intent;
     p.flash -= dt; p.swing -= dt; p.tillT -= dt;
     if (!p.alive) {
-      p.chW = ''; p.chT = 0; p.benchWork = false; p.chestWork = false; p.compWork = false; // a held throw is lost when the player falls
+      p.chW = ''; p.chT = 0; p.benchWork = false; p.chestWork = false; p.compWork = false; p.shWork = 0; // a held throw is lost when the player falls
       p.respawnT -= dt;
       if (p.respawnT <= 0) { p.alive = true; p.hp = this.maxHp; p.sh = P.shield?.hp ?? 0; p.sta = 1; p.staX = false; p.dk = 0; p.dDir = 0; p.pend = null; p.x = 0; p.z = 0; this.burst(0, .6, 0, 0xffe0a0, 40, 3, .2, .8); this.sfx('player.spawn', 0, 0); }
       return;
@@ -2797,6 +2812,10 @@ export class Sim {
       const db = D(b, bOk), dc = D({ x: 0, z: 0 }, cOk), dk = D(kf, kOk), m = Math.min(db, dc, dk);
       p.benchWork = m < 1e9 && m === db; p.chestWork = m < 1e9 && !p.benchWork && m === dc; p.compWork = m < 1e9 && !p.benchWork && !p.chestWork;
     }
+    // 28.11.2026 (Basti) Wildpilze: holding the harvest action within mushrooms.reach m picks the nearest one (mushrooms.time s, bar over it),
+    // unless an animal is right there (then the rake strikes)
+    { const sm = hold && !p.benchWork && !p.chestWork && !p.compWork ? this.shroomInReach(p) : null; p.shWork = sm ? sm.id : 0;
+      if (sm) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; p.face = Math.atan2(sm.x - p.x, sm.z - p.z); } }
     if (p.benchWork || p.chestWork || p.compWork) { fw = null; p.dk = 0; p.dDir = 0; p.pend = null; p.swing = 0; p.rakeHit = false; const b = p.benchWork ? this.benchCircle()! : p.compWork ? this.compostField()! : { x: 0, z: 0 }; p.face = Math.atan2(b.x - p.x, b.z - p.z); }
     for (const id of SKILLS) if (fw !== id) p.skills[id].firing = false;
     if (it.aim && Math.hypot(it.ax, it.az) > .01) { const l = Math.hypot(it.ax, it.az); p.aimX = it.ax / l; p.aimZ = it.az / l; p.face = Math.atan2(p.aimX, p.aimZ); }
@@ -2886,7 +2905,7 @@ export class Sim {
     this.time += dt;
     if (this.sb) for (const p of this.players) { for (const id of SKILLS) p.ammo[id] = 9999; p.hp = this.cfg.player.hp; } // test room: endless ammo, full health
     for (const p of this.players) { const back = this.rewindFor?.(p); this.updatePlayer(p, dt); back?.(); }
-    if (this.rsMode) { this.tickResearch(dt); this.tickChest(dt); this.tickOrbs(dt); this.tickMycel(); this.tickShrooms(dt); this.tickCompost(dt); }
+    if (this.rsMode) { this.tickResearch(dt); this.tickChest(dt); this.tickOrbs(dt); this.tickMycel(); this.tickShrooms(dt); this.pickShrooms(dt); this.tickCompost(dt); }
     this.updateMerchant(dt);
     this.updateClouds(dt); this.updateBaits(dt);
     // fields
@@ -3469,7 +3488,7 @@ export class Sim {
     if (!this.placeSlots(t).length) return false;
     p.placing = t; p.placeMode = 'any'; p.rsPlace = true; p.rsUi = 0;
     this.rsLvl = true; this.phase = 'lvl';
-    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; }
+    for (const q of this.players) { q.offers = null; q.picked = q !== p; q.intent = { ...emptyIntent(), tapSeq: q.lastTap, cycle: q.lastCycle, berry: q.lastBerry }; for (const k of SKILLS) q.skills[k].firing = false; q.benchWork = false; q.chestWork = false; q.compWork = false; q.shWork = 0; }
     return true;
   }
   /** 26.11.2026 a player drops out (connection lost, left, game loaded): research UI closed; a field he was placing is not lost,
@@ -3478,7 +3497,7 @@ export class Sim {
     const p = this.player(id); if (!p || !this.rsMode) return;
     if (p.rsUi) this.closeResearch(id);
     p.benchWork = false; p.rsLock |= 3; // a figure left standing at the bench (waiting for a reconnect) does not take it again
-    p.chestWork = false; p.compWork = false; p.rsFert = false;
+    p.chestWork = false; p.compWork = false; p.shWork = 0; p.rsFert = false;
     if (p.rsPlace && p.placing) { this.rsPend.push(p.placing); p.rsPlace = false; p.placing = null; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); }
     if (p.mycPlace) { p.mycPlace = false; p.picked = true; if (this.phase === 'lvl') this.checkAllPicked(); } // 26.11.2026 the Myzelle stays in mycPend
   }
@@ -3747,7 +3766,7 @@ export class Sim {
         // rake in the hand: active weapon is the rake and no other weapon fired just now, or a rake stroke is running
         dk: p.dk > 0 ? r2(p.dk) : undefined,
         rh: p.swing > 0 || (p.active === 'rake' && p.handT <= 0) ? 1 : 0,
-        bw: p.benchWork ? 1 : p.chestWork ? 2 : p.compWork ? 3 : undefined, // 25.11.2026 hammering at the Werkbank, 26.11.2026 2 = at the chest
+        bw: p.benchWork ? 1 : p.chestWork ? 2 : p.compWork ? 3 : undefined, pk: p.shWork ? 1 : undefined, // 28.11.2026 picking a mushroom (bends down) // 25.11.2026 hammering at the Werkbank, 26.11.2026 2 = at the chest
       })),
       en: this.enemies.map(e => {
         let fl = 0, aux = 0, aux2 = 0;
@@ -3793,7 +3812,7 @@ export class Sim {
         sd ? T.findIndex(t => t.id === sd) : -1, sd ? Math.round(Math.min(1, st.sw / (FM ? fertCost(this.cfg, st, sd) : seedCost(this.cfg, st))) * 1000) / 1000 : 0], // 26.11.2026 [6] tree of the next seed search, [7] its progress
       rt: st.trees.map(id => T.findIndex(t => t.id === id)).filter(i => i >= 0), // 26.11.2026 trees found
       cv: this.chestAtk ? [Math.ceil(this.chestHp), Math.round(this.chestMax), this.chestLv, this.cfg.chest!.upgrade ? Math.round(Math.min(1, this.chestUp / this.chestUpCost()) * 1000) / 1000 : -1] : undefined, // 26.11.2026 chest HP, 27.11.2026 + level, Ausbau progress
-      sh: M ? this.shrooms.map(m => [m.id, m.k, r2(m.x), r2(m.z), r2(m.t0)]) : undefined, sm: M ? this.shStock.slice() : undefined, fe: FM ? T.map(t => fertLv(st, t.id)) : undefined, // 27.11.2026 Wildpilze, stock, Dünger
+      sh: M ? this.shrooms.map(m => m.pk ? [m.id, m.k, r2(m.x), r2(m.z), r2(m.t0), r2(Math.min(1, m.pk / Math.max(.05, M.time ?? 1)))] : [m.id, m.k, r2(m.x), r2(m.z), r2(m.t0)]) : undefined, /* 28.11.2026 6th: picked 0..1 */ sm: M ? this.shStock.slice() : undefined, fe: FM ? T.map(t => fertLv(st, t.id)) : undefined, // 27.11.2026 Wildpilze, stock, Dünger
       xo: this.xorbs.map(o => [o.id, r2(o.x), r2(o.y), r2(o.z)]), // 26.11.2026 Myzel-XP orbs
       fu: FRUITS.map(t => this.fieldLv[t] ?? 0), mp: this.mycPend,
       rd: ns.map(n => nodeDone(this.cfg, st, n.id) ? 1 : 0),

@@ -34,6 +34,7 @@ export interface PSnap {
   ht?: number; // Körner-MP heat 0..1 (+2 while overheated), absent when cold
   /** 25.11.2026 Werkbank: 1 = hammering at the bench right now (hammer animation + grey dust), 2 = working at the chest (26.11.2026), absent = no */
   bw?: 0 | 1 | 2 | 3; // 3 = composting (27.11.2026)
+  pk?: 1; // 28.11.2026 picking a wild mushroom
 }
 /** level-up card. hint: short explanation under upgrade values; wp: weapon unlock card (big, glowing), its lines are stat chips, fx: special effect */
 export interface Offer { key: string; cat: 'skill' | 'field' | 'plant' | 'misc'; pic: string; title: string; lines: string[]; hint?: string; wp?: string; fx?: string; combo?: string;

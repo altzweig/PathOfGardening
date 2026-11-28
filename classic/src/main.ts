@@ -152,8 +152,8 @@ class Game {
     click('#cheatClose', () => this.toggleCheat());
     this.input.onCheat = () => this.toggleCheat();
     this.input.onKeysToggle = () => this.hud.toggleKeys();
-    this.tut = new Tutorial(this.input);
-    this.tut.onSkip = () => { if (this.sim) this.sim.tutPause = false; if (this.opTab === 'game' && !$('#options').hidden) this.opShow('game'); };
+    this.tut = new Tutorial(this.input, this.view);
+    this.tut.onSkip = () => { if (this.sim) this.sim.tutPause = this.sim.tutHold = false; if (this.opTab === 'game' && !$('#options').hidden) this.opShow('game'); };
     click('#coopBtn', () => { $('#coopErr').hidden = true; only('#coop'); });
     click('#coopBack', () => only('#menu'));
     click('#optBtn', () => this.openOptions('#menu'));
@@ -678,7 +678,7 @@ class Game {
     else if (frozen !== this.frozen) { this.frozen = frozen; sfx(frozen ? 'ui.pauseIn' : 'ui.pauseOut'); }
     if (s && this.mode !== 'idle') { this.hud.update(s, this.me, null); void researchBar; /* 26.11.2026 the XP orb / bar shows XP and the level again (Werkbank progress: sign at the bench) */ this.tree.update(s, this.me, this.view.cfg); { const menu = !$('#pause').hidden || !$('#cheat').hidden || !$('#options').hidden || this.building || this.shop.open || this.tree.open;
         this.tut.update(s, this.me, this.view.cfg, s.me[this.me]?.of?.map(o => o.key) ?? null, menu);
-        if (this.sim && this.mode === 'solo') this.sim.tutPause = this.tut.pause; } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); this.syncRsWho(s); }
+        if (this.sim && this.mode === 'solo') { this.sim.tutPause = this.tut.pause; this.sim.tutHold = this.tut.holdWave; } } this.hud.updateWave(s, this.view.cfg.waves, this.view.cfg.dayNight?.dayWaves ?? 0); this.hud.updateAmmo(s, this.me, dt, this.view.playerScreen(), this.view.cfg.hud.ammo); this.syncPhase(s); this.syncShop(s); this.syncRsWho(s); }
     else { (document.getElementById('ammoPop') as HTMLElement).style.opacity = '0'; this.tut.hide(); }
     if (this.building) this.measureBuildInset();
     this.view.frame(dt);

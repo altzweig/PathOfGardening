@@ -1469,3 +1469,83 @@ body.rsOpen #btns,body.rsOpen .stick,body.rsOpen #ammoPop,body.rsOpen #wcd,body.
 .wchip.chestUp s u{background:linear-gradient(90deg,#e3b964,#fff0b8)}
 .wchip .fi{position:relative;width:24px;height:24px}.wchip .fi>svg{width:100%;height:100%;display:block}.wchip .fi i{position:absolute;left:-5px;bottom:-5px;width:14px;height:14px}
 @media (max-width:720px),(max-height:520px){.wchip{font-size:11px;padding:3px 6px;gap:4px}.wchip i{width:17px;height:17px}.wchip s{width:40px}}
+
+/* 28.11.2026 (Basti) tutorial "show, don't tell": Weiter button, arrow onto the target, arrow at the player, ghost move stick / W A S D,
+   highlighted button with the rest of the HUD greyed out, picture cards */
+#tut.rsm{display:flex;align-items:center;gap:12px;padding:8px 8px 8px 18px}
+#tut.rsm .tutTx{display:flex;align-items:center;gap:10px}
+#tut.rsm.card{display:block;padding:16px 20px 12px}
+#tut .tutNext{pointer-events:auto;display:inline-flex;align-items:center;gap:4px;padding:6px 10px 6px 14px;border-radius:10px;border:1.5px solid #e3b96499;background:#1c242c;color:#efe3c8;font:700 clamp(13px,1.7vh,16px)/1 var(--f-body);cursor:pointer;touch-action:manipulation;white-space:nowrap}
+#tut .tutNext svg{width:15px;height:15px}
+#tut .tutNext:hover{background:#2a343e;border-color:#e3b964}
+#tut .tutNx{display:flex;justify-content:flex-end;margin-top:10px}
+#tut .tutIco,#tut .tutMouse{display:inline-block;width:22px;height:30px;flex:none}
+#tut .tutIco svg,#tut .tutMouse svg{width:100%;height:100%;display:block}
+#tut .tutMB{animation:tutMB .9s steps(1) infinite}
+@keyframes tutMB{50%{fill:#5a4a1c}}
+#tut kbd.tutHoldK{background:linear-gradient(#e3b964,#e3b964) left/0% 100% no-repeat,#2b3540;animation:tutHoldK 1.6s linear infinite}
+@keyframes tutHoldK{0%{background-size:0 100%;color:#efe3c8}80%{background-size:100% 100%;color:#1a1206}100%{background-size:100% 100%;color:#1a1206}}
+#tut.mid.card{bottom:auto;top:50%;transform:translate(-50%,calc(-50% + 10px));max-width:min(860px,94vw)}
+#tut.mid.card.on{transform:translate(-50%,-50%)}
+body[data-input=touch] #tut.mid.card{top:50%;max-width:94vw}
+.tutT{font:400 clamp(22px,3.2vh,32px)/1.1 var(--f-display);color:#ffd890;margin-bottom:12px}
+.tutFlow{display:flex;align-items:center;justify-content:center;gap:clamp(4px,1vw,12px);flex-wrap:wrap}
+.tutFS{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:64px}
+.tutFS small{font:700 clamp(11px,1.5vh,14px)/1.2 var(--f-body);color:#e9ddc2cc;max-width:120px}
+.tutFI{display:flex;align-items:center;justify-content:center;height:clamp(40px,7vh,60px)}
+.tutFI i,.tutPair i{display:block;width:clamp(38px,6.6vh,56px);height:clamp(38px,6.6vh,56px)}
+.tutFI i svg,.tutPair i svg{width:100%;height:100%;display:block}
+.tutPair{display:flex;align-items:center;gap:4px}
+.tutPair i+i{margin-left:-6px}
+.tutFI .tutBtnG{border-radius:50%;background:radial-gradient(circle at 40% 30%,#3a434c,#12181e 75%);border:2px solid #e3b964;display:grid;place-items:center;animation:tutPress 1.6s ease-in-out infinite}
+.tutFI .tutBtnG svg{width:62%;height:62%}
+@keyframes tutPress{0%,100%{transform:scale(1)}15%,75%{transform:scale(.88);box-shadow:0 0 14px #ffd76a}}
+.tutFA{display:block;width:clamp(18px,2.6vh,26px);height:clamp(18px,2.6vh,26px);flex:none;align-self:flex-start;margin-top:clamp(12px,2.2vh,20px)}
+.tutFA svg{width:100%;height:100%;display:block}
+@media (max-height:430px){.tutT{margin-bottom:6px}.tutFS{min-width:52px}}
+/* arrow bouncing down onto the field / bench / animal */
+#tutPt{position:fixed;z-index:38;width:40px;height:52px;margin:-58px 0 0 -20px;pointer-events:none;opacity:0;transition:opacity .3s;filter:drop-shadow(0 3px 4px #000c)}
+#tutPt.on{opacity:1}
+#tutPt svg{width:100%;height:100%;display:block;animation:tutBob .8s ease-in-out infinite alternate}
+#tutPt.foe path{fill:#ff7a5a}
+@keyframes tutBob{from{transform:translateY(-14px)}to{transform:translateY(0)}}
+/* arrow next to the player: where to walk */
+#tutDir{position:fixed;z-index:38;width:48px;height:32px;pointer-events:none;opacity:0;transition:opacity .3s;filter:drop-shadow(0 2px 3px #000c)}
+#tutDir.on{opacity:.95}
+#tutDir svg{width:100%;height:100%;display:block;animation:tutNudge .7s ease-in-out infinite alternate}
+@keyframes tutNudge{to{transform:translateX(10px)}}
+/* touch: ghost move stick tilting towards the target (appears where the left thumb goes) */
+#tutStick{position:fixed;z-index:38;left:calc(env(safe-area-inset-left,0px) + 120px);bottom:calc(env(safe-area-inset-bottom,0px) + 70px);width:124px;height:124px;border-radius:50%;border:2px solid #e3b964aa;background:radial-gradient(circle,#0b101688,#0b101633);pointer-events:none;opacity:0;transform:scale(.6);transition:opacity .4s,transform .4s cubic-bezier(.3,1.4,.5,1)}
+#tutStick.on{opacity:1;transform:none}
+#tutStick .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#f1d9a0,#a4813f);box-shadow:0 0 18px #ffd76a99;animation:tutKnob 2s ease-in-out infinite}
+#tutStick .tutFinger{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:#fff6;border:2px solid #fffc;animation:tutKnob 2s ease-in-out infinite}
+#tutStick .tutChev{position:absolute;left:50%;top:50%;width:150px;height:22px;margin:-11px 0 0 -75px;pointer-events:none}
+#tutStick .tutChev svg{position:absolute;right:-8px;top:0;width:22px;height:22px;animation:tutNudge .7s ease-in-out infinite alternate}
+@keyframes tutKnob{0%,12%{transform:translate(0,0)}40%,80%{transform:translate(var(--dx,0),var(--dy,0))}100%{transform:translate(0,0)}}
+@media (orientation:portrait){#tutStick{left:calc(env(safe-area-inset-left,0px) + 60px);bottom:calc(env(safe-area-inset-bottom,0px) + 150px)}}
+/* PC: W A S D with the keys of the way lighting up */
+#tutKeys{position:fixed;z-index:38;left:calc(var(--orb,200px) * 1.05 + 30px);bottom:calc(var(--orb,200px) * .55);display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:44px 44px;gap:6px;pointer-events:none;opacity:0;transition:opacity .4s}
+#tutKeys.on{opacity:1}
+#tutKeys kbd{display:grid;place-items:center;border-radius:8px;background:#2b3540;border:2px solid #e3b96466;box-shadow:0 4px 0 #0a0d10;color:#efe3c8;font:700 16px var(--f-body)}
+#tutKeys kbd:nth-child(1){grid-column:2;grid-row:1}#tutKeys kbd:nth-child(2){grid-column:1;grid-row:2}#tutKeys kbd:nth-child(3){grid-column:2;grid-row:2}#tutKeys kbd:nth-child(4){grid-column:3;grid-row:2}
+#tutKeys kbd.p{border-color:#ffd76a;animation:tutKey 1s ease-in-out infinite}
+@keyframes tutKey{0%,20%{transform:none;box-shadow:0 4px 0 #0a0d10;background:#2b3540;color:#efe3c8}35%,85%{transform:translateY(3px);box-shadow:0 1px 0 #0a0d10,0 0 16px #ffd76a;background:#e3b964;color:#1a1206}}
+/* highlighted button, the rest of the HUD greyed out */
+#hud .orb,#res,#topbar>*,#btns>*,#wbar .wg>*,#wcd,#ammoPop{transition:filter .35s}
+body.tutFocus :is(#hud .orb,#res,#topbar>:not(.tutHi),#btns>:not(.tutHi),#wbar .wg>:not(.tutHi),#wcd){filter:grayscale(1) brightness(.45)}
+.tutHi{z-index:5}
+.skill.tutHi{transform:scale(1.12)}
+.skill.tutHi::after,#rsBtn.tutHi::after,#wbar .ws.tutHi::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:3px solid #ffd76a;pointer-events:none;animation:tutRing 1.1s ease-out infinite}
+#rsBtn.tutHi,#wbar .ws.tutHi{position:relative;overflow:visible}
+#rsBtn.tutHi::after,#wbar .ws.tutHi::after{border-radius:12px}
+@keyframes tutRing{from{transform:scale(.92);opacity:1}to{transform:scale(1.25);opacity:0}}
+@property --tp{syntax:'<number>';inherits:false;initial-value:0}
+.skill.tutHoldB::before{content:"";position:absolute;inset:-7px;border-radius:50%;z-index:2;pointer-events:none;background:conic-gradient(#ffd76a calc(var(--tp) * 1turn),#ffffff1a 0);-webkit-mask:radial-gradient(circle,transparent 63%,#000 65%);mask:radial-gradient(circle,transparent 63%,#000 65%);animation:tutFill 1.6s linear infinite}
+@keyframes tutFill{0%{--tp:0}80%,100%{--tp:1}}
+@media (prefers-reduced-motion:reduce){#tutPt svg,#tutDir svg,#tutStick .knob,#tutStick .tutFinger,.skill.tutHi::after{animation-duration:3s}}
+body[data-input=touch] #tut.nearBtn{left:auto;right:var(--nr);top:var(--nt);bottom:auto;transform:translate(10px,-50%);max-width:min(380px,calc(100vw - var(--nr) - 16px))}
+body[data-input=touch] #tut.nearBtn.on{transform:translate(0,-50%)}
+#tut.mid.card{width:max-content}
+@media (min-width:700px){.tutFlow{flex-wrap:nowrap}}
+#tut.mid.card{box-sizing:border-box}
+@media (orientation:landscape){body[data-input=touch] #tut.rsm:not(.card):not(.nearBtn){top:calc(env(safe-area-inset-top,0px) + 56px)}}
